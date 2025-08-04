@@ -1,0 +1,15 @@
+	
+	qui cap drop country
+	qui gen country = "`country'"
+	qui sum average
+	local 	mean_income = r(mean)
+
+	qui gen s_function 		= 1 - p	 
+	qui gen ln_s 			= ln(1/s_function)
+	qui gen	ln_inc_`year'	= ln(thr / `mean_income')
+
+	qui keep ln_inc_`year' ln_s country
+	qui save ``country'_`year''
+
+	clear
+	qui erase "$data/CHL/wages-`country'_`x'.dta" 

@@ -1,0 +1,46 @@
+StataFileTM:00001:01100:GREC:                          :
+00005:00004:00001:
+*! classname: twowaygraph_g
+*! family: twoway
+*! date:  1 Nov 2019
+*! time: 16:17:51
+*! graph_scheme: s2color
+*! naturallywhite: 1
+*! end
+
+// File created by Graph Editor Recorder.
+// Edit only if you know what you are doing.
+
+.style.editstyle boxstyle(shadestyle(color(white))) editcopy
+.style.editstyle boxstyle(linestyle(color(white))) editcopy
+// Graph color
+
+.xaxis1.reset_rule 2000 2017 4 , tickset(major) ruletype(range) 
+// xaxis1 edits
+
+.xaxis1.title.text = {}
+.xaxis1.title.text.Arrpush BRA
+// title edits
+
+.legend.plotregion1.label[1].text = {}
+.legend.plotregion1.label[1].text.Arrpush bot 50%
+// label[1] edits
+
+.legend.plotregion1.label[2].text = {}
+.legend.plotregion1.label[2].text.Arrpush mid 40%
+// label[2] edits
+
+.legend.plotregion1.label[3].text = {}
+.legend.plotregion1.label[3].text.Arrpush top 10%
+// label[3] edits
+
+.legend.plotregion1.label[4].text = {}
+.legend.plotregion1.label[4].text.Arrpush top 1%
+// label[4] edits
+
+.legend.plotregion1.label[5].text = {}
+.legend.plotregion1.label[5].text.Arrpush Gini
+// label[5] edits
+
+
+// <end>

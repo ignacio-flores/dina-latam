@@ -1,0 +1,50 @@
+StataFileTM:00001:01100:GREC:                          :
+00005:00004:00001:
+*! classname: twowaygraph_g
+*! family: twoway
+*! date: 14 Nov 2019
+*! time: 23:22:19
+*! graph_scheme: s2color
+*! naturallywhite: 1
+*! end
+
+// File created by Graph Editor Recorder.
+// Edit only if you know what you are doing.
+
+.style.editstyle boxstyle(shadestyle(color(white))) editcopy
+.style.editstyle boxstyle(linestyle(color(white))) editcopy
+// Graph color
+
+.xaxis1.reset_rule 2000 2017 4 , tickset(major) ruletype(range) 
+// xaxis1 edits
+
+.xaxis1.title.text = {}
+.xaxis1.title.text.Arrpush Gini Index
+// title edits
+
+.legend.plotregion1.label[1].text = {}
+.legend.plotregion1.label[1].text.Arrpush World Bank (per cap house.)
+// label[1] edits
+
+.legend.plotregion1.label[2].text = {}
+.legend.plotregion1.label[2].text.Arrpush Total pers. inc. (ECLAC)
+// label[2] edits
+
+.legend.plotregion1.label[3].text = {}
+.legend.plotregion1.label[3].text.Arrpush ECLAC (per cap house. adults)
+// label[3] edits
+
+.legend.plotregion1.label[4].text = {}
+.legend.plotregion1.label[4].text.Arrpush ECLAC (per cap house)
+// label[4] edits
+
+.legend.plotregion1.label[5].text = {}
+.legend.plotregion1.label[5].text.Arrpush Total pers. inc. no imput. (ECLAC)
+// label[5] edits
+
+.legend.plotregion1.label[6].text = {}
+.legend.plotregion1.label[6].text.Arrpush Tot. pers. inc (ECLAC var)
+// label[6] edits
+
+
+// <end>
