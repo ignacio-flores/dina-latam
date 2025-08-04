@@ -1,12 +1,5 @@
 ////////////////////////////////////////////////////////////////////////////////
-//
-// 					Title: IMPORT TAX COMPOSITION TO MACRO DATABASE
-// 			 Authors: Mauricio DE ROSA, Ignacio FLORES, Marc MORGAN 
-// 									Year: 2020
-//
-// 			Description:
-// 			Bring tax data from OECD-CIAT-CEPAL 2021
-//
+// 			Bring tax data from OECD-CIAT-CEPAL 
 ////////////////////////////////////////////////////////////////////////////////
 
 //General 
@@ -14,7 +7,7 @@ clear all
 
 //Paths to files 
 global aux_part  ""preliminary"" 
-qui do "code/Do-files/auxiliar/aux_general.do"
+qui do "code/Stata/auxiliar/aux_general.do"
 
 //define language 
 local lang $lang
@@ -23,7 +16,7 @@ local unit $unit
 //0. Clean data ----------------------------------------------------------------
 
 *bring newest 
-qui import delimited "${tax_comp}tot_tax_pct_gdp_2024.csv" ,  clear
+qui import delimited "primary_data/OECD-CIAT-CEPAL/tot_tax_pct_gdp_2024.csv" ,  clear
 qui keep ref_area time_period obs_value revenue_code 
 qui rename (ref_area time_period obs_value)(country year c) 
 qui reshape wide c, i(country year) j(revenue_code) string
@@ -49,7 +42,7 @@ qui drop if missing(country)
 qui save `tf_newer'
 
 *import longer series 
-qui import excel "${tax_comp}tot_tax_pct_gdp_2023.xlsx" , ///
+qui import excel "primary_data/OECD-CIAT-CEPAL/tot_tax_pct_gdp_2023.xlsx" , ///
 	cellrange(A4:BQ998) sheet("OECD.Stat export") firstrow clear
 
 *rename variables 
@@ -150,7 +143,7 @@ xtline `pers_over_inc' if ///
 
 *1. Exploratory graphs ---------------------------------------------------------
 global aux_part  ""graph_basics"" 
-qui do "code/Do-files/auxiliar/aux_general.do"
+qui do "code/Stata/auxiliar/aux_general.do"
 
 *define list of taxes 
 *capital gains is always very low (incl in 1100)
@@ -196,7 +189,7 @@ graph twoway `posi_areas' `nega_areas' ///
 	xtit("") ytit("Share of GDP") legend(order(/*`leg_posi'*/ 0 "")) ///
 	$graph_scheme 
 	//save
-qui graph export "figures/taxes/decomp_taxes_gdp.pdf", replace
+qui graph export "output/figures/total-taxes/decomp_taxes_gdp.pdf", replace
 
 * with legend
 graph twoway `posi_areas' `nega_areas' ///
@@ -206,7 +199,7 @@ graph twoway `posi_areas' `nega_areas' ///
 	xtit("") ytit("Share of GDP") legend(order(`leg_posi')) ///
 	$graph_scheme 
 	//save
-qui graph export "figures/taxes/legend.pdf", replace
+qui graph export "output/figures/total-taxes/legend.pdf", replace
 restore
 
 //2. Merge OECD to UN data and compare totals------------------------------
@@ -214,7 +207,7 @@ restore
 // Recover 3-letter iso codes and gdp 
 preserve
 	qui use year country iso_long if !missing(country) ///
-		using "Data/national_accounts/sna-all-countries.dta", clear
+		using "intermediary_data/national_accounts/sna-all-countries.dta", clear
 	sort country year
 	drop if year==year[_n-1]
 	rename country iso
@@ -234,11 +227,12 @@ rename iso country
 drop if inlist(country_long, ///
 	"OECD - Average", "Non-OECD Economies", /// 
 	 "Other Groups", "Latin America and the Caribbean")
-qui save "${tax_tots}", replace
+tempfile tax_tots	 
+qui save `tax_tots', replace
 
 //Merge OECD and UN databases
-qui use "${sna_wid_merged}", clear
-qui merge m:m country year using "${tax_tots}", nogen
+qui use "intermediary_data/national_accounts/UNDATA-WID-Merged.dta", clear
+qui merge m:m country year using `tax_tots', nogen
 
 //Keep relevant countries 
 tempvar discriminate 
@@ -351,14 +345,14 @@ foreach v in "tot" "pit_tot" "pit_corp" "pit_hh" "ssc" "indg" {
 		legend(order(1 "UN" 2 "OECD")) xtit("") ///
 		ytit("${lab_`v'}, % of GDP") $graph_scheme 
 	//save
-	qui graph export "figures/taxes/`v'.pdf", replace
+	qui graph export "output/figures/total-taxes/`v'.pdf", replace
 }
 
 *also the ratio 
 qui gen ratio_tax_tot = tax_tot_un_gdp / tax_tot_oecd_gdp
 
 //save dataset
-qui save "${sna_wid_oecd}", replace
+qui save "intermediary_data/national_accounts/UNDATA-WID-OECD-Merged.dta", replace
 
 
 

@@ -128,10 +128,7 @@ if $aux_part == "preliminary" {
 	global govt_exp Data/expenditure_all_countries.dta
 	
 	//Paths to export graphs 
-	global project_path capture cd "~/Dropbox/DINA-LatAm/"
 	global figs_path "figures/`type'/snacompare"
-	global overleaf_path capture cd ///
-		"~/Dropbox/Aplicaciones/Overleaf/More Unequal or Not as Rich/Figures"
 	
 	//lists of countries 
 	global areas_wid_latam  ///

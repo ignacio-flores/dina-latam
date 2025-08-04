@@ -70,7 +70,7 @@ foreach IS in `all_IS' {
 		qui label var `IS'_`i' "`lab_item_`i''"
 	}
 	
-	//Save and merge sna-all-countries together
+	//Save and merge
 	if (`iter' == 0) {
 		qui mer 1:m iso year series using "`tf_merge1'", nogenerate 
 	}
@@ -607,7 +607,6 @@ restore
 qui merge m:1 iso year using `tf_oecd1', nogenerate  
 
 //Save 
-//qui save "Data/national_accounts/sna-all-countries.dta", replace 
 tempfile last 
 qui save `last'
 
@@ -623,5 +622,5 @@ qui merge 1:m iso using `last', keep(match) nogenerate
 //cosmetics and save 	
 order iso_long iso series year
 sort iso series year 	
-//qui save "Data/national_accounts/sna-all-countries.dta", replace 	
+qui save "intermediary_data/national_accounts/sna-all-countries.dta", replace 	
 

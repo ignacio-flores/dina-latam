@@ -474,7 +474,7 @@ foreach var in $list_ratios {
 		ytitle("`lab_`var''") xtitle("") ///
 		yline(`avg', lcolor(black*0.3) lwidth(thick)) ///
 		ylabels(`ylabs', $ylab_opts_white ) ///
-		xlabels(1995(5)2020, $xlab_opts_white ) $graph_scheme
+		xlabels(1995(5)2025, $xlab_opts_white ) $graph_scheme
 	qui graph export "output/figures/cei/`var'.pdf", replace 	
 	qui graph export "output/figures/cei/`var'.png", replace 
 
@@ -486,7 +486,7 @@ qui rename country _ISO3C_
 qui save `savetomerge', replace 
 
 *open SNA file 
-qui use $sna_wid_merged, clear 
+qui use "intermediary_data/national_accounts/UNDATA-WID-Merged.dta", clear 
 
 *merge with SNA data
 qui merge m:1 _ISO3C_ year using `savetomerge' , nogen update replace
@@ -496,5 +496,5 @@ qui replace B2g_cei = . if country == "ECU" & year <= 2017
 qui replace HH_B2g_R = . if country == "ECU" & year <= 2017
 
 //save
-qui save $sna_wid_merged , replace  
+qui save "intermediary_data/national_accounts/UNDATA-WID-Merged.dta" , replace  
 

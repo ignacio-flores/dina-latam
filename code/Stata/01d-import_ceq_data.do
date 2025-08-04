@@ -4,7 +4,7 @@
 
 //preliminary
 global aux_part  ""preliminary"" 
-qui do "code/Do-files/auxiliar/aux_general.do"
+qui do "code/Stata/auxiliar/aux_general.do"
 
 //I. Cleaning and descriptives  ..............................................
 
@@ -14,6 +14,7 @@ local DOM_year 2007
 local DOM_cellr FR8:HG138
 local sheet "E11.m+p FiscalInterventions"
 local fname "DOM13WBR_PDI_E11_2011PPP_28Jul2020"
+
 *chose variables without ssc 
 qui import excel using ///
 	"${ceq}E-sheets_LATAM_July18_2021/`c'/``c'_year'/PDI/`fname'.xlsx", ///
