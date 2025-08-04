@@ -95,8 +95,8 @@ if $aux_part == "preliminary" {
 	global efftaxes results/eff_taxes/
 	global svypath Data/CEPAL/surveys/
 	global taxpath Data/Tax-data/
-	global auxpath code/Do-files/auxiliar/
-	global adofile code/Do-files/ado_files/
+	global auxpath code/Stata/auxiliar/
+	global adofile code/Stata/ado_files/
 	global all_thetas results/all_thetas.xlsx
 	global pseudo_thetas results/pseudo_thetas.xlsx
 	global mp_norep_pos results/bfm_norep_pos/merging_points.xlsx

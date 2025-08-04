@@ -7,10 +7,10 @@ clear all
 
 //get list of paths 
 global aux_part " "preliminary" " 
-qui do "code/Do-files/auxiliar/aux_general.do"
+qui do "code/Stata/auxiliar/aux_general.do"
 
 *prepare data for URY 
-qui do "code/Do-files/auxiliar/aux_sna_ury.do"
+qui do "code/Stata/auxiliar/aux_sna_ury.do"
 clear 
 
 //define some variables of interest 
@@ -49,7 +49,7 @@ local bcodes 2 3 5
 foreach c in $ctries_cei {
 	
 	//define country folder and file 
-	local folder_`c' "${sna_folder}country-data/`c'"
+	local folder_`c' "primary_data/sna_country_data/`c'"
 	if "`c'" == "BRA" local file_`c' "`folder_`c''/contas_economicas_a_precos_correntes_2000a2021.xls"
 	if inlist("`c'", "CHL", "PER") local file_`c' "`folder_`c''/CEI_merged"
 	*if "`c'" == "COL" local file_`c' "`folder_`c''/cuentas-economicas-integradas-2019provisional"
@@ -342,7 +342,7 @@ foreach c in $ctries_cei {
 
 //call graph basics  
 global aux_part " "graph_basics" " 
-do "code/Do-files/auxiliar/aux_general.do"
+do "code/Stata/auxiliar/aux_general.do"
 
 //make room for data 
 qui clear 
@@ -475,8 +475,8 @@ foreach var in $list_ratios {
 		yline(`avg', lcolor(black*0.3) lwidth(thick)) ///
 		ylabels(`ylabs', $ylab_opts_white ) ///
 		xlabels(1995(5)2020, $xlab_opts_white ) $graph_scheme
-	qui graph export "figures/sna/cei/`var'.pdf", replace 	
-	qui graph export "figures/sna/cei/`var'.png", replace 
+	qui graph export "output/figures/cei/`var'.pdf", replace 	
+	qui graph export "output/figures/cei/`var'.png", replace 
 
 }
 

@@ -12,8 +12,10 @@
 macro drop _all 
 clear all 
 
-*ssc install gtools mipolate quandl renvars xls2dta sgini // search dm88_1 
-*ineqdeco  wid  kountry genstack egenmore
+*ssc install gtools mipolate quandl xls2dta sgini  wid  kountry genstack egenmore
+// search dm88_1 (to download renvars) 
+
+// ineqdeco
 
 //list codes 
 ***********************************************************************

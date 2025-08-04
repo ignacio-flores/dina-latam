@@ -1,7 +1,6 @@
 # ---------------------------------------------------------------------------- #
 # Import and do some basic cleaning of the UN SNA data
 # ---------------------------------------------------------------------------- #
-setwd("~/Dropbox/LATAM-WIL/Data/")
 
 #Libraries
 library(readr)
@@ -15,6 +14,31 @@ library(haven)
 
 # Import all tables and normalize column names ------------------------------- #
 
+table_names <- c(
+  "Table 1.1: Gross domestic product by expenditures at current prices",
+  "Table 1.2: Gross domestic product by expenditures at constant prices",
+  "Table 1.3: Relations among product, income, savings, and net lending aggregates",
+  "Table 2.1: Value added by industries at current prices (ISIC Rev. 3)",
+  "Table 2.2: Value added by industries at constant prices (ISIC Rev. 3)",
+  "Table 2.3: Output, gross value added, and fixed assets by industries at current prices (ISIC Rev. 3)",
+  "Table 2.4: Value added by industries at current prices (ISIC Rev. 4)",
+  "Table 2.5: Value added by industries at constant prices (ISIC Rev. 4)",
+  "Table 2.6: Output, gross value added and fixed assets by industries at current prices (ISIC Rev. 4)",
+  "Table 3.1: Government final consumption expenditure by function at current prices",
+  "Table 3.2: Individual consumption expenditure of households, NPISHs, and general government at current prices",
+  "Table 4.1: Total Economy (S.1)",
+  "Table 4.2: Rest of the world (S.2)",
+  "Table 4.3: Non-financial Corporations (S.11)",
+  "Table 4.4: Financial Corporations (S.12)",
+  "Table 4.5: General Government (S.13)",
+  "Table 4.6: Households (S.14)",
+  "Table 4.7: Non-profit institutions serving households (S.15)",
+  "Table 4.8: Combined Sectors: Non-Financial and Financial Corporations (S.11 + S.12)",
+  "Table 4.9: Combined Sectors: Households and NPISH (S.14 + S.15)",
+  "Table 5.1: Cross classification of Gross value added by industries and institutional sectors (ISIC Rev. 3)",
+  "Table 5.2: Cross classification of Gross value added by industries and institutional sectors (ISIC Rev. 4)"
+)
+
 table_codes <- c(
     "101", "102", "103",
     "201", "202", "203", "204", "205", "206",
@@ -24,11 +48,7 @@ table_codes <- c(
 )
 
 un_tables <- lapply(table_codes, function(code) {
-    table <- read_csv(file.path(
-        "raw-data",
-        "un-national-accounts",
-        glue("{code}.csv.gz")
-    ))
+    table <- read_csv(file.path("primary_data/sna-un", glue("{code}.csv.gz")))
     table <- clean_names(table)
 
     # Datasets in constant currency use "Fiscal Year" instead of year: we
@@ -41,7 +61,7 @@ un_tables <- lapply(table_codes, function(code) {
 })
 
 # Identify country 2-letter ISO codes ---------------------------------------- #
-iso_dict <- read_excel(file.path("raw-data", "iso-codes-dict.xlsx"), sheet = "UN_SNA")
+iso_dict <- read_excel(file.path("primary_data/sna-un", "iso-codes-dict.xlsx"), sheet = "UN_SNA")
 
 un_tables %<>% llply(function(table) {
     table %<>%
@@ -580,7 +600,7 @@ names(un_tables) <- table_codes
 
 for (i in seq_along(un_tables)) {
     name <- table_names[i]
-    write_dta(un_tables[[i]], paste0("raw-data/un-national-accounts/", name, ".dta"))
+    write_dta(un_tables[[i]], paste0("primary_data/sna-un/_clean/", name, ".dta"))
 }
 
 remove(iso_dict)

@@ -1,0 +1,252 @@
+﻿Índice de nombres y contenido de archivos 
+ 
+CSI_3.xlsx|Cuentas institucionales de la economía, por sector|Precios corrientes en millones de pesos|2003
+CSI_4.xlsx|Cuentas institucionales de la economía, por sector|Precios corrientes en millones de pesos|2004
+CSI_5.xlsx|Cuentas institucionales de la economía, por sector|Precios corrientes en millones de pesos|2005
+CSI_6.xlsx|Cuentas institucionales de la economía, por sector|Precios corrientes en millones de pesos|2006
+CSI_7.xlsx|Cuentas institucionales de la economía, por sector|Precios corrientes en millones de pesos|2007
+CSI_8.xlsx|Cuentas institucionales de la economía, por sector|Precios corrientes en millones de pesos|2008
+CSI_9.xlsx|Cuentas institucionales de la economía, por sector|Precios corrientes en millones de pesos|2009
+CSI_10.xlsx|Cuentas institucionales de la economía, por sector|Precios corrientes en millones de pesos|2010
+CSI_11.xlsx|Cuentas institucionales de la economía, por sector|Precios corrientes en millones de pesos|2011
+CSI_12.xlsx|Cuentas institucionales de la economía, por sector|Precios corrientes en millones de pesos|2012
+CSI_13.xlsx|Cuentas institucionales de la economía, por sector|Precios corrientes en millones de pesos|2013
+CSI_14.xlsx|Cuentas institucionales de la economía, por sector|Precios corrientes en millones de pesos|2014
+CSI_15.xlsx|Cuentas institucionales de la economía, por sector|Precios corrientes en millones de pesos|2015
+CSI_16.xlsx|Cuentas institucionales de la economía, por sector|Precios corrientes en millones de pesos|2016
+CSI_17.xlsx|Cuentas institucionales de la economía, por sector|Precios corrientes en millones de pesos|2017
+CSI_18.xlsx|Cuentas institucionales de la economía, por sector|Precios corrientes en millones de pesos|2018
+CSI_19.xlsx|Cuentas institucionales de la economía, por sector|Precios corrientes en millones de pesos|2019
+CSI_20.xlsx|Cuentas institucionales de la economía, por sector|Precios corrientes en millones de pesos|2020
+CSI_21.xlsx|Cuentas institucionales de la economía, por sector|Precios corrientes en millones de pesos|2021
+CSI_22.xlsx|Cuentas institucionales de la economía, por sector|Precios corrientes en millones de pesos|2022
+CSI_25.xlsx|Cuentas institucionales de la economía, por sector|Relación de cada variable entre el PIB|Porcentaje|2003
+CSI_26.xlsx|Cuentas institucionales de la economía, por sector|Relación de cada variable entre el PIB|Porcentaje|2004
+CSI_27.xlsx|Cuentas institucionales de la economía, por sector|Relación de cada variable entre el PIB|Porcentaje|2005
+CSI_28.xlsx|Cuentas institucionales de la economía, por sector|Relación de cada variable entre el PIB|Porcentaje|2006
+CSI_29.xlsx|Cuentas institucionales de la economía, por sector|Relación de cada variable entre el PIB|Porcentaje|2007
+CSI_30.xlsx|Cuentas institucionales de la economía, por sector|Relación de cada variable entre el PIB|Porcentaje|2008
+CSI_31.xlsx|Cuentas institucionales de la economía, por sector|Relación de cada variable entre el PIB|Porcentaje|2009
+CSI_32.xlsx|Cuentas institucionales de la economía, por sector|Relación de cada variable entre el PIB|Porcentaje|2010
+CSI_33.xlsx|Cuentas institucionales de la economía, por sector|Relación de cada variable entre el PIB|Porcentaje|2011
+CSI_34.xlsx|Cuentas institucionales de la economía, por sector|Relación de cada variable entre el PIB|Porcentaje|2012
+CSI_35.xlsx|Cuentas institucionales de la economía, por sector|Relación de cada variable entre el PIB|Porcentaje|2013
+CSI_36.xlsx|Cuentas institucionales de la economía, por sector|Relación de cada variable entre el PIB|Porcentaje|2014
+CSI_37.xlsx|Cuentas institucionales de la economía, por sector|Relación de cada variable entre el PIB|Porcentaje|2015
+CSI_38.xlsx|Cuentas institucionales de la economía, por sector|Relación de cada variable entre el PIB|Porcentaje|2016
+CSI_39.xlsx|Cuentas institucionales de la economía, por sector|Relación de cada variable entre el PIB|Porcentaje|2017
+CSI_40.xlsx|Cuentas institucionales de la economía, por sector|Relación de cada variable entre el PIB|Porcentaje|2018
+CSI_41.xlsx|Cuentas institucionales de la economía, por sector|Relación de cada variable entre el PIB|Porcentaje|2019
+CSI_42.xlsx|Cuentas institucionales de la economía, por sector|Relación de cada variable entre el PIB|Porcentaje|2020
+CSI_43.xlsx|Cuentas institucionales de la economía, por sector|Relación de cada variable entre el PIB|Porcentaje|2021
+CSI_44.xlsx|Cuentas institucionales de la economía, por sector|Relación de cada variable entre el PIB|Porcentaje|2022
+CSI_47.xlsx|Cuentas institucionales de la economía, por sector y subsector|Precios corrientes en millones de pesos|2003
+CSI_48.xlsx|Cuentas institucionales de la economía, por sector y subsector|Precios corrientes en millones de pesos|2004
+CSI_49.xlsx|Cuentas institucionales de la economía, por sector y subsector|Precios corrientes en millones de pesos|2005
+CSI_50.xlsx|Cuentas institucionales de la economía, por sector y subsector|Precios corrientes en millones de pesos|2006
+CSI_51.xlsx|Cuentas institucionales de la economía, por sector y subsector|Precios corrientes en millones de pesos|2007
+CSI_52.xlsx|Cuentas institucionales de la economía, por sector y subsector|Precios corrientes en millones de pesos|2008
+CSI_53.xlsx|Cuentas institucionales de la economía, por sector y subsector|Precios corrientes en millones de pesos|2009
+CSI_54.xlsx|Cuentas institucionales de la economía, por sector y subsector|Precios corrientes en millones de pesos|2010
+CSI_55.xlsx|Cuentas institucionales de la economía, por sector y subsector|Precios corrientes en millones de pesos|2011
+CSI_56.xlsx|Cuentas institucionales de la economía, por sector y subsector|Precios corrientes en millones de pesos|2012
+CSI_57.xlsx|Cuentas institucionales de la economía, por sector y subsector|Precios corrientes en millones de pesos|2013
+CSI_58.xlsx|Cuentas institucionales de la economía, por sector y subsector|Precios corrientes en millones de pesos|2014
+CSI_59.xlsx|Cuentas institucionales de la economía, por sector y subsector|Precios corrientes en millones de pesos|2015
+CSI_60.xlsx|Cuentas institucionales de la economía, por sector y subsector|Precios corrientes en millones de pesos|2016
+CSI_61.xlsx|Cuentas institucionales de la economía, por sector y subsector|Precios corrientes en millones de pesos|2017
+CSI_62.xlsx|Cuentas institucionales de la economía, por sector y subsector|Precios corrientes en millones de pesos|2018
+CSI_63.xlsx|Cuentas institucionales de la economía, por sector y subsector|Precios corrientes en millones de pesos|2019
+CSI_64.xlsx|Cuentas institucionales de la economía, por sector y subsector|Precios corrientes en millones de pesos|2020
+CSI_65.xlsx|Cuentas institucionales de la economía, por sector y subsector|Precios corrientes en millones de pesos|2021
+CSI_66.xlsx|Cuentas institucionales de la economía, por sector y subsector|Precios corrientes en millones de pesos|2022
+CSI_69.xlsx|Cuentas institucionales de la economía, por sector y subsector|Relación de cada variable entre el PIB|Porcentaje|2003
+CSI_70.xlsx|Cuentas institucionales de la economía, por sector y subsector|Relación de cada variable entre el PIB|Porcentaje|2004
+CSI_71.xlsx|Cuentas institucionales de la economía, por sector y subsector|Relación de cada variable entre el PIB|Porcentaje|2005
+CSI_72.xlsx|Cuentas institucionales de la economía, por sector y subsector|Relación de cada variable entre el PIB|Porcentaje|2006
+CSI_73.xlsx|Cuentas institucionales de la economía, por sector y subsector|Relación de cada variable entre el PIB|Porcentaje|2007
+CSI_74.xlsx|Cuentas institucionales de la economía, por sector y subsector|Relación de cada variable entre el PIB|Porcentaje|2008
+CSI_75.xlsx|Cuentas institucionales de la economía, por sector y subsector|Relación de cada variable entre el PIB|Porcentaje|2009
+CSI_76.xlsx|Cuentas institucionales de la economía, por sector y subsector|Relación de cada variable entre el PIB|Porcentaje|2010
+CSI_77.xlsx|Cuentas institucionales de la economía, por sector y subsector|Relación de cada variable entre el PIB|Porcentaje|2011
+CSI_78.xlsx|Cuentas institucionales de la economía, por sector y subsector|Relación de cada variable entre el PIB|Porcentaje|2012
+CSI_79.xlsx|Cuentas institucionales de la economía, por sector y subsector|Relación de cada variable entre el PIB|Porcentaje|2013
+CSI_80.xlsx|Cuentas institucionales de la economía, por sector y subsector|Relación de cada variable entre el PIB|Porcentaje|2014
+CSI_81.xlsx|Cuentas institucionales de la economía, por sector y subsector|Relación de cada variable entre el PIB|Porcentaje|2015
+CSI_82.xlsx|Cuentas institucionales de la economía, por sector y subsector|Relación de cada variable entre el PIB|Porcentaje|2016
+CSI_83.xlsx|Cuentas institucionales de la economía, por sector y subsector|Relación de cada variable entre el PIB|Porcentaje|2017
+CSI_84.xlsx|Cuentas institucionales de la economía, por sector y subsector|Relación de cada variable entre el PIB|Porcentaje|2018
+CSI_85.xlsx|Cuentas institucionales de la economía, por sector y subsector|Relación de cada variable entre el PIB|Porcentaje|2019
+CSI_86.xlsx|Cuentas institucionales de la economía, por sector y subsector|Relación de cada variable entre el PIB|Porcentaje|2020
+CSI_87.xlsx|Cuentas institucionales de la economía, por sector y subsector|Relación de cada variable entre el PIB|Porcentaje|2021
+CSI_88.xlsx|Cuentas institucionales de la economía, por sector y subsector|Relación de cada variable entre el PIB|Porcentaje|2022
+CSI_92.xlsx|Serie por sector institucional|Bienes y servicios|Precios corrientes en millones de pesos|2003-2022
+CSI_95.xlsx|Serie por sector institucional|Economía interna|Precios corrientes en millones de pesos|2003-2022
+CSI_98.xlsx|Serie por sector institucional|Economía interna|Sociedades no financieras|Precios corrientes en millones de pesos|2003-2022
+CSI_101.xlsx|Serie por sector institucional|Economía interna|Sociedades financieras|Precios corrientes en millones de pesos|2003-2022
+CSI_104.xlsx|Serie por sector institucional|Economía interna|Gobierno general|Precios corrientes en millones de pesos|2003-2022
+CSI_107.xlsx|Serie por sector institucional|Economía interna|Hogares|Precios corrientes en millones de pesos|2003-2022
+CSI_110.xlsx|Serie por sector institucional|Economía interna|Instituciones sin fines de lucro al servicio de los hogares (ISFLSH)|Precios corrientes en millones de pesos|2003-2022
+CSI_113.xlsx|Serie por sector institucional|Resto del mundo|Precios corrientes en millones de pesos|2003-2022
+CSI_117.xlsx|Cuentas por subsector institucional|Sociedades no financieras|Precios corrientes en millones de pesos|2003
+CSI_118.xlsx|Cuentas por subsector institucional|Sociedades no financieras|Precios corrientes en millones de pesos|2004
+CSI_119.xlsx|Cuentas por subsector institucional|Sociedades no financieras|Precios corrientes en millones de pesos|2005
+CSI_120.xlsx|Cuentas por subsector institucional|Sociedades no financieras|Precios corrientes en millones de pesos|2006
+CSI_121.xlsx|Cuentas por subsector institucional|Sociedades no financieras|Precios corrientes en millones de pesos|2007
+CSI_122.xlsx|Cuentas por subsector institucional|Sociedades no financieras|Precios corrientes en millones de pesos|2008
+CSI_123.xlsx|Cuentas por subsector institucional|Sociedades no financieras|Precios corrientes en millones de pesos|2009
+CSI_124.xlsx|Cuentas por subsector institucional|Sociedades no financieras|Precios corrientes en millones de pesos|2010
+CSI_125.xlsx|Cuentas por subsector institucional|Sociedades no financieras|Precios corrientes en millones de pesos|2011
+CSI_126.xlsx|Cuentas por subsector institucional|Sociedades no financieras|Precios corrientes en millones de pesos|2012
+CSI_127.xlsx|Cuentas por subsector institucional|Sociedades no financieras|Precios corrientes en millones de pesos|2013
+CSI_128.xlsx|Cuentas por subsector institucional|Sociedades no financieras|Precios corrientes en millones de pesos|2014
+CSI_129.xlsx|Cuentas por subsector institucional|Sociedades no financieras|Precios corrientes en millones de pesos|2015
+CSI_130.xlsx|Cuentas por subsector institucional|Sociedades no financieras|Precios corrientes en millones de pesos|2016
+CSI_131.xlsx|Cuentas por subsector institucional|Sociedades no financieras|Precios corrientes en millones de pesos|2017
+CSI_132.xlsx|Cuentas por subsector institucional|Sociedades no financieras|Precios corrientes en millones de pesos|2018
+CSI_133.xlsx|Cuentas por subsector institucional|Sociedades no financieras|Precios corrientes en millones de pesos|2019
+CSI_134.xlsx|Cuentas por subsector institucional|Sociedades no financieras|Precios corrientes en millones de pesos|2020
+CSI_135.xlsx|Cuentas por subsector institucional|Sociedades no financieras|Precios corrientes en millones de pesos|2021
+CSI_136.xlsx|Cuentas por subsector institucional|Sociedades no financieras|Precios corrientes en millones de pesos|2022
+CSI_139.xlsx|Cuentas por subsector institucional|Sociedades financieras|Precios corrientes en millones de pesos|2003
+CSI_140.xlsx|Cuentas por subsector institucional|Sociedades financieras|Precios corrientes en millones de pesos|2004
+CSI_141.xlsx|Cuentas por subsector institucional|Sociedades financieras|Precios corrientes en millones de pesos|2005
+CSI_142.xlsx|Cuentas por subsector institucional|Sociedades financieras|Precios corrientes en millones de pesos|2006
+CSI_143.xlsx|Cuentas por subsector institucional|Sociedades financieras|Precios corrientes en millones de pesos|2007
+CSI_144.xlsx|Cuentas por subsector institucional|Sociedades financieras|Precios corrientes en millones de pesos|2008
+CSI_145.xlsx|Cuentas por subsector institucional|Sociedades financieras|Precios corrientes en millones de pesos|2009
+CSI_146.xlsx|Cuentas por subsector institucional|Sociedades financieras|Precios corrientes en millones de pesos|2010
+CSI_147.xlsx|Cuentas por subsector institucional|Sociedades financieras|Precios corrientes en millones de pesos|2011
+CSI_148.xlsx|Cuentas por subsector institucional|Sociedades financieras|Precios corrientes en millones de pesos|2012
+CSI_149.xlsx|Cuentas por subsector institucional|Sociedades financieras|Precios corrientes en millones de pesos|2013
+CSI_150.xlsx|Cuentas por subsector institucional|Sociedades financieras|Precios corrientes en millones de pesos|2014
+CSI_151.xlsx|Cuentas por subsector institucional|Sociedades financieras|Precios corrientes en millones de pesos|2015
+CSI_152.xlsx|Cuentas por subsector institucional|Sociedades financieras|Precios corrientes en millones de pesos|2016
+CSI_153.xlsx|Cuentas por subsector institucional|Sociedades financieras|Precios corrientes en millones de pesos|2017
+CSI_154.xlsx|Cuentas por subsector institucional|Sociedades financieras|Precios corrientes en millones de pesos|2018
+CSI_155.xlsx|Cuentas por subsector institucional|Sociedades financieras|Precios corrientes en millones de pesos|2019
+CSI_156.xlsx|Cuentas por subsector institucional|Sociedades financieras|Precios corrientes en millones de pesos|2020
+CSI_157.xlsx|Cuentas por subsector institucional|Sociedades financieras|Precios corrientes en millones de pesos|2021
+CSI_158.xlsx|Cuentas por subsector institucional|Sociedades financieras|Precios corrientes en millones de pesos|2022
+CSI_161.xlsx|Cuentas por subsector institucional|Gobierno general|Precios corrientes en millones de pesos|2003
+CSI_162.xlsx|Cuentas por subsector institucional|Gobierno general|Precios corrientes en millones de pesos|2004
+CSI_163.xlsx|Cuentas por subsector institucional|Gobierno general|Precios corrientes en millones de pesos|2005
+CSI_164.xlsx|Cuentas por subsector institucional|Gobierno general|Precios corrientes en millones de pesos|2006
+CSI_165.xlsx|Cuentas por subsector institucional|Gobierno general|Precios corrientes en millones de pesos|2007
+CSI_166.xlsx|Cuentas por subsector institucional|Gobierno general|Precios corrientes en millones de pesos|2008
+CSI_167.xlsx|Cuentas por subsector institucional|Gobierno general|Precios corrientes en millones de pesos|2009
+CSI_168.xlsx|Cuentas por subsector institucional|Gobierno general|Precios corrientes en millones de pesos|2010
+CSI_169.xlsx|Cuentas por subsector institucional|Gobierno general|Precios corrientes en millones de pesos|2011
+CSI_170.xlsx|Cuentas por subsector institucional|Gobierno general|Precios corrientes en millones de pesos|2012
+CSI_171.xlsx|Cuentas por subsector institucional|Gobierno general|Precios corrientes en millones de pesos|2013
+CSI_172.xlsx|Cuentas por subsector institucional|Gobierno general|Precios corrientes en millones de pesos|2014
+CSI_173.xlsx|Cuentas por subsector institucional|Gobierno general|Precios corrientes en millones de pesos|2015
+CSI_174.xlsx|Cuentas por subsector institucional|Gobierno general|Precios corrientes en millones de pesos|2016
+CSI_175.xlsx|Cuentas por subsector institucional|Gobierno general|Precios corrientes en millones de pesos|2017
+CSI_176.xlsx|Cuentas por subsector institucional|Gobierno general|Precios corrientes en millones de pesos|2018
+CSI_177.xlsx|Cuentas por subsector institucional|Gobierno general|Precios corrientes en millones de pesos|2019
+CSI_178.xlsx|Cuentas por subsector institucional|Gobierno general|Precios corrientes en millones de pesos|2020
+CSI_179.xlsx|Cuentas por subsector institucional|Gobierno general|Precios corrientes en millones de pesos|2021
+CSI_180.xlsx|Cuentas por subsector institucional|Gobierno general|Precios corrientes en millones de pesos|2022
+CSI_183.xlsx|Flujo de fondos detallados de activos|Precios corrientes en millones de pesos|2003
+CSI_184.xlsx|Flujo de fondos detallados de activos|Precios corrientes en millones de pesos|2004
+CSI_185.xlsx|Flujo de fondos detallados de activos|Precios corrientes en millones de pesos|2005
+CSI_186.xlsx|Flujo de fondos detallados de activos|Precios corrientes en millones de pesos|2006
+CSI_187.xlsx|Flujo de fondos detallados de activos|Precios corrientes en millones de pesos|2007
+CSI_188.xlsx|Flujo de fondos detallados de activos|Precios corrientes en millones de pesos|2008
+CSI_189.xlsx|Flujo de fondos detallados de activos|Precios corrientes en millones de pesos|2009
+CSI_190.xlsx|Flujo de fondos detallados de activos|Precios corrientes en millones de pesos|2010
+CSI_191.xlsx|Flujo de fondos detallados de activos|Precios corrientes en millones de pesos|2011
+CSI_192.xlsx|Flujo de fondos detallados de activos|Precios corrientes en millones de pesos|2012
+CSI_193.xlsx|Flujo de fondos detallados de activos|Precios corrientes en millones de pesos|2013
+CSI_194.xlsx|Flujo de fondos detallados de activos|Precios corrientes en millones de pesos|2014
+CSI_195.xlsx|Flujo de fondos detallados de activos|Precios corrientes en millones de pesos|2015
+CSI_196.xlsx|Flujo de fondos detallados de activos|Precios corrientes en millones de pesos|2016
+CSI_197.xlsx|Flujo de fondos detallados de activos|Precios corrientes en millones de pesos|2017
+CSI_198.xlsx|Flujo de fondos detallados de activos|Precios corrientes en millones de pesos|2018
+CSI_199.xlsx|Flujo de fondos detallados de activos|Precios corrientes en millones de pesos|2019
+CSI_200.xlsx|Flujo de fondos detallados de activos|Precios corrientes en millones de pesos|2020
+CSI_201.xlsx|Flujo de fondos detallados de activos|Precios corrientes en millones de pesos|2021
+CSI_202.xlsx|Flujo de fondos detallados de activos|Precios corrientes en millones de pesos|2022
+CSI_205.xlsx|Flujo de fondos detallados de activos|Relación de cada variable entre el PIB|Porcentaje|2003
+CSI_206.xlsx|Flujo de fondos detallados de activos|Relación de cada variable entre el PIB|Porcentaje|2004
+CSI_207.xlsx|Flujo de fondos detallados de activos|Relación de cada variable entre el PIB|Porcentaje|2005
+CSI_208.xlsx|Flujo de fondos detallados de activos|Relación de cada variable entre el PIB|Porcentaje|2006
+CSI_209.xlsx|Flujo de fondos detallados de activos|Relación de cada variable entre el PIB|Porcentaje|2007
+CSI_210.xlsx|Flujo de fondos detallados de activos|Relación de cada variable entre el PIB|Porcentaje|2008
+CSI_211.xlsx|Flujo de fondos detallados de activos|Relación de cada variable entre el PIB|Porcentaje|2009
+CSI_212.xlsx|Flujo de fondos detallados de activos|Relación de cada variable entre el PIB|Porcentaje|2010
+CSI_213.xlsx|Flujo de fondos detallados de activos|Relación de cada variable entre el PIB|Porcentaje|2011
+CSI_214.xlsx|Flujo de fondos detallados de activos|Relación de cada variable entre el PIB|Porcentaje|2012
+CSI_215.xlsx|Flujo de fondos detallados de activos|Relación de cada variable entre el PIB|Porcentaje|2013
+CSI_216.xlsx|Flujo de fondos detallados de activos|Relación de cada variable entre el PIB|Porcentaje|2014
+CSI_217.xlsx|Flujo de fondos detallados de activos|Relación de cada variable entre el PIB|Porcentaje|2015
+CSI_218.xlsx|Flujo de fondos detallados de activos|Relación de cada variable entre el PIB|Porcentaje|2016
+CSI_219.xlsx|Flujo de fondos detallados de activos|Relación de cada variable entre el PIB|Porcentaje|2017
+CSI_220.xlsx|Flujo de fondos detallados de activos|Relación de cada variable entre el PIB|Porcentaje|2018
+CSI_221.xlsx|Flujo de fondos detallados de activos|Relación de cada variable entre el PIB|Porcentaje|2019
+CSI_222.xlsx|Flujo de fondos detallados de activos|Relación de cada variable entre el PIB|Porcentaje|2020
+CSI_223.xlsx|Flujo de fondos detallados de activos|Relación de cada variable entre el PIB|Porcentaje|2021
+CSI_224.xlsx|Flujo de fondos detallados de activos|Relación de cada variable entre el PIB|Porcentaje|2022
+CSI_227.xlsx|Flujo de fondos detallados de pasivos|Precios corrientes en millones de pesos|2003
+CSI_228.xlsx|Flujo de fondos detallados de pasivos|Precios corrientes en millones de pesos|2004
+CSI_229.xlsx|Flujo de fondos detallados de pasivos|Precios corrientes en millones de pesos|2005
+CSI_230.xlsx|Flujo de fondos detallados de pasivos|Precios corrientes en millones de pesos|2006
+CSI_231.xlsx|Flujo de fondos detallados de pasivos|Precios corrientes en millones de pesos|2007
+CSI_232.xlsx|Flujo de fondos detallados de pasivos|Precios corrientes en millones de pesos|2008
+CSI_233.xlsx|Flujo de fondos detallados de pasivos|Precios corrientes en millones de pesos|2009
+CSI_234.xlsx|Flujo de fondos detallados de pasivos|Precios corrientes en millones de pesos|2010
+CSI_235.xlsx|Flujo de fondos detallados de pasivos|Precios corrientes en millones de pesos|2011
+CSI_236.xlsx|Flujo de fondos detallados de pasivos|Precios corrientes en millones de pesos|2012
+CSI_237.xlsx|Flujo de fondos detallados de pasivos|Precios corrientes en millones de pesos|2013
+CSI_238.xlsx|Flujo de fondos detallados de pasivos|Precios corrientes en millones de pesos|2014
+CSI_239.xlsx|Flujo de fondos detallados de pasivos|Precios corrientes en millones de pesos|2015
+CSI_240.xlsx|Flujo de fondos detallados de pasivos|Precios corrientes en millones de pesos|2016
+CSI_241.xlsx|Flujo de fondos detallados de pasivos|Precios corrientes en millones de pesos|2017
+CSI_242.xlsx|Flujo de fondos detallados de pasivos|Precios corrientes en millones de pesos|2018
+CSI_243.xlsx|Flujo de fondos detallados de pasivos|Precios corrientes en millones de pesos|2019
+CSI_244.xlsx|Flujo de fondos detallados de pasivos|Precios corrientes en millones de pesos|2020
+CSI_245.xlsx|Flujo de fondos detallados de pasivos|Precios corrientes en millones de pesos|2021
+CSI_246.xlsx|Flujo de fondos detallados de pasivos|Precios corrientes en millones de pesos|2022
+CSI_249.xlsx|Flujo de fondos detallados de pasivos|Relación de cada variable entre el PIB|Porcentaje|2003
+CSI_250.xlsx|Flujo de fondos detallados de pasivos|Relación de cada variable entre el PIB|Porcentaje|2004
+CSI_251.xlsx|Flujo de fondos detallados de pasivos|Relación de cada variable entre el PIB|Porcentaje|2005
+CSI_252.xlsx|Flujo de fondos detallados de pasivos|Relación de cada variable entre el PIB|Porcentaje|2006
+CSI_253.xlsx|Flujo de fondos detallados de pasivos|Relación de cada variable entre el PIB|Porcentaje|2007
+CSI_254.xlsx|Flujo de fondos detallados de pasivos|Relación de cada variable entre el PIB|Porcentaje|2008
+CSI_255.xlsx|Flujo de fondos detallados de pasivos|Relación de cada variable entre el PIB|Porcentaje|2009
+CSI_256.xlsx|Flujo de fondos detallados de pasivos|Relación de cada variable entre el PIB|Porcentaje|2010
+CSI_257.xlsx|Flujo de fondos detallados de pasivos|Relación de cada variable entre el PIB|Porcentaje|2011
+CSI_258.xlsx|Flujo de fondos detallados de pasivos|Relación de cada variable entre el PIB|Porcentaje|2012
+CSI_259.xlsx|Flujo de fondos detallados de pasivos|Relación de cada variable entre el PIB|Porcentaje|2013
+CSI_260.xlsx|Flujo de fondos detallados de pasivos|Relación de cada variable entre el PIB|Porcentaje|2014
+CSI_261.xlsx|Flujo de fondos detallados de pasivos|Relación de cada variable entre el PIB|Porcentaje|2015
+CSI_262.xlsx|Flujo de fondos detallados de pasivos|Relación de cada variable entre el PIB|Porcentaje|2016
+CSI_263.xlsx|Flujo de fondos detallados de pasivos|Relación de cada variable entre el PIB|Porcentaje|2017
+CSI_264.xlsx|Flujo de fondos detallados de pasivos|Relación de cada variable entre el PIB|Porcentaje|2018
+CSI_265.xlsx|Flujo de fondos detallados de pasivos|Relación de cada variable entre el PIB|Porcentaje|2019
+CSI_266.xlsx|Flujo de fondos detallados de pasivos|Relación de cada variable entre el PIB|Porcentaje|2020
+CSI_267.xlsx|Flujo de fondos detallados de pasivos|Relación de cada variable entre el PIB|Porcentaje|2021
+CSI_268.xlsx|Flujo de fondos detallados de pasivos|Relación de cada variable entre el PIB|Porcentaje|2022
+CSI_271.xlsx|Madurez residual|Millones de pesos y porcentajes del PIB|Madurez Títulos
+CSI_272.xlsx|Madurez residual|Millones de pesos y porcentajes del PIB|Madurez Préstamos
+CSI_276.xlsx|Balance de activos y pasivos|Por sector y subsector|Precios corrientes en millones de pesos|2003
+CSI_277.xlsx|Balance de activos y pasivos|Por sector y subsector|Precios corrientes en millones de pesos|2004
+CSI_278.xlsx|Balance de activos y pasivos|Por sector y subsector|Precios corrientes en millones de pesos|2005
+CSI_279.xlsx|Balance de activos y pasivos|Por sector y subsector|Precios corrientes en millones de pesos|2006
+CSI_280.xlsx|Balance de activos y pasivos|Por sector y subsector|Precios corrientes en millones de pesos|2007
+CSI_281.xlsx|Balance de activos y pasivos|Por sector y subsector|Precios corrientes en millones de pesos|2008
+CSI_282.xlsx|Balance de activos y pasivos|Por sector y subsector|Precios corrientes en millones de pesos|2009
+CSI_283.xlsx|Balance de activos y pasivos|Por sector y subsector|Precios corrientes en millones de pesos|2010
+CSI_284.xlsx|Balance de activos y pasivos|Por sector y subsector|Precios corrientes en millones de pesos|2011
+CSI_285.xlsx|Balance de activos y pasivos|Por sector y subsector|Precios corrientes en millones de pesos|2012
+CSI_286.xlsx|Balance de activos y pasivos|Por sector y subsector|Precios corrientes en millones de pesos|2013
+CSI_287.xlsx|Balance de activos y pasivos|Por sector y subsector|Precios corrientes en millones de pesos|2014
+CSI_288.xlsx|Balance de activos y pasivos|Por sector y subsector|Precios corrientes en millones de pesos|2015
+CSI_289.xlsx|Balance de activos y pasivos|Por sector y subsector|Precios corrientes en millones de pesos|2016
+CSI_290.xlsx|Balance de activos y pasivos|Por sector y subsector|Precios corrientes en millones de pesos|2017
+CSI_291.xlsx|Balance de activos y pasivos|Por sector y subsector|Precios corrientes en millones de pesos|2018
+CSI_292.xlsx|Balance de activos y pasivos|Por sector y subsector|Precios corrientes en millones de pesos|2019
+CSI_293.xlsx|Balance de activos y pasivos|Por sector y subsector|Precios corrientes en millones de pesos|2020
+CSI_294.xlsx|Balance de activos y pasivos|Por sector y subsector|Precios corrientes en millones de pesos|2021
+CSI_295.xlsx|Balance de activos y pasivos|Por sector y subsector|Precios corrientes en millones de pesos|2022

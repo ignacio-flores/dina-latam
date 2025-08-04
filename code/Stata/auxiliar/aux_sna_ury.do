@@ -5,7 +5,7 @@ clear all
 
 //get list of paths 
 global aux_part " "preliminary" " 
-qui do "code/Do-files/auxiliar/aux_general.do"
+qui do "code/Stata/auxiliar/aux_general.do"
 
 //cell range
 qui local cellr "E11:G64"
@@ -25,7 +25,7 @@ forvalues t = $first_y / $last_y {
 		
 		clear 
 		qui cap import excel ///
-			"${sna_folder}country-data/URY/`filename'", clear 
+			"primary_data/sna_country_data/URY/`filename'", clear 
 		
 		if _rc == 0 {
 			*clean
@@ -62,7 +62,7 @@ forvalues t = $first_y / $last_y {
 	}
 	
 	if _N != 0 {
-		qui export excel using "${sna_folder}country-data/URY/cei.xlsx", ///
+		qui export excel using "primary_data/sna_country_data/URY/cei.xlsx", ///
 			sheet("`t'", replace) firstrow(variables) 
 	}
 }

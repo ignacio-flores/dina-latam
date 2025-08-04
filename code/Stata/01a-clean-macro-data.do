@@ -12,7 +12,7 @@ clear programs
 
 //preliminary
 global aux_part  ""preliminary"" 
-qui do "code/Do-files/auxiliar/aux_general.do"
+qui do "code/Stata/auxiliar/aux_general.do"
 
 //Table names
 local TOT 		"Table 4.1 Total Economy (S.1)"
@@ -35,7 +35,7 @@ local iter = 1
 tempfile tf_merge1
 foreach IS in `all_IS' {
 	tempvar auxi1 auxi2
-	qui use "Data/national_accounts/un-national-accounts/``IS''.dta", clear
+	qui use "primary_data/sna_un/_clean/``IS''.dta", clear
 
 	//Items & codes
 	qui rename sna93_item_code i_code
@@ -116,7 +116,7 @@ foreach cod in "D4" "B2g" "B5g" "D5" {
 //Save
 tempfile tf_main 
 qui save `tf_main', replace 
-qui save "Data/national_accounts/UNDATA-Merged.dta", replace
+//qui save "Data/national_accounts/UNDATA-Merged.dta", replace
 
 //1.1.1 wid.world data -------------------------------------------------------// 
 
@@ -211,7 +211,7 @@ qui la var sh_cfc_total ///
 
 qui merge 1:m iso year using "`tf_main'", nogenerate
 qui save `tf_main', replace
-qui save "Data/national_accounts/UNDATA-WID-Merged.dta", replace 
+//qui save "Data/national_accounts/UNDATA-WID-Merged.dta", replace 
 
 //1.1.2 add some other UN-data for comparison ---------------------------------// 
 
@@ -262,10 +262,10 @@ qui rename (_ISO3C_ GEO) (iso3c geo)
 qui kountry iso, from(iso2c) to(iso3c) geo(undet)
 
 //Save
-qui save "Data/national_accounts/UNDATA-WID-Merged.dta", replace 
+qui save "intermediary_data/national_accounts/UNDATA-WID-Merged.dta", replace 
 
 //1.2 Merge with CEDLAS (TEMPORARY CODE) -------------------------------------//
-
+/*
 	qui rename iso country_iso
 	qui merge m:1 country_iso year using ///
 		"Data/SEDLAC/CEDLAS data/tot_income_survey.dta" ///
@@ -337,6 +337,7 @@ qui save "Data/national_accounts/UNDATA-WID-Merged.dta", replace
 	qui gen Svy_HHDI_g = tot_inc_survey / HH_DispInc_LCU_g * 100
 
 qui save `tf_main', replace 
+*/
 
 //1.3. BALANCE SHEETS -------------------------------------------------------//
 
@@ -344,7 +345,7 @@ qui save `tf_main', replace
 
 preserve
 	//Import financial balance sheets of general gov
-	import excel "Data/national_accounts/IMF/Balance_Sheet_Stock_GG.xlsx" ///
+	import excel "primary_data/balance_sheet/IMF/Balance_Sheet_Stock_GG.xlsx" ///
 		, sheet("Integrated Balance Sheet (Stoc") ///
 		cellrange(A2:W515) firstrow clear
 		
@@ -440,7 +441,7 @@ merge m:1 iso year using `tf_imfbs', nogenerate
 
 preserve
 	qui import excel ///
-		"Data/national_accounts/OECD/balancesheets-br-col-mex.xls" ///
+		"primary_data/balance_sheet/OECD/balancesheets-br-col-mex.xls" ///
 		, sheet("OECD.Stat export") cellrange(A4:I3018) firstrow case(upper) clear
 
 	//variables in lowercase
@@ -526,13 +527,13 @@ restore
 qui merge m:1 iso year using `tf_oecd', nogenerate  
 
 //Save 
-qui save "Data/national_accounts/sna-all-countries.dta", replace 
+//qui save "Data/national_accounts/sna-all-countries.dta", replace 
 
 //1.4. SOCIAL CONTRIBUTIONS -------------------------------------------------//
 
 preserve
 	//General 
-	qui import excel "Data/national_accounts/OECD/ssc-LatAm.xls" ///
+	qui import excel "primary_data/social_security_oecd/ssc-LatAm.xls" ///
 		, sheet("OECD.Stat export") cellrange(A4:F3504) ///
 		firstrow case(upper) clear
 
@@ -606,20 +607,21 @@ restore
 qui merge m:1 iso year using `tf_oecd1', nogenerate  
 
 //Save 
-qui save "Data/national_accounts/sna-all-countries.dta", replace 
+//qui save "Data/national_accounts/sna-all-countries.dta", replace 
+tempfile last 
+qui save `last'
 
 // Harmonize country-names --------------------------------------------///	
 qui import delimited using  ///
-	"Data/national_accounts/iso/iso_fullnames.csv" ///
+	"primary_data/sna_un/iso/iso_fullnames.csv" ///
 	, encoding(ISO-8859-1) clear varnames(1)	
 split name, parse(",") gen(stub)
 qui rename (code stub1) (iso iso_long)
 drop stub2 name
-qui merge 1:m iso using "Data/national_accounts/sna-all-countries.dta" ///
-	, keep(match) nogenerate
+qui merge 1:m iso using `last', keep(match) nogenerate
 
 //cosmetics and save 	
 order iso_long iso series year
 sort iso series year 	
-qui save "Data/national_accounts/sna-all-countries.dta", replace 	
+//qui save "Data/national_accounts/sna-all-countries.dta", replace 	
 
