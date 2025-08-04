@@ -172,7 +172,7 @@ foreach f in posi nega {
 		*prepare lists for graph 
 		local `f'_stacklist "`f'`v' ``f'_stacklist'"
 		local `f'_areas ``f'_areas' ///
-			(area `f'_f_`f'`v' year, color(${c`v'}) lwidth(none) barwidth(.9)) 
+			(area `f'_f_`f'`v' year if `f'_f_`f'`v' != 0, color(${c`v'}) lwidth(none) barwidth(.9)) 
 		if "`f'" == "posi" local leg_`f' `leg_`f'' `iter' "${lab`v'_`lang'}"
 		local iter = `iter' + 1
 	}
@@ -338,9 +338,9 @@ foreach v in "tot" "pit_tot" "pit_corp" "pit_hh" "ssc" "indg" {
 	*graph comparison 
 	graph twoway ///
 		(line tax_`v'_un_gdp year ///
-		if !missing(tax_`v'_un_gdp), lcolor(black)) ///
+		if tax_`v'_un_gdp != 0, lcolor(black)) ///
 		(line tax_`v'_oecd_gdp year ///
-		if !missing(tax_`v'_oecd_gdp), lcolor(red)) ///
+		if tax_`v'_oecd_gdp != 0, lcolor(red)) ///
 		, by(country_long) ylab(, ${lab_opts}) xlab(, ${lab_opts}) ///
 		legend(order(1 "UN" 2 "OECD")) xtit("") ///
 		ytit("${lab_`v'}, % of GDP") $graph_scheme 
