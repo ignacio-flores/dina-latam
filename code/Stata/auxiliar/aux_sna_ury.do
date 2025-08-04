@@ -27,7 +27,9 @@ forvalues t = $first_y / $last_y {
 		qui cap import excel ///
 			"primary_data/sna_country_data/URY/`filename'", clear 
 		
+		di as result "Country SNA URY-`t' (`s'): " _continue 
 		if _rc == 0 {
+			di as text "found"
 			*clean
 			local vars E F G  
 			qui keep `vars'
@@ -58,6 +60,9 @@ forvalues t = $first_y / $last_y {
 			drop n 
 			qui save `tf_all_`t'', replace 
 			
+		}
+		else {
+			di as error "not found"
 		}
 	}
 	

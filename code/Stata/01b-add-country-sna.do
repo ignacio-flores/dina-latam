@@ -53,7 +53,7 @@ foreach c in $ctries_cei {
 	if "`c'" == "BRA" local file_`c' "`folder_`c''/contas_economicas_a_precos_correntes_2000a2021.xls"
 	if inlist("`c'", "CHL", "PER") local file_`c' "`folder_`c''/CEI_merged"
 	*if "`c'" == "COL" local file_`c' "`folder_`c''/cuentas-economicas-integradas-2019provisional"
-	if "`c'" == "COL" local file_`c' "`folder_`c''/anex-CuentasNalANuales-CuentaEconomicasIntegradas-2022p"
+	if "`c'" == "COL" local file_`c' "`folder_`c''/anex-CuentasNalANuales-CuentaEconomicasIntegradas-2023p"
 	if "`c'" == "DOM" local file_`c' "`folder_`c''/cei"
 	//Mexico, Costa Rica and Uruguay defined below
 
@@ -158,7 +158,7 @@ foreach c in $ctries_cei {
 				}
 				if `y' >= 2018 {
 					local y_sheet "CEI_`y'"
-					local file_`c' "`folder_`c''/mcs_cei_2018_2022"
+					local file_`c' "`folder_`c''/mcs_cei_2018_2023p"
 					local cellr_ECU "A38:BD128" 
 					global vars_ECU A B AY W AK AT AX BD BB
 				}
