@@ -1,7 +1,5 @@
 /*=============================================================================*
 Goal: imputation of Social Security contributions to CEPAL's PNAD data 
-Author:	Marc Morgan
-Date: 	Oct/2019
 *=============================================================================*/
 
 forvalues year = $first_y / $last_y {
@@ -54,6 +52,7 @@ forvalues year = $first_y / $last_y {
 		local   minwage2022 =   1212
 		local 	minwage2023 = 	1320 
 		local 	minwage2024 = 	1412
+		local 	minwage2025 = 	1518
 		
 		* For INSS top threshold check: https://www.gov.br/inss/pt-br/saiba-mais/seus-direitos-e-deveres/calculo-da-guia-da-previdencia-social-gps/tabela-de-contribuicao-mensal/tabela-de-contribuicao-historico
 		* or https://www.gov.br/inss/pt-br/direitos-e-deveres/inscricao-e-contribuicao/tabela-de-contribuicao-mensal
@@ -88,6 +87,7 @@ forvalues year = $first_y / $last_y {
 		local maxlimitINSS2022  =   7087
 		local maxlimitINSS2023  =   7507
 		local maxlimitINSS2024  =   7786
+		local maxlimitINSS2025  =   8157
 		
 		local minwage = `minwage`year''
 		local maxlimitINSS = `maxlimitINSS`year''

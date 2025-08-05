@@ -9,7 +9,7 @@ variables.
 *=============================================================================*/
 
 global aux_part  ""preliminary"" 
-quietly quietly do "code/Do-files/auxiliar/aux_general.do"  
+quietly quietly do "code/Stata/auxiliar/aux_general.do"  
 local prefix "pre"
 
 forvalues y = $first_y / $last_y {
@@ -58,6 +58,7 @@ forvalues y = $first_y / $last_y {
 		local minwage2022 = 1212
 		local minwage2023 = 1320 
 		local minwage2024 = 1412
+		local minwage2025 = 1518
 		
 		*NOTE: avgUI does not need to be updated after 2015.
 		local avgUI1990	= 1.75
@@ -95,6 +96,7 @@ forvalues y = $first_y / $last_y {
 		local avgUI2022	= 1.28
 		local avgUI2023	= 1.28
 		local avgUI2024	= 1.28
+		local avgUI2025 = 1.28
 		
 		* For INSS top threshold check: https://www.gov.br/inss/pt-br/saiba-mais/seus-direitos-e-deveres/calculo-da-guia-da-previdencia-social-gps/tabela-de-contribuicao-mensal/tabela-de-contribuicao-historico
 		* or https://www.gov.br/inss/pt-br/direitos-e-deveres/inscricao-e-contribuicao/tabela-de-contribuicao-mensal
@@ -129,6 +131,7 @@ forvalues y = $first_y / $last_y {
 		local maxlimitINSS2022  =   7087
 		local maxlimitINSS2023  =   7507
 		local maxlimitINSS2024  =   7786
+		local maxlimitINSS2025  =   8157
 		
 		* For DIRPF min threshold check: https://www.gov.br/receitafederal/pt-br/assuntos/orientacao-tributaria/tributos/irpf-imposto-de-renda-pessoa-fisica#calculo_mensal_IRPF
 		local exemptDIRPF1990	=	27385
@@ -163,6 +166,7 @@ forvalues y = $first_y / $last_y {
 		local exemptDIRPF2022	=	1904
 		local exemptDIRPF2023	=	2112
 		local exemptDIRPF2024	=	2259
+		local exemptDIRPF2025	=	2259
 	
 		local minwage = `minwage`y'' 
 		local avgUI = `avgUI`y''
@@ -262,35 +266,6 @@ forvalues y = $first_y / $last_y {
 			qui la var `prefix'_bf_svy "Bolsa Familia transfer (imputed)"
 		}
 
-/*============THIS PART IS EXCLUDED DUE TO FORMALITY NOT IDENTIFIABLE AFTER 2015
-
-		*----- Abono salarial  -----*
-		
-		qui cap drop `prefix'_abono_svy
-		if `y' == 1990 qui gen double `prefix'_abono_svy = 0
-		if inrange(`y',1992,2015) qui gen double `prefix'_abono_svy = cond(cotiza_ee==1 & sector_ee==2 & (sys_pe<=2*`minwage' | `prefix'_mix_svy<=2*`minwage') & categ5_p~=3, `minwage', 0)
-		if inrange(`y',2016,$last_y) qui gen double `prefix'_abono_svy = cond(sector_ee==2 & (sys_pe<=2*`minwage' | `prefix'_mix_svy<=2*`minwage') & categ5_p~=3, `minwage', 0)
-		
-		qui la var `prefix'_abono_svy "Abono Salarial (imputed)"
-		
-		*----- Holiday bonus + 13th salary -----*
-
-		*= For the sake of consistency, secondary jobs are excluded
-		qui cap drop `prefix'_hol_svy 
-		qui gen `prefix'_hol_svy = 0
-		qui replace `prefix'_hol_svy = .33*sys_pe/12 if cotiza_ee==1 & (categ5_p==2 | categ5_p==3)
-		//qui replace `prefix'_hol_svy = cond((cotiza_ee==1), .33*`prefix'_mix_sv`prefix'_pe/12, 0) if categ5_p==1 | categ5_p==4
-		qui cap drop `prefix'_sys_13th
-		qui gen `prefix'_sys_13th = 0
-		qui replace `prefix'_sys_13th = sys_pe/12 if cotiza_ee==1 & (categ5_p==2 | categ5_p==3)
-		//gen double `prefix'_mix_13th = cond((cotiza_ee==1), `prefix'_mix_pe/12, 0) if categ5_p==1 | categ5_p==4
-		qui cap drop `prefix'_pen_13th 
-		gen double `prefix'_pen_13th = `prefix'_pen_svy/12
-		
-		qui la var `prefix'_sys_13th "Thirteenth salary (imputed)"
-		qui la var `prefix'_hol_svy "Holiday bonus (imputed)"
-
-*/	
 		
 		*-----  Employer's incomes -----*
 		
