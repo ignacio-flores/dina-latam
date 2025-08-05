@@ -227,6 +227,30 @@ if $aux_part == "preliminary" {
 		}
 	}
 	
+	//create main folders 
+	local dirpath "intermediary_data"
+	mata: st_numscalar("exists", direxists(st_local("dirpath")))
+	if (scalar(exists) == 0) {
+		mkdir "`dirpath'"
+		display "Created directory: `dirpath'"
+	}	
+	
+	// Create directory if it doesnt exist 
+	local dirpath "output"
+	mata: st_numscalar("exists", direxists(st_local("dirpath")))
+	if (scalar(exists) == 0) {
+		mkdir "`dirpath'"
+		display "Created directory: `dirpath'"
+	}
+	
+	// Create directory if it doesnt exist 
+	local dirpath "output/figures"
+	mata: st_numscalar("exists", direxists(st_local("dirpath")))
+	if (scalar(exists) == 0) {
+		mkdir "`dirpath'"
+		display "Created directory: `dirpath'"
+	}
+	
 	
 	//country-years for 2 stage bfm correction
 	global years_ARG "2000 2001 2002 2003 2004 2005 2006 2007 2008 2009 2010 2011 2012 2013 2014 2015"

@@ -15,7 +15,7 @@ local prefix "pre"
 forvalues y = $first_y / $last_y {
 
 	clear 
-	quietly cap use "Data/CEPAL/surveys/BRA/raw/BRA_`y'_raw.dta", clear
+	quietly cap use "intermediary_data/microdata/raw/BRA/BRA_`y'_raw.dta", clear
 	
 	*Only run when data exists
 	qui cap assert _N == 0
@@ -332,7 +332,7 @@ forvalues y = $first_y / $last_y {
 
 	}
 	
-	qui cap save "Data/CEPAL/surveys/BRA/raw/BRA_`y'_raw.dta", replace
+	qui cap save "intermediary_data/microdata/raw/BRA/BRA_`y'_raw.dta", replace
 
 }
 	

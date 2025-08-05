@@ -135,6 +135,14 @@ foreach approach in  "incidence" "concentration" {
 				qui drop `v'
 				qui ren x `v'
 			}
+			
+			// Create directory if it doesnt exist 
+			local dirpath "output/data_reports"
+			mata: st_numscalar("exists", direxists(st_local("dirpath")))
+			if (scalar(exists) == 0) {
+				mkdir "`dirpath'"
+				display "Created directory: `dirpath'"
+			}
 
 			export excel "output/data_reports/ceq_data_availability.xlsx", ///
 				sheet("avail_`ssc_type'") sheetreplace first(varl)
@@ -236,6 +244,7 @@ foreach approach in  "incidence" "concentration" {
 	//save
 	qui drop new_* 
 	cap drop *_new_*
+	
 	qui save "${ceq}_clean/`approach'/no_ssc.dta", replace 
 
 	* II. Create graphs per country.................................................
@@ -252,10 +261,40 @@ foreach approach in  "incidence" "concentration" {
 	*qui renvars, trim(16)
 	local indicators directtaxe indirectta vat allcontrib ///
 		conditiona directtran disposable indirectsu education health
+		
+	// Create directory if it doesnt exist 
+		local dirpath "output/figures/ceq"
+		mata: st_numscalar("exists", direxists(st_local("dirpath")))
+		if (scalar(exists) == 0) {
+			mkdir "`dirpath'"
+			display "Created directory: `dirpath'"
+		}	
 
 	foreach ind in `indicators'{
 		
 		local varlabel : var label `ind'
+		
+		// Create directory if it doesnt exist 
+		local dirpath "output/figures/ceq/`approach'"
+		mata: st_numscalar("exists", direxists(st_local("dirpath")))
+		if (scalar(exists) == 0) {
+			mkdir "`dirpath'"
+			display "Created directory: `dirpath'"
+		}
+		// Create directory if it doesnt exist 
+		local dirpath "output/figures/ceq/`approach'/panel"
+		mata: st_numscalar("exists", direxists(st_local("dirpath")))
+		if (scalar(exists) == 0) {
+			mkdir "`dirpath'"
+			display "Created directory: `dirpath'"
+		}
+		// Create directory if it doesnt exist 
+		local dirpath "output/figures/ceq/`approach'/bunched"
+		mata: st_numscalar("exists", direxists(st_local("dirpath")))
+		if (scalar(exists) == 0) {
+			mkdir "`dirpath'"
+			display "Created directory: `dirpath'"
+		}
 		
 		*graph lorenz 
 		if "`approach'" == "concentration" {

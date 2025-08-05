@@ -180,6 +180,14 @@ foreach f in posi nega {
 genstack `posi_stacklist' , gen(posi_f_)
 genstack `nega_stacklist' , gen(nega_f_)
 
+// Create directory if it doesnt exist 
+local dirpath "ouput/figures/total-taxes"
+mata: st_numscalar("exists", direxists(st_local("dirpath")))
+if (scalar(exists) == 0) {
+	mkdir "`dirpath'"
+	display "Created directory: `dirpath'"
+}
+
 * without legend
 preserve
 graph twoway `posi_areas' `nega_areas' ///

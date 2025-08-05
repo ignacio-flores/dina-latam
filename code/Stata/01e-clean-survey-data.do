@@ -14,6 +14,15 @@ qui do "code/Stata/auxiliar/aux_general.do"
 
 *which surveys do I clean?  
 local countries "$really_all_countries"
+
+// Create directory if it doesnt exist 
+	local dirpath "intermediary_data/microdata/raw"
+	mata: st_numscalar("exists", direxists(st_local("dirpath")))
+	if (scalar(exists) == 0) {
+		mkdir "`dirpath'"
+		display "Created directory: `dirpath'"
+	}
+ 
  
 //loop over countries and years 
 foreach c in `countries' {  
@@ -32,7 +41,7 @@ foreach c in `countries' {
 
 		//open file 
 		qui clear
-		qui cap use "${svypath}`c'/`c'_`y'N.dta", clear
+		qui cap use "input_data/surveys_CEPAL/`c'/`c'_`y'N.dta", clear
 		
 		*Only run when data exists
 		qui cap assert _N == 0
@@ -151,9 +160,20 @@ foreach c in `countries' {
 			cap drop excluder 
 			
 		}
+		
+		// Create directory if it doesnt exist 
+		local dirpath "intermediary_data/microdata/raw/`c'"
+		mata: st_numscalar("exists", direxists(st_local("dirpath")))
+		if (scalar(exists) == 0) {
+			mkdir "`dirpath'"
+			display "Created directory: `dirpath'"
+		}
+		
+		// Save microdata 
 		qui cap assert _N == 0
 		if _rc != 0 {		
-			qui save "${svypath}`c'/raw/`c'_`y'_raw.dta", replace
+			qui save ///
+				"intermediary_data/microdata/raw/`c'/`c'_`y'_raw.dta", replace
 		}	
 	}
 }
@@ -163,7 +183,7 @@ foreach c in `countries' {
 *------------------------------------------------------------------------
 			
 * Brazil
-qui do "code/Do-files/BRA/svy_adj_BRA.do"
+qui do "code/Stata/BRA/svy_adj_BRA.do"
 			
 *-----------------------------------------------------------------------
 *PART II: Equal-split incomes and annualization
@@ -185,7 +205,7 @@ foreach c in `countries' {
 
 		//open file 
 		qui clear
-		qui cap use "${svypath}`c'/raw/`c'_`y'_raw.dta", clear
+		qui cap use "intermediary_data/microdata/raw/`c'/`c'_`y'_raw.dta", clear
 		
 		*Only run when data exists
 		qui cap assert _N == 0
@@ -219,7 +239,7 @@ foreach c in `countries' {
 			
 			//Get annualization factors for Argentina
 			preserve 
-				qui import excel "Data/CEPAL/surveys/ARG/cpi_arg.xlsx", ///
+				qui import excel "input_data/prices_CEPAL/cpi_arg.xlsx", ///
 					sheet("datos") firstrow clear	
 				qui rename (Años__ESTANDAR Meses País__ESTANDAR) ///
 					(year month country) 
@@ -350,7 +370,9 @@ foreach c in `countries' {
 		
 		qui cap assert _N == 0
 		if _rc != 0 {
-			qui save "${svypath}`c'/raw/`c'_`y'_raw.dta", replace
+			qui save ///
+				"intermediary_data/microdata/raw/`c'/`c'_`y'_raw.dta", replace
+					 
 		}	
 	}
 }

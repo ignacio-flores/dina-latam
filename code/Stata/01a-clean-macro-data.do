@@ -209,7 +209,7 @@ qui gen sh_cfc_total = TOT_K1_wid / TOT_B5g_wid
 qui la var sh_cfc_total ///
 	"Total Consumption of fixed capital (% of Gross National Income)"		
 
-qui merge 1:m iso year using "`tf_main'", nogenerate
+qui merge 1:m iso year using `tf_main', nogenerate
 qui save `tf_main', replace
 //qui save "Data/national_accounts/UNDATA-WID-Merged.dta", replace 
 
@@ -262,6 +262,13 @@ qui rename (_ISO3C_ GEO) (iso3c geo)
 qui kountry iso, from(iso2c) to(iso3c) geo(undet)
 
 //Save
+// Create directory if it doesnt exist 
+local dirpath "intermediary_data/national_accounts"
+mata: st_numscalar("exists", direxists(st_local("dirpath")))
+if (scalar(exists) == 0) {
+	mkdir "`dirpath'"
+	display "Created directory: `dirpath'"
+}
 qui save "intermediary_data/national_accounts/UNDATA-WID-Merged.dta", replace 
 
 //1.2 Merge with CEDLAS (TEMPORARY CODE) -------------------------------------//

@@ -7,7 +7,7 @@ clear all
 
 //preliminary 
 global aux_part  ""preliminary"" 
-qui do "code/Do-files/auxiliar/aux_general.do"
+qui do "code/Stata/auxiliar/aux_general.do"
 
 //needed for Stata 15/Windows
 cap set matsize 11000 
@@ -33,7 +33,8 @@ foreach c in "ARG" "BRA" "CRI" /*"DOM"*/ {
 		
 		forvalues year = $first_y / $last_y {
 			clear 	
-			qui cap use "${svypath}ARG/raw/ARG_`year'_raw.dta", clear
+			qui cap use ///
+				"intermediary_data/microdata/raw/ARG/ARG_`year'_raw.dta", clear	
 			
 			qui cap assert _N == 0
 			if _rc != 0 {
@@ -69,14 +70,14 @@ foreach c in "ARG" "BRA" "CRI" /*"DOM"*/ {
 			qui cap assert _N == 0
 			
 			if _rc != 0 & !inlist("`year'", "2015")  {
-				qui save "${svypath}ARG/raw/ARG_`year'_raw.dta", replace	
+				qui save "intermediary_data/microdata/raw/ARG/ARG_`year'_raw.dta", replace	
 			}
 		}
 	}
 
 	// 2. Impute missing social contributions in Brazilian survey
 	if ("`c'"=="BRA") {
-		do "code/Do-files/BRA/BRA_impute_socsec_contribs.do"
+		do "code/Stata/BRA/BRA_impute_socsec_contribs.do"
 	}
 
 	//3. Include gross wages in Costa Rica's survey
@@ -86,10 +87,10 @@ foreach c in "ARG" "BRA" "CRI" /*"DOM"*/ {
 			
 			di as result "`year'"
 
-			qui cap use "${svypath}CRI/raw/CRI_`year'_raw.dta", clear
+			qui cap use "intermediary_data/microdata/raw/CRI/CRI_`year'_raw.dta", clear	
 			
 				qui merge 1:1 id_hogar id_pers using ///
-					"${svypath}CRI/BYN/CRI_`year'_byn.dta", nogen
+					"input_data/surveys_CEPAL/CRI/BYN/CRI_`year'_byn.dta", nogen
 				
 				* Compute taxes paid on primary and secondary salaries
 				foreach t in tax1 tax2 tax taxm ind_pre_wag_gross ///
@@ -110,7 +111,8 @@ foreach c in "ARG" "BRA" "CRI" /*"DOM"*/ {
 				qui gen pre_wag_svy_gross = pre_wag_svy + taxm
 				qui gen pre_fwag_svy_gross = pre_fwag_svy + taxm
 				
-				qui save "${svypath}CRI/raw/CRI_`year'_raw.dta", replace	
+				qui save ///
+					"intermediary_data/microdata/raw/CRI/CRI_`year'_raw.dta", replace	
 		}
 	}
 }
