@@ -9,6 +9,14 @@ clear all
 global aux_part " "preliminary" " 
 qui do "code/Stata/auxiliar/aux_general.do"
 
+// Create directory if it doesnt exist 
+local dirpath "output/figures/cei"
+mata: st_numscalar("exists", direxists(st_local("dirpath")))
+if (scalar(exists) == 0) {
+	mkdir "`dirpath'"
+	display "Created directory: `dirpath'"
+}	
+
 *prepare data for URY 
 do "code/Stata/auxiliar/aux_sna_ury.do"
 clear 

@@ -4,5 +4,6 @@
 code/Stata/tests/
 input_data/surveys_CEPAL
 input_data/sna_UNDATA/
-intermediary_data/microdata
+intermediary_data/
+output/
 

@@ -27,7 +27,6 @@ global do_codes1 " "01a" "01b" "01c" "01d" "01e" "01f""  // "01g" "01h"
 *global do_codes6  " "06a" "06b" "06c" " /*"06d" "06e"*/ 
 *global do_codes7  " "07a" "07b" "07c" "07d" " 
 global last_code = 1
-
 ***********************************************************************
 
 //report and save start time 

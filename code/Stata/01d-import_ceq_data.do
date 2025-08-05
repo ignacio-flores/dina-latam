@@ -263,12 +263,12 @@ foreach approach in  "incidence" "concentration" {
 		conditiona directtran disposable indirectsu education health
 		
 	// Create directory if it doesnt exist 
-		local dirpath "output/figures/ceq"
-		mata: st_numscalar("exists", direxists(st_local("dirpath")))
-		if (scalar(exists) == 0) {
-			mkdir "`dirpath'"
-			display "Created directory: `dirpath'"
-		}	
+	local dirpath "output/figures/ceq"
+	mata: st_numscalar("exists", direxists(st_local("dirpath")))
+	if (scalar(exists) == 0) {
+		mkdir "`dirpath'"
+		display "Created directory: `dirpath'"
+	}	
 
 	foreach ind in `indicators'{
 		

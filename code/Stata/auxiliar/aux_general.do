@@ -123,7 +123,7 @@ if $aux_part == "preliminary" {
 	global tax_comp Data/Tax-data/OECD-CIAT-CEPAL/
 	global exports Data/Export_series/dina_latam_
 	global popdata Data/Population/SurveyPop.dta	
-	global ceq primary_data/CEQ/
+	global ceq input_data/CEQ/
 	//global tax_tots Data/national_accounts/OECD/tax-database.dta
 	global govt_exp Data/expenditure_all_countries.dta
 	
@@ -233,7 +233,15 @@ if $aux_part == "preliminary" {
 	if (scalar(exists) == 0) {
 		mkdir "`dirpath'"
 		display "Created directory: `dirpath'"
-	}	
+	}
+	
+	//create main folders 
+	local dirpath "intermediary_data/microdata"
+	mata: st_numscalar("exists", direxists(st_local("dirpath")))
+	if (scalar(exists) == 0) {
+		mkdir "`dirpath'"
+		display "Created directory: `dirpath'"
+	}
 	
 	// Create directory if it doesnt exist 
 	local dirpath "output"

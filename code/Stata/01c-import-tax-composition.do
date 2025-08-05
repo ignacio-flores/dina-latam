@@ -181,7 +181,7 @@ genstack `posi_stacklist' , gen(posi_f_)
 genstack `nega_stacklist' , gen(nega_f_)
 
 // Create directory if it doesnt exist 
-local dirpath "ouput/figures/total-taxes"
+local dirpath "output/figures/total-taxes"
 mata: st_numscalar("exists", direxists(st_local("dirpath")))
 if (scalar(exists) == 0) {
 	mkdir "`dirpath'"
