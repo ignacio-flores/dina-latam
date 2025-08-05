@@ -1,7 +1,5 @@
 /*=============================================================================*
 Goal: Clean and prepare country surveys
-Authors: Mauricio De Rosa, Ignacio Flores, Marc Morgan
-
 The do file's goal is to create the main income variables that are going
 to be used in the entire project (PART I-III). In PART IV, it creates different 
 alternatives of proxies of capital ownership, in order to impute undistributed 
@@ -12,7 +10,7 @@ profits at a later stage.
  
 clear all
 global aux_part  ""preliminary"" 
-qui do "code/Do-files/auxiliar/aux_general.do"  
+qui do "code/Stata/auxiliar/aux_general.do"  
 
 *which surveys do I clean?  
 local countries "$really_all_countries"

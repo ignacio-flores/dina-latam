@@ -19,14 +19,14 @@ clear all
 
 //list codes 
 ***********************************************************************
-global do_codes1 " "01a" "01b" "01c" "01d" "01e" "01f" "01g" "01h" " 
+global do_codes1 " "01a" "01b" "01c" "01d" "  //"01e" "01f" "01g" "01h"
 *global do_codes2 " "02a" "02b" "02c" "
-global do_codes3 " "03a" "03b" "03c" "03d" "03e" " 
-global do_codes4 " "04a" "04b" "04d" " 
-global do_codes5   " "05a" "05b" "05c" "05d" "05e" "05f" "  
-global do_codes6  " "06a" "06b" "06c" " /*"06d" "06e"*/ 
-global do_codes7  " "07a" "07b" "07c" "07d" " 
-global last_code = 7
+*global do_codes3 " "03a" "03b" "03c" "03d" "03e" " 
+*global do_codes4 " "04a" "04b" "04d" " 
+*global do_codes5   " "05a" "05b" "05c" "05d" "05e" "05f" "  
+*global do_codes6  " "06a" "06b" "06c" " /*"06d" "06e"*/ 
+*global do_codes7  " "07a" "07b" "07c" "07d" " 
+global last_code = 1
 
 ***********************************************************************
 
@@ -40,7 +40,7 @@ forvalues n = 1/$last_code {
 	//get do-files' name 
 	foreach docode in ${do_codes`n'} { 
 			
-		local do_name : dir "code/Do-files/." files "`docode'*.do" 
+		local do_name : dir "code/Stata/." files "`docode'*.do" 
 		local do_name = subinstr(`do_name', char(34), "", .)
 		global doname_`docode' "`do_name'"
 	}
@@ -51,7 +51,7 @@ forvalues n = 1/$last_code {
 	foreach docode in ${do_codes`n'} {
 		
 		*********************
-		do code/Do-files/${doname_`docode'}
+		do code/Stata/${doname_`docode'}
 		*********************
 		
 		//record time

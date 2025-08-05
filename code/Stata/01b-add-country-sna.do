@@ -10,7 +10,7 @@ global aux_part " "preliminary" "
 qui do "code/Stata/auxiliar/aux_general.do"
 
 *prepare data for URY 
-qui do "code/Stata/auxiliar/aux_sna_ury.do"
+do "code/Stata/auxiliar/aux_sna_ury.do"
 clear 
 
 //define some variables of interest 

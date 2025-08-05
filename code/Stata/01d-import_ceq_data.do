@@ -120,7 +120,6 @@ foreach approach in  "incidence" "concentration" {
 		save `tf_`ssc_type'', replace
 		
 		//I. 2. Report availability .......................
-
 		preserve 
 			*collapse 
 			qui drop decile
@@ -137,7 +136,7 @@ foreach approach in  "incidence" "concentration" {
 				qui ren x `v'
 			}
 
-			export excel "${cew}data_descript.xlsx", ///
+			export excel "output/data_reports/ceq_data_availability.xlsx", ///
 				sheet("avail_`ssc_type'") sheetreplace first(varl)
 		restore 
 	}	
@@ -235,43 +234,15 @@ foreach approach in  "incidence" "concentration" {
 	}
 	
 	//save
-	
-	if "`approach'" == "concentration" {
-		/*
-		preserve 
-			qui merge 1:1 country year ftile using `tf_new'
-			qui egen ftile2 = cut(ftile), at(0(1000)100000) 
-			qui ds ctry_yr ftile ftile2 country year country_long ///
-				GEO _merge new_marketinco, not
-			qui collapse (firstnm) ctry_yr ftile country_long ///
-				(sum) `r(varlist)', by(country year ftile2)
-			foreach v in education health allcontrib indirectta {
-				graph twoway (line sh_li_`v' ftile) ///
-					(line sh_li_new_`v' ftile) ///
-					if country == "DOM" & ftile!= 100000, ///
-					legend(label(1 "interpolated") ///
-					label(2 "detailed (new)")) ///
-					ytitle("Share of total imputed to percentile") ///
-					title("`v'")
-				exit 1	
-			}
-		restore
-		*/
-	}
-	
-	foreach i in si li {
-		*qui replace sh_`i'_indirectta = sh_`i'_new_indirectta ///
-		*	if country == "DOM"
-	}
 	qui drop new_* 
 	cap drop *_new_*
-	qui save "${ceq}`approach'/no_ssc.dta", replace 
+	qui save "${ceq}_clean/`approach'/no_ssc.dta", replace 
 
 	* II. Create graphs per country.................................................
 
 	//use aux for country colors
 	global aux_part  ""graph_basics"" 
-	qui do "code/Do-files/auxiliar/aux_general.do"
+	qui do "code/Stata/auxiliar/aux_general.do"
 
 	//
 	qui replace ftile = ftile / 10^5
@@ -307,11 +278,12 @@ foreach approach in  "incidence" "concentration" {
 				legend(label(1 "CEQ") label(2 "Linear interp.")) 
 		}
 		qui graph export ///
-			"figures/ceq/`approach'/panel/no_ssc_`ind'.pdf", replace
+			"output/figures/ceq/`approach'/panel/no_ssc_`ind'.pdf", replace
 	}
 
 	//II. 2. bunched Graphs.............................
-
+	qui keep if !missing(ctry_yr)
+	qui sort ctry_yr ftile
 	**loop over variables 
 	foreach ind in `indicators' {
 		
@@ -343,8 +315,7 @@ foreach approach in  "incidence" "concentration" {
 		graph twoway `l_`ind'_`approach'' , ytitle("`ytit'") xtitle("") ///
 			$graph_scheme legend(off) 
 		qui graph export ///
-			"figures/ceq/`approach'/bunched/no_scc_`ind'.pdf", replace	
-		
+			"output/figures/ceq/`approach'/bunched/no_scc_`ind'.pdf", replace	
 	}	
 }
 

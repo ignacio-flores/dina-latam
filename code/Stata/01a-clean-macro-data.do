@@ -35,7 +35,7 @@ local iter = 1
 tempfile tf_merge1
 foreach IS in `all_IS' {
 	tempvar auxi1 auxi2
-	qui use "primary_data/sna_un/_clean/``IS''.dta", clear
+	qui use "primary_data/sna_UNDATA/_clean/``IS''.dta", clear
 
 	//Items & codes
 	qui rename sna93_item_code i_code
@@ -612,7 +612,7 @@ qui save `last'
 
 // Harmonize country-names --------------------------------------------///	
 qui import delimited using  ///
-	"primary_data/sna_un/iso/iso_fullnames.csv" ///
+	"primary_data/sna_UNDATA/iso/iso_fullnames.csv" ///
 	, encoding(ISO-8859-1) clear varnames(1)	
 split name, parse(",") gen(stub)
 qui rename (code stub1) (iso iso_long)

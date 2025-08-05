@@ -45,7 +45,7 @@ if $aux_part == "preliminary" {
 		global all_countries  ///
 		" "COL" "ARG" "PER" "URY" "CRI" "ECU" "CHL" "BRA" "SLV" "MEX" "DOM" " 
 		global first_y = 2000
-		global last_y = 2022
+		global last_y = 2023
 		global snapops totpop adults active 
  		global unit_list " "ind" "esn" "pch" "act" "  
 		global all_steps ///
@@ -123,8 +123,8 @@ if $aux_part == "preliminary" {
 	global tax_comp Data/Tax-data/OECD-CIAT-CEPAL/
 	global exports Data/Export_series/dina_latam_
 	global popdata Data/Population/SurveyPop.dta	
-	global ceq Data/CEQ/
-	global tax_tots Data/national_accounts/OECD/tax-database.dta
+	global ceq primary_data/CEQ/
+	//global tax_tots Data/national_accounts/OECD/tax-database.dta
 	global govt_exp Data/expenditure_all_countries.dta
 	
 	//Paths to export graphs 
