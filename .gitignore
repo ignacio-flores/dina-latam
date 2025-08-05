@@ -2,6 +2,6 @@
 .Rapp.history
 .Rhistory
 code/Stata/tests/
-primary_data/surveys_CEPAL
-primary_data/sna_UNDATA/
+input_data/surveys_CEPAL
+input_data/sna_UNDATA/
 

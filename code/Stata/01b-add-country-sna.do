@@ -49,7 +49,7 @@ local bcodes 2 3 5
 foreach c in $ctries_cei {
 	
 	//define country folder and file 
-	local folder_`c' "primary_data/sna_country_data/`c'"
+	local folder_`c' "input_data/sna_country_data/`c'"
 	if "`c'" == "BRA" local file_`c' "`folder_`c''/contas_economicas_a_precos_correntes_2000a2021.xls"
 	if inlist("`c'", "CHL", "PER") local file_`c' "`folder_`c''/CEI_merged"
 	*if "`c'" == "COL" local file_`c' "`folder_`c''/cuentas-economicas-integradas-2019provisional"

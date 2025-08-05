@@ -16,7 +16,7 @@ local unit $unit
 //0. Clean data ----------------------------------------------------------------
 
 *bring newest 
-qui import delimited "primary_data/OECD-CIAT-CEPAL/tot_tax_pct_gdp_2024.csv" ,  clear
+qui import delimited "input_data/OECD-CIAT-CEPAL/tot_tax_pct_gdp_2024.csv" ,  clear
 qui keep ref_area time_period obs_value revenue_code 
 qui rename (ref_area time_period obs_value)(country year c) 
 qui reshape wide c, i(country year) j(revenue_code) string
@@ -42,7 +42,7 @@ qui drop if missing(country)
 qui save `tf_newer'
 
 *import longer series 
-qui import excel "primary_data/OECD-CIAT-CEPAL/tot_tax_pct_gdp_2023.xlsx" , ///
+qui import excel "input_data/OECD-CIAT-CEPAL/tot_tax_pct_gdp_2023.xlsx" , ///
 	cellrange(A4:BQ998) sheet("OECD.Stat export") firstrow clear
 
 *rename variables 

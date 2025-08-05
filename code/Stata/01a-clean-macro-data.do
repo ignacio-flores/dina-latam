@@ -35,7 +35,7 @@ local iter = 1
 tempfile tf_merge1
 foreach IS in `all_IS' {
 	tempvar auxi1 auxi2
-	qui use "primary_data/sna_UNDATA/_clean/``IS''.dta", clear
+	qui use "input_data/sna_UNDATA/_clean/``IS''.dta", clear
 
 	//Items & codes
 	qui rename sna93_item_code i_code
@@ -345,7 +345,7 @@ qui save `tf_main', replace
 
 preserve
 	//Import financial balance sheets of general gov
-	import excel "primary_data/balance_sheet/IMF/Balance_Sheet_Stock_GG.xlsx" ///
+	import excel "input_data/balance_sheet/IMF/Balance_Sheet_Stock_GG.xlsx" ///
 		, sheet("Integrated Balance Sheet (Stoc") ///
 		cellrange(A2:W515) firstrow clear
 		
@@ -441,7 +441,7 @@ merge m:1 iso year using `tf_imfbs', nogenerate
 
 preserve
 	qui import excel ///
-		"primary_data/balance_sheet/OECD/balancesheets-br-col-mex.xls" ///
+		"input_data/balance_sheet/OECD/balancesheets-br-col-mex.xls" ///
 		, sheet("OECD.Stat export") cellrange(A4:I3018) firstrow case(upper) clear
 
 	//variables in lowercase
@@ -533,7 +533,7 @@ qui merge m:1 iso year using `tf_oecd', nogenerate
 
 preserve
 	//General 
-	qui import excel "primary_data/social_security_oecd/ssc-LatAm.xls" ///
+	qui import excel "input_data/social_security_oecd/ssc-LatAm.xls" ///
 		, sheet("OECD.Stat export") cellrange(A4:F3504) ///
 		firstrow case(upper) clear
 
@@ -612,7 +612,7 @@ qui save `last'
 
 // Harmonize country-names --------------------------------------------///	
 qui import delimited using  ///
-	"primary_data/sna_UNDATA/iso/iso_fullnames.csv" ///
+	"input_data/sna_UNDATA/iso/iso_fullnames.csv" ///
 	, encoding(ISO-8859-1) clear varnames(1)	
 split name, parse(",") gen(stub)
 qui rename (code stub1) (iso iso_long)

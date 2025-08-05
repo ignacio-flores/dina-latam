@@ -25,7 +25,7 @@ forvalues t = $first_y / $last_y {
 		
 		clear 
 		qui cap import excel ///
-			"primary_data/sna_country_data/URY/`filename'", clear 
+			"input_data/sna_country_data/URY/`filename'", clear 
 		
 		di as result "Country SNA URY-`t' (`s'): " _continue 
 		if _rc == 0 {
@@ -67,7 +67,7 @@ forvalues t = $first_y / $last_y {
 	}
 	
 	if _N != 0 {
-		qui export excel using "primary_data/sna_country_data/URY/cei.xlsx", ///
+		qui export excel using "input_data/sna_country_data/URY/cei.xlsx", ///
 			sheet("`t'", replace) firstrow(variables) 
 	}
 }
