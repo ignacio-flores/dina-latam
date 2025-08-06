@@ -5,6 +5,9 @@
 //				    Goal: Calls all dofiles preparing admin data	         //
 //																		     //
 /////////////////////////////////////////////////////////////////////////////// 
+di as txt "Using an R call to compute survey populations..."
+rcall: source("code/R/02a_get_survey_populations.R")
+rcall: source("code/R/02b_clean_admin_chl.R")
 
 //just do it 
 foreach dofile in ///
@@ -16,7 +19,7 @@ foreach dofile in ///
 	//run with exceptions 	
 	if !inlist("`dofile'", "ARG-diverse-gperc") {
 		di as result "(01g) Doing `dofile'.do at ($S_TIME)"
-	quietly do "code/Do-files/tax-data/`dofile'.do"
+	quietly do "code/Stata/tax-data/`dofile'.do"
 	}
 }
 

@@ -20,7 +20,7 @@ foreach c in "ARG" "BRA" "CRI" /*"DOM"*/ {
 	di as text "at $S_TIME ..."
 	
 	// 1. Reweight Argentinian Survey to represent the national population
-	//it only represents urban areas 
+	// bc it only represents urban areas 
 	if ("`c'"=="ARG") {
 		
 		wid, areas(AR) ind(npopul) ages(999 /*992*/) pop(i) clear

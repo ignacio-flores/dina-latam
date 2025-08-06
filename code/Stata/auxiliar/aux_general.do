@@ -1,21 +1,10 @@
 //PRELIMINARY SETTINGS 
+run _config.do
+
 if $aux_part == "preliminary" {
 
-	*DEFINE PARAMETERS*************************************************
-	//mode 
-	*global mode debug
-	global mode full 
-	
-	//language
-	*global lang " "esp" "
-	global lang " "eng" "
-	******************************************************************
-	
 	//first and last years for loops 
 	if "${mode}" == "debug" {
-		global all_countries " "ARG"  "
-		global first_y = 2019
-		global last_y = 2021
 		/*
 		global snapops totpop adults //active
 		global unit_list " "ind" "pch" " // "act" "esn"
@@ -42,10 +31,6 @@ if $aux_part == "preliminary" {
 	
 	//full mode 
 	else {
-		global all_countries  ///
-		" "COL" "ARG" "PER" "URY" "CRI" "ECU" "CHL" "BRA" "SLV" "MEX" "DOM" " 
-		global first_y = 2000
-		global last_y = 2023
 		global snapops totpop adults active 
  		global unit_list " "ind" "esn" "pch" "act" "  
 		global all_steps ///

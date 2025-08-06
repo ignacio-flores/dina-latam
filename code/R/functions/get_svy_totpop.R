@@ -6,7 +6,7 @@ get_svy_totpop <- function(c, years) {
   for (y in years) {
     
     #fill info only if file exists
-    dta_file <- glue("Data/CEPAL/surveys/", c , "/raw/", c, "_", y, "_raw.dta")
+    dta_file <- glue("intermediary_data/microdata/raw/", c , "/", c, "_", y, "_raw.dta")
     
     if (file.exists(dta_file)==TRUE) {
       

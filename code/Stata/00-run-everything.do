@@ -12,8 +12,10 @@
 macro drop _all 
 clear all 
 
-*ssc install gtools mipolate quandl xls2dta sgini  wid  kountry genstack egenmore ereplace
+*ssc install gtools mipolate quandl xls2dta sgini  wid  kountry genstack egenmore ereplace jsonio 
 // search dm88_1 (to download renvars) 
+// net install github, from("https://haghish.github.io/github/")
+// github install haghish/rcall
 
 // ineqdeco
 

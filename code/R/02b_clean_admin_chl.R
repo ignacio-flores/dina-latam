@@ -1,15 +1,39 @@
 #clean (and download) tax data  
 
 #setup 
-source("code/R/00_libraries.R")
-libraries(stdlibs)
+#source("code/R/00_libraries.R")
+#libraries(stdlibs)
 mode <- "local"  
 
+#load packages
+suppressMessages(suppressPackageStartupMessages({
+  required_packages <- c("openxlsx","readxl", "xlsx", "ggplot2", "haven", "magrittr", "dplyr", "readr", "janitor", "glue","tidyr", "rvest", "stringr")
+  options(repos = c(CRAN = "https://cloud.r-project.org"))
+  for (pkg in required_packages) {
+    if (!suppressWarnings(require(pkg, character.only = TRUE, quietly = TRUE))) {
+      install.packages(pkg, dependencies = TRUE)
+    }
+    library(pkg, character.only = TRUE)
+  }
+}))
+
+#read config file 
+lines <- readLines("_config.do")
+config <- list()
+for (line in lines) {
+  if (grepl("^\\s*global\\s+", line)) {
+    parts <- strcapture("^\\s*global\\s+([a-zA-Z0-9_]+)\\s+\"?(.+?)\"?$", line, proto = list(name = "", value = ""))
+    config[[parts$name]] <- parts$value
+  }
+}
+config$last_year <- as.integer(config$last_y)
+
+
 #bring total pop 
-popdata <- read_dta("Data/Population/SurveyPop.dta")
+popdata <- read_dta("intermediary_data/population/SurveyPop.dta")
 
 # II.2 Chile.............
-last_y = 2021 
+last_y = 2023 
 xlrang <- "A8:K141"
 
 if (mode == "update") {
@@ -22,11 +46,11 @@ if (mode == "update") {
   )
 }
 if (mode == "local") {
-  tfile <- paste0("Data/Tax-data/CHL/raw_tabulations/PUB_Total_", last_y, ".xlsb")
+  tfile <- paste0("input_data/admin_data/CHL/PUB_Total_", last_y, ".xlsx")
 }
 
 #clean data 
-raw_tabs <- read_xlsb(tfile, sheet = "Datos", range = xlrang) %>% 
+raw_tabs <- read.xlsx(tfile, startRow = 8, cols = 0:11, sheet = "Datos") %>% 
   clean_names() %>%
   select(ano_comercial, tramo_de_rentas, n_de_personas_2, renta_determinada_millones_de_pesos_2, impuesto_determinado_millones_de_pesos_2) %>%
   rename(year = `ano_comercial`, 
@@ -70,12 +94,12 @@ chl_tabs <- full_join(raw_tabs, uta, by = "year") %>%
   arrange(year, thr) 
 
 #Prepare tabulation from 1999 to adjust for deductions 
-chl_pop1999 <- read_dta("Data/Population/PopulationLatAm.dta")
+chl_pop1999 <- read_dta("input_data/population/PopulationLatAm.dta")
 chl_pop1999 %<>% clean_names() %>% 
   filter(str_detect(country, "Chile"), year == 1999) %>% 
   select(totalpop) %>% 
   mutate(country="CHL")
-chl_tab1999 <- read_excel("Data/Tax-data/CHL/raw_tabulations/tab_gc_1991_2000.xls", 
+chl_tab1999 <- read_excel("input_data/admin_data/CHL/tab_gc_1991_2000.xls", 
                           sheet = "Global AT2000", range = cell_rows(3:73), col_names = TRUE)
 chl_tab1999 %<>% 
   clean_names() %>% 
@@ -201,7 +225,12 @@ fj_a6 <- tribble(
 )
 
 #Order as gpinter input (pretax)
-xlsx_file <- "Data/Tax-Data/CHL/gpinter_input/total-pre-CHL.xlsx"
+folder_path <- "input_data/admin_data/CHL/_clean"
+if (!dir.exists(folder_path)) {
+  dir.create(folder_path, recursive = TRUE)
+  message("Folder created: ", folder_path)
+} 
+xlsx_file <- "input_data/admin_data/CHL/_clean/total-pre-CHL.xlsx"
 if(file.exists(xlsx_file)) file.remove(xlsx_file)
 for(x in 1:length(chl_tab_years)) {
   exptab <- select(ungroup(chl_tabs), year, country, component_pre, popsize, p ,thr, bracketavg_pre) %>% 
@@ -224,7 +253,7 @@ for(x in 1:length(chl_tab_years)) {
 }
 
 #Order as gpinter input (postax)
-xlsx_file <- "Data/Tax-Data/CHL/gpinter_input/total-pos-CHL.xlsx"
+xlsx_file <- "input_data/admin_data/CHL/_clean/total-pos-CHL.xlsx"
 if(file.exists(xlsx_file)) file.remove(xlsx_file)
 for(x in 1:length(chl_tab_years)) {
   exptab <- select(ungroup(chl_tabs), year, country, component_pos, popsize, p ,thr, bracketavg_pos) %>% 
