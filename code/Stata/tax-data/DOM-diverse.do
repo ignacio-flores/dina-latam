@@ -1,13 +1,12 @@
 /*=============================================================================*
 Goal: Import and prepare Dominican tax data for combination with Survey
-
 *=============================================================================*/
 
 //General----------------------------------------------------------------------- 
 forvalues year = 2012/2020 {
 	
 	qui import excel ///
-		"Data/Tax-data/DOM/IR-1 consolidado (2012-2020).xlsx", /// 
+		"input_data/admin_data/DOM/IR-1 consolidado (2012-2020).xlsx", /// 
 		sheet("Año `year'") cellrange("C4:X32") clear
 	
 	//rename variables
@@ -44,7 +43,7 @@ forvalues year = 2012/2020 {
 	tempfile tab_`year'
 	quietly save `tab_`year'', replace
 	
-	cap use "Data/CEPAL/surveys/DOM/raw/DOM_`year'_raw.dta", clear
+	cap use "intermediary_data/microdata/raw/DOM/DOM_`year'_raw.dta", clear
 	
 	cap assert _N == 0
 	if _rc != 0 {
@@ -75,8 +74,16 @@ forvalues year = 2012/2020 {
 	qui keep `lister' sh_tax*
 	qui order `lister'
 	
+	//create main folders 
+	local dirpath "input_data/admin_data/DOM/_clean"
+	mata: st_numscalar("exists", direxists(st_local("dirpath")))
+	if (scalar(exists) == 0) {
+		mkdir "`dirpath'"
+		display "Created directory: `dirpath'"
+	}
+	
 	cap export excel `lister' using ///
-		"Data/Tax-data/DOM/gpinter_input/total-pre-DOM.xlsx", ///
+		"input_data/admin_data/DOM/_clean/total-pre-DOM.xlsx", ///
 		sheet("`year'", replace) firstrow(variables) keepcellfmt 	
 		
 	qui replace bracketavg = bracketavg * (1 - sh_taxdue)	
@@ -84,6 +91,8 @@ forvalues year = 2012/2020 {
 	qui replace component = "postax" in 1 
 	
 	cap export excel `lister' using ///
-		"Data/Tax-data/DOM/gpinter_input/total-pos-DOM.xlsx", ///
+		"input_data/admin_data/DOM/_clean/total-pos-DOM.xlsx", ///
 		sheet("`year'", replace) firstrow(variables) keepcellfmt 
+		
+	di as text "DOM - `year' done"	
 }

@@ -8,7 +8,7 @@
 clear
 
 //Import total population data into tabulations
-use "Data/Population/PopulationLatAm.dta", clear
+qui use "input_data/population/PopulationLatAm.dta", clear
 mkmat year totalpop adultpop, matrix(_mat_sum)
 
 scalar totalpop1996=_mat_sum[38, 2]
@@ -40,7 +40,7 @@ scalar totalpop2019=_mat_sum[61, 2]
 
 forvalues t = 1996/2015 {
 	
-	cap use "Data/Tax-data/ARG/Muestra-salarios/Muestra_remuneracion_`t'.dta", clear
+	cap use "input_data/admin_data/ARG/Muestra-salarios/Muestra_remuneracion_`t'.dta", clear
 	
 	local weight "pondera"
 	local income "rtot"
@@ -58,7 +58,7 @@ forvalues t = 1996/2015 {
 	gsort -`income'
 	quietly	gen `freq' = `weight'/`poptot'
 	quietly	gen `F' = 1- sum(`freq')
-	sort `income'
+	qui sort `income'
 
 		
 	// Classify obs in g-percentiles
@@ -67,15 +67,15 @@ forvalues t = 1996/2015 {
 		0.9991(0.0001)0.9999 0.99991(0.00001)0.99999 1)
 				
 	// Top average 
-	gsort -`F'
+	qui gsort -`F'
 	quietly gen `wy' = `income'*`weight'
 	quietly gen topavg = sum(`wy')/sum(`weight')
-	sort `F'
+	qui sort `F'
 		
 	// Interval thresholds
 	quietly collapse (min) thr = `income' (mean) bckt_avg = `income' ///
 		(min) topavg [w=`weight'], by (`ftile')
-	sort `ftile'
+	qui sort `ftile'
 	quietly gen ftile = `ftile'
 		
 	// Generate 127 percentiles from scratch
@@ -95,8 +95,8 @@ forvalues t = 1996/2015 {
 	quietly ipolate topavg ftile, gen(topavg2)
 		
 	// Fill last cases if blank
-	sort ftile
-	drop bckt_avg thr topavg
+	qui sort ftile
+	qui drop bckt_avg thr topavg
 	quietly rename bckt_avg2 bckt_avg
 	quietly rename thr2 thr
 	quietly rename topavg2 topavg
@@ -107,7 +107,7 @@ forvalues t = 1996/2015 {
 	quietly sum topavg, meanonly
 	quietly replace topavg = r(max) if missing(topavg)
 	
-	rename bckt_avg bracketavg
+	qui rename bckt_avg bracketavg
 		
 	// Top shares  
 	quietly replace ftile = round(ftile, 0.00001)
@@ -160,7 +160,15 @@ forvalues t = 1996/2015 {
 		quietly count if (thr[_n] >= thr[_n + 1])
 	}
 	
-	export excel using "Data/Tax-data/ARG/wage_ARG_`t'.xlsx", /// 
+	// Create directory if it doesnt exist 
+	local dirpath "input_data/admin_data/ARG/_clean"
+	mata: st_numscalar("exists", direxists(st_local("dirpath")))
+	if (scalar(exists) == 0) {
+		mkdir "`dirpath'"
+		display "Created directory: `dirpath'"
+	}
+	
+	export excel using "input_data/admin_data/ARG/_clean/wage_ARG_`t'.xlsx", /// 
 		firstrow(variables) keepcellfmt replace
 }
 

@@ -1,18 +1,42 @@
 #clean (and download) tax data  
 
 #setup 
-source("code/R/00_libraries.R")
+#load packages
+suppressMessages(suppressPackageStartupMessages({
+  required_packages <- c("openxlsx","readxl", "xlsx", "ggplot2", "haven", "furrr","purrr", "future" ,"magrittr", "dplyr", "readr", "janitor", "glue","tidyr", "rvest", "stringr")
+  options(repos = c(CRAN = "https://cloud.r-project.org"))
+  for (pkg in required_packages) {
+    if (!suppressWarnings(require(pkg, character.only = TRUE, quietly = TRUE))) {
+      install.packages(pkg, dependencies = TRUE)
+    }
+    library(pkg, character.only = TRUE)
+  }
+}))
+
+
+#read config file 
+lines <- readLines("_config.do")
+config <- list()
+for (line in lines) {
+  if (grepl("^\\s*global\\s+", line)) {
+    parts <- strcapture("^\\s*global\\s+([a-zA-Z0-9_]+)\\s+\"?(.+?)\"?$", line, proto = list(name = "", value = ""))
+    config[[parts$name]] <- parts$value
+  }
+}
+config$last_year <- as.integer(config$last_y)
+last_y <- config$last_year
+
+#source("code/R/00_libraries.R")
 source("code/R/functions/clean_bra_2007plus.R")
-libraries(stdlibs)
 mode <- "local" #update 
 
 #bring total pop 
-popdata <- read_dta("Data/Population/SurveyPop.dta")
+popdata <- read_dta("intermediary_data/population/SurveyPop.dta")
 
 # I. BRAZIL------------------------
 
 #arrange estimates before 2007 
-bra_file <- "Data/Tax-data/BRA/Raw tabulations/"
+bra_file <- "input_data/admin_data/BRA/"
 bra_tabs_2000_06 <- NULL
 for(t in 2000:2007) {
   excel_file <- file.path(bra_file, glue("ptot_", t, ".xlsx"))
@@ -31,15 +55,20 @@ if (mode == "update") {
 
 #clean admin 2007-present 
 bra_tabs <- map_dfr(
-  2007:2022,
+  2007:last_y,
   ~clean_bra_2007plus(
     t = .x,
-    fld = "Data/Tax-data/BRA/Raw tabulations/"
+    fld = "input_data/admin_data/BRA/"
   )
 )
 
 #download info on minwages 
-wiki_minwage <- "Data/Tax-data/BRA/Raw tabulations/wiki_minwage.csv"
+bra_min <- "input_data/admin_data/BRA/downloads"
+if (!dir.exists(bra_min)) {
+  dir.create(bra_min, recursive = TRUE)
+  message("Folder created: ", bra_min)
+} 
+wiki_minwage <- "input_data/admin_data/BRA/downloads/wiki_minwage.csv"
 if (mode == "update") {
   source("code/R/functions/bra_minwage_downloader.R")
 } 
@@ -62,8 +91,15 @@ bra_avgs <- summarise(bra_tabs,
 bra_tab_years <- bra_avgs$year
 bra_avgs <- bra_avgs$average
 
+
+bra_clean <- "input_data/admin_data/BRA/_clean"
+if (!dir.exists(bra_clean)) {
+  dir.create(bra_clean, recursive = TRUE)
+  message("Folder created: ", bra_clean)
+} 
+
 #Order as gpinter input
-xlsx_file <- "Data/Tax-Data/BRA/gpinter_input/total-pre-BRA.xlsx"
+xlsx_file <- "input_data/admin_data/BRA/_clean/total-pre-BRA.xlsx"
 if(file.exists(xlsx_file)) file.remove(xlsx_file)
 for(x in 1:length(bra_tab_years)) {
   exptab <- select(ungroup(bra_tabs), year, country, component, popsize, average, p ,thr, bracketavg) %>% 

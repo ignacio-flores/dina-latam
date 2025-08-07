@@ -1,8 +1,5 @@
 /*=============================================================================*
 Goal: Import and prepare Salvadorian tax data for combination with Survey
-Authors: Mauricio De Rosa, Ignacio Flores, Marc Morgan
-Date: 	Jan/2020
-
 Totales de ingreso en dólares estadounidenses
 *=============================================================================*/
 
@@ -18,14 +15,14 @@ forvalues year = 2000/2017 {
 		else if "`var'" == "div" local cellr "B10:L19"
 		
 		//import excel file
-		import excel ///
-			"Data/Tax-data/SLV/Tabulaciones_SLV.xls", /// 
+		qui import excel ///
+			"input_data/admin_data/SLV/Tabulaciones_SLV.xls", /// 
 			sheet(`year') cellrange(`cellr') clear
 		
 		
 		if "`var'" == "asal" {
 		//rename variables
-			drop F
+			qui drop F
 			quietly rename (B C D E G) ///
 				(tramo rangos contrib tot_renta impuesto)
 
@@ -35,7 +32,7 @@ forvalues year = 2000/2017 {
 		
 		else if "`var'" == "div" {
 		//rename variables
-			drop D E F G H K
+			qui drop D E F G H K
 			quietly rename (B C I J L) ///
 				(tramo rangos contrib tot_renta impuesto)
 
@@ -57,9 +54,9 @@ forvalues year = 2000/2017 {
 		quietly replace thr = 1000000 if tramo==10
 		
 		//drop observations with no wage information
-		drop if tramo==10 & inlist(`year',2002,2003,2004,2009,2012,2013,2014) /// 
+		qui drop if tramo==10 & inlist(`year',2002,2003,2004,2009,2012,2013,2014) /// 
 		& "`var'"=="asal"
-		drop if tramo==9 & inlist(`year',2011) & "`var'"=="asal"
+		qui drop if tramo==9 & inlist(`year',2011) & "`var'"=="asal"
 		qui replace thr = 500000 if tramo==10 & inlist(`year',2011) & "`var'"=="asal"
 		
 		/*
@@ -69,24 +66,23 @@ forvalues year = 2000/2017 {
 			replace `v' = `v'*8.755 if `year'==2000
 		}
 		*/
-		drop tramo
+		qui drop tramo
 		//gen variables of interest
 		quietly gen totn_renta = tot_renta - impuesto
 		quietly gen bracketavg = totn_renta/contrib
 		
-		gen year=`year' in 1
-		egen totalnetinc=total(totn_renta)
-		egen totalcontrib=total(contrib)
-		gen average=(totalnetinc)/totalcontrib
+		qui gen year=`year' in 1
+		qui egen totalnetinc=total(totn_renta)
+		qui egen totalcontrib=total(contrib)
+		qui gen average=(totalnetinc)/totalcontrib
 		
 		//keep variables of interest
-		order year average totalnetinc contrib thr bracketavg 
-		keep year average totalnetinc contrib thr bracketavg
+		qui order year average totalnetinc contrib thr bracketavg 
+		qui keep year average totalnetinc contrib thr bracketavg
 		
 		tempfile tab_`year'_`var'
 		quietly save "`tab_`year'_`var''", replace
-		
-		cap use "Data/CEPAL/surveys/SLV/raw/SLV_`year'_raw.dta", clear
+		cap use "intermediary_data/microdata/raw/SLV/SLV_`year'_raw.dta", clear
 		
 		cap assert _N == 0
 		if _rc != 0 {
@@ -94,9 +90,8 @@ forvalues year = 2000/2017 {
 			quietly sum _fep   
 			local totalpop = r(sum)
 		
-		}	
-		
-		use "`tab_`year'_`var''" , clear
+		}		
+		qui use "`tab_`year'_`var''" , clear
 		
 		tempvar freq cumfreq 
 		
@@ -108,18 +103,26 @@ forvalues year = 2000/2017 {
 		
 		//percentiles
 		quietly gen p = 1 - `cumfreq'
-		sort bracketavg
-		sort p
+		qui sort bracketavg
+		qui sort p
 		
-		gen country="SLV" in 1
-		replace average = totalnetinc / totalpop
+		qui gen country="SLV" in 1
+		qui replace average = totalnetinc / totalpop
 		
-		order year country totalpop average p thr bracketavg
-		if ("`var'"=="asal") keep year country totalpop average p bracketavg
-		else keep year country totalpop average p thr bracketavg
+		qui order year country totalpop average p thr bracketavg
+		if ("`var'"=="asal") qui keep year country totalpop average p bracketavg
+		else qui keep year country totalpop average p thr bracketavg
+		
+		// Create directory if it doesnt exist 
+		local dirpath "input_data/admin_data/SLV/_clean"
+		mata: st_numscalar("exists", direxists(st_local("dirpath")))
+		if (scalar(exists) == 0) {
+			mkdir "`dirpath'"
+			display "Created directory: `dirpath'"
+		}	
 		
 		cap export excel ///
-		"Data/Tax-data/SLV/gpinter_input/`inc'-SLV.xlsx", ///
+		"input_data/admin_data/SLV/_clean/`inc'-SLV.xlsx", ///
 			sheet("`year'", replace) firstrow(variables) keepcellfmt 
 	}
 	}

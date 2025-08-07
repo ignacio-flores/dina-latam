@@ -16,7 +16,7 @@ forvalues t = 2009/2014 {
 		
 		
 		//Import adult population data into tabulations
-		cap use "Data/Population/PopulationLatAm.dta", clear
+		qui use "input_data/population/PopulationLatAm.dta", clear
 		mkmat year totalpop adultpop, matrix(_mat_sum)
 
 		scalar totalpop2009=_mat_sum[795, 2]
@@ -27,8 +27,7 @@ forvalues t = 2009/2014 {
 		scalar totalpop2014=_mat_sum[800, 2]
 		
 		// define location of tax data (one file per year)
-		local taxfile "Data/Tax-data/MEX/Database_wages/Database_wages_`t'.dta" 
-
+		local taxfile "input_data/admin_data/MEX/microdata/Database_wages_`t'.dta" 
 		use `taxfile', clear
 		
 		// Define income variable = total gross income for months worked
@@ -122,9 +121,17 @@ forvalues t = 2009/2014 {
 		order year totinc average p thr bracketavg topavg topshare b totalpop
 		keep year totinc average p thr bracketavg topavg topshare b	totalpop
 		
+		// Create directory if it doesnt exist 
+		local dirpath "input_data/admin_data/MEX/_clean"
+		mata: st_numscalar("exists", direxists(st_local("dirpath")))
+		if (scalar(exists) == 0) {
+			mkdir "`dirpath'"
+			display "Created directory: `dirpath'"
+		}	
+		
 		// export to excel (separate workbooks per year)
-		export excel using "Data/Tax-data/MEX/wage_MEX_`t'.xlsx", firstrow(variables) ///
-			keepcellfmt replace 
-
+		export excel using ///
+			"input_data/admin_data/MEX/_clean/wage_MEX_`t'.xlsx", ///
+			firstrow(variables) keepcellfmt replace 
 
 }

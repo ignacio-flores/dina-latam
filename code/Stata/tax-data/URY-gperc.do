@@ -1,6 +1,7 @@
 clear
 
-global data "Data/Tax-data/URY"
+di as result "crunching Uruguayan adminisitrative microdata..."
+global data "input_data/admin_data/URY"
 
 /*
 scalar pob_09=2348300 
@@ -24,14 +25,14 @@ scalar pob_16=3480222
 */
 qui foreach year in "09" "10" "11" "12" "13" "14" "15" "16" { //  
 
-	use "$data/Mega20`year'_paracuadros_alt3", clear  
+	di as text "year `year'..." _continue
+	use "$data/microdata/Mega20`year'_paracuadros_alt3", clear  
 
-	
 	*-------------------------------------------------------------------------------
 	*PART I: MAIN VARIABLES
 	*-------------------------------------------------------------------------------
 	
-	qui do "code/Do-files/auxiliar/aux_URY_incomevar"
+	qui do "code/Stata/auxiliar/aux_URY_incomevar"
 	
 	
 	*Add indivs so that database accounts for the entire population
@@ -181,17 +182,20 @@ qui foreach year in "09" "10" "11" "12" "13" "14" "15" "16" { //
 
 	*export the matrix--------------------------------------------------------------
 	mat colnames out_mat_`year'=N thr bracketavg male female _40 _60 _ Miss_age lab_inc mix_inc pen_inc cap_inc topavg p totalpop average
+	
+	// Create directory if it doesnt exist 
+	local dirpath "input_data/admin_data/URY/_clean"
+	mata: st_numscalar("exists", direxists(st_local("dirpath")))
+	if (scalar(exists) == 0) {
+		mkdir "`dirpath'"
+		display "Created directory: `dirpath'"
+	}	
 
-
-	putexcel set "$data/gpinter_URY_20`year'.xlsx", modify
+	putexcel set "input_data/admin_data/URY/gpinter_URY_20`year'.xlsx", modify
 	putexcel A1=matrix(out_mat_`year'), colnames
 	
-	putexcel set "$data/gpinter_input/total-pre-URY.xlsx", modify sheet(20`year')
+	putexcel set "input_data/admin_data/URY/_clean/total-pre-URY.xlsx", modify sheet(20`year')
 	putexcel A1=matrix(out_mat_`year'), colnames
-	
-	*putexcel set "$data/gpinter_otuput/total-pre-URY.xlsx", modify sheet(20`year')
-	*putexcel A1=matrix(out_mat_`year'), colnames
-
 
 	// save effective tax rates data
 	
@@ -210,9 +214,17 @@ qui foreach year in "09" "10" "11" "12" "13" "14" "15" "16" { //
 	qui duplicates drop p_merge, force
 	qui drop if p_merge > 9999
 	qui format p_merge %9.0g
+	
+	// Create directory if it doesnt exist 
+	local dirpath "input_data/admin_data/URY/eff-tax-rate"
+	mata: st_numscalar("exists", direxists(st_local("dirpath")))
+	if (scalar(exists) == 0) {
+		mkdir "`dirpath'"
+		display "Created directory: `dirpath'"
+	}	
 
-	save "$data/eff-tax-rate/URY_effrates_20`year'", replace
-
+	save "input_data/admin_data/URY/eff-tax-rate/URY_effrates_20`year'", replace
+	di as result " done"
 *exit 1
 }
 

@@ -13,8 +13,8 @@ forvalues year = 2009/2014 {
 		else local cellr "B18:H35"
 	
 		//import
-		import excel ///
-			"Data/Tax-data/ARG/EstadisticasTributarias`year'/`tab'.xlsx", ///
+		qui import excel ///
+			"input_data/admin_data/ARG/EstadisticasTributarias`year'/`tab'.xlsx", ///
 			sheet("Hoja1") cellrange(`cellr') clear
 			
 		if ("`tab'" == "2.2.2.1.1"){ 	
@@ -42,18 +42,26 @@ forvalues year = 2009/2014 {
 			quietly rename (B C D E F G H) ///
 				(desde hasta declarantes_tax totinc_tax casos_gan ///
 				importe_gan impuesto)
-			drop hasta
+			qui drop hasta
 		}
 		
-		ds
+		qui ds
 		local vars "`r(varlist)'"
 		foreach v in `vars' {
 			quietly replace `v' = subinstr(`v', ".", "",.) 
-			destring `v', replace
+			qui destring `v', replace
+		}
+		
+			//create main folders 
+		local dirpath "input_data/admin_data/ARG/EstadisticasTributarias`year'/_clean"
+		mata: st_numscalar("exists", direxists(st_local("dirpath")))
+		if (scalar(exists) == 0) {
+			qui mkdir "`dirpath'"
+			display "Created directory: `dirpath'"
 		}
 
 		quietly save ///
-			"Data/Tax-data/ARG/EstadisticasTributarias`year'/`tab'.dta", ///
+			"input_data/admin_data/ARG/EstadisticasTributarias`year'/_clean/`tab'.dta", ///
 			replace 
 	}
 }	

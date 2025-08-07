@@ -1,5 +1,9 @@
-#locate folder 
-bra_file <- "Data/Tax-data/BRA/Raw tabulations/downloads"
+#locate folder
+bra_file <- "input_data/admin_data/BRA/downloads"
+if (!dir.exists(bra_file)) {
+  dir.create(bra_file, recursive = TRUE)
+  message("Folder created: ", bra_file)
+} 
 
 #download PIT data from 2007-2013
 web <- "https://www.gov.br/receitafederal/pt-br/acesso-a-informacao/dados-abertos"

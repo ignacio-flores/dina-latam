@@ -1,21 +1,21 @@
 
 //preliminary
 global aux_part  ""preliminary"" 
-quietly do "code/Do-files/auxiliar/aux_general.do"
+quietly do "code/Stata/auxiliar/aux_general.do"
 
-local lasty_col_tax = 2022
+local lasty_col_tax = 2023
 forvalues y = 2014/`lasty_col_tax' {
 	
 	*remember total population 
 	di as result "`y' ", _continue
-	qui use "Data/Population/SurveyPop.dta", clear
+	qui use "intermediary_data/population/SurveyPop.dta", clear
 	qui sum totpop_ie if country == "COL" & year == `y'
 	local totalpop = r(sum)
 	
 	*open tax data 
 	local n = `y' - 2007	
 	global route ///
-		"${taxpath}COL/raw_data/1_Cuantiles_Ingreso_Bruto_Naturales_2014-`lasty_col_tax'"
+		"input_data/admin_data/COL/1_Cuantiles_Ingreso_Bruto_Naturales_2014-`lasty_col_tax'"
 	global fil "`n'_Cuantiles_Ingreso_Bruto_Naturales_`y'_F-210"
 	local sn 
 	if `y' == 2014 {
@@ -31,6 +31,10 @@ forvalues y = 2014/`lasty_col_tax' {
 	if `y' == 2021 local cr A9:DL998
 	if `y' == 2022 {
 		local cr B14:DM1002
+		local sn "Ag cuantiles ingreso bruto"
+	} 
+	if `y' == 2023 {
+		local cr B14:DM999
 		local sn "Ag cuantiles ingreso bruto"
 	} 
 	di as result "`cr' ", _continue
@@ -117,8 +121,16 @@ forvalues y = 2014/`lasty_col_tax' {
 			qui gen year = `y' in 1 
 			qui gen country = "COL" in 1 
 			
+			// Create directory if it doesnt exist 
+			local dirpath "input_data/admin_data/COL/_clean"
+			mata: st_numscalar("exists", direxists(st_local("dirpath")))
+			if (scalar(exists) == 0) {
+				mkdir "`dirpath'"
+				display "Created directory: `dirpath'"
+			}	
+			
 			qui export excel using ///
-				"${taxpath}COL/gpinter_input/total-`v'-COL.xlsx", ///
+				"input_data/admin_data/COL/_clean/total-`v'-COL.xlsx", ///
 				firstrow(			variables)  sheet("`y'", modify) 
 		restore
 		

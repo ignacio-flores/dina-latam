@@ -1,8 +1,5 @@
 #clean (and download) tax data  
 
-#setup 
-#source("code/R/00_libraries.R")
-#libraries(stdlibs)
 mode <- "local"  
 
 #load packages

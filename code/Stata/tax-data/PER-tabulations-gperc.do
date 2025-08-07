@@ -1,7 +1,5 @@
 /*=============================================================================*
 Goal: Import and prepare Peruvian tax data for combination with Survey
-Authors: Mauricio De Rosa, Ignacio Flores, Marc Morgan
-Date: 	Jan/2020
 
 Totales de ingreso en soles
 El ingreso total se compone en cinco categorias:
@@ -21,7 +19,7 @@ forvalues year = 2016/2018 {
 	
 	//import excel file
 	qui import excel ///
-		"Data/Tax-data/PER/DeclaracionesPeru.xls", /// 
+		"input_data/admin_data/PER/DeclaracionesPeru.xls", /// 
 		sheet("PPNN_`year'") cellrange("C9:J25") clear
 	
 	//rename variables
@@ -51,7 +49,7 @@ forvalues year = 2016/2018 {
 	tempfile tab_`year'
 	qui save `tab_`year'', replace
 	
-	cap use "Data/CEPAL/surveys/PER/raw/PER_`year'_raw.dta", clear
+	qui use "intermediary_data/microdata/raw/PER/PER_`year'_raw.dta", clear
 	
 	cap assert _N == 0
 	if _rc != 0 {
@@ -84,8 +82,16 @@ forvalues year = 2016/2018 {
 	order year country totalpop average p thr bracketavg ///
 		sh_rent sh_capital sh_labour
 	
+	// Create directory if it doesnt exist 
+	local dirpath "input_data/admin_data/PER/_clean"
+	mata: st_numscalar("exists", direxists(st_local("dirpath")))
+	if (scalar(exists) == 0) {
+		mkdir "`dirpath'"
+		display "Created directory: `dirpath'"
+	}
+	
 	cap export excel ///
-	"Data/Tax-data/PER/gpinter_input/total-PER.xlsx", ///
+	"input_data/admin_data/PER/_clean/total-PER.xlsx", ///
 		sheet("`year'", replace) firstrow(variables) keepcellfmt 
 	
 }

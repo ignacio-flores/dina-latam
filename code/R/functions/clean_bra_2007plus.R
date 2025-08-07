@@ -22,7 +22,7 @@ clean_bra_2007plus <- function(t, fld) {
     rangecoor <- "B7:BE959"
   } 
   if (t>=2022) {
-    rangecoor <- "A2:BD953"
+    rangecoor <- "A2:BD954"
   }
   
   print(paste0("BRA", t, ". sheetname:", sheetname, ". rangecoor: ", rangecoor))
@@ -54,12 +54,12 @@ clean_bra_2007plus <- function(t, fld) {
         rename(tipo = `x1`, uf = `x2`,
                faixa_in_min_wage = `x3`, n = `x4`)
     }
-    if (t == 2022) {
+    if (t >= 2022) {
       content %<>% 
-        dplyr::select(tipo_formulario, uf, faixa_rendim_tribut_mais_trib_exclus_mais_isent_sal_min, 
+        dplyr::select(tipo_formulario, uf, faixa_de_rendim_tributavel_mais_trib_exclusiva_mais_isentos_em_sal_minimos, 
                       qtde_contribuintes, rendimento_tributavel_total, rend_sujeitos_a_tribut_exclusiva, 
                       rend_isentos_e_nao_tributaveis, deducao_livro_caixa) %>%
-        rename(tipo = tipo_formulario, faixa_in_min_wage = faixa_rendim_tribut_mais_trib_exclus_mais_isent_sal_min, 
+        rename(tipo = tipo_formulario, faixa_in_min_wage = faixa_de_rendim_tributavel_mais_trib_exclusiva_mais_isentos_em_sal_minimos, 
                n = `qtde_contribuintes`, x5 = `rendimento_tributavel_total`, 
                x13 = `rend_sujeitos_a_tribut_exclusiva`, x14 = `rend_isentos_e_nao_tributaveis`,
                livro_caixa = `deducao_livro_caixa`)

@@ -10,11 +10,12 @@ global aux_part  ""preliminary""
 qui do "code/Do-files/auxiliar/aux_general.do"
 
 //define list of countries (for BRA, only pre 2007)
-local ctries " "COL" "ECU" "BRA" " 
+local ctries " "BRA" " //"COL" "ECU"
 
 //open population data 
 qui use country year totpop pct_adults_ie if ///
-	inlist(country, "BRA", "COL", "ECU") using $popdata , clear 
+	inlist(country, "BRA", "COL", "ECU") using ///
+	"intermediary_data/population/SurveyPop.dta", clear 
 
 //store % of adults in memory 
 foreach c in `ctries' {
@@ -43,7 +44,7 @@ foreach c in `ctries' {
 		}
 		if inlist("`c'", "BRA") {
 			qui cap import excel ///
-				"${taxpath}`c'/Raw tabulations/padu_2000-2002-2006.xlsx", ///
+				"$input_data/admin_data/BRA/padu_2000-2002-2006.xlsx", ///
 				firstrow sheet("`t'") clear 
 		}
 			
@@ -71,7 +72,7 @@ foreach c in `ctries' {
 			*export 
 			if "`c'" == "BRA" {
 				qui replace country = "BRA"
-				qui export excel "$taxpath`c'/Raw tabulations/ptot_`t'.xlsx", ///
+				qui export excel "input_data/admin_data/BRA/ptot_`t'.xlsx", ///
 				firstrow(variables) replace	
 			} 
 			if inlist("`c'", "COL", "ECU") {
@@ -81,6 +82,3 @@ foreach c in `ctries' {
 		}
 	}
 }
-
-//check que el ratio que usamos sea exactamente el q necesitamos 
-//Está bien asumir que el average es el total declarado ahi? Poptot? 
