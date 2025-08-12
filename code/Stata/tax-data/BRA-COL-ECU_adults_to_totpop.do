@@ -7,10 +7,10 @@ clear all
 
 //preliminary 
 global aux_part  ""preliminary"" 
-qui do "code/Do-files/auxiliar/aux_general.do"
+qui do "code/Stata/auxiliar/aux_general.do"
 
 //define list of countries (for BRA, only pre 2007)
-local ctries " "BRA" " //"COL" "ECU"
+local ctries " "BRA" "ECU" " // "COL"
 
 //open population data 
 qui use country year totpop pct_adults_ie if ///
@@ -39,12 +39,12 @@ foreach c in `ctries' {
 		clear 
 		if inlist("`c'", "COL", "ECU") {
 			qui cap import excel ///
-				"$taxpath`c'/gpinter_adults/gpinterinput_`c'.xlsx", ///
+				"input_data/admin_data/`c'/gpinter_adults/gpinterinput_`c'.xlsx", ///
 				firstrow sheet("`t'") clear
 		}
 		if inlist("`c'", "BRA") {
 			qui cap import excel ///
-				"$input_data/admin_data/BRA/padu_2000-2002-2006.xlsx", ///
+				"input_data/admin_data/BRA/padu_2000-2002-2006.xlsx", ///
 				firstrow sheet("`t'") clear 
 		}
 			
@@ -76,7 +76,16 @@ foreach c in `ctries' {
 				firstrow(variables) replace	
 			} 
 			if inlist("`c'", "COL", "ECU") {
-				qui export excel "$taxpath`c'/gpinter_input/total-pos-`c'.xlsx", ///
+				
+				// Create directory if it doesnt exist 
+				local dirpath "input_data/admin_data/`c'/_clean"
+				mata: st_numscalar("exists", direxists(st_local("dirpath")))
+				if (scalar(exists) == 0) {
+					mkdir "`dirpath'"
+					display "Created directory: `dirpath'"
+				}	
+				
+				qui export excel "input_data/admin_data/`c'/_clean/total-pos-`c'.xlsx", ///
 				firstrow(variables) sheet("`t'", replace)	
 			}
 		}

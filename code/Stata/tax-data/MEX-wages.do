@@ -7,28 +7,33 @@ The database contains the universe of salaried workers, their gross income,
 exempt income and taxable income from employment and the number of months they
 worked. 
 *=============================================================================*/
-
 clear
 /////////////////////////////////////////////////////////////////////////////
+
+//Import adult population data into tabulations
+qui use "input_data/population/PopulationLatAm.dta", clear
+mkmat year totalpop adultpop, matrix(_mat_sum)
+
+scalar totalpop2009=_mat_sum[795, 2]
+scalar totalpop2010=_mat_sum[796, 2]
+scalar totalpop2011=_mat_sum[797, 2]
+scalar totalpop2012=_mat_sum[798, 2]
+scalar totalpop2013=_mat_sum[799, 2]
+scalar totalpop2014=_mat_sum[800, 2]
+
 
 // define the range of years you have
 forvalues t = 2009/2014 { 
 		
+		di as result "working with Mexican admin data..." _continue
 		
-		//Import adult population data into tabulations
-		qui use "input_data/population/PopulationLatAm.dta", clear
-		mkmat year totalpop adultpop, matrix(_mat_sum)
-
-		scalar totalpop2009=_mat_sum[795, 2]
-		scalar totalpop2010=_mat_sum[796, 2]
-		scalar totalpop2011=_mat_sum[797, 2]
-		scalar totalpop2012=_mat_sum[798, 2]
-		scalar totalpop2013=_mat_sum[799, 2]
-		scalar totalpop2014=_mat_sum[800, 2]
-		
+	
 		// define location of tax data (one file per year)
 		local taxfile "input_data/admin_data/MEX/microdata/Database_wages_`t'.dta" 
-		use `taxfile', clear
+		cap use `taxfile', clear
+		if _rc != 0 {
+			di as error " loading failed"
+		}
 		
 		// Define income variable = total gross income for months worked
 		rename ibt tot_gross_inc
@@ -133,5 +138,7 @@ forvalues t = 2009/2014 {
 		export excel using ///
 			"input_data/admin_data/MEX/_clean/wage_MEX_`t'.xlsx", ///
 			firstrow(variables) keepcellfmt replace 
+			
+		di as text " done"	
 
 }
