@@ -1,14 +1,14 @@
 clear all
 
 //set directories
-global data 	"Data/Tax-data/COL"
-global results 	"figures/eff_tax_rates"
+global data 	"input_data/admin_data/COL"
+global results 	"output/figures/eff_tax_rates"
 
  local x = 0
- forvalues y=2014/2022 {
+ forvalues y=2014/2023 {
 	
 	local x = `x' + 1
-	global route "$data/gpinter_input"
+	global route "$data/_clean"
 	global excel "total-pos-COL"
 	qui cap erase "$route/total-pos-COL_`x'.dta"
 	qui xls2dta, sheet("`y'") save($route) : /// 
@@ -22,7 +22,7 @@ global results 	"figures/eff_tax_rates"
 	
 	//call graph parameters 
 	global aux_part  ""graph_basics"" 
-	do "code/Do-files/auxiliar/aux_general.do"
+	do "code/Stata/auxiliar/aux_general.do"
 			
 	label var eff_tax_rate_ipol "Effective tax rate"
 				

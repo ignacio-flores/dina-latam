@@ -9,11 +9,11 @@ Date: Jan/2020
 clear all
 
 //define macros  	  	
-global types " "norep" " // ("rep" is the other one)
+global types " "rep" " // ("norep" is the other one)
 
 //preliminary
 global aux_part  ""preliminary"" 
-do "code/Do-files/auxiliar/aux_general.do"
+do "code/Stata/auxiliar/aux_general.do"
 
 // -----------------------------------------------------------------------------
 
@@ -28,8 +28,8 @@ foreach c in  $countries_bfm_02a {
 	forvalues t = $first_y / $last_y {
 	
 		//define path to files 
-		local taxfile "$taxpath`c'/gpinter_`c'_`t'.xlsx"
-		local svyfile "$svypath`c'/raw/`c'_`t'_raw.dta"
+		local taxfile "input_data/admin_data/`c'/gpinter_`c'_`t'.xlsx"
+		local svyfile "intermediary_data/microdata/raw/`c'/`c'_`t'_raw.dta"
 	
 		// 1. CHECK WHAT DATA IS AVAILABLE AND REPORT --------------------------
 		
@@ -43,11 +43,11 @@ foreach c in  $countries_bfm_02a {
 			
 				//report existence of files 
 				di as result "`c' `t': Both survey and tax data " _continue
-				di as result "exist, combining datasets (02a)... " _continue
+				di as result "exist, combining datasets (03a)... " _continue
 				di as text "at $S_TIME"
 				
 				//Get trust region
-				qui import excel "${taxpath}directory.xlsx", ///
+				qui import excel "input_data/admin_data/directory.xlsx", ///
 					sheet("trust") firstrow clear
 				qui destring trust, replace	
 				qui sum trust if country == "`c'" & year == `t'
@@ -107,12 +107,9 @@ foreach c in  $countries_bfm_02a {
 					qui sum `raw_weight' 
 					local orig_weights = r(sum)
 					
-					//Get age groups and restrict population 
-					*if inlist("`c'", "CHL", "BRA", "COL", "ECU") ///
-					*	qui keep if `age' > 19	
+					//Get age groups 
 					xtile age_group = `age', nquantiles(10)
-					
-					
+						
 					// 3. COMBINE SURVEY AND TAX DATA --------------------------
 					// loopy loop 
 					
@@ -126,16 +123,48 @@ foreach c in  $countries_bfm_02a {
 						if ("`type'" == "rep") local ext ""
 						if ("`type'" == "norep") local command "noreplace"
 						if ("`type'" == "norep") local ext "_norep"
+						
+						//create main folders 
+						local dirpath "intermediary_data/microdata/bfm`ext'_`pf'"
+						mata: st_numscalar("exists", direxists(st_local("dirpath")))
+						if (scalar(exists) == 0) {
+							mkdir "`dirpath'"
+							display "Created directory: `dirpath'"
+						}
+						
+						//create main folders 
+						local dirpath "output/figures/MP"
+						mata: st_numscalar("exists", direxists(st_local("dirpath")))
+						if (scalar(exists) == 0) {
+							mkdir "`dirpath'"
+							display "Created directory: `dirpath'"
+						}
+						
+						//create main folders 
+						local dirpath "output/bfm_summary"
+						mata: st_numscalar("exists", direxists(st_local("dirpath")))
+						if (scalar(exists) == 0) {
+							mkdir "`dirpath'"
+							display "Created directory: `dirpath'"
+						}
+						
+						//create main folders 
+						local dirpath "output/bfm_summary/bfm`ext'_`pf'"
+						mata: st_numscalar("exists", direxists(st_local("dirpath")))
+						if (scalar(exists) == 0) {
+							mkdir "`dirpath'"
+							display "Created directory: `dirpath'"
+						}
 							
 						//path to files 
 						local corrfile ///
-							"$svypath`c'/bfm`ext'_`pf'/`c'_`t'_bfm`ext'_`pf'.dta"
-						local MPgraph "figures/bfm`ext'_`pf'/MP/`c'_`t'_MP.pdf"
-						local export_results "results/bfm`ext'_`pf'/bfm_summary.xlsx"
-						local mpfile "results/bfm`ext'_`pf'/merging_points.xlsx"
+							"intermediary_data/microdata/bfm`ext'_`pf'/`c'_`t'_bfm`ext'_`pf'.dta"
+						local MPgraph "output/figures/MP/`c'_`t'_MP.pdf"
+						local export_results "output/bfm_summary/bfm`ext'_`pf'/bfm_summary.xlsx"
+						local mpfile "output/bfm_summary/bfm`ext'_`pf'/merging_points.xlsx"
 											
 						//find program
-						qui sysdir set PERSONAL "${adofile}bfm_stata_ado/."
+						qui sysdir set PERSONAL "code/Stata/ado/bfm_stata_ado/."
 						clear programs
 						qui use `tf', clear
 						
@@ -249,7 +278,7 @@ foreach type in $types {
 		}
 		
 		//save results 
-		local mpfile "results/bfm`ext'_`pf'/merging_points.xlsx"
+		local mpfile "output/bfm_summary/bfm`ext'_`pf'/merging_points.xlsx"
 		qui export excel `mpfile', firstrow(variables) ///
 			sheet("country_years") sheetreplace keepcellfmt
 				
@@ -268,7 +297,7 @@ foreach type in $types {
 		}
 		
 		//save results 
-		local mpfile "results/bfm`ext'_`pf'/merging_points.xlsx"
+		local mpfile "output/bfm_summary/bfm`ext'_`pf'/merging_points.xlsx"
 		qui export excel `mpfile', firstrow(variables) ///
 			sheet("unobserved") sheetreplace keepcellfmt
 			

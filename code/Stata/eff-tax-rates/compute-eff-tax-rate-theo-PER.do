@@ -2,9 +2,9 @@
 
 clear all
 
-global data_tax "Data/Tax-data/PER"
-global data_sur "Data/CEPAL/surveys/PER/raw"
-global results 	"figures/eff_tax_rates"
+global data_tax "input_data/admin_data/PER"
+global data_sur "intermediary_data/microdata/raw/PER"
+global results 	"output/figures/eff_tax_rates"
 
 forvalues x = 2016/2017 {
 	
@@ -67,7 +67,7 @@ forvalues x = 2016/2017 {
 	
 	//call graph parameters 
 	global aux_part  ""graph_basics"" 
-	do "code/Do-files/auxiliar/aux_general.do"
+	do "code/Stata/auxiliar/aux_general.do"
 				
 	* plot
 	form p %15.1fc

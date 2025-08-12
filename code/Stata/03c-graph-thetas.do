@@ -16,13 +16,13 @@ clear all
 
 //preliminary
 global aux_part  ""preliminary"" 
-qui do "code/Do-files/auxiliar/aux_general.do"
+qui do "code/Stata/auxiliar/aux_general.do"
 
 // 1. Get average Theta coefficients -------------------------------------------
 
 //Get list of country-years corrected in 02a
 global aux_part  ""tax_svy_overlap"" 
-qui do "code/Do-files/auxiliar/aux_general.do"
+qui do "code/Stata/auxiliar/aux_general.do"
 
 //Build panel with thetas 
 local iter = 1 
@@ -33,7 +33,7 @@ foreach c in $overlap_countries {
 	foreach y in ${`c'_overlap_years} {
 		local type "bfm_norep_pos" 
 		if inlist("`c'", "BRA", "CRI") local type "bfm_norep_pre"
-		local mp "results/`type'/merging_points.xlsx"
+		local mp "output/bfm_summary/`type'/merging_points.xlsx"
 		qui import excel "`mp'", sheet("`c'`y'") firstrow clear
 		qui gen country = "`c'"
 		qui gen year = "`y'"
@@ -55,12 +55,12 @@ bysort country p: egen avg_t = median(antitonic)
 qui sort country year p
 
 //Save data
-qui export excel "${all_thetas}", firstrow(variables) ///
+qui export excel "", firstrow(variables) ///
 	sheet("panel") sheetreplace 
 	
 //call graph parameters 
 global aux_part  ""graph_basics"" 
-qui do "code/Do-files/auxiliar/aux_general.do"		
+qui do "code/Stata/auxiliar/aux_general.do"		
 
 //graph
 cap destring year, replace 
@@ -106,6 +106,13 @@ foreach c in $overlap_countries {
 		local iter = `iter' + 1
 	}
 	
+	local dirpath "output/figures/thetas"
+	mata: st_numscalar("exists", direxists(st_local("dirpath")))
+	if (scalar(exists) == 0) {
+		mkdir "`dirpath'"
+		display "Created directory: `dirpath'"
+	}
+	
 	*graph 
 	graph twoway `thlines`c'' ///
 		(line avg_t p if country == "`c'" ///
@@ -121,7 +128,7 @@ foreach c in $overlap_countries {
 		legend(order(`leg`c'' `onemore' "Median") ///
 		ring(1) pos(3) col(1) ///
 		symxsize(3pt) lcolor(none) region(lstyle(none))) 
-	qui graph export "figures/`type'/thetas/`c'.pdf", replace 
+	qui graph export "output/figures/thetas/`c'.pdf", replace 
 	
 	*graph 
 	graph twoway `thlines`c'' ///
@@ -136,7 +143,7 @@ foreach c in $overlap_countries {
 		xlabel(`minp'(`v')100, labsize(medium) angle(horizontal) nogrid) ///
 		$graph_scheme ///
 		legend(off)
-	qui graph export "figures/`type'/thetas/`c'_esp.pdf", replace 
+	qui graph export "output/figures/thetas/`c'_esp.pdf", replace 
 	
 	
 	*graph 
@@ -154,7 +161,7 @@ foreach c in $overlap_countries {
 		legend(order(`leg`c'' `onemore' "Mediana") ///
 		ring(1) pos(6) col(3) ///
 		symxsize(3pt) lcolor(none) region(lstyle(none))) 
-	qui graph export "figures/`type'/thetas/legend_esp.pdf", replace
+	qui graph export "output/figures/thetas/legend_esp.pdf", replace
 }
 
 

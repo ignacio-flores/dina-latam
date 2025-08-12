@@ -1,10 +1,5 @@
 ////////////////////////////////////////////////////////////////////////////////
-//
-// 						Title: IMPORT GOVT SPENDING TO MACRO DATABASE
-//								(In-kind social transfers)
-// 			 Authors: Mauricio DE ROSA, Ignacio FLORES, Marc MORGAN 
-// 										Year: 2021
-//
+// IMPORT GOVT SPENDING TO MACRO DATABASE (In-kind social transfers)
 ////////////////////////////////////////////////////////////////////////////////
 
 clear all
@@ -15,17 +10,17 @@ local mode "local" //"update"
 
 //which local version?
 if "`mode'" == "local" {
-	local date "1Aug2024"
+	local date "12Aug2025"
 }
 
 //get list of paths 
 global aux_part " "preliminary" " 
-qui do "code/Do-files/auxiliar/aux_general.do"
+qui do "code/Stata/auxiliar/aux_general.do"
 global aux_part " "graph_basics" " 
-qui do "code/Do-files/auxiliar/aux_general.do"
+qui do "code/Stata/auxiliar/aux_general.do"
 
 *bring expenditures from wid 
-if ("`mode'" == "yes") {
+if ("`mode'" == "update") {
 	local date = subinstr("$S_DATE", " ", "", .)
 	local spenvars meduge mheage mexpgo mcongo
 	qui wid, areas(${areas_wid_latam}) ind(`spenvars' mgdpro)
@@ -44,17 +39,17 @@ if ("`mode'" == "yes") {
 	qui rename _ISO3C_ iso
 	qui rename (`spenvars') (edu hea exp con)
 	qui gen source = "WID_web"
-	qui save "Data/national_accounts/WID/gov_expenditure_`date'.dta"
+	qui save "input_data/sna-WID/gov_expenditure_`date'.dta"
 }
 
-qui use "Data/national_accounts/WID/gov_expenditure_`date'.dta", clear
+qui use "input_data/sna-WID/gov_expenditure_`date'.dta", clear
 qui drop con 
 qui rename exp con 
 tempfile tfwid
 qui save `tfwid' 
 
 *bring un wb data 
-qui use "${govt_exp}", clear 
+qui use "input_data/expenditure_durrer_gethin_fisherpost/expenditure_all_countries.dta", clear 
 qui append using `tfwid'
 
 qui kountry iso, from(iso3c) geo(undet)
@@ -101,7 +96,7 @@ tempfile tf_exp
 qui save `tf_exp', replace
 
 //Merge to SNA-WID-OECD database
-qui use "${sna_wid_oecd}", clear
+qui use "intermediary_data/national_accounts/UNDATA-WID-OECD-Merged.dta", clear
 cap drop __*
 qui merge m:m country year using `tf_exp', nogen
 
@@ -113,6 +108,14 @@ foreach c in $all_countries {
 }
 qui drop if `discriminate' != 1 
 
+// Create directory if it doesnt exist 
+local dirpath "output/figures/spending/"
+mata: st_numscalar("exists", direxists(st_local("dirpath")))
+if (scalar(exists) == 0) {
+	mkdir "`dirpath'"
+	display "Created directory: `dirpath'"
+}
+
 foreach i in edu hea oex {
 	//graph item by source with legend
 	graph twoway ///
@@ -122,10 +125,10 @@ foreach i in edu hea oex {
 		legend(order(1 "Old" 2 "New")) ///
 		ylabel(, $lab_opts) xlab(,$lab_opts) xtit("") ytit("Share of GDP")
 		//save
-		qui graph export "figures/spending/`i'_wid_vs_old.pdf", replace
+		qui graph export "output/figures/spending/`i'_wid_vs_old.pdf", replace
 }	
 qui drop *_wb
 
 //save dataset
-qui save "${sna_wid_oecd_wb}", replace
+qui save "intermediary_data/national_accounts/UNDATA-WID-OECD-Merged.dta", replace
 

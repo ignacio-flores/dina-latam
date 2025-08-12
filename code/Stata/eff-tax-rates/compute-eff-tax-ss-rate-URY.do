@@ -1,14 +1,14 @@
 
 
 clear all
-global data 	"Data/Tax-data/URY"
-global results 	"figures/eff_tax_rates"
+global data 	"input_data/admin_data/URY"
+global results 	"output/figures/eff_tax_rates"
 
 global years " "09" "10" "11" "12" "13" "14" "15" "16" " // 
 
 //call graph parameters 
 global aux_part  ""graph_basics"" 
-do "code/Do-files/auxiliar/aux_general.do"
+do "code/Stata/auxiliar/aux_general.do"
 
 qui foreach x in $years { // 
 	use "$data/eff-tax-rate/URY_effrates_20`x'", clear

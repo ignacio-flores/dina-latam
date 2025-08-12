@@ -1,14 +1,6 @@
 
 ////////////////////////////////////////////////////////////////////////////////
-//
-// 							Title: BFM - Extrapolations 
-// 			 Authors: Mauricio DE ROSA, Ignacio FLORES, Marc MORGAN 
-// 									Year: 2020
-//
-// 			Description:
-// 			Apply bfm correction based on theta coefficients observed for 
-//			other years
-//
+//Apply bfm correction based on theta coefficients observed for other years
 ////////////////////////////////////////////////////////////////////////////////
 
 //General settings -------------------------------------------------------------
@@ -16,7 +8,7 @@ clear all
 
 //preliminary
 global aux_part  ""preliminary"" 
-qui do "code/Do-files/auxiliar/aux_general.do"
+qui do "code/Stata/auxiliar/aux_general.do"
 
 // 1. Compute pseudo-thetas ----------------------------------------------------
 
@@ -24,12 +16,12 @@ qui do "code/Do-files/auxiliar/aux_general.do"
 tempfile tf 
 tempvar w_change
 
-//Get list of country-years corrected in 02a-b
+//Get list of country-years corrected in 03a-b
 global aux_part  ""tax_svy_overlap"" 
-qui do "code/Do-files/auxiliar/aux_general.do"	
+qui do "code/Stata/auxiliar/aux_general.do"	
 
 //Get trust regions
-qui import excel "${taxpath}directory.xlsx", ///
+qui import excel "input_data/admin_data/directory.xlsx", ///
 	sheet("trust") firstrow clear
 qui destring trust, replace	
 local itov = 1 
@@ -70,10 +62,9 @@ foreach c in $overlap_countries {
 		} 
 	
 		//define paths
-		local pa "Data/"
 		local type "bfm_norep_pos"
 		if inlist("`c'", "BRA", "CRI") local type "bfm_norep_pre"
-		local corfile "`pa'CEPAL/surveys/`c'/`type'/`c'_`t'_`type'.dta"
+		local corfile "intermediary_data/microdata/bfm`ext'_`pf'/`c'_`t'_bfm`ext'_`pf'.dta"
 		
 		//set temporary variables 
 		tempvar ftile freq F fy cumfy L
@@ -143,7 +134,7 @@ foreach c in $overlap_countries {
 		//get information from actual bfms 
 		preserve
 			//save info on merging point 
-			qui import excel "results/`type'/merging_points.xlsx" ///
+			qui import excel "output/bfm_summary/`type'/merging_points.xlsx" ///
 				, sheet(`c'`t') firstrow clear 
 			qui levelsof mpoint, local(`c'_`t'_mp)	
 			//save info on `unobserved' population 
@@ -171,7 +162,7 @@ foreach c in $overlap_countries {
 //save data 
 qui gen inter = 1 if missing(`raw_weight', `cor_weight')
 qui drop `raw_weight' `cor_weight'
-qui export excel "${pseudo_thetas}", firstrow(variables) ///
+qui export excel "output/bfm_summary/pseudo_thetas.xlsx", firstrow(variables) ///
 	sheet("panel_pthetas") sheetreplace 
 	
 // 2. Graph Pseudo-thetas-------------------------------------------
@@ -233,7 +224,15 @@ foreach c in $overlap_countries {
 		
 		//call graph parameters 
 		global aux_part  ""graph_basics"" 
-		qui do "code/Do-files/auxiliar/aux_general.do"	
+		qui do "code/Stata/auxiliar/aux_general.do"	
+		
+		//create main folders 
+		local dirpath "output/figures/pthetas"
+		mata: st_numscalar("exists", direxists(st_local("dirpath")))
+		if (scalar(exists) == 0) {
+			mkdir "`dirpath'"
+			display "Created directory: `dirpath'"
+		}
 		
 		//Graph by country/year 
 		preserve
@@ -255,7 +254,7 @@ foreach c in $overlap_countries {
 				`leg_aux' "Median")  ring(0) bplace(neast) symx(3pt) ///
 				rows(2)*/ region(lcolor(bluishgray))) $graph_scheme 
 			//save
-			qui graph export "figures/`type'/pthetas/`c'`t'.pdf", replace  	
+			qui graph export "output/figures/pthetas/`c'`t'.pdf", replace  	
 		restore	
 	}
 }
@@ -349,10 +348,10 @@ qui save `weight_adjusters'
 foreach c in $overlap_countries {
 	forvalues t = $first_y/ $last_y {		
 				
-		//Define file paths
-		local taxfile "${taxpath}`c'/gpinter_`c'_`t'.xlsx"
-		local wagfile "${taxpath}`c'/wage_`c'_`t'.xlsx"
-		local svyfile "${svypath}`c'/raw/`c'_`t'_raw.dta"
+		//Define file paths	
+		local taxfile "input_data/admin_data/`c'/gpinter_`c'_`t'.xlsx"
+		local svyfile "intermediary_data/microdata/raw/`c'/`c'_`t'_raw.dta"
+		local wagefile "input_data/admin_data/`c'/wage_`c'_`t'.xlsx"
 		
 		//check existence of register data
 		local register_`c'_`t' "no"
@@ -593,8 +592,17 @@ foreach c in $overlap_countries {
 					
 					//cosmetics 
 					cap drop __*
+					
+					//create main folders 
+					local dirpath "intermediary_data/weight_adjusters"
+					mata: st_numscalar("exists", direxists(st_local("dirpath")))
+					if (scalar(exists) == 0) {
+						mkdir "`dirpath'"
+						display "Created directory: `dirpath'"
+					}
+					
 					//export
-					qui export excel "${w_adj}`c'`t'.xlsx", ///
+					qui export excel "intermediary_data/weight_adjusters/`c'`t'.xlsx", ///
 						firstrow(variables) sheet("brackets", replace)  	
 					
 					//save list of country-years
@@ -629,7 +637,7 @@ forvalues n = 1 / `obs_mp' {
 }	
 
 //export index 
-qui export excel "${w_adj}index.xlsx", ///
+qui export excel "intermediary_data/weight_adjusters/index.xlsx", ///
 	firstrow(variables) sheet("country_years_03d") sheetreplace 
 	
 

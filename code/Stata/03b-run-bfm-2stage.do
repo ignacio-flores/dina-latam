@@ -11,11 +11,11 @@ Stage 2: diverse
 clear all
 
 //define macros  	  	
-global types " "norep" " // "rep" (replace) can be used as an option in BFM
+global types " "rep" " // "norep" (replace) can be used as an option in BFM
 
 //preliminary
 global aux_part  ""preliminary"" 
-quietly do "code/Do-files/auxiliar/aux_general.do"
+quietly do "code/Stata/auxiliar/aux_general.do"
 
 // -----------------------------------------------------------------------------
 
@@ -29,9 +29,9 @@ foreach c in $countries_2stage {
 	foreach t in ${years_`c'} {
 			
 		//Define file paths
-		local taxfile "$taxpath`c'/diverse_`c'_`t'.xlsx"
-		local svyfile "$svypath`c'/raw/`c'_`t'_raw.dta"
-		local wagefile "$taxpath`c'/wage_`c'_`t'.xlsx"
+		local taxfile "input_data/admin_data/`c'/diverse_`c'_`t'.xlsx"
+		local svyfile "intermediary_data/microdata/raw/`c'/`c'_`t'_raw.dta"
+		local wagefile "input_data/admin_data/`c'/wage_`c'_`t'.xlsx"
 		
 		// 1. CHECK WHAT DATA IS AVAILABLE AND REPORT --------------------------
 		
@@ -49,7 +49,7 @@ foreach c in $countries_2stage {
 				di as text "at $S_TIME"
 
 				//Get trust region
-				quietly import excel "${taxpath}directory.xlsx", ///
+				quietly import excel "input_data/admin_data/directory.xlsx", ///
 					sheet("trust") firstrow clear
 				quietly destring trust trust_wages, replace	
 				quietly sum trust if country == "`c'" & year == `t'
@@ -139,9 +139,7 @@ foreach c in $countries_2stage {
 					di as text "Population in raw survey: " ///
 						round(`orig_weights' / 1000000, 0.1) " million"
 					
-					//Get age groups and restrict population 
-					*if inlist("`c'", "CHL", "BRA", "COL", "ECU") ///
-					*	quietly keep if `age' > 19	
+					//Get age groups
 					xtile age_group = `age', nquantiles(10)
 									
 					// 3. COMBINE SURVEY AND TAX DATA --------------------------
@@ -157,19 +155,20 @@ foreach c in $countries_2stage {
 						if ("`type'" == "rep") local ext ""
 						if ("`type'" == "norep") local command "noreplace"
 						if ("`type'" == "norep") local ext "_norep"
+						
 							
 						//path to files 
 						local corrfile ///
-							"$svypath`c'/bfm`ext'_`pf'/`c'_`t'_bfm`ext'_`pf'.dta"
+							"intermediary_data/microdata/bfm`ext'_`pf'/`c'_`t'_bfm`ext'_`pf'.dta"				
 						local MPgraph_wages ///
-							"figures/bfm`ext'_`pf'/MP_wages/`c'_`t'_MP_wages.pdf"	
-						local MPgraph "figures/bfm`ext'_`pf'/MP/`c'_`t'_MP.pdf"
+							"output/figures/MP/`c'_`t'_MP.pdf"	
+						local MPgraph "output/figures/MP/`c'_`t'_MP.pdf"					
 						local export_results_wages ///
-							"results/bfm`ext'_`pf'/bfm_summary_wages_`c'.xlsx"
-						local export_results "results/bfm`ext'_`pf'/bfm_summary_`c'.xlsx"	
+							"output/bfm_summary/bfm`ext'_`pf'/bfm_summary_wages_`c'.xlsx"
+						local export_results "output/bfm_summary/bfm`ext'_`pf'/bfm_summary_`c'.xlsx"		
 						local mpfile_wages ///
-							"results/bfm`ext'_`pf'/merging_points_wages.xlsx"
-						local mpfile "results/bfm`ext'_`pf'/merging_points.xlsx"
+							"output/bfm_summary/bfm`ext'_`pf'/merging_points_wages.xlsx"
+						local mpfile "output/bfm_summary/bfm`ext'_`pf'/merging_points.xlsx"
 						
 						//exceptions (only 1st stage)
 						if inlist("`c'", "ARG", "MEX") {
@@ -179,7 +178,7 @@ foreach c in $countries_2stage {
 						} 
 											
 						//find program
-						sysdir set PERSONAL "${adofile}bfm_stata_ado/."
+						sysdir set PERSONAL "code/Stata/ado/bfm_stata_ado/."
 						clear programs
 						quietly use `tf', clear					
 												
@@ -369,9 +368,9 @@ foreach type in $types {
 	}
 	
 	//save results 
-	local mpfile "results/bfm`ext'_`pf'/merging_points.xlsx"
+	local mpfile "output/bfm_summary/bfm`ext'_`pf'/merging_points.xlsx"
 	quietly export excel `mpfile', firstrow(variables) ///
-		sheet("country_years_2stage") sheetreplace keepcellfmt
+		sheet("country_years_2stage") sheetreplace keepcellfmt	
 
 }
 

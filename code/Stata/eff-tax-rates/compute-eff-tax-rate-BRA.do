@@ -1,19 +1,16 @@
 
 
 clear all
-global data "Data/Tax-data/BRA"
-global results 	"figures/eff_tax_rates"
+global data "input_data/admin_data/BRA"
+global results 	"output/figures/eff_tax_rates"
 
-forvalues x = 2007/2022 {
-
-
+forvalues x = 2007/2023 {
 
 	* import effective tax rates for known points
 	if `x' < 2014 {
 
 		import excel "$data/eff-tax-rate/eff-tax-rates-BRA.xlsx", ///
 				sheet("`x'") cellrange(N25:O36) firstrow clear
-				
 				
 		forvalues i = 1/11 {
 			local income_`i' 	=  income[`i'] 
@@ -50,8 +47,7 @@ forvalues x = 2007/2022 {
 	else {
 		import excel "$data/eff-tax-rate/eff-tax-rates-BRA.xlsx", ///
 				sheet("`x'") cellrange(N25:O42) firstrow clear
-				
-				
+								
 		forvalues i = 1/17 {
 			local income_`i' 	=  income[`i'] 
 			local tax_`i'		=  eff_tax_rate[`i']
@@ -98,8 +94,7 @@ forvalues x = 2007/2022 {
 	
 	//call graph parameters 
 	global aux_part  ""graph_basics"" 
-	do "code/Do-files/auxiliar/aux_general.do"
-
+	do "code/Stata/auxiliar/aux_general.do"
 	
 	* plot
 	form p %15.1fc

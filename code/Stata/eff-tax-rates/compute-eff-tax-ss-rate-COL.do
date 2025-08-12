@@ -1,9 +1,9 @@
 clear all
 
-global data "Data/Tax-data/COL"
-global results 	"figures/eff_tax_rates"
+global data "input_data/admin_data/COL"
+global results 	"output/figures/eff_tax_rates"
 
-forvalues x = 2006/2010 {
+forvalues x = 2014/2023 {
 	import excel "$data/eff-tax-rate/eff_tax_rates_COL.xlsx", ///
 		sheet("`x'") cellrange(G3:I129) clear
 		rename G p
@@ -21,7 +21,7 @@ forvalues x = 2006/2010 {
 		
 	//call graph parameters 
 	global aux_part  ""graph_basics"" 
-	do "code/Do-files/auxiliar/aux_general.do"
+	do "code/Stata/auxiliar/aux_general.do"
 			
 	label var eff_tax_rate_ipol "Effective tax rate"
 	label var eff_ss_rate_ipol "Effective soc.sec rate"

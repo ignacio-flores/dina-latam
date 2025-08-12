@@ -2,8 +2,8 @@
 
 clear all
 
-global data "Data/Tax-data/ECU"
-global results 	"figures/eff_tax_rates"
+global data "input_data/admin_data/ECU"
+global results 	"ouput/figures/eff_tax_rates"
 
 forvalues x = 2008/2011 {
 	import excel "$data/eff-tax-rate/eff-tax-rates-ECU.xlsx", ///
@@ -22,7 +22,7 @@ forvalues x = 2008/2011 {
 		
 	//call graph parameters 
 	global aux_part  ""graph_basics"" 
-	do "code/Do-files/auxiliar/aux_general.do"
+	do "code/Stata/auxiliar/aux_general.do"
 			
 	label var eff_tax_rate_ipol "Effective tax rate"
 	label var eff_ss_rate_ipol "Effective soc.sec rate"

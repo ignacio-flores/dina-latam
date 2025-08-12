@@ -2,8 +2,8 @@
 
 
 clear all
-global data "Data/Tax-data/SLV"
-global results 	"figures/eff_tax_rates"
+global data "input_data/admin_data/SLV"
+global results 	"output/figures/eff_tax_rates"
 
 forvalues x = 2000/2017 {
 	clear
@@ -44,35 +44,35 @@ forvalues x = 2000/2017 {
 	}
 	
 
-		* import income distribution from gpinter 
-	cap confirm file "$data/diverse_SLV_`x'.xlsx"
+	* import income distribution from gpinter 
+	cap confirm file "$data/diverse/diverse_SLV_`x'.xlsx"
 	*cap confirm file "$data/wage_SLV_`x'.xlsx"
 		if _rc==0 {
-				import excel "$data/diverse_SLV_`x'.xlsx", ///
-				cellrange(D1:G128) firstrow clear
-				*import excel "$data/wage_SLV_`x'.xlsx", ///
-				*cellrange(D1:G128) firstrow clear
-			
-				keep p topavg thr
+			import excel "$data/diverse/diverse_SLV_`x'.xlsx", ///
+			cellrange(D1:G128) firstrow clear
+			*import excel "$data/wage_SLV_`x'.xlsx", ///
+			*cellrange(D1:G128) firstrow clear
+		
+			keep p topavg thr
 				
 			
 				* Find the income p-tile for the effective tax rates I know			
-		forvalues i = 1/10 {
-			
-			gen income_`i' 	= `income_`i'' 
-			gen dif_`i'			= abs(topavg - income_`i')
-			egen dif_min_`i'	= min(dif_`i')
-			gen indic_`i'		= 0
-			replace indic_`i'	= 1 if dif_min_`i' == dif_`i'
-
-			local z	= `i'-1 // trick in case the x-tile coincide
-			cap gen aux_`i'	= 1 if indic_`i' == indic_`z' &  indic_`z'==1
-			cap replace indic_`i'	= 0 if aux_`i'	== 1
-			cap replace indic_`i'	= 1 if aux_`i'[_n-1] == 1
+			forvalues i = 1/10 {
 				
-			gen tax_`i'		=  0
-			replace tax_`i'	= `tax_`i'' if indic_`i'==1
-		}
+				gen income_`i' 	= `income_`i'' 
+				gen dif_`i'			= abs(topavg - income_`i')
+				egen dif_min_`i'	= min(dif_`i')
+				gen indic_`i'		= 0
+				replace indic_`i'	= 1 if dif_min_`i' == dif_`i'
+
+				local z	= `i'-1 // trick in case the x-tile coincide
+				cap gen aux_`i'	= 1 if indic_`i' == indic_`z' &  indic_`z'==1
+				cap replace indic_`i'	= 0 if aux_`i'	== 1
+				cap replace indic_`i'	= 1 if aux_`i'[_n-1] == 1
+					
+				gen tax_`i'		=  0
+				replace tax_`i'	= `tax_`i'' if indic_`i'==1
+			}
 
 		keep topavg p thr tax* 
 		egen eff_tax_rate= rowtotal(tax_1 - tax_10)
@@ -87,13 +87,11 @@ forvalues x = 2000/2017 {
 		ipolate eff_tax_rate p, gen(eff_tax_rate_ipol) e
 
 		*Save data base
-		gen p_merge = round(p,.00001)
-		
-		
+		gen p_merge = round(p,.00001)	
 		
 		//call graph parameters 
 		global aux_part  ""graph_basics"" 
-		do "code/Do-files/auxiliar/aux_general.do"
+		do "code/Stata/auxiliar/aux_general.do"
 				
 		* plot
 		form p %15.1fc

@@ -1,8 +1,8 @@
 
 
 clear all
-global data "Data/Tax-data/CHL"
-global results 	"figures/eff_tax_rates"
+global data "input_data/admin_data/CHL"
+global results 	"output/figures/eff_tax_rates"
 
 forvalues x = 2005/2022 {
 	
@@ -19,15 +19,8 @@ forvalues x = 2005/2022 {
 	}
 
 	* import income distribution from gpinter 
-	/*
-	import excel "$data/gpinter_CHL_`x'.xlsx", ///
-		sheet("Sheet1") /*cellrange(E1:F128)*/ firstrow clear
-	*/
 	import excel "$data/gpinter_output/total-pre-CHL.xlsx", ///
 		sheet("pretax, CHL, `x'") cellrange(E1:I128) firstrow clear
-
-
-		
 		
 	* Find the income p-tile for the effective tax rates I know			
 	forvalues i = 1/8 {

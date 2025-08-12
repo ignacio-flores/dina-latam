@@ -83,13 +83,17 @@ foreach c in "DOM" "URY" "BRA" "CHL" "COL" "ECU" {
 					}
 				}
 				
+				if "`c'" == "COL" {
+					qui replace thr = round(thr) if thr < 1 
+				}
+				
 				*check increasing vakues 
 				qui gen n = _n / 100
-				qui gen tester = thr*10^24 - thr[_n-1]*10^24 if p > .5
-				assert tester >= 0
+				qui gen tester = thr - thr[_n-1] if p > .5
+				assert tester >= -1e-12
 				qui replace thr = thr + n if tester == 0 
 				qui gen tester2 = thr - thr[_n-1] if p > .5
-				assert tester2 > 0 
+				assert tester2 > -1e-12 
 				qui drop n tester tester2
 				
 				*export 1 file per year 

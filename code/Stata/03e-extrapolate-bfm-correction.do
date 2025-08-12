@@ -7,17 +7,17 @@ Authors: Mauricio De ROSA, Ignacio FLORES, Marc MORGAN
 clear all
 
 //to replace or not to replace
-local ext "_norep"
+local ext "_rep"
 
 //preliminary
 global aux_part  ""preliminary"" 
-qui do "code/Do-files/auxiliar/aux_general.do"
+qui do "code/Stata/auxiliar/aux_general.do"
 // -----------------------------------------------------------------------------
 
 
 //Get list of countries and years to adjust
 preserve 
-	qui import excel "${w_adj}index.xlsx", ///
+	qui import excel "intermediary_data/weight_adjusters/index.xlsx", ///
 		sheet("country_years_03d") firstrow clear		
 	qui ds 
 	qui split `r(varlist)', parse(_) gen(v)	
@@ -59,9 +59,8 @@ foreach c in $extrap_countries {
 	foreach t in ${`c'_extrap_years} {
 	
 		//Define file paths
-		local adjfile "${w_adj}`c'`t'.xlsx"
-		local svyfile "${svypath}`c'/raw/`c'_`t'_raw.dta"
-	
+		local adjfile "intermediary_data/weight_adjusters/`c'`t'.xlsx"
+		local svyfile "intermediary_data/microdata/raw/`c'/`c'_`t'_raw.dta"
 		// 1. TREAT RAW SURVEYS ------------------------------------------------
 	
 		//locals
@@ -134,15 +133,14 @@ foreach c in $extrap_countries {
 			
 		//path to files
 		local pf "pos"
-		if inlist("`c'", "BRA", "CRI") local pf "pre"
 		local corrfile ///
-			"${svypath}`c'/bfm`ext'_`pf'/`c'_`t'_bfm`ext'_`pf'.dta"
-		local MPgraph "figures/bfm`ext'_`pf'/MP/`c'_`t'_MP_extrap.pdf"
-		local export_results "${svypath}`c'/bfm`ext'_`pf'/summary.xlsx"
-		local mpfile "${mp_norep_`pf'}" 
+			"intermediary_data/microdata/bfm`ext'_`pf'/`c'_`t'_bfm`ext'_`pf'.dta"
+		local MPgraph "output/figures/MP/`c'_`t'_MP_extrap.pdf"
+		local export_results "output/bfm_summary/bfm`ext'_`pf'/bfm_summary.xlsx"
+		local mpfile "output/bfm_summary/bfm`ext'_`pf'/merging_points.xlsx"
 		 
 		//find program
-		sysdir set PERSONAL "${adofile}bfm_stata_ado/."
+		sysdir set PERSONAL "code/Stata/ado/bfm_stata_ado/."
 		clear programs
 		
 		//get trust region
@@ -246,7 +244,7 @@ forvalues n = 1 / `obs_mp' {
 }
 
 //save results 
-local mpfile "${w_adj}index.xlsx"
+local mpfile "intermediary_data/weight_adjusters/index.xlsx"
 qui export excel `mpfile', firstrow(variables) ///
 	sheet("country_years_03e") sheetreplace keepcellfmt
 	

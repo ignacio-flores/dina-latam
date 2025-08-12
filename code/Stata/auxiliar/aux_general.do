@@ -86,7 +86,7 @@ if $aux_part == "preliminary" {
 	global pseudo_thetas results/pseudo_thetas.xlsx
 	global mp_norep_pos results/bfm_norep_pos/merging_points.xlsx
 	global mp_norep_pre results/bfm_norep_pre/merging_points.xlsx
-	global w_adj ${taxpath}weight-adjusters/
+	global w_adj 
 	global sna_folder Data/national_accounts/
 	global figs_cov figures/compare_steps/coverage/
 	global figs_t figures/bfm_norep_pos/thetas_test/

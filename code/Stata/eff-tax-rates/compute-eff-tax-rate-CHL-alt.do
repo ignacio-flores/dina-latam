@@ -1,14 +1,14 @@
 
 
 clear all
-global data "Data/Tax-data/CHL"
-global results 	"figures/eff_tax_rates/test"
+global data "input_data/admin_data/CHL"
+global results 	"output/figures/eff_tax_rates/test"
 	
 //call graph parameters 
 global aux_part  ""graph_basics"" 
-do "code/Do-files/auxiliar/aux_general.do"
+do "code/Stata/auxiliar/aux_general.do"
 
-forvalues x = 2005/2017 {
+forvalues x = 2005/2022 {
 	foreach name in "pre" "pos" {
 		tempfile `name'_CHL_`x'
 		* import income distribution from gpinter 

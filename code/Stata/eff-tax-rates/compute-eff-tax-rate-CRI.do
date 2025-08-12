@@ -1,9 +1,8 @@
 
 
 clear all
-global data "Data/Tax-data/CRI"
-global results 	"figures/eff_tax_rates"
-
+global data "input_data/admin_data/CRI"
+global results 	"output/figures/eff_tax_rates"
 
 // Calculate effective tax rates for diverse income
 *bracketavg
@@ -75,7 +74,7 @@ qui forvalues year = 2010/2016 {
 	
 	//call graph parameters 
 	global aux_part  ""graph_basics"" 
-	do "code/Do-files/auxiliar/aux_general.do"
+	do "code/Stata/auxiliar/aux_general.do"
 	
 	* plot
 	form p %15.1fc
@@ -98,7 +97,7 @@ qui forvalues year = 2010/2016 {
 			$graph_scheme 
 			graph export "$results/CRI_`x'_top1.pdf", replace
 
-	qui replace p_merge = p_merge*10000
+	qui replace p_merge = p_merge * 10000
 	qui duplicates drop p_merge, force
 	qui drop if p_merge > 9999
 	qui format p_merge %9.0g

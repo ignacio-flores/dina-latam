@@ -1,19 +1,19 @@
 
 
 clear all
-global data "Data/Tax-data/DOM"
-global results 	"figures/eff_tax_rates/"
+global data "input_data/admin_data/DOM"
+global results 	"output/figures/eff_tax_rates/"
 	
 //call graph parameters 
 global aux_part  ""graph_basics"" 
-do "code/Do-files/auxiliar/aux_general.do"
+do "code/Stata/auxiliar/aux_general.do"
 
 local lang $lang 
 
 forvalues year = 2012/2020 {
 
 	qui import excel ///
-		"Data/Tax-data/DOM/IR-1 consolidado (2012-2020).xlsx", /// 
+		"input_data/admin_data/DOM/IR-1 consolidado (2012-2020).xlsx", /// 
 		sheet("Año `year'") cellrange("C4:X32") clear
 	
 	//rename variables
@@ -51,7 +51,7 @@ forvalues year = 2012/2020 {
 	tempfile tab_`year'
 	quietly save `tab_`year'', replace
 	
-	cap use "Data/CEPAL/surveys/DOM/raw/DOM_`year'_raw.dta", clear
+	cap use "intermediary_data/microdata/raw/DOM_`year'_raw.dta", clear
 	
 	cap assert _N == 0
 	if _rc != 0 {
