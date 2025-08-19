@@ -454,13 +454,6 @@ program bfmcorr_experiments, eclass
 	
 	quietly egen `bracket_index' = cut(`taxincome'), at(`list_taxthr') icodes 
 	
-	/*
-	qui gen bracket_index = `bracket_index' 
-	qui gen taxincome = `taxincome' 
-	di as result "`list_taxthr'"
-	qui save "~/Dropbox/joker.dta", replace 
-	*/
-	
 	// We need to deal separately with survey observations in the last bracket
 	quietly replace `bracket_index' = `max_taxindex' if (`taxincome' >= `max_taxthr')
 	tempfile rawdata_collapsed
@@ -473,16 +466,27 @@ program bfmcorr_experiments, eclass
 	} 
 	// Calculate population in each bracket
 	tempvar svybsize svynobs taxnobs
+	
 	collapse (sum) `svybsize' = `weight' (min) `surveycdf' = `surveycdf' (count) `taxnobs' = `taxincome' (count) `svynobs' = `income', by(`bracket_index')
+	
 	// Merge with the tax data
 	quietly merge n:1 `bracket_index' using "`taxdata'", nogenerate keep(match using) keepusing(`bracketsize' `taxperc' `taxthr')
+	
+	/*
+	foreach v in taxnobs svynobs svybsize surveycdf bracket_index bracketsize taxperc taxthr {
+		qui rename ``v'' `v' 
+	}
+	sort taxperc
+	exit 1
+	*/
+	
 	quietly replace `taxnobs' = 0 if missing(`taxnobs')
 	quietly replace `svynobs' = 0 if missing(`svynobs')
 	quietly replace `svybsize' = 0 if missing(`svybsize')
 	quietly replace `surveycdf' = 1 if missing(`surveycdf')
 	
 	quietly save "`taxdata'", replace
-
+	
 	// ---------------------------------------------------------------------- //
 	// Determine merging point
 	// ---------------------------------------------------------------------- //
@@ -518,24 +522,19 @@ program bfmcorr_experiments, eclass
 			(sum(`small_theta_smooth' > `big_theta') == 0)
 		sort `taxperc'
 		
-		/*
-		local vvv small_theta_smooth big_theta small_theta taxthr ///
-			surveycdf taxperc region
-		foreach vbl in `vvv' {
-			qui gen `vbl' = ``vbl''
-		}
-		qui gen este = sum(`small_theta_smooth' > `big_theta')
-		qui gen otro = `small_theta_smooth' > `big_theta'
-		list `vvv' este otro, clean 
-		exit 1
-		*/
-		
 		quietly count if `region'
 		
 		if (r(N) == 0) {
 			display as error "relative bias is greater than one at the top: nothing to correct"
 			exit 459
 		}
+		
+		/*
+		foreach v in taxperc region small_theta small_theta_smooth big_theta iso_wgt {
+			qui rename ``v'' `v' 
+		}
+		exit 1
+		º*/
 		
 		quietly count if !`region'
 		if (r(N) > 0) {

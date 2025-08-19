@@ -13,7 +13,7 @@ global aux_part  ""preliminary""
 qui do "code/Stata/auxiliar/aux_general.do"  
 
 *which surveys do I clean?  
-local countries "$really_all_countries"
+local countries "$all_countries"
 
 // Create directory if it doesnt exist 
 	local dirpath "intermediary_data/microdata/raw"
@@ -146,11 +146,23 @@ foreach c in `countries' {
 			*check for extreme values 
 			if "`c'" == "ARG" local extreme = 500 
 			if "`c'" != "ARG" local extreme = 1000
+			
 			qui sum `pf'_tot_svy [w=_fep], meanonly 
 			local ai = r(mean) 
 			qui gen excluder = `pf'_tot_svy / `ai'
 			qui count if excluder >= `extreme'
 			local ctr = r(N)
+			
+			/*
+			di "average income: `ai'" 
+			sum excluder, d
+			qui sum _fep, meanonly 
+			local aw = r(mean) 
+			qui gen excluder2 = _fep / `aw' 
+			di "average weight: `aw'"
+			sum excluder2, d
+			exit 1
+			*/
 			if `ctr' > 0 {
 				di as text "extreme values: " _continue
 				di as result `ctr'
@@ -158,7 +170,6 @@ foreach c in `countries' {
 				qui drop if excluder >= `extreme'	
 			}
 			cap drop excluder 
-			
 		}
 		
 		// Create directory if it doesnt exist 

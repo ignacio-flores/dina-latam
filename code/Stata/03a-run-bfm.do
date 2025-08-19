@@ -183,7 +183,7 @@ foreach c in  $countries_bfm_02a {
 								households(`id') taxu(i) trust(`yrtrust') ///
 								thetalimit(`thetalimit') ///
 								holdmargins(sex age_group) ///
-								slope(`slope') pen(20) sampletop(0.01) ///
+								slope(`slope') pen(/*20*/ 2500) sampletop(0.01) ///
 								`command' /*minbracket(1)*/
 				
 							//save info on unobserved population 

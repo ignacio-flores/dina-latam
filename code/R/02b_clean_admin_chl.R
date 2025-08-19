@@ -31,7 +31,7 @@ popdata <- read_dta("intermediary_data/population/SurveyPop.dta")
 
 # II.2 Chile.............
 last_y = 2023 
-xlrang <- "A8:K141"
+#xlrang <- "A8:K141"
 
 if (mode == "update") {
   #download personal income tax (PIT) data and clean 
@@ -47,14 +47,14 @@ if (mode == "local") {
 }
 
 #clean data 
-raw_tabs <- read.xlsx(tfile, startRow = 8, cols = 0:11, sheet = "Datos") %>% 
+raw_tabs <- openxlsx::read.xlsx(tfile, startRow = 8, cols = 0:11, sheet = "Datos") %>% 
   clean_names() %>%
-  select(ano_comercial, tramo_de_rentas, n_de_personas_2, renta_determinada_millones_de_pesos_2, impuesto_determinado_millones_de_pesos_2) %>%
+  select(ano_comercial, tramo_de_rentas, n_de_personas_3, renta_determinada_millones_de_pesos_3, impuesto_determinado_millones_de_pesos_3) %>%
   rename(year = `ano_comercial`, 
          tramo = `tramo_de_rentas`, 
-         personas = `n_de_personas_2`, 
-         renta = `renta_determinada_millones_de_pesos_2`, 
-         impuesto = `impuesto_determinado_millones_de_pesos_2`) %>%
+         personas = `n_de_personas_3`, 
+         renta = `renta_determinada_millones_de_pesos_3`, 
+         impuesto = `impuesto_determinado_millones_de_pesos_3`) %>%
   separate(tramo, into = c("a", "tramo"), sep = "-") %>% 
   separate(tramo, into = c("tramo_uta", "b"), sep = "a") %>%
   mutate(tramo_uta = str_replace_all(tramo_uta, " Más de ", "")) %>% 
@@ -87,7 +87,7 @@ chl_tabs <- full_join(raw_tabs, uta, by = "year") %>%
   left_join(popdata) %>% 
   arrange(year, desc(thr)) %>% 
   group_by(year) %>% 
-  mutate(freq = personas/totpop_ie, p = 1-cumsum(freq)) %>% 
+  mutate(freq = personas/totpop_ie, p = 1-cumsum(freq), cum = cumsum(freq)) %>% 
   arrange(year, thr) 
 
 #Prepare tabulation from 1999 to adjust for deductions 

@@ -16,13 +16,12 @@ clear all
 // search dm88_1 (to download renvars) 
 // net install github, from("https://haghish.github.io/github/")
 // github install haghish/rcall
-
 // ineqdeco
 
 //list codes 
 ***********************************************************************
-*global do_codes1 " "01a" "01b" "01c" "01d" "01e" "01f""  // "01g" "01h"
-*global do_codes2 " "02a" "02b" "02c" "
+*global do_codes1 " "01a" "01b" "01c" "01d" "01e" "01f" "01g" " 
+*global do_codes2 " "02a" "02b" "02c" "02d" "02e" " 
 global do_codes3 " "03a" "03b" "03c" "03d" "03e" " 
 *global do_codes4 " "04a" "04b" "04d" " 
 *global do_codes5   " "05a" "05b" "05c" "05d" "05e" "05f" "  
