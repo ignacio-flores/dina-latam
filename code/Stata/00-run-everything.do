@@ -20,10 +20,10 @@ clear all
 
 //list codes 
 ***********************************************************************
-*global do_codes1 " "01a" "01b" "01c" "01d" "01e" "01f" "01g" " 
-*global do_codes2 " "02a" "02b" "02c" "02d" "02e" " 
+global do_codes1 " "01a" "01b" "01c" "01d" "01e" "01f" "01g" " 
+global do_codes2 " "02a" "02b" "02c" "02d" "02e" " 
 global do_codes3 " "03a" "03b" "03c" "03d" "03e" " 
-*global do_codes4 " "04a" "04b" "04d" " 
+global do_codes4 " "04a" "04b" "04d" " 
 *global do_codes5   " "05a" "05b" "05c" "05d" "05e" "05f" "  
 *global do_codes6  " "06a" "06b" "06c" " /*"06d" "06e"*/ 
 *global do_codes7  " "07a" "07b" "07c" "07d" " 

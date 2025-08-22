@@ -1,6 +1,6 @@
 run _config.do
 local list_noquotes : subinstr global all_countries `"""' "" , all
-foreach c in "DOM" "URY" "BRA" "CHL" "COL" "ECU" {
+foreach c in "PER" "DOM" "URY" "BRA" "CHL" "COL" "ECU" {
 	
 	if strpos("`list_noquotes'", "`sub'") > 0 {
 		

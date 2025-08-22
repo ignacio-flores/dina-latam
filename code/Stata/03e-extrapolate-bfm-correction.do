@@ -7,7 +7,8 @@ Authors: Mauricio De ROSA, Ignacio FLORES, Marc MORGAN
 clear all
 
 //to replace or not to replace
-local ext "_rep"
+if "${bfm_replace}" == "yes" local ext ""	  	
+if "${bfm_replace}" == "no" local ext "_norep"
 
 //preliminary
 global aux_part  ""preliminary"" 
@@ -33,7 +34,8 @@ restore
 //memorize merging point from closest year 
 foreach c in $extrap_countries {
 	foreach y in $`c'_extrap_years {
-		qui import excel "${all_thetas}", sheet("panel") clear firstrow
+		qui import excel "output/bfm_summary/all_thetas.xlsx", ///
+			sheet("panel") clear firstrow
 		qui keep if country == "`c'"
 		cap drop distance_y y
 		qui gen y = `y'

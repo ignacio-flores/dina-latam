@@ -123,11 +123,19 @@ forvalues x = 2000/2017 {
 		}
 
 	
-	
 	qui replace p_merge = p_merge*10000
 	qui duplicates drop p_merge, force
 	qui drop if p_merge > 9999
 	qui format p_merge %9.0g
+	
+	// Create directory if it doesnt exist 
+	local dirpath "$data/eff-tax-rate/"
+	mata: st_numscalar("exists", direxists(st_local("dirpath")))
+	if (scalar(exists) == 0) {
+		mkdir "`dirpath'"
+		display "Created directory: `dirpath'"
+	}
+	
 	save "$data/eff-tax-rate/SLV_effrates_`x'", replace
 					
 }

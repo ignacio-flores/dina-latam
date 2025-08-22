@@ -160,15 +160,7 @@ forvalues t = 1996/2015 {
 		quietly count if (thr[_n] >= thr[_n + 1])
 	}
 	
-	// Create directory if it doesnt exist 
-	local dirpath "input_data/admin_data/ARG/_clean"
-	mata: st_numscalar("exists", direxists(st_local("dirpath")))
-	if (scalar(exists) == 0) {
-		mkdir "`dirpath'"
-		display "Created directory: `dirpath'"
-	}
-	
-	export excel using "input_data/admin_data/ARG/_clean/wage_ARG_`t'.xlsx", /// 
+	export excel using "input_data/admin_data/ARG/wage_ARG_`t'.xlsx", /// 
 		firstrow(variables) keepcellfmt replace
 }
 

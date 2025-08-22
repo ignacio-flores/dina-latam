@@ -1300,6 +1300,7 @@ program bfmcorr_experiments, eclass
 		mata: avg = st_data(., st_local("taxavg"))
 		
 		if ("`taxunit'" == "i") {
+			
 			// Import the original data
 			quietly use "`rawdata'", clear
 			
@@ -1339,6 +1340,7 @@ program bfmcorr_experiments, eclass
 			quietly duplicates drop `hid', force
 			tempvar nexpand
 			quietly generate `nexpand' = `sampletop'*`calweight'
+			
 			// Pseudo-random rounding to preserve sum using a halton sequence
 			tempvar halton_unif
 			quietly generate `halton_unif' = .
@@ -1350,6 +1352,7 @@ program bfmcorr_experiments, eclass
 			// Adjust weights based on the number of observations to expand
 			quietly replace `calweight' = `calweight'/`nexpand'
 			quietly expand `nexpand'
+			quietly gen _expand = `nexpand'
 			drop `nexpand'
 			tempvar new_hid
 			quietly generate `new_hid' = _n
@@ -1397,6 +1400,8 @@ program bfmcorr_experiments, eclass
 			if ("`taxincome'" != "`income'") {
 				quietly replace `income' = _factor*`income'
 			}
+			quietly gen _expanded_weight = `weight'
+			quietly replace _expanded_weight = _expanded_weight / _expand if !missing(_expand)
 			quietly replace `weight' = . if _correction == 2
 			
 			// Generate the new household and personal IDs
@@ -1447,6 +1452,7 @@ program bfmcorr_experiments, eclass
 			// Adjust weights based on the number of observations to expand
 			quietly replace `calweight' = `calweight'/`nexpand'
 			quietly expand `nexpand'
+			quietly gen _expand = `nexpand'
 			drop `nexpand'
 			tempvar new_hid
 			quietly generate `new_hid' = _n
@@ -1493,6 +1499,8 @@ program bfmcorr_experiments, eclass
 			if ("`taxincome'" != "`income'") {
 				quietly replace `income' = _factor*`income'
 			}
+			quietly gen _expanded_weight = `weight'
+			quietly replace _expanded_weight = _expanded_weight / _expand if !missing(_expand)
 			quietly replace `weight' = . if _correction == 2
 			
 			// Generate the new household and personal IDs

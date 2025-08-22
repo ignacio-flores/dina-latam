@@ -4,3 +4,4 @@ global first_y 2000
 global last_y 2023
 global lang "eng"
 global mode "normal"
+global bfm_replace "yes"

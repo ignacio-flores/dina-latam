@@ -139,6 +139,11 @@ forvalues t = 2009/2014 {
 			"input_data/admin_data/MEX/_clean/wage_MEX_`t'.xlsx", ///
 			firstrow(variables) keepcellfmt replace 
 			
+		// export to excel (separate workbooks per year)
+		export excel using ///
+			"input_data/admin_data/MEX/wage_MEX_`t'.xlsx", ///
+			firstrow(variables) keepcellfmt replace 	
+			
 		di as text " done"	
 
 }

@@ -4,7 +4,7 @@ clear all
 global data "input_data/admin_data/CHL"
 global results 	"output/figures/eff_tax_rates"
 
-forvalues x = 2005/2022 {
+forvalues x = 2005/2020 {
 	
 	* import effective tax rates for known points
 	import excel "$data/eff-tax-rate/eff_tax_rate_CHL.xlsx", ///
@@ -55,7 +55,7 @@ forvalues x = 2005/2022 {
 	
 	//call graph parameters 
 	global aux_part  ""graph_basics"" 
-	do "code/Do-files/auxiliar/aux_general.do"
+	do "code/Stata/auxiliar/aux_general.do"
 	
 	* plot
 	form p %15.1fc

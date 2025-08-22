@@ -24,6 +24,13 @@ qui do "code/Stata/auxiliar/aux_general.do"
 global aux_part  ""tax_svy_overlap"" 
 qui do "code/Stata/auxiliar/aux_general.do"
 
+if "${bfm_replace}" == "yes" {
+	local ext ""
+}
+if "${bfm_replace}" == "no" {
+	local ext "_norep"
+}
+
 //Build panel with thetas 
 local iter = 1 
 tempfile tfmp
@@ -31,8 +38,8 @@ foreach c in $overlap_countries {
 	di as result "`c': " _continue 
 	di as text "${`c'_overlap_years}"
 	foreach y in ${`c'_overlap_years} {
-		local type "bfm_norep_pos" 
-		if inlist("`c'", "BRA", "CRI") local type "bfm_norep_pre"
+		local type "bfm`ext'_pos" 
+		if inlist("`c'", "BRA", "CRI") local type "bfm`ext'_pre"
 		local mp "output/bfm_summary/`type'/merging_points.xlsx"
 		qui import excel "`mp'", sheet("`c'`y'") firstrow clear
 		qui gen country = "`c'"
@@ -55,7 +62,7 @@ bysort country p: egen avg_t = median(antitonic)
 qui sort country year p
 
 //Save data
-qui export excel "", firstrow(variables) ///
+qui export excel "output/bfm_summary/all_thetas.xlsx", firstrow(variables) ///
 	sheet("panel") sheetreplace 
 	
 //call graph parameters 

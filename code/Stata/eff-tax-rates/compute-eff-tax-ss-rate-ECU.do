@@ -3,7 +3,7 @@
 clear all
 
 global data "input_data/admin_data/ECU"
-global results 	"ouput/figures/eff_tax_rates"
+global results 	"output/figures/eff_tax_rates"
 
 forvalues x = 2008/2011 {
 	import excel "$data/eff-tax-rate/eff-tax-rates-ECU.xlsx", ///
@@ -36,7 +36,7 @@ forvalues x = 2008/2011 {
 			ylabel(0(0.05)0.3, $ylab_opts) ///
 			xlabel(0(0.1)1, $xlab_opts) ///
 			$graph_scheme 
-			graph export "$results/ECU_`x'.pdf", replace
+	graph export "$results/ECU_`x'.pdf", replace
 				
 	form p %15.3fc
 	twoway 	(connected eff_tax_rate_ipol p if p >= .99) ///

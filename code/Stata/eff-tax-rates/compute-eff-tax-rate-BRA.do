@@ -87,8 +87,17 @@ forvalues x = 2007/2023 {
 	* Interpolate the tax rates for the remaining p-tiles up to the last known
 	replace eff_tax_rate = . if eff_tax_rate == 0 & [_n]!=1
 	ipolate eff_tax_rate p, gen(eff_tax_rate_ipol) e
+	
+	// Create directory if it doesnt exist 
+	local dirpath "$data/eff-tax-rate/"
+	mata: st_numscalar("exists", direxists(st_local("dirpath")))
+	if (scalar(exists) == 0) {
+		mkdir "`dirpath'"
+		display "Created directory: `dirpath'"
+	}
 		
 	gen p_merge = round(p,.00001)
+	
 	save "$data/eff-tax-rate/BRA_effrates_`x'", replace
 		
 	

@@ -87,6 +87,15 @@ forvalues year = 2007/2023 {
 	qui duplicates drop p_merge, force
 	qui drop if p_merge > 9999
 	qui format p_merge %9.0g
+	
+	// Create directory if it doesnt exist 
+	local dirpath "$data/eff-tax-rate/"
+	mata: st_numscalar("exists", direxists(st_local("dirpath")))
+	if (scalar(exists) == 0) {
+		mkdir "`dirpath'"
+		display "Created directory: `dirpath'"
+	}
+	
 	qui save "$data/eff-tax-rate/BRA_effrates_`year'", replace
 
 }

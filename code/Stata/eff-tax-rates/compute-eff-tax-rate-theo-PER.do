@@ -10,9 +10,10 @@ forvalues x = 2016/2017 {
 	
 	
 	*import gpinter data
-	import 	excel "$data_tax/gpinter_PER_`x'.xlsx", sheet("PER, `x'") ///
-			cellrange(D1:H128) firstrow clear
-	
+	import 	excel "$data_tax/gpinter_PER_`x'.xlsx", firstrow clear
+	*cellrange(D1:H128) sheet("PER, `x'")	
+	qui keep p thr topsh topavg bracketavg
+
 	/*
 	use "$data_sur/PRY_`x'_raw.dta", clear 
 	keep if edad > 19 & edad != .
@@ -61,9 +62,6 @@ forvalues x = 2016/2017 {
 		*Save data base
 	gen p_merge = round(p,.00001)
 	gen eff_tax_rate_ipol = eff_tax_rate
-
-		
-	
 	
 	//call graph parameters 
 	global aux_part  ""graph_basics"" 
@@ -94,6 +92,15 @@ forvalues x = 2016/2017 {
 	qui duplicates drop p_merge, force
 	qui drop if p_merge > 9999
 	qui format p_merge %9.0g
+	
+	// Create directory if it doesnt exist 
+	local dirpath "$data_tax/eff-tax-rate/"
+	mata: st_numscalar("exists", direxists(st_local("dirpath")))
+	if (scalar(exists) == 0) {
+		mkdir "`dirpath'"
+		display "Created directory: `dirpath'"
+	} 
+	
 	qui save "$data_tax/eff-tax-rate/PER_effrates_`x'", replace
 }
 /*

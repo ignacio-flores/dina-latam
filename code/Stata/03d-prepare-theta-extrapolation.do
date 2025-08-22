@@ -38,15 +38,31 @@ foreach c in $overlap_countries {
 	}
 }
 
+if "${bfm_replace}" == "yes" {
+	local ext ""
+}
+if "${bfm_replace}" == "no" {
+	local ext "_norep"
+}
+
 //loop over overlaping countries and years 
 local iter = 1 
 foreach c in $overlap_countries {	
 
 	local iter_n = 1
 	foreach t in ${`c'_overlap_years} {
+		
+		di as result "preparing theta extrapolation for `c'-`t':"
+				
+		if "${bfm_replace}" == "yes" {
+			local raw_weight "_expanded_weight"	
+		}
+		if "${bfm_replace}" == "no" {
+			local raw_weight "_fep"	
+			if ("`c'" == "ARG") local raw_weight "n_fep"
+		}
 	
 		//locals
-		local raw_weight "_fep"	
 		local cor_weight "_weight"
 		local id "id_hogar"
 		local age "edad"
@@ -56,15 +72,12 @@ foreach c in $overlap_countries {
 		if ("`c'" == "CRI") local y " ${y_pretax_tot} "
 		if ("`c'" == "PER") local y " ${y_postax_tot_per} "
 		if ("`c'" == "MEX") local y " ${y_postax_formal_wage} "
-		if ("`c'" == "ARG") {
-			local y " ${y_postax_private_wage} "
-			local raw_weight "n_fep"
-		} 
+		if ("`c'" == "ARG") local y " ${y_postax_private_wage} "			
 	
 		//define paths
-		local type "bfm_norep_pos"
-		if inlist("`c'", "BRA", "CRI") local type "bfm_norep_pre"
-		local corfile "intermediary_data/microdata/bfm`ext'_`pf'/`c'_`t'_bfm`ext'_`pf'.dta"
+		local type "bfm`ext'_pos"
+		if inlist("`c'", "BRA", "CRI") local type "bfm`ext'_pre"
+		local corfile "intermediary_data/microdata/`type'/`c'_`t'_`type'.dta"
 		
 		//set temporary variables 
 		tempvar ftile freq F fy cumfy L
@@ -72,13 +85,23 @@ foreach c in $overlap_countries {
 		//bring corrected survey
 		use `corfile', clear
 		cap drop __*
-
+		
 		//check consistency of raw / corrected weights
 		foreach type2 in "raw" "cor" {
 			qui sum ``type2'_weight', meanonly 
 			local poptot_`type2' = r(sum)
 		}
-		assert round(`poptot_cor' / `poptot_raw' * 100) == 100
+		local ratio = round(`poptot_cor' / `poptot_raw' * 100)
+		cap assert `ratio' == 100
+		if (_rc != 0) {
+			*qui use "intermediary_data/microdata/raw/`c'/`c'_`t'_raw.dta", clear 
+			*qui sum _fep, meanonly 
+			*local actual_original_pop = r(sum)
+			di as error "Corrected population from BFM is `ratio'% the original"
+			di as error "original: `poptot_raw', corrected: `poptot_cor'"
+			di as error "if you are using BFM with replace option on, only use the original survey-weight variable from the raw version"
+			exit 1
+		}
 		
 		//compute cumulative distribution 
 		sort `y' _pid 
@@ -183,8 +206,8 @@ foreach c in $overlap_countries {
 	foreach t in ${`c'_overlap_years} {
 	
 		//deal with pre/post tax incomes 
-		local type "bfm_norep_pos"
-		if inlist("`c'", "BRA", "CRI") local type "bfm_norep_pre"
+		local type "bfm`ext'_pos"
+		if inlist("`c'", "BRA", "CRI") local type "bfm`ext'_pre"
 		
 		//declare model 
 		qui nl (pseudo_theta = {a = 1} * (1 - p)^-{b = 1}) ///
@@ -401,6 +424,7 @@ foreach c in $overlap_countries {
 				
 				//define macros
 				local weight "_fep"	
+				if ("`c'" == "ARG") local weight "n_fep"
 				local age "edad"
 				local y " ${y_postax_tot} "
 				if ("`c'" == "BRA") local y " ${y_pretax_tot_bra} "
@@ -481,11 +505,11 @@ foreach c in $overlap_countries {
 					//find new weight 
 					if inlist("`c'", "ARG", "MEX", "CRI") {
 						qui gen new_weight = ///
-							`raw_weight' * weight_adjuster_median * obs
+							`weight' * weight_adjuster_median * obs
 					} 
 					else {
 						qui gen new_weight = ///
-							`raw_weight' * weight_adjuster * obs
+							`weight' * weight_adjuster * obs
 					}
 					
 					qui gen new_freq = new_weight / `poptot'		

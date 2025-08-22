@@ -14,34 +14,24 @@ qui forvalues year = 2010/2016 {
 	global excel "$data/eff-tax-rate/BFM_CR_`year'_mix_tax.xlsx"
 	qui cap erase "$data/eff-tax-rate/BFM_CR_`year'_mix_tax_1.dta" 
 	qui xls2dta, sheet("Sheet1") save($data/eff-tax-rate) : /// //  allsheets
-		import excel $excel ,  firstrow cellrange(A1)
-		qui u "$data/eff-tax-rate/BFM_CR_`year'_mix_tax_1.dta", clear
-			qui rename bckt_avg tax_bckt_avg
-			qui rename thr 		tax_thr
-
-			qui replace tax_bckt_avg 	= tax_bckt_avg 	// /13
-			qui replace tax_thr 		= tax_thr 		// /13
-			
-		qui save `tax_`year''
-		qui cap erase "$data/eff-tax-rate/BFM_CR_`year'_mix_tax_1.dta" 
+	import excel $excel ,  firstrow cellrange(A1)
+	qui u "$data/eff-tax-rate/BFM_CR_`year'_mix_tax_1.dta", clear
+	
+	qui rename bckt_avg tax_bckt_avg
+	qui rename thr 		tax_thr
+	qui replace tax_bckt_avg 	= tax_bckt_avg 	// /13
+	qui replace tax_thr 		= tax_thr 		// /13	
+	qui save `tax_`year''
+	qui cap erase "$data/eff-tax-rate/BFM_CR_`year'_mix_tax_1.dta" 
 
 	// (2) gpinter (from microdata)
 	
-	global excel "$data/diverse_CRI_`year'_mix_income.xlsx"
+	global excel "$data/diverse-mixinc/diverse_CRI_`year'_mix_income.xlsx"
 	qui cap erase "$data/diverse_CRI_`year'_mix_income_1.dta" 
 	qui xls2dta, sheet("Sheet1") save($data) : /// //  allsheets
 		import excel $excel ,  firstrow cellrange(A1)
 		qui u "$data/diverse_CRI_`year'_mix_income_1.dta", clear
 		qui cap erase "$data/diverse_CRI_`year'_mix_income_1.dta"
-		
-	/*
-	global excel "$data/BFM_CR_`year'_mix_tax.xlsx"
-	qui cap erase "$data/BFM_CR_`year'_mix_tax_1.dta" 
-	qui xls2dta, sheet("Sheet1") save($data) : /// //  allsheets
-		import excel $excel ,  firstrow cellrange(A1)
-		qui u "$data/BFM_CR_`year'_mix_tax_1.dta", clear
-		qui cap erase "$data/BFM_CR_`year'_mix_tax_1.dta"
-	*/
 	
 	
 	// (3) merge both and check all g-tiles merge
@@ -69,8 +59,6 @@ qui forvalues year = 2010/2016 {
 	*Save data base
 	gen p_merge = round(p,.00001)
 	assert !missing(eff_tax_rate_ipol)
-	
-	
 	
 	//call graph parameters 
 	global aux_part  ""graph_basics"" 

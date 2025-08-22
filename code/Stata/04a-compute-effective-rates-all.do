@@ -13,7 +13,8 @@ if (scalar(exists) == 0) {
 	display "Created directory: `dirpath'"
 }
 
-foreach c in  "COL" "BRA" "MEX"{
+//we need to fix BRA
+foreach c in  "COL" /*"BRA"*/ "MEX"{
 	di as result "running $codes/compute-eff-tax-rate-`c'-alt.do"
 	global codes "code/Stata/eff-tax-rates"
 	qui do "$codes/compute-eff-tax-rate-`c'-alt.do"
@@ -35,7 +36,7 @@ foreach c in /*"COL"*/ "ECU" "URY" {
 }
 
 *theroetical
-di as result "running $codes/compute-eff-tax-ss-rate-`c'.do"
+di as result "running $codes/compute-eff-tax-ss-rate-PER.do"
 global codes "code/Stata/eff-tax-rates"
 qui do "$codes/compute-eff-tax-rate-theo-PER.do"
 

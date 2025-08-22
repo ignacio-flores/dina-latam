@@ -33,7 +33,7 @@ forvalues x = 2005/2022 {
 			ylabel(0(0.05)0.3, $ylab_opts) ///
 			xlabel(0(0.1)1, $xlab_opts) ///
 			$graph_scheme			
-			graph export "$results/CHL_`x'.pdf", replace		
+	graph export "$results/CHL_`x'.pdf", replace		
 	
 	form p %15.3fc
 	twoway (connected eff_tax_rate p if p>=0.99), ///
@@ -43,5 +43,5 @@ forvalues x = 2005/2022 {
 			ylabel(0(0.05)0.3, $ylab_opts) ///
 			xlabel(0.99(0.001)1, $xlab_opts) ///
 			$graph_scheme 
-			graph export "$results/CHL_`x'_top1.pdf", replace
+	graph export "$results/CHL_`x'_top1.pdf", replace
 }	

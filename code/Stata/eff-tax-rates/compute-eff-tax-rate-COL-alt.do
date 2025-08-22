@@ -12,7 +12,7 @@ global results 	"output/figures/eff_tax_rates"
 	global excel "total-pos-COL"
 	qui cap erase "$route/total-pos-COL_`x'.dta"
 	qui xls2dta, sheet("`y'") save($route) : /// 
-		import excel  "$route/$excel.xls" ,  firstrow cellrange(A1)
+		import excel  "$route/$excel.xlsx" ,  firstrow cellrange(A1)
 		qui	use 	  	  "$route/total-pos-COL_`x'.dta", clear
 		qui cap erase     "$route/total-pos-COL_`x'.dta"	
 				
@@ -50,6 +50,15 @@ global results 	"output/figures/eff_tax_rates"
 	qui duplicates drop p_merge, force
 	qui drop if p_merge > 9999
 	qui format p_merge %9.0g
+	
+	// Create directory if it doesnt exist 
+	local dirpath "$data/eff-tax-rate"
+	mata: st_numscalar("exists", direxists(st_local("dirpath")))
+	if (scalar(exists) == 0) {
+		mkdir "`dirpath'"
+		display "Created directory: `dirpath'"
+	}
+
 
 	save "$data/eff-tax-rate/COL_effrates_`y'", replace
 	

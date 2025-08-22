@@ -10,12 +10,17 @@ Stage 2: diverse
 //general settings
 clear all
 
-//define macros  	  	
-global types " "rep" " // "norep" (replace) can be used as an option in BFM
-
 //preliminary
 global aux_part  ""preliminary"" 
 quietly do "code/Stata/auxiliar/aux_general.do"
+
+//define macros 
+if "${bfm_replace}" == "yes" {
+	global types " "rep" "
+} 	  	
+if "${bfm_replace}" == "no" {
+	global types " "norep" "
+} 	  	
 
 // -----------------------------------------------------------------------------
 
@@ -36,9 +41,16 @@ foreach c in $countries_2stage {
 		// 1. CHECK WHAT DATA IS AVAILABLE AND REPORT --------------------------
 		
 		//Check if tax data exists
-		cap confirm file `taxfile'
-		 
-		if !_rc {
+		cap confirm file `taxfile' 
+		local fileornot  = _rc 
+		if (`fileornot' != 0) {
+			cap confirm file `wagefile'
+			local fileornot = _rc
+		}
+		
+		di as result "`c' `t' - fileornot: `fileornot'"
+		
+		if (`fileornot' == 0) {
 			
 			//Check if survey data also exists 
 			cap confirm file `svyfile'
@@ -239,11 +251,11 @@ foreach c in $countries_2stage {
 								quietly use `tf', clear
 							
 								// change new variable names
-								rename _weight w_weight
+								foreach _var in _weight _hid _pid _factor _expand _expanded_weight {
+									qui rename `_var' w`_var'
+								}
+								
 								local cor_weight "w_weight"
-								rename _hid w_hid
-								rename _pid w_pid
-								rename _factor w_factor
 								gen w_correction = . 
 								tostring _correction, gen(_correction1)
 								replace w_correction = 1 if _correction1 == "1"

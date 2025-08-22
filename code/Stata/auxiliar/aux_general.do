@@ -564,11 +564,20 @@ if ($aux_part == "graph_basics") {
 
 //GET LIST OF CASES WITH SURVEY-TAX DATA OVERLAP
 if ($aux_part == "tax_svy_overlap") {
+    
+	if "${bfm_replace}" == "yes" {
+	    local ext ""
+	}
+	if "${bfm_replace}" == "no" {
+	    local ext "_norep"
+	}
+	
 	preserve
 		foreach x in "" "_2stage" { 
 			foreach z in "pos" "pre" {	
 				//bring list of overlaps 
-				cap import excel "${mp_norep_`z'}", ///
+				cap import excel ///
+					"output/bfm_summary/bfm`ext'_`z'/merging_points.xlsx", ///
 					sheet("country_years`x'") firstrow clear		
 				if !_rc {
 					//save if it exists 
