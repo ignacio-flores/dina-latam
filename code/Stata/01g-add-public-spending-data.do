@@ -5,7 +5,6 @@
 clear all
 
 //0. General settings ----------------------------------------------------------
-local ext "_norep"
 local mode "local" //"update" 
 
 //which local version?

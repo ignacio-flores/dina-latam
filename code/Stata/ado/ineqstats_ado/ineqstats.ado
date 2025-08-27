@@ -206,7 +206,7 @@ program ineqstats
 				// Open data
 				clear
 				qui cap use ///
-					"`svypath'/`c'/bfm_norep_pre/`c'_`period'_bfm_norep_pre.dta"
+					"`svypath'/`c'_`period'_bfm${ext}_pre.dta"
 	
 				//drop any temporary variable that was saved mistakently
 				cap drop __* 	

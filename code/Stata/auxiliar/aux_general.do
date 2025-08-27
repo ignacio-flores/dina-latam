@@ -2,30 +2,24 @@
 run _config.do
 
 if $aux_part == "preliminary" {
+	
+	if "${bfm_replace}" == "yes" global ext ""
+	if "${bfm_replace}" == "no" global ext "_norep"
 
 	//first and last years for loops 
 	if "${mode}" == "debug" {
-		/*
-		global snapops totpop adults //active
-		global unit_list " "ind" "pch" " // "act" "esn"
-		global all_steps " "por" "psp" "raw" "bfm_norep_pre" "rescaled" "natinc" "pon" "pod"  " // "raw" "natinc" "psp" "rescaled" "pon" "pod"  "por" 
-		global units_06a " "esn" "pch" "
-		global steps_06b " "natinc" "psp" "
-		global steps_06c raw bfm_norep_pre rescaled natinc
-		global steps_06d natinc pon pod psp por
-		*/
 		global snapops totpop adults active 
  		global unit_list " "ind" "esn" "pch" "act" "  
 		global all_steps ///
-			"  "raw"  "natinc" "por"  "psp" "bfm_norep_pre" "rescaled" "pon" "pod" " 
+			"  "raw"  "natinc" "por"  "psp" "bfm${ext}_pre" "rescaled" "pon" "pod" " 
 		//	
 		global units_06a " "esn" "pch" "	
 		//"uprofits"
 		global steps_dec ///
-			" "raw" "bfm_norep_pre" "rescaled" "natinc" "pon" "pod" "psp"" //"uprofits"
+			" "raw" "bfm${ext}_pre" "rescaled" "natinc" "pon" "pod" "psp"" //"uprofits"
 		global steps_06b ///
-			" "raw" "natinc" "bfm_norep_pre" "rescaled" "pon" "pod" " //"uprofits"  
-		global steps_06c natinc raw rescaled bfm_norep_pre  //uprofits 
+			" "raw" "natinc" "bfm${ext}_pre" "rescaled" "pon" "pod" " //"uprofits"  
+		global steps_06c natinc raw rescaled bfm${ext}_pre  //uprofits 
 		global steps_06d natinc pon pod psp por 
 	}
 	
@@ -34,15 +28,15 @@ if $aux_part == "preliminary" {
 		global snapops totpop adults active 
  		global unit_list " "ind" "esn" "pch" "act" "  
 		global all_steps ///
-			"  "raw"  "natinc" "por"  "psp" "bfm_norep_pre" "rescaled" "pon" "pod" " 
+			"  "raw"  "natinc" "por"  "psp" "bfm${ext}_pre" "rescaled" "pon" "pod" " 
 		//	
 		global units_06a " "ind" "esn" "pch" "act" "	
 		//"uprofits"
 		global steps_dec ///
-			" "raw" "bfm_norep_pre" "rescaled" "natinc" "pon" "pod" "psp"" //"uprofits"
+			" "raw" "bfm${ext}_pre" "rescaled" "natinc" "pon" "pod" "psp"" //"uprofits"
 		global steps_06b ///
-			" "raw" "natinc" "bfm_norep_pre" "rescaled" "pon" "pod" " //"uprofits"  
-		global steps_06c natinc raw rescaled bfm_norep_pre  //uprofits 
+			" "raw" "natinc" "bfm${ext}_pre" "rescaled" "pon" "pod" " //"uprofits"  
+		global steps_06c natinc raw rescaled bfm${ext}_pre  //uprofits 
 		global steps_06d natinc pon pod psp por 
 	}
 	
@@ -84,12 +78,12 @@ if $aux_part == "preliminary" {
 	global adofile code/Stata/ado_files/
 	global all_thetas results/all_thetas.xlsx
 	global pseudo_thetas results/pseudo_thetas.xlsx
-	global mp_norep_pos results/bfm_norep_pos/merging_points.xlsx
-	global mp_norep_pre results/bfm_norep_pre/merging_points.xlsx
+	global mp_norep_pos results/bfm${ext}_pos/merging_points.xlsx
+	global mp_norep_pre results/bfm${ext}_pre/merging_points.xlsx
 	global w_adj 
 	global sna_folder Data/national_accounts/
 	global figs_cov figures/compare_steps/coverage/
-	global figs_t figures/bfm_norep_pos/thetas_test/
+	global figs_t figures/bfm${ext}_pos/thetas_test/
 	global figs_tail figures/upper_tail
 	global figs_regi figures/region	
 	global figs_decomp figures/decomposition

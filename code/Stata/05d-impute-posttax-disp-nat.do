@@ -10,13 +10,14 @@
 clear all
 
 //0. General settings ----------------------------------------------------------
-local ext "_norep"
+if "${bfm_replace}" == "yes" local ext ""
+if "${bfm_replace}" == "no" local ext "_norep"
 
 //get list of paths 
 global aux_part " "preliminary" " 
-qui do "code/Do-files/auxiliar/aux_general.do"
+qui do "code/Stata/auxiliar/aux_general.do"
 global aux_part " "graph_basics" " 
-qui do "code/Do-files/auxiliar/aux_general.do"
+qui do "code/Stata/auxiliar/aux_general.do"
 
 local lang $lang 
 local interpolation "spline" //for data from ceq
@@ -38,7 +39,7 @@ qui use country ctry_yr year ftile ///
 	sh_`i'_directtaxe sh_`i'_indirectta sh_`i'_vat sh_`i'_allcontrib ///
 	sh_`i'_conditiona sh_`i'_directtran sh_`i'_disposable sh_`i'_indirectsu ///
 	sh_`i'_education sh_`i'_health ///
-	using  "${ceq}concentration/no_ssc.dta" 	
+	using  "input_data/CEQ/_clean/concentration/no_ssc.dta" 	
 qui rename (sh_`i'_* ctry_yr) (sh_*_ceq ctry_yr_ceq) 
 qui drop if inlist(ctry_yr, "COL_2010", "MEX_2010", "MEX_2012", "PER_2009")
 qui drop year
@@ -56,19 +57,19 @@ foreach v in `taxlist' `taxlist2' {
 
 //bring tax data 
 qui use country year `taxlist_full' uprofits_hh_ni gdp_wid TOT_B5g_wid ///
-	using ${sna_wid_oecd}, clear
+	using "intermediary_data/national_accounts/UNDATA-WID-OECD-Merged.dta", clear
 //interpolate if necessary and save 
 foreach tv in `taxlist_full' {
 	qui replace `tv' = . if `tv' == 0 
 }	
 global imput_vars `taxlist_full' 
-qui do "code/Do-files/auxiliar/aux_fill_aver.do"
+qui do "code/Stata/auxiliar/aux_fill_aver.do"
 qui save `tf_sna_tax', replace
 
 //import in-kind aggregate data from SNA-WID-OECD data
 local spenvars /*oex_gni hea_gni edu_gni*/ oex_gdp_wid hea_gdp_wid edu_gdp_wid
 qui use country year `spenvars' gdp_wid TOT_B5g_wid gdp_to_gni ///
-	using ${sna_wid_oecd_wb}, clear	
+	using "intermediary_data/national_accounts/UNDATA-WID-OECD-Merged.dta", clear	
 
 *convert to % of ni 
 foreach v in `spenvars' {	
@@ -85,7 +86,7 @@ foreach sv in hea_gni edu_gni oex_gni {
 	qui replace `sv' = . if `sv' == 0 
 }	
 global imput_vars hea_gni edu_gni oex_gni 
-qui do "code/Do-files/auxiliar/aux_fill_aver.do"
+qui do "code/Stata/auxiliar/aux_fill_aver.do"
 
 
 *graph twoway (line hea_gni edu_gni oex_gni year) ///
@@ -138,12 +139,12 @@ foreach c in $area {
 		// prepare effective rates of personal income tax
 		tempfile effrates
 		capture confirm file ///
-			"${taxpath}`c'/eff-tax-rate/`c'_effrates_`y'.dta"
+			"input_data/admin_data/`c'/eff-tax-rate/`c'_effrates_`y'.dta"
 		if _rc==0  {
-			qui u "${taxpath}`c'/eff-tax-rate/`c'_effrates_`y'.dta", clear
+			qui u "input_data/admin_data/`c'/eff-tax-rate/`c'_effrates_`y'.dta", clear
 		}
 		else {
-			qui u "${taxpath}`c'/eff-tax-rate/`c'_effrates_syn.dta", clear
+			qui u "input_data/admin_data/`c'/eff-tax-rate/`c'_effrates_syn.dta", clear
 			qui rename eff_tax_rate_ipol_syn eff_tax_rate_ipol
 		}
 
@@ -155,16 +156,15 @@ foreach c in $area {
 		qui save `effrates'
 		
 		//confirm corrected survey exists 
-		capture confirm file ///
-			"${svypath}`c'/bfm`ext'_pre/`c'_`y'_bfm`ext'_pre.dta"
+		local survey "intermediary_data/microdata/bfm`ext'_pre/`c'_`y'_bfm`ext'_pre.dta"
+		capture confirm file "`survey'"
 		if _rc==0 {
 			
 			*inform activity
 			di as text "`c' `y': " 
 			
 			//open it
-			qui use ///
-				"${svypath}`c'/bfm`ext'_pre/`c'_`y'_bfm`ext'_pre.dta", clear
+			qui use "`survey'", clear
 				qui cap drop __*
 			// 2.1 	Rank individuals by income
 
@@ -516,8 +516,7 @@ foreach c in $area {
 			}	
 			
 			// save database			
-			qui save ///
-				"${svypath}`c'/bfm`ext'_pre/`c'_`y'_bfm`ext'_pre.dta", replace 
+			qui save "`survey'", replace 
 
 			*3. Draw effective rates 
 			
@@ -597,12 +596,29 @@ foreach c in $area {
 						*export results 
 						qui drop _merge 
 						
+						//create main folders 
+						local dirpath "output/efftax"
+						mata: st_numscalar("exists", direxists(st_local("dirpath")))
+						if (scalar(exists) == 0) {
+							mkdir "`dirpath'"
+							display "Created directory: `dirpath'"
+						}
+						
 						*print one sheet by unit 
 						qui keep ftile_sca `u'_* n
 						quietly export excel using ///
-							"${summary}efftax_`u'.xlsx", ///
+							"output/efftax/efftax_summary_`u'.xlsx", ///
 							firstrow(variables) sheet("`c'`y'") ///
 							sheetreplace keepcellfmt	
+							
+							
+						//create main folders 
+						local dirpath "output/figures/eff_tax_rates_sca"
+						mata: st_numscalar("exists", direxists(st_local("dirpath")))
+						if (scalar(exists) == 0) {
+							mkdir "`dirpath'"
+							display "Created directory: `dirpath'"
+						}	
 						
 						*stack areas 
 						qui ds
@@ -621,7 +637,7 @@ foreach c in $area {
 							ytit("Effective tax rate on pretax inc.") xtit("") ///
 							legend(off)	
 						cap qui graph export ///
-								"$figs_ratesca/`u'_efftax_`c'_`y'.pdf", replace	
+								"output/figures/eff_tax_rates_sca/`u'_efftax_`c'_`y'.pdf", replace	
 							
 						if "`c'`y'" == "COL2002" {
 							graph twoway  `gphas_`u'_`c'_`y'' ///
@@ -634,7 +650,7 @@ foreach c in $area {
 							legend(order(`lgd_`u'_`c'_`y'' `iter' "Effective tax rate" ///
 							`iter2' "Monetary benefits")) 
 							qui graph export ///
-								"$figs_ratesca/legend_efftax.pdf", replace	
+								"output/figures/eff_tax_rates_sca/legend_efftax.pdf", replace	
 								
 						}
 					restore

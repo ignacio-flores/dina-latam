@@ -10,15 +10,18 @@
 clear all
 
 //0. General settings ----------------------------------------------------------
-local ext "_norep"
 
 //get list of paths 
 global aux_part " "preliminary" " 
-qui do "code/Do-files/auxiliar/aux_general.do"
+qui do "code/Stata/auxiliar/aux_general.do"
 local lang $lang 
-local unit $unit 
 local interpolation "spline" //for data from ceq
 local ds "oecd_gni" //select database gni gdp 
+*local unit $unit 
+
+//define macros 
+if "${bfm_replace}" == "yes" local ext ""
+if "${bfm_replace}" == "no" local ext "_norep"
 
 //1. Fetch incomes from SNA/OECD/WID dataset -----------------------------------
 
@@ -27,7 +30,8 @@ global varli country year bpi_corp_gg prop_inc_net_gg ///
 	tax_indg_oecd_gni gdp_wid TOT_B5g_wid GG_D61_R
 
 //bring tax data 
-qui use $varli using ${sna_wid_oecd}, clear	
+qui use $varli using ///
+	"intermediary_data/national_accounts/UNDATA-WID-OECD-Merged.dta", clear	
 
 //extrapolate a bit if necessary 
 qui replace tax_indg_oecd_gni = . if tax_indg_oecd_gni == 0 
@@ -54,9 +58,11 @@ foreach c in $area {
 			local z = 0 
 		}
 		
+		local survey ///
+			"intermediary_data/microdata/bfm`ext'_pre/`c'_`y'_bfm`ext'_pre.dta"
+		
 		//confirm corrected survey exists 
-		capture confirm file ///
-			"${svypath}`c'/bfm`ext'_pre/`c'_`y'_bfm`ext'_pre.dta"
+		capture confirm file "`survey'"
 		if _rc==0 {
 			
 			//exceptions
@@ -66,10 +72,9 @@ foreach c in $area {
 			
 			*inform activity
 			di as text "`c' `y': " _continue
-			
+				
 			//open it
-			qui use ///
-				"${svypath}`c'/bfm`ext'_pre/`c'_`y'_bfm`ext'_pre.dta", clear
+			qui use "`survey'", clear
 				
 			//2.1 Impute taxes on production and consumption (% to factor inc)
 			cap drop country 
@@ -80,7 +85,7 @@ foreach c in $area {
 			
 			//merge with totals from OECD/UN
 			qui merge m:1 country year using `tf_sna_pretax', ///
-			nogen keep(3)
+				nogen keep(3)
 			
 			//prepare tax aggregate for imputation 
 			cap drop tax_indg_lcu
@@ -204,8 +209,11 @@ foreach c in $area {
 						*	round(`checker' / `b5g' * 100, 0.001) "%"
 						if !inlist("`c'`y'", "CRI2017") & !inlist("`c'", "URY") ///
 							& ("`u'" != "esb") {
-							*di as result "checker: " round(`checker' / `b5g' * 100)
-							assert inrange(round(`checker' / `b5g' * 100), 99, 101)
+							cap assert inrange(round(`checker' / `b5g' * 100), 99, 101)
+							if _rc != 0 {
+								di as error "checker out of bounds: " ///
+									round(`checker' / `b5g' * 100)
+							}
 						}
 						if inlist("`c'", "URY") | ("`u'" == "esb") {
 							*assert inrange(round(`checker' / `b5g' * 100), 96, 103)
@@ -221,8 +229,7 @@ foreach c in $area {
 			}
 			
 			//save 
-			qui save "${svypath}`c'/bfm`ext'_pre/`c'_`y'_bfm`ext'_pre.dta" ///
-				, replace	
+			qui save "`survey'", replace	
 		}	
 	}
 }
