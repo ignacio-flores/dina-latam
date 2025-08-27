@@ -13,15 +13,19 @@ local ext "_norep"
 
 //get list of paths 
 global aux_part " "preliminary" " 
-qui do "code/Do-files/auxiliar/aux_general.do"
+qui do "code/Stata/auxiliar/aux_general.do"
 local lang $lang 
+
+//define macros 
+if "${bfm_replace}" == "yes" local ext ""
+if "${bfm_replace}" == "no" local ext "_norep"
 
 // 1. Get scaling factors-------------------------------------------------------
 display as result "Fetching scaling factors..."
 
 //Import sheet
 local pop "adults"
-qui import excel "${summary}snacompare_bfm`ext'_pre_`pop'.xlsx", ///
+qui import excel "output/snacompare_summary/snacompare_bfm`ext'_pre_`pop'.xlsx", ///
 	sheet("scal_sna") firstrow clear	
 
 //estimate 'left over' income
@@ -48,7 +52,7 @@ qui replace lef_nac = (100 - lef_nac) / 100
 //fill gaps...
 //impute missing country/years
 global imput_vars lef_nac taux_exep 
-qui do "code/Do-files/auxiliar/aux_fill_aver.do"
+qui do "code/Stata/auxiliar/aux_fill_aver.do"
 	
 //stock scaling factors in memory
 local nc = 1 	
@@ -97,8 +101,8 @@ qui use iso year uprofits_hh_ni bpi_corp_tot TOT_B5g_U ///
 	sh_cfc_hh_surplus sh_cfc_hh_mixed sh_cfc_corp sh_cfc_hh sh_cfc_total ///
 	series sh_bpi_corp_hh sh_bpi_corp_for sh_bpi_corp_gg ///
 	NFC_B5g_cei FC_B5g_cei NFC_r_D4_cei FC_r_D4_cei GG_r_D4_cei ///
-	TOT_r_D4_cei ROW_r_D4_cei TOT_B5g_cei using /// 
-	"Data/national_accounts/UNDATA-WID-Merged.dta", clear	
+	TOT_r_D4_cei ROW_r_D4_cei TOT_B5g_cei using ///
+	"intermediary_data/national_accounts/UNDATA-WID-Merged.dta", clear	
 
 //standardize names 
 qui kountry iso, from(iso2c) to(iso3c) 
@@ -133,7 +137,9 @@ qui drop dup country_year series
 qui save "`wid_data_adj'", replace
 
 //bring national income composition 
-qui import excel "${summary}snacompare_bfm`ext'_pre_`pop'.xlsx", ///
+				 
+qui import excel ///
+	"output/snacompare_summary/snacompare_bfm`ext'_pre_`pop'.xlsx", ///
 	sheet("ni_comp") firstrow clear	
 qui la var svy_to_ni "Total income declared in corrected survey, % of GNI"	
 qui la var bpi_gg "Bal. of 1ry inc., Gen. Gov. (% of G. National Income)"	
@@ -159,7 +165,7 @@ qui merge 1:1 country year using "`wid_data_adj'", keep(3 1) nogen
 preserve 
 	tempfile tf_gni 
 	qui use iso year TOT_B5g_wid using ///
-		"Data/national_accounts/UNDATA-WID-Merged.dta", clear
+		"intermediary_data/national_accounts/UNDATA-WID-Merged.dta", clear
 	duplicates drop 	
 	qui drop if missing(TOT_B5g_wid)
 	qui kountry iso, from(iso2c) to(iso3c) 
@@ -228,6 +234,14 @@ foreach v in "sh_bpi_corp_hh" "sh_bpi_corp_for" ///
 	qui gen `v'2 = `v' * 100
 }
 
+//create main folders 
+local dirpath "output/figures/uprofits"
+mata: st_numscalar("exists", direxists(st_local("dirpath")))
+if (scalar(exists) == 0) {
+	mkdir "`dirpath'"
+	display "Created directory: `dirpath'"
+}
+
 //Graph all countries except ARG
 graph twoway (line sh_bpi_corp_hh2 year, lcolor(black) lwidth(medthick)) ///
 	(line sh_cfc_corp2 year, lcolor(${c_col}) lwidth(medium)) ///
@@ -239,11 +253,11 @@ graph twoway (line sh_bpi_corp_hh2 year, lcolor(black) lwidth(medthick)) ///
 	legend(label(1 "Households (net)") label(2 "Depreciation") ///
 	label(3 "Foreigners") label(4 "Gral. Gorvernment")) $graph_scheme 
 qui graph export ///
-	"figures/imputation/uprofits/Composition.pdf", replace 
+	"output/figures/uprofits/Composition.pdf", replace 
 		
 //call basic graph settings 
 global aux_part " "graph_basics" " 
-qui do "code/Do-files/auxiliar/aux_general.do"
+qui do "code/Stata/auxiliar/aux_general.do"
 
 //prepare main graph lines 
 local iv = 1
@@ -286,7 +300,7 @@ foreach var in "uprofits_hh_ni_pct" "uprofits_hh_svy_pct" {
 			xlabel(${first_y}(5)2020, $xlab_opts) ///
 			xtitle("") ytitle("") $graph_scheme ///
 			legend(off)
-		qui graph export "figures/uprofits/`var'.pdf", replace
+		qui graph export "output/figures/uprofits/`var'.pdf", replace
 		
 		//graph and save w/legend
 		graph twoway `addgraphlines_`iv'' ///
@@ -295,7 +309,7 @@ foreach var in "uprofits_hh_ni_pct" "uprofits_hh_svy_pct" {
 			xlabel(${first_y}(5)2020, $xlab_opts) ///
 			xtitle("") ytitle("") $graph_scheme ///
 			legend(`legend_`iv'')
-		qui graph export "figures/uprofits/`var'_legend.pdf", replace
+		qui graph export "output/figures/uprofits/`var'_legend.pdf", replace
 
 		//details 
 		qui drop `var'
@@ -312,12 +326,12 @@ global imput_vars sh_bpi_corp_for sh_cfc_corp sh_cfc_hh_surplus ///
 	sh_cfc_hh_mixed sh_cfc_hh sh_cfc_total sh_bpi_corp_gg /// 
 	sh_bpi_corp_hh uprofits_hh_ni uprofits_hh_svy sh_bpi_corp_hh2 /// 
 	sh_bpi_corp_for2 sh_bpi_corp_gg2 sh_cfc_corp2
-qui include "code/Do-files/auxiliar/aux_fill_aver.do"
+qui include "code/Stata/auxiliar/aux_fill_aver.do"
 
 *convert wid totals to old currency 
 *wid national income is already in current lcu (1a takes care of it)
 global aux_part  ""old_currencies"" 
-quietly do "code/Do-files/auxiliar/aux_general.do"
+quietly do "code/Stata/auxiliar/aux_general.do"
 foreach curr in $old_currencies {
 	*identify country 
 	local coun = substr("`curr'", 1, 3)
@@ -331,7 +345,8 @@ foreach curr in $old_currencies {
 
 *Harmonize special case (ECU)
 preserve 
-	quietly import excel $wb_xrates, sheet("ECU") clear firstrow
+	quietly import excel "input_data/xrates_WB/wb-xrates.xls", ///
+		sheet("ECU") clear firstrow
 	qui destring year, replace 
 	quietly levelsof year, local(xr_yrs_ecu) clean 	
 	foreach z in `xr_yrs_ecu' {
@@ -379,14 +394,12 @@ foreach c in $area {
 		di as text "`c' `y': " _continue 
 		
 		//confirm corrected survey exists 
-		capture confirm file ///
-			"${svypath}`c'/bfm`ext'_pre/`c'_`y'_bfm`ext'_pre.dta"
+		local survey "intermediary_data/microdata/bfm`ext'_pre/`c'_`y'_bfm`ext'_pre.dta"
+		capture confirm file "`survey'"
 		
 		//open it
 		if _rc==0 /*& !inlist("`c'", "ARG")*/ {
-			qui use ///
-				"${svypath}`c'/bfm`ext'_pre/`c'_`y'_bfm`ext'_pre.dta", clear
-				
+			qui use "`survey'", clear
 			capture drop *_sca
 			capture drop __*
 			
@@ -693,21 +706,24 @@ foreach c in $area {
 			
 						//call graph parameters 
 						global aux_part  ""graph_basics"" 
-						qui do "code/Do-files/auxiliar/aux_general.do"
+						qui do "code/Stata/auxiliar/aux_general.do"
+						
+						//create main folders 
+						local dirpath "output/figures/uprofits/incidence"
+						mata: st_numscalar("exists", direxists(st_local("dirpath")))
+						if (scalar(exists) == 0) {
+							mkdir "`dirpath'"
+							display "Created directory: `dirpath'"
+						}
+						
+						//create main folders 
+						local dirpath "output/figures/uprofits/incidence-scal"
+						mata: st_numscalar("exists", direxists(st_local("dirpath")))
+						if (scalar(exists) == 0) {
+							mkdir "`dirpath'"
+							display "Created directory: `dirpath'"
+						}
 
-						/*
-						//graph uprofits as % of original income
-						graph twoway `graphlines2_`c'_`y'' ///
-							, title("`c' - `y'") ///
-							yline(100, lcolor(red) lpattern(dot)) ///
-							ytitle("U. Profits, % original inc.") ///
-							xtitle("Percentile") ///
-							xlabel(0(10)100, $xlab_opts) ///
-							ylabel(0(20)100, $ylab_opts) ///
-							$graph_scheme 
-						qui graph export ///
-							"figures/imputation/uprofits/incidence/`c'`y'.pdf", replace 
-						*/
 						//graph as incidence  	
 						graph twoway (connected own2_cum_aux ftile_bfm_adu, ///
 							mcolor(cranberry) lcolor(cranberry) ///
@@ -719,7 +735,7 @@ foreach c in $area {
 							ylabel(0(20)100, $ylab_opts) ///
 							$graph_scheme 
 						qui graph export ///
-							"figures/imputation/uprofits/incidence2/`c'`y'.pdf", replace  
+							"output/figures/uprofits/incidence/`c'`y'.pdf", replace  
 			
 					restore 
 				}
@@ -840,7 +856,7 @@ foreach c in $area {
 				//6. Study the incidence of scaling ---------------------------
 				//call graph parameters 
 				global aux_part  ""graph_basics"" 
-				qui do "code/Do-files/auxiliar/aux_general.do"
+				qui do "code/Stata/auxiliar/aux_general.do"
 				
 				*loop over units (pre-tax so far) 
 				*to make it faster, we only graph the chosen unit 
@@ -915,14 +931,12 @@ foreach c in $area {
 							legend(off) ysize(5.5) xsize(5.5) ///
 							aspectratio(1) 
 						qui graph export ///
-							"figures/raw/incidence-scal/`c'`y'_`u'.pdf", replace
+							"output/figures/uprofits/incidence-scal/`c'`y'_`u'.pdf", replace
 					restore 
 				}
 			
 				*save 
-				qui save ///
-					"${svypath}`c'/bfm_norep_pre/`c'_`y'_bfm_norep_pre.dta" ///
-					, replace
+				qui save "`survey'", replace
 				
 				//report scaled variables 
 				*display as text "`c' `y' scaled variables: " _continue
@@ -941,7 +955,7 @@ foreach c in $area {
  		}
 		*report if not found
 		else {
-			di as text "skipped, file not found"
+			di as text "skipped, `survey' not found"
 		}
 	}
 }
