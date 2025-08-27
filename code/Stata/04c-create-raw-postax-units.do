@@ -9,11 +9,14 @@
 clear all
 
 //0. General settings ----------------------------------------------------------
-local ext "_norep"
+
+//define macros 
+if "${bfm_replace}" == "yes" local ext ""
+if "${bfm_replace}" == "no" local ext "_norep"
 
 //get list of paths 
 global aux_part " "preliminary" " 
-qui do "code/Do-files/auxiliar/aux_general.do"
+qui do "code/Stata/auxiliar/aux_general.do"
 local lang $lang 
 
 global area " ${all_countries} "
@@ -35,12 +38,12 @@ foreach c in $area {
 		
 		//confirm corrected survey exists 
 		capture confirm file ///
-			"${svypath}`c'/bfm`ext'_pre/`c'_`y'_bfm`ext'_pre.dta"
+			"intermediary_data/microdata/bfm`ext'_pre/`c'_`y'_bfm`ext'_pre.dta"
 		
 		//open it
 		if _rc==0 {
 			qui use ///
-				"${svypath}`c'/bfm`ext'_pre/`c'_`y'_bfm`ext'_pre.dta", clear
+				"intermediary_data/microdata/bfm`ext'_pre/`c'_`y'_bfm`ext'_pre.dta", clear
 			
 			cap drop __*
 			
@@ -73,14 +76,14 @@ foreach c in $area {
 			
 			*save 
 			qui save ///
-				"${svypath}`c'/bfm_norep_pre/`c'_`y'_bfm_norep_pre.dta" ///
+				"intermediary_data/microdata/bfm`ext'_pre/`c'_`y'_bfm`ext'_pre.dta" ///
 				, replace
 			
 			*report activity	
 			di as result "done"	
 		}
 		else {
-			di as text "not found."
+			di as text "intermediary_data/microdata/bfm`ext'_pre/`c'_`y'_bfm`ext'_pre.dta not found."
 		}
 	}
 }	

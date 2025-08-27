@@ -135,6 +135,7 @@ foreach c in $extrap_countries {
 			
 		//path to files
 		local pf "pos"
+		if ("`c'" == "BRA") local pf "pre"
 		local corrfile ///
 			"intermediary_data/microdata/bfm`ext'_`pf'/`c'_`t'_bfm`ext'_`pf'.dta"
 		local MPgraph "output/figures/MP/`c'_`t'_MP_extrap.pdf"

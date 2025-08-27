@@ -1,13 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
-//
-// 							Title: PRE-TAX INCOMES 
-// 			 Authors: Mauricio DE ROSA, Ignacio FLORES, Marc MORGAN 
-// 									Year: 2020
-//
-// 			Description:
-// 			Calculates effective tax rates for country-years for which we have 
-//			no data. After that, it computes pre-tax incomes for corrected surveys
-//
+// 	Calculates effective tax rates for country-years for which we have 
+//		no data. After that, it computes pre-tax incomes for corrected surveys
 ////////////////////////////////////////////////////////////////////////////////
 
 //make room
@@ -15,20 +8,23 @@ clear all
 
 //preliminary settings 
 global aux_part  ""preliminary"" 
-quietly do "code/Do-files/auxiliar/aux_general.do"
+quietly do "code/Stata/auxiliar/aux_general.do"
+
+//define macros 
+if "${bfm_replace}" == "yes" local ext ""
+if "${bfm_replace}" == "no" local ext "_norep"
 
 //define paths 
-global codes		"code/Do-files"
-global data_svy 	"Data/CEPAL/surveys"
-global data_tax 	"Data/Tax-data"
-global pre_aux		"Data/Tax-data/auxiliar-pre-tax"
+global codes		"code/Stata"
+global data_svy 	"intermediary_data/microdata/"
+global data_tax 	"input_data/admin_data"
+*global pre_aux		"Data/Tax-data/auxiliar-pre-tax"
 
 *-------------------------------------------------------------------------------
 * I. We create effective tax rates as average of each country, 
 * to fill the gap when it does not exist.
 *-------------------------------------------------------------------------------
 
-*global all_countries "CHL"
 foreach c in $all_countries  	{  
 	forvalues  year = $first_y / $last_y {
 	
@@ -41,6 +37,7 @@ foreach c in $all_countries  	{
 		local year_p = `year' + 1
 		qui cap confirm file `eff_tax_file' 
 		if _rc==0 {
+			di as result  "`eff_tax_file' found"
 			qui cap use `eff_tax_file', clear
 			
 			qui cap gen eff_tax_rate_ipol_`year' = eff_tax_rate_ipol
@@ -64,12 +61,11 @@ foreach c in $all_countries  	{
 				}
 			}
 			continue, break 			
+		} 
+		else {
+			*di as text "`eff_tax_file' not found"
 		}		
 	}
-
-	//clean
-	*qui cap drop eff_tax_rate_ipol
-	*qui cap drop eff_ss_rate_ipol
 	
 	//write them down
 	qui cap egen eff_tax_rate_ipol_syn = rmean(eff_tax_rate_ipol*)
@@ -90,8 +86,6 @@ foreach c in $all_countries  	{
 	qui save `syneff_tax_file', replace
 }
 
-
-
 *-------------------------------------------------------------------------------
 * II. We merge corrected surveys and effective tax rates
 *-------------------------------------------------------------------------------
@@ -102,7 +96,7 @@ foreach c in $all_countries   {
 		//locate relevant files 
 		foreach x in "pre" "pos" {
 			local svy_`x' ///
-				"$data_svy/`c'/bfm_norep_`x'/`c'_`year'_bfm_norep_`x'.dta"
+				"${data_svy}bfm`ext'_`x'/`c'_`year'_bfm`ext'_`x'.dta"
 		}
 		local eff_tax_file "$data_tax/`c'/eff-tax-rate/`c'_effrates_`year'.dta" 
 		local syneff_tax_file "$data_tax/`c'/eff-tax-rate/`c'_effrates_syn.dta" 
@@ -111,6 +105,7 @@ foreach c in $all_countries   {
 		if ("`c'" == "BRA" | "`c'" == "CRI") {
 			clear
 			cap use `svy_pre', clear
+	
 			qui cap assert _N == 0
 				if _rc != 0 {
 						
@@ -129,15 +124,13 @@ foreach c in $all_countries   {
 					}
 					else {
 						di as text "`c' `year' eff. tax rates not" _continue 
-						di as text " found " _continue 
+						di as text " found (`eff_tax_file')" _continue 
 						di as result "using average instead"
 						qui cap drop _merge
 						qui cap merge m:1 p_merge using `syneff_tax_file'
 					}
 	
 				qui cap drop if _merge == 2
-
-
 				
 				//create fractiles in survey to prepare merge
 				global section ""adjustment""
@@ -182,11 +175,11 @@ foreach c in $all_countries   {
 					qui cap drop _merge
 					qui merge m:1 p_merge using `eff_tax_file'
 					di as result "`c' `year' merging corr. survey" _continue
-					di as result "with effective tax rates"
+					di as result " with effective tax rates"
 				}
 				else {
-					di as text "`c' `year' eff. tax rates not found " _continue
-					di as result "using country average instead"
+					di as text "`c' `year' eff. tax rates not found (`eff_tax_file')" _continue
+					di as result " using country average instead"
 					qui cap drop _merge
 					qui  merge m:1 p_merge using `syneff_tax_file'
 
@@ -212,7 +205,7 @@ foreach c in $all_countries   {
 				
 			}
 			else {
-				di in red "`c' in `year' does not have corrected survey"
+				di in red "`c' in `year' does not have corrected survey (`svy_pos')"
 			}
 		}		
 	}
@@ -222,15 +215,16 @@ foreach c in $all_countries   {
 * III. Subtract social contributions in Brazil in pre-tax and post-tax
 * (exceptional case)
 *-------------------------------------------------------------------------------
-
+local ext ""
 forvalues  year = $first_y / $last_y {
 	
 	//locate relevant files 
 	foreach x in "pre" "pos" {
-		local BRA_svy_`x' ///
-			"$data_svy/BRA/bfm_norep_`x'/BRA_`year'_bfm_norep_`x'.dta"
-		
 		clear
+		
+		local BRA_svy_`x' ///
+			"${data_svy}bfm`ext'_`x'/BRA_`year'_bfm`ext'_`x'.dta"
+		di as result "working with `BRA_svy_`x'' ..." 
 		cap use `BRA_svy_`x'', clear
 		qui cap assert _N == 0
 		
@@ -244,6 +238,10 @@ forvalues  year = $first_y / $last_y {
 				qui replace ind_`x'_`var' = 0 if ind_`x'_`var' < 0
 			}
 		qui save `BRA_svy_`x'', replace		
+		di as result " done"
+		} 
+		else {
+			di as error "not found"
 		}
 	}
 }

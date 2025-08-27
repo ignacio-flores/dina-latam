@@ -1,7 +1,7 @@
 
 //select countries to adjust
 global aux_part  ""aver_countries"" 
-quietly do "code/Do-files/auxiliar/aux_general.do"
+quietly do "code/Stata/auxiliar/aux_general.do"
 
 //create an exception for Argentina (not used for averages)
 tempvar year_aux

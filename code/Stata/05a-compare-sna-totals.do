@@ -18,21 +18,40 @@ clear programs
 
 //preliminary
 global aux_part  ""preliminary"" 
-quietly do "code/Do-files/auxiliar/aux_general.do"
+quietly do "code/Stata/auxiliar/aux_general.do"
+
+//define macros 
+if "${bfm_replace}" == "yes" local ext ""
+if "${bfm_replace}" == "no" local ext "_norep"
 
 //find programs folder 
-sysdir set PERSONAL "${adofile}snacompare_ado/." 
+sysdir set PERSONAL "code/Stata/ado/snacompare_ado/." 
+
+// Create directory if it doesnt exist 
+local dirpath "output/snacompare_summary"
+mata: st_numscalar("exists", direxists(st_local("dirpath")))
+if (scalar(exists) == 0) {
+	mkdir "`dirpath'"
+	display "Created directory: `dirpath'"
+}
+
+local dirpath "output/figures/snacompare"
+mata: st_numscalar("exists", direxists(st_local("dirpath")))
+if (scalar(exists) == 0) {
+	mkdir "`dirpath'"
+	display "Created directory: `dirpath'"
+}
 
 //Run program 
-foreach step in /*"urb"*/ "raw" "bfm_norep_pre" {  
+foreach step in "raw" "bfm`ext'_pre" {  
 
 	//define countries 
 	if ("`step'" == "urb") global area ARG
-	if ("`step'" != "urb") global area " ${really_all_countries} "
+	if ("`step'" != "urb") global area " ${all_countries} "
 
 	//define weights
  	if inlist("`step'", "raw", "urb") local weight "_fep"
-	if ("`step'" == "bfm_norep_pre") local weight "_weight"
+	if inlist("`step'", "bfm_norep_pre", "bfm_pre") local weight "_weight"
 	
 	*report step
 	display as text "{hline 55}"
@@ -46,11 +65,11 @@ foreach step in /*"urb"*/ "raw" "bfm_norep_pre" {
 		if "`pop'" == "active" local age 20 65
 		
 		//call program	
-		snacompare using "${sna_folder}UNDATA-WID-Merged.dta", ///
-			svypath("${svypath}") weight(`weight') ///
-			time(${first_y} ${last_y}) edad(`age') ///
+		snacompare using "intermediary_data/national_accounts/UNDATA-WID-Merged.dta", ///
+			svypath("intermediary_data/microdata/") weight(`weight') ///
+			time(${first_y} ${last_y}) edad(`age') ext(`ext') ///
 			area(${area}) type(`step') /*show esp GRAPHEXTRAP*/ ///
-			exportexcel("${summary}snacompare_`step'_`pop'.xlsx") ///
-			auxiliary("${auxpath}aux_snacompare.do") 	
+			exportexcel("output/snacompare_summary/snacompare_`step'_`pop'.xlsx") ///
+			auxiliary("code/Stata/auxiliar/aux_snacompare.do") 	
 	}
 }

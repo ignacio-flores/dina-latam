@@ -39,7 +39,7 @@ program snacompare , eclass
 	local orig_weight "`weight'"
 	
 	//Paths to export graphs
-	global figs_path "figures/`type'/snacompare"
+	global figs_path "output/figures/snacompare"
 	
 	*---------------------------------------------------------------------------
 	*PART 1: Bring SNA totals
@@ -255,21 +255,23 @@ program snacompare , eclass
 						local variables_`x' "`variables_`x'' `x'_`v'"
 					}
 				}	
-					
+				
+				local survey ""
+				if inlist("`type'", "raw", "bfm_pre", "bfm_norep_pre") {
+					local survey "`svypath'bfm`ext'_pre/`c'_`yr'_bfm`ext'_pre.dta"
+				}
+							
 				//Check existence of file
-				cap confirm file ///
-					"`svypath'`c'/bfm_norep_pre/`c'_`yr'_bfm_norep_pre.dta"
+				cap confirm file "`survey'" 
 					
 				//continue if available 	
 				if _rc==0 {
-					qui use ///
-						"`svypath'`c'/bfm_norep_pre/`c'_`yr'_bfm_norep_pre.dta" ///
-						, clear
-						//qui replace ind_pre_imp = 0 if edad < 20
-
-						cap drop __*
+					
+					*di as result "`survey' found"
+					qui use "`survey'", clear
+					cap drop __*
 						
-					//drop useless population *********************************
+					//drop population *********************************
 					if wordcount("`edad'") == 1 {
 						local edlab "`edad'"
 						qui drop if edad < `edad' 
@@ -344,83 +346,15 @@ program snacompare , eclass
 							}	
 						}
 						else {
-							*di as text "`var' not included"
+							di as text "`var' not included"
 						}
 					}
 					*di as text "{hline 80}"
 					*di as result "`c' - `yr' value (`type'): " `svy_tot_`c'_`yr'' / `ni_`c'_`yr'' * 100
 				}
-				
-				/*
 				else {
-					
-					//Check existence of file (as raw)
-					cap confirm file "`svypath'`c'/raw/`c'_`yr'_raw.dta"
-					
-					//continue if available 	
-					if (_rc==0 & "`type'" == "raw") {
-						
-						*open file 
-						qui use ///
-							"`svypath'`c'/raw/`c'_`yr'_raw.dta", clear
-						
-						*inform in log 
-						di as text ///
-							"  * `c' `yr' only exists as raw survey"	
-							
-						//record proportional alloc. variable by income source
-						qui replace `weight' = round(`weight')
-
-						foreach var in `variables_pos' {
-							
-							*check if variable exists
-							cap confirm variable ind_`var', exact  
-							if _rc == 0 {
-								
-								*short name 
-								local v = substr("`var'", 5, 3)
-								local s = substr("`var'", 1, 3)
-								
-								*summarize survey total
-								qui sum ind_`var' [fw = `weight'] 
-								local `var'_svy_tot = r(sum)
-								
-								*scaling factor 
-								local `var'_scal_svyna_`c'_`yr'	= ///
-									`pre_`v'_nac_tot' / ``var'_svy_tot'
-								local `var'_invscal_`c'_`yr'	= ///
-									``var'_svy_tot'/ `pre_`v'_nac_tot' 
-									
-								*prepare for di on log 	
-								local `var'_invscal_`c'_`yr'_rd = ///
-									round(``var'_invscal_`c'_`yr'', 0.001) * 100
-								local `var'_scal_svyna_disp	= ///
-										round(``var'_scal_svyna_`c'_`yr'', 0.01)
-										
-								if ("`show'" != ""){
-									//di scaling factors
-									di as text "`var' -> ``var'_scal_svyna_disp'" ///
-										_continue 
-									di as text " --> Survey: ``var'_svy_tot' (LCU)" ///
-										_continue 
-									di as text " SNA: `pre_`v'_nac_tot'"
-								}	
-								if ("`v'" == "tot") {
-									local svy_tot_`c'_`yr'_`s' = ``var'_svy_tot'
-								}	
-							}
-							else {
-								*di as text "`var' not included"
-							}			
-						}							
-					}
-					
-					else{
-						di as text ///
-							"  * survey file not found"
-					}
+					di as text "  * survey not found"
 				}
-				*/
 			}
 			else {
 				di as text "  * not found in SNA data"
@@ -529,7 +463,7 @@ program snacompare , eclass
 	// impute missing scaling factors
 	global imput_vars pre_wag pre_ben pre_cap pre_mix ///
 		pre_imp pre_mir pre_kap pre_tot bpi_gg bpi_hh bpi_corp 
-	qui do "code/Do-files/auxiliar/aux_fill_aver.do"
+	qui do "code/Stata/auxiliar/aux_fill_aver.do"
 	
 	//export national income composition 
 	if ("`exportexcel'" != "") {
@@ -579,7 +513,7 @@ program snacompare , eclass
 	*save info on extrapolated values 
 	preserve
 		keep country year extrap_sca
-		qui save "results/extrap_sna_age`edlab'.dta", replace
+		qui save "output/snacompare_summary/extrap_sna_age`edlab'.dta", replace
 	restore
 
 	*get rid of extrapolated data 
@@ -639,12 +573,20 @@ program snacompare , eclass
 			ytitle("`ylab1'") xtitle("") ///
 			yline(100, lpattern(dash) lcolor(black*0.5)) ///
 			ylabel(0(`midy')`maxy', $ylab_opts format(%2.0f)) ///
-			xlabel(2000(5)2020, $xlab_opts) ///
+			xlabel(2000(5)2025, $xlab_opts) ///
 			$graph_scheme legend(off)	
+			
+			
+			local dirpath "$figs_path/variables"
+			mata: st_numscalar("exists", direxists(st_local("dirpath")))
+			if (scalar(exists) == 0) {
+				mkdir "`dirpath'"
+				display "Created directory: `dirpath'"
+			}
 			
 			//Save		
 			qui graph export "$figs_path/variables/`var'_age`edlab'.pdf", replace
-			qui graph save "$figs_path/variables/`var'_age`edlab'.gph", replace
+			*qui graph save "$figs_path/variables/`var'_age`edlab'.gph", replace
 			
 		//also one graph with only exceptions 	
 		if inlist("`var'", "pre_mir") {
@@ -661,12 +603,12 @@ program snacompare , eclass
 			ytitle("`ylab1'") xtitle("") ///
 			yline(100, lpattern(dash) lcolor(black*0.5)) ///
 			ylabel(0(`midy')`maxy', $ylab_opts format(%2.0f)) ///
-			xlabel(`first_yr'(5)2020, $xlab_opts) ///
+			xlabel(`first_yr'(5)2025, $xlab_opts) ///
 			$graph_scheme legend(off)
 			
 			//Save
 			qui graph export "$figs_path/variables/`var'_exep.pdf", replace
-			qui graph save "$figs_path/variables/`var'_gph.pdf", replace
+			*qui graph save "$figs_path/variables/`var'_gph.pdf", replace
 			
 			//get one graph with a legend (exceptions)
 			graph twoway $per_country_settings_exep , ///
@@ -705,7 +647,7 @@ program snacompare , eclass
 			yline(100, /*lpattern(dash)*/ lcolor(black*0.2)) ///
 			yline(0, /*lpattern(dash)*/ lcolor(black*0.2)) ///
 			ylabel(0(`byn')`limit', $ylab_opts_white format(%2.0f)) ///
-			xlabel(2000(5)2020, $xlab_opts_white ) ///
+			xlabel(2000(5)2025, $xlab_opts_white ) ///
 			`add_line_`c'' `add_text_`c'' ///
 			$graph_scheme $legend_vars /*legend(off)*/
 		*/
@@ -737,15 +679,20 @@ program snacompare , eclass
 			yline(100, /*lpattern(dash)*/ lcolor(black*0.2)) ///
 			yline(0, /*lpattern(dash)*/ lcolor(black*0.2)) ///
 			ylabel(0(`byn')`limit', $ylab_opts_white format(%2.0f)) ///
-			xlabel(`firsty'(`xr')2020, $xlab_opts_white ) ///
+			xlabel(`firsty'(`xr')2025, $xlab_opts_white ) ///
 			`add_line_`c'' `add_text_`c'' ///
 			$graph_scheme $legend_vars_esp  legend(off)
 	
 		*- CHANGE OFF
 		
+		local dirpath "$figs_path/countries"
+			mata: st_numscalar("exists", direxists(st_local("dirpath")))
+			if (scalar(exists) == 0) {
+				mkdir "`dirpath'"
+				display "Created directory: `dirpath'"
+			}
+		
 		//Save
-		
-		
 		qui graph export "$figs_path/countries/`c'_age`edlab'.pdf", replace
 		
 		
@@ -755,7 +702,7 @@ program snacompare , eclass
 				yline(100, /*lpattern(dash)*/ lcolor(black*0.2)) ///
 				yline(0, /*lpattern(dash)*/ lcolor(black*0.2)) ///
 				ylabel(0(`byn')`limit', $ylab_opts_white format(%2.0f)) ///
-				xlabel(`firsty'(`xr')2020, $xlab_opts_white ) ///
+				xlabel(`firsty'(`xr')2025, $xlab_opts_white ) ///
 				`add_line_`c'' `add_text_`c'' ///
 				$graph_scheme $legend_vars_esp  /*legend(off)*/ 
 			
@@ -798,7 +745,7 @@ program snacompare , eclass
 			yline(100, /*lpattern(dash)*/ lcolor(black*0.2)) ///
 			yline(0, /*lpattern(dash)*/ lcolor(black*0.2)) ///
 			ylabel(0(`byn')`limit', $ylab_opts_white format(%2.0f)) ///
-			xlabel(${first_y}(5)2020, $xlab_opts_white ) ///
+			xlabel(${first_y}(5)2025, $xlab_opts_white ) ///
 			`add_line_`c'' `add_text_`c'' ///
 			$graph_scheme ${legend_vars_exep_esp}
 

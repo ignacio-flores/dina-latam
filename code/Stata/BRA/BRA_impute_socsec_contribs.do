@@ -5,7 +5,7 @@ Goal: imputation of Social Security contributions to CEPAL's PNAD data
 forvalues year = $first_y / $last_y {
 
 	clear 
-	qui cap use "intermediary_data/microdata/raw/`c'/`c'_`year'_raw.dta", clear
+	qui cap use "intermediary_data/microdata/raw/BRA/BRA_`year'_raw.dta", clear
 
 	*Only run when data exists
 	qui cap assert _N == 0
@@ -262,7 +262,9 @@ forvalues year = $first_y / $last_y {
 		qui save "intermediary_data/microdata/raw/BRA/BRA_`year'_raw.dta", replace
 		
 	}
-	
+	else {
+		di as error "intermediary_data/microdata/raw/BRA/BRA_`year'_raw.dta not found"
+	}
 	
 }
 

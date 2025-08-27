@@ -80,7 +80,7 @@ if $aux_part == 4 {
 
 	//bring graph basic parameters
 	global aux_part " "graph_basics" "
-	quietly do "code/Do-files/auxiliar/aux_general.do"
+	quietly do "code/Stata/auxiliar/aux_general.do"
 
 	//per country settings
 	global per_country_settings ///

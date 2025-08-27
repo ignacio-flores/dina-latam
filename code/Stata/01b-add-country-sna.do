@@ -61,7 +61,7 @@ foreach c in $ctries_cei {
 	if "`c'" == "BRA" local file_`c' "`folder_`c''/contas_economicas_a_precos_correntes_2000a2021.xls"
 	if inlist("`c'", "CHL", "PER") local file_`c' "`folder_`c''/CEI_merged"
 	*if "`c'" == "COL" local file_`c' "`folder_`c''/cuentas-economicas-integradas-2019provisional"
-	if "`c'" == "COL" local file_`c' "`folder_`c''/anex-CuentasNalANuales-CuentaEconomicasIntegradas-2023p"
+	if "`c'" == "COL" local file_`c' "`folder_`c''/anex-CuentasNalANuales-CuentasEconomicasIntegradas-2023p"
 	if "`c'" == "DOM" local file_`c' "`folder_`c''/cei"
 	//Mexico, Costa Rica and Uruguay defined below
 
@@ -171,6 +171,9 @@ foreach c in $ctries_cei {
 					global vars_ECU A B AY W AK AT AX BD BB
 				}
 				if `y' >= 2021 {
+					local y_sheet "CEI_`y'"
+				}
+				if `y' == 2023 {
 					local y_sheet "CEI_`y'p"
 				}
 			}
@@ -216,9 +219,13 @@ foreach c in $ctries_cei {
 			di as result "`c'- `y'"	
 			qui cap import excel `file_`c'' , clear ///
 				cellrange(`cellr_`c'') sheet("`y_sheet'") `firstr'
+			
+			di as text "importing `file_`c'' ... " _continue
 				
 			//if file and sheet exist...	
 			if _rc == 0 {		
+			    
+				di as text "found"
 		
 				//rename variables 
 				if "`c'" == "MEX" qui split A, parse(-)
@@ -339,7 +346,11 @@ foreach c in $ctries_cei {
 				*di as result "`c' `y' d44: `ratio_d44_d4_`c'_`y''"
 				*di as result "`c' `y' d43: `ratio_d43_d4_`c'_`y''"
 				*di as result "`c' `y' d43 + d44: `ratio_d43d44_`c'_`y''"
-			}	
+			}
+			else {
+			    di as error "not found" 
+			
+			}
 		}
 	}
 }	
