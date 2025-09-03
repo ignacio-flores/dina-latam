@@ -871,6 +871,7 @@ program bfmcorr_experiments, eclass
 	// We need to deal separately with survey observations in the last bracket
 	quietly replace `bracket_index' = `max_taxindex' if (`taxincome' >= `max_taxthr')
 	quietly replace `bracket_index_svy' = `max_taxindex' if (`income' >= `max_taxthr')
+	
 	quietly save "`rawdata'", replace
 	
 	// ---------------------------------------------------------------------- //
@@ -1044,6 +1045,7 @@ program bfmcorr_experiments, eclass
 	// Create dummy variables for survey income tax bracket
 	tempvar dummies_income_svy
 	quietly tabulate `bracket_index_svy', generate(`dummies_income_svy')
+	
 	unab dummies_income_svy: `dummies_income_svy'*
 	foreach v of varlist `dummies_income_svy' {
 		quietly replace `v' = 0 if missing(`v')

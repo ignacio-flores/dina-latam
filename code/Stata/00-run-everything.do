@@ -19,14 +19,14 @@ clear all
 
 //list codes 
 ***********************************************************************
-global do_codes1 " "01a" "01b" "01c" "01d" "01e" "01f" "01g" " 
-global do_codes2 " "02a" "02c" "02d" "02e" " //"02b"
-global do_codes3 " "03a" "03b" "03c" "03d" "03e" " 
-global do_codes4 " "04a" "04b" "04c" " 
-global do_codes5   " "05a" "05b" "05c" "05d" "05e" "05f" "  
-global do_codes6  " "06a" " //"06b" "06c"
-*global do_codes7  " "07a" "07b" "07c" "07d" " 
-global last_code = 5
+*global do_codes1 " "01a" "01b" "01c" "01d" "01e" "01f" "01g" " 
+*global do_codes2 " "02a" "02c" "02d" "02e" " //"02b"
+*global do_codes3 " "03a" "03b" "03c" "03d" "03e" " 
+*global do_codes4 " "04a" "04b" "04c" " 
+*global do_codes5   " "05a" "05b" "05c" "05d" "  
+*global do_codes6  " "06a" "06b" " // "06c"
+global do_codes7  " "07a" "07b"  " //"07c" "07d"
+global last_code = 7
 ***********************************************************************
 
 //report and save start time 

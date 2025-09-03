@@ -7,7 +7,7 @@ if $aux_part == "preliminary" {
 	if "${bfm_replace}" == "no" global ext "_norep"
 
 	//first and last years for loops 
-	if "${mode}" == "debug" {
+	if "${debug}" == "yes" {
 		global snapops totpop adults active 
  		global unit_list " "ind" "esn" "pch" "act" "  
 		global all_steps ///
@@ -26,16 +26,16 @@ if $aux_part == "preliminary" {
 	//full mode 
 	else {
 		global snapops totpop adults active 
- 		global unit_list " "ind" "esn" "pch" "act" "  
-		global all_steps ///
-			"  "raw"  "natinc" "por"  "psp" "bfm${ext}_pre" "rescaled" "pon" "pod" " 
+ 		global unit_list ${all_units} //" "ind" "esn" "pch" "act" "  
+		*global all_steps ///
+		*	"  "raw"  "natinc" "por"  "psp" "bfm${ext}_pre" "rescaled" "pon" "pod" " 
 		//	
-		global units_06a " "ind" "esn" "pch" "act" "	
+		global units_06a ${all_units} ///" "ind" "esn" "pch" "act" "	
 		//"uprofits"
 		global steps_dec ///
 			" "raw" "bfm${ext}_pre" "rescaled" "natinc" "pon" "pod" "psp"" //"uprofits"
 		global steps_06b ///
-			" "raw" "natinc" "bfm${ext}_pre" "rescaled" "pon" "pod" " //"uprofits"  
+			 " "raw" "natinc" "bfm${ext}_pre" "rescaled" "pon" "pod" " //"uprofits"  
 		global steps_06c natinc raw rescaled bfm${ext}_pre  //uprofits 
 		global steps_06d natinc pon pod psp por 
 	}
@@ -647,11 +647,10 @@ if ($aux_part == "list_bfm_extrap") {
 
 	//Get list of countries and years to adjust
 	preserve 
-		quietly import excel "${w_adj}index.xlsx", ///
+		quietly import excel "intermediary_data/weight_adjusters/index.xlsx", ///
 			sheet("country_years_03e") firstrow clear
 		quietly split country_year, parse(_) gen(v)	
 		quietly levelsof v1, local(countries) clean
-		global extrap_countries `countries'
 		global extrap_countries `countries'
 		foreach c in $extrap_countries {
 			quietly levelsof v2 if v1 == "`c'", local(`c'_years) clean

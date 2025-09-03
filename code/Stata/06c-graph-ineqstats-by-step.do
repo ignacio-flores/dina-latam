@@ -17,7 +17,7 @@ local highlight "NO"
 
 //Paths to files 
 global aux_part  ""preliminary"" 
-qui do "code/Do-files/auxiliar/aux_general.do"
+qui do "code/Stata/auxiliar/aux_general.do"
 
 //define language 
 local lang $lang
@@ -40,17 +40,18 @@ quietly kountry countrycode, from(iso2c) to(iso3c)
 quietly rename _ISO3C_ country
 
 //save for input in other dofiles 
-quietly export excel ${inflation_data}, firstrow(variables) ///
+quietly export excel "input_data/prices_WID/infl_xrates_wid_wb.xlsx", firstrow(variables) ///
 	sheet("inflation-xrates") sheetreplace keepcellfmt  	
 
 // 0. Get macro data  ----------------------------------------------------------
 tempfile tf_core 
 local iter_core = 0
-global units " $unit_list "
+global units " ${all_units} "
 foreach unit in $units {
 	//General 
 	qui use country iso year TOT_B5g_wid TOT_B5n_wid TOT_K1_wid ///
-		priceindex npop* using ${sna_wid_merged} ///
+		priceindex npop* using ///
+		"intermediary_data/national_accounts/UNDATA-WID-Merged.dta" ///
 		if !missing(country, TOT_B5g_wid), clear 	
 	duplicates drop 	
 
@@ -65,7 +66,8 @@ foreach unit in $units {
 	qui save `tf_wid', replace 
 
 	*other inflation and xrates
-	qui import excel ${inflation_data}, firstrow sheet("inflation-xrates") clear
+	qui import excel ///
+		"input_data/prices_WID/infl_xrates_wid_wb.xlsx", firstrow sheet("inflation-xrates") clear
 	//save xrates in memory 
 	quietly levelsof country, local(ctries_wid) clean
 	foreach c in `ctries_wid' {
@@ -81,7 +83,7 @@ foreach unit in $units {
 	//bring list of extrapolated years by country
 	if ("`highlight'" == "YES") {
 		global aux_part  ""list_bfm_extrap"" 
-		qui do "code/Do-files/auxiliar/aux_general.do"
+		qui do "code/Stata/auxiliar/aux_general.do"
 	}
 
 	//Merge all steps
@@ -89,7 +91,7 @@ foreach unit in $units {
 	foreach type in $steps_06c {
 
 		//Import file
-		qui import excel "${summary}ineqstats_`type'_`unit'.xlsx", ///
+		qui import excel "output/ineqstats/ineqstats_`type'_`unit'.xlsx", ///
 			sheet("Summary") firstrow clear	
 			
 		//Add suffix 
@@ -139,7 +141,7 @@ foreach unit in $units {
 	
 	//convert old currencies 
 	global aux_part  ""old_currencies"" 
-	qui do "code/Do-files/auxiliar/aux_general.do"
+	qui do "code/Stata/auxiliar/aux_general.do"
 
 	//get averages with survey population 
 	foreach x in "n" "g" {
@@ -198,19 +200,19 @@ foreach unit in $units {
 			}
 		}
 	}
-
+	
 	*save data for transparency index 
 	if "${mode}" != "debug"{
-		foreach s in "raw" "bfm_norep_pre" "rescaled" {
+		foreach s in "raw" "bfm${ext}_pre" "rescaled" {
 			tempvar aux_`s'
 			qui egen `aux_`s'' = rowtotal(*_`s')
 			qui gen `s' = 1 if `aux_`s'' != 0 
 		}
-		qui replace bfm_norep_pre = . ///
-			if !missing(bfm_norep_pre) `adcd'
-		qui rename (raw bfm_norep_pre rescaled) (Survey AdminData NatAccounts)
+		qui replace bfm${ext}_pre = . ///
+			if !missing(bfm${ext}_pre) `adcd'
+		qui rename (raw bfm${ext}_pre rescaled) (Survey AdminData NatAccounts)
 		qui export excel country year Survey AdminData NatAccounts using ///
-				"results/data_availability_latam.xlsx", ///
+				"output/figures/data_reports/wid_availability_latam.xlsx", ///
 				replace firstrow(variables)
 	}
 	
@@ -224,7 +226,7 @@ foreach unit in $units {
 	
 //Graph basics  
 global aux_part  ""graph_basics""
-qui do "code/Do-files/auxiliar/aux_general.do"	
+qui do "code/Stata/auxiliar/aux_general.do"	
 
 
 //2. Compare estimates -----------------------------------------------------
@@ -239,7 +241,7 @@ foreach unit in $units {
 	qui duplicates drop 
 
 	//Exclude countries with inconsistencies
-	qui do "code/Do-files/auxiliar/aux_exclude_ctries.do"
+	qui do "code/Stata/auxiliar/aux_exclude_ctries.do"
 
 	//loop over variables and countries 
 	foreach var in `vars' {
@@ -310,12 +312,12 @@ foreach unit in $units {
 					local  mlegend_`var'_`c' ///
 						`mlegend_`var'_`c'' label(`iter' "${lab_`s1'_`lang'}")
 					//Highlight extrapolated corrections 
-					cap count if !missing(`var'_bfm_norep_pre) ///
+					cap count if !missing(`var'_bfm${ext}_pre) ///
 						& country == "`c'" & extrap == 1 & exclude==0
 					if (_rc == 0 & r(N) != 0 & ///
 						"`s1'" == "bfm" & "`highlight'" == "YES") {
 						local mlines_`var'_`c' `mlines_`var'_`c'' ///
-							(scatter `var'_bfm_norep_pre year ///
+							(scatter `var'_bfm${ext}_pre year ///
 							if extrap == 1 & exclude==0, msymbol(O) ///
 							mfcolor(${c_bfm}*0.5) mcolor(${c_bfm})) 
 						/*local iter = `iter' + 1	

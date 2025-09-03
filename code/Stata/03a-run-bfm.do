@@ -23,7 +23,7 @@ if "${bfm_replace}" == "no" {
 // -----------------------------------------------------------------------------
 
 //Loop over countries 
-foreach c in  $countries_bfm_02a {
+foreach c in $countries_bfm_02a {
 	
 	//manage pre/post tax incomes 
 	local pf "pos"

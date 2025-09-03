@@ -8,5 +8,6 @@ input_data/admin_data/URY/microdata
 input_data/admin_data/MEX/microdata
 
 intermediary_data/
-output/
+previous_series/
+output/latest_wid_series
 

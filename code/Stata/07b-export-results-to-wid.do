@@ -4,30 +4,39 @@
 *ssc install gtools 
 *ssc mipolate
 *findit renvars 
-
 clear all
 
 //preliminary
 global aux_part  ""preliminary"" 
-do "code/Do-files/auxiliar/aux_general.do"
+do "code/Stata/auxiliar/aux_general.do"
 
 //choose unit 
 local unit esn
 //choose step 
 local steps nat pon
 //choose last year 
-local ly = 2023 
+local ly = 2024 
 
 //compare with previous update? 
-local prev_date 20Nov2023
+local prev_date 3Oct2024
+global previous_update "previous_series/dina_latam_`prev_date'.dta"
 
-global previous_update "Data/export_series/dina_latam_`prev_date'.dta"
+local date "$S_DATE"
+local date = subinstr("`date'", " ", "", .)
+
+//create folders if necessary 
+local dirpath "output/figures/updates"
+mata: st_numscalar("exists", direxists(st_local("dirpath")))
+if (scalar(exists) == 0) {
+	mkdir "`dirpath'"
+	display "Created directory: `dirpath'"
+}
 
 //I.------------------------------------------------------
 
 //open longformat here and keep relevant info 
 qui import delimited step unit country year  ///
-	using "${microfiles}/smicrofile_long_detailed.csv", clear
+	using "output/synthetic_microfiles/_smicrofile_long_detailed.csv", clear
 
 //clean 	
 qui gen keeper = .
@@ -36,7 +45,7 @@ foreach s in `steps' {
 }
 qui drop if missing(keeper)		
 qui replace p = round(p * 10^5)
-qui do "code/Do-files/auxiliar/aux_exclude_ctries.do"
+qui do "code/Stata/auxiliar/aux_exclude_ctries.do"
 qui drop if exclude == 1 
 qui drop exclude 
 qui rename (avg bckt_sh) (bracketavg s)
@@ -233,7 +242,7 @@ foreach s in `steps' {
 
 *merge with population data 
 preserve 
-	qui use "Data/Population/PopulationLatAm.dta", clear
+	qui use "input_data/population/PopulationLatAm.dta", clear
 	qui kountry country, from(other) stuck marker
 	qui rename (_ISO3N_ country) (iso3n country_long)
 	qui kountry iso3n, from(iso3n) to(iso3c) 
@@ -459,11 +468,19 @@ foreach var in "bracketavg" "thr" "topavg" {
 	qui replace `var' = `var' * anninc992i
 }
 
+//create main folders 
+local dirpath "output/latest_wid_series"
+mata: st_numscalar("exists", direxists(st_local("dirpath")))
+if (scalar(exists) == 0) {
+	mkdir "`dirpath'"
+	display "Created directory: `dirpath'"
+}
+
 *prepare data 
 qui drop if missing(p)
 qui replace p = p / 1000
 qui save `main', replace 
-qui save $export_wid_wide, replace
+qui save "output/latest_wid_series/dina_latam_wide_`date'.dta", replace
 
 //check if there are missing p at this step 
 qui keep step year country p bracketavg s thr ///
@@ -578,21 +595,19 @@ qui drop if country == "DOM" & year < 2012
 *save 
 preserve 
 	qui keep if strpos(widcode, "ptinc")
-	qui save $export_wid , replace
+	qui save "output/latest_wid_series/dina_latam_`date'.dta" , replace
 restore 
 
 preserve 
 	qui keep if strpos(widcode, "diinc")
-	qui save ${export_wid_momo} , replace
+	qui save "output/latest_wid_series/dina_latam_`date'_amory.dta", replace
 restore 
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //bring basic parameters for graphs
 global aux_part " "graph_basics" "
-qui do "code/Do-files/auxiliar/aux_general.do"
+qui do "code/Stata/auxiliar/aux_general.do"
 
 *get date 
 local date "$S_DATE"
@@ -608,7 +623,7 @@ graph twoway ///
 	, by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Top 10% share") ///
 	$graph_scheme legend(label(1 "Post-tax") label(2 "Pretax")) ///
 	xlab(2000(5)2025)
-qui graph export "figures/updates/update-`date'-posvspre_t10.pdf", replace	
+qui graph export "output/figures/updates/update-`date'-posvspre_t10.pdf", replace	
 
 graph twoway ///
 	(line value year if widcode == "sdiinc992j", lcolor(blue)) ///
@@ -618,7 +633,7 @@ graph twoway ///
 	, by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Top 1% share") ///
 	$graph_scheme legend(label(1 "Post-tax") label(2 "Pretax")) ///
 	xlab(2000(5)2025)
-qui graph export "figures/updates/update-`date'-posvspre_t1.pdf", replace	
+qui graph export "output/figures/updates/update-`date'-posvspre_t1.pdf", replace	
 
 graph twoway ///
 	(line value year if widcode == "sdiinc992j", lcolor(blue)) ///
@@ -628,7 +643,7 @@ graph twoway ///
 	, by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Bottom 50% share") ///
 	$graph_scheme legend(label(1 "Post-tax") label(2 "Pretax")) ///
 	xlab(2000(5)2025)
-qui graph export "figures/updates/update-`date'-posvspre_b50.pdf", replace	
+qui graph export "output/figures/updates/update-`date'-posvspre_b50.pdf", replace	
 
 
 *exclude some obs 
@@ -650,16 +665,33 @@ qui gen diff_value = (new_value - old_value) / old_value * 100
 qui replace data_quality = 4 if country == "DOM"
 	
 //compare pretax 	
-local ly = 2021
+local ly = 2022
 
 foreach xxx in "sptinc992j" "sdiinc992j" {
+	
+	graph twoway (line new_value year, lcolor(red)) ///
+		(line old_value year if year <= `ly', lcolor(black*.5)) ///
+		if p == "p99.99p100" & widcode == "`xxx'" ///
+		& (data_quality == 4 /*| inlist(country, "BOL", "CUB")*/) , ///
+		by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Top 1% share") ///
+		$graph_scheme legend(label(1 "Updated") label(2 "Old"))
+	qui graph export "output/figures/updates/update-`date'-`xxx'-t001.pdf", replace 
+	
+	graph twoway (line new_value year, lcolor(red)) ///
+		(line old_value year if year <= `ly', lcolor(black*.5)) ///
+		if p == "p99.9p100" & widcode == "`xxx'" ///
+		& (data_quality == 4 /*| inlist(country, "BOL", "CUB")*/) , ///
+		by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Top 1% share") ///
+		$graph_scheme legend(label(1 "Updated") label(2 "Old"))
+	qui graph export "output/figures/updates/update-`date'-`xxx'-t01.pdf", replace 
+	
 	graph twoway (line new_value year, lcolor(red)) ///
 		(line old_value year if year <= `ly', lcolor(black*.5)) ///
 		if p == "p99p100" & widcode == "`xxx'" ///
 		& (data_quality == 4 /*| inlist(country, "BOL", "CUB")*/) , ///
 		by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Top 1% share") ///
 		$graph_scheme legend(label(1 "Updated") label(2 "Old"))
-	qui graph export "figures/updates/update-`date'-`xxx'-t1.pdf", replace 
+	qui graph export "output/figures/updates/update-`date'-`xxx'-t1.pdf", replace 
 
 	graph twoway (line new_value year, lcolor(red)) ///
 		(line old_value year if year <= `ly', lcolor(black*.5)) ///
@@ -667,7 +699,7 @@ foreach xxx in "sptinc992j" "sdiinc992j" {
 		& (data_quality == 4 /*| inlist(country, "BOL", "CUB")*/) , ///
 		by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Top 10% share") ///
 		$graph_scheme legend(label(1 "Updated") label(2 "Old"))
-	qui graph export "figures/updates/update-`date'-`xxx'-t10.pdf", replace 
+	qui graph export "output/figures/updates/update-`date'-`xxx'-t10.pdf", replace 
 
 	graph twoway (line new_value year, lcolor(red)) ///
 		(line old_value year if year <= `ly', lcolor(black*.5)) ///
@@ -675,7 +707,7 @@ foreach xxx in "sptinc992j" "sdiinc992j" {
 		& (data_quality == 4 /*| inlist(country, "BOL", "CUB")*/) , ///
 		by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Middle 40% share") ///
 		$graph_scheme legend(label(1 "Updated") label(2 "Old"))
-	qui graph export "figures/updates/update-`date'-`xxx'-m40.pdf", replace 
+	qui graph export "output/figures/updates/update-`date'-`xxx'-m40.pdf", replace 
 
 	graph twoway (line new_value year, lcolor(red)) ///
 		(line old_value year if year <= `ly', lcolor(black*.5)) ///
@@ -684,7 +716,7 @@ foreach xxx in "sptinc992j" "sdiinc992j" {
 		by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Bottom 50% share") ///
 		ylabel(0(.1).3) ///
 		$graph_scheme legend(label(1 "Updated") label(2 "Old"))
-	qui graph export "figures/updates/update-`date'-`xxx'-b50.pdf", replace 
+	qui graph export "output/figures/updates/update-`date'-`xxx'-b50.pdf", replace 
 }
 
 

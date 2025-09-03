@@ -2,7 +2,7 @@
 //
 // 						Title: INEQUALITY STATISTICS - GRAPHS 
 // 			 Authors: Mauricio DE ROSA, Ignacio FLORES, Marc MORGAN 
-// 									Year: 2020
+// 									Year: 2025
 //
 // 			Description:
 // 			Graph income shares, composition and ginis for every country-year 
@@ -20,7 +20,7 @@ local graph_avg "NO" // "YES" if we want it
 
 //Preliminary   
 global aux_part  ""preliminary"" 
-qui do "code/Do-files/auxiliar/aux_general.do"
+qui do "code/Stata/auxiliar/aux_general.do"
 local lang $lang 
 
 // PART 0: Inflation (WID.WORLD & World Bank)------------------------------
@@ -29,7 +29,7 @@ local last_minus1 = $last_y - 1
 local last_y = $last_y 
 
 //cpi indexes 
-qui use "Data/World_Bank/inflation/inflation_latam.dta"
+qui use "input_data/prices_WB//inflation_latam.dta"
 cap drop __*
 drop if missing(inflation)
 drop if year > $last_y
@@ -77,17 +77,25 @@ qui merge 1:1 country year using `tf_cpi', //keep(3) nogen
 qui drop if _merge != 3 & !inlist(country, "ARG", "CRI", "DOM")
 qui drop if year < $first_y 
 qui drop _merge 
-qui save `tf_infl', replace 
+qui save `tf_infl', replace
+
+//create main folders 
+local dirpath "input_data/prices_WID"
+mata: st_numscalar("exists", direxists(st_local("dirpath")))
+if (scalar(exists) == 0) {
+	mkdir "`dirpath'"
+	display "Created directory: `dirpath'"
+} 
 
 //save for input in other dofiles 
-qui export excel ${inflation_data}, firstrow(variables) ///
-	sheet("inflation-xrates") sheetreplace keepcellfmt  	
+qui export excel "input_data/prices_WID/infl_xrates_wid_wb.xlsx", ///
+	firstrow(variables) sheet("inflation-xrates") sheetreplace keepcellfmt  	
 
 // PART 1: INCOME SHARES, AVERAGE AND INDEXES -------------------------------
 
 ////bring list of extrapolated years by country
 global aux_part  ""list_bfm_extrap"" 
-qui do "code/Do-files/auxiliar/aux_general.do"
+qui do "code/Stata/auxiliar/aux_general.do"
 
 //loop over steps and groups 
 local iter_inf = 1 
@@ -101,7 +109,7 @@ global units " $unit_list "
 
 		//call graph settings 
 		global aux_part ""graph_basics"" 
-		qui do "code/Do-files/auxiliar/aux_general.do"
+		qui do "code/Stata/auxiliar/aux_general.do"
 
 		//report activity in log 
 		display as text "{hline 65}"
@@ -112,7 +120,8 @@ global units " $unit_list "
 		//import summary 	
 		tempfile tf_fusion_`type'_`unit' 
 		*local iter = 1 
-		import excel "${summary}ineqstats_`type'_`unit'.xlsx", ///
+		
+		import excel "output/ineqstats/ineqstats_`type'_`unit'.xlsx", ///
 			sheet("Summary") firstrow clear
 		qui save `tf_fusion_`type'_`unit'', replace 	
 		qui drop if missing(average)
@@ -127,7 +136,7 @@ global units " $unit_list "
 		qui drop include 
 		
 		//tag extrapolated obs 
-		if ("`type'" == "bfm_norep_pre") { 
+		if ("`type'" == "bfm${ext}_pre") { 
 			qui gen extrap = . 
 			foreach c in $extrap_countries {
 				foreach y in ${`c'_extrap_years} {
@@ -146,7 +155,7 @@ global units " $unit_list "
 		*adjust data for old currencies (old surveys to new currency)
 		*wid national income is already in current lcu (1a takes care of it)
 		global aux_part  ""old_currencies"" 
-		quietly do "code/Do-files/auxiliar/aux_general.do"
+		quietly do "code/Stata/auxiliar/aux_general.do"
 		foreach curr in $old_currencies {
 			*identify country 
 			local coun = substr("`curr'", 1, 3)
@@ -193,7 +202,7 @@ global units " $unit_list "
 		}
 		
 		//The exceptions 
-		qui do "code/Do-files/auxiliar/aux_exclude_ctries.do"
+		qui do "code/Stata/auxiliar/aux_exclude_ctries.do"
 		qui drop if exclude == 1
 
 		//create variables for average incomes 
@@ -245,6 +254,22 @@ global units " $unit_list "
 
 		//Graph indexes of all groups in the same country --------------------------
 		
+		//create main folders 
+		local dirpath "output/figures/ineqstats"
+		mata: st_numscalar("exists", direxists(st_local("dirpath")))
+		if (scalar(exists) == 0) {
+			mkdir "`dirpath'"
+			display "Created directory: `dirpath'"
+		}
+		
+		//create main folders 
+		local dirpath "output/figures/ineqstats/countries"
+		mata: st_numscalar("exists", direxists(st_local("dirpath")))
+		if (scalar(exists) == 0) {
+			mkdir "`dirpath'"
+			display "Created directory: `dirpath'"
+		}
+		
 		foreach c in `ctrs' {
 			local c_tit = lower("`c'")
 			qui count if !missing(t10_avg_idx) & country == "`c'" 
@@ -262,9 +287,9 @@ global units " $unit_list "
 					yline(1, lcolor(black) lpattern(dash)) ///
 					ytitle(/*"Real Average Income, Index base 1"*/ "") xtitle("") ///
 					ylabel(/*0.5(0.5)2.5*/, $ylab_opts format(%2.1f)) ///
-					xlabel(${first_y}(5)2020, $xlab_opts) $graph_scheme /*legend(off)*/ 
+					xlabel(${first_y}(5)2025, $xlab_opts) $graph_scheme /*legend(off)*/ 
 				qui graph export ///
-					"figures/`type'/ineqstats/countries/`c'_idx_groups_`unit'.pdf", replace
+					"output/figures/ineqstats/countries/`type'_`c'_idx_groups_`unit'.pdf", replace
 
 				*get one with a legend 
 				if "`c'" == "BRA" {		
@@ -277,9 +302,9 @@ global units " $unit_list "
 					yline(1, lcolor(black) lpattern(dash)) ///
 					ytitle(/*"Real Average Income, Index base 1"*/ "") xtitle("") ///
 					ylabel(0.5(0.5)2.5, $ylab_opts format(%2.1f)) ///
-					xlabel(${first_y}(5)2020, $xlab_opts) $graph_scheme  
+					xlabel(${first_y}(5)2025, $xlab_opts) $graph_scheme  
 				qui graph export ///
-			"figures/`type'/ineqstats/countries/legend_idx_groups_`unit'.pdf", ///
+			"output/figures/ineqstats/countries/legend_idx_groups.pdf", ///
 					replace
 			
 				}	
@@ -319,7 +344,7 @@ global units " $unit_list "
 							lcolor($`c2') lwidth(thick) `pat')
 							
 						//prepare lines for extrapolated data
-						if ("`type'" == "bfm_norep_pre") { 
+						if ("`type'" == "bfm${ext}_pre") { 
 							local e_`var'_`shortlab_type'_`unit' `e_`var'_`shortlab_type'_`unit'' ///
 								(scatter `var' year if country == "`c'" ///
 								& extrap == 1, msymbol(O) mfcolor($`c2'*0.5) ///
@@ -422,16 +447,24 @@ global units " $unit_list "
 				local ylabs `miny'(`midy')`maxy'	
 				if strpos("`var'", "ppp_`last_y'") local ylabs ""
 				
+				//create main folders 
+				local dirpath "output/figures/ineqstats/variables"
+				mata: st_numscalar("exists", direxists(st_local("dirpath")))
+				if (scalar(exists) == 0) {
+					mkdir "`dirpath'"
+					display "Created directory: `dirpath'"
+				}
+				
 				//Graph and save without legend		
 				graph twoway `lines_`var'_`shortlab_type'_`unit'' ///
 					`e_`var'_`shortlab_type'_`unit'' ///
 					`avg_line_`var'_`shortlab_type'_`unit'' ///
 					if !missing(`var'), `l100' ytitle(/*"`ytit'"*/ "") xtitle("") ///
 					ylabel(`ylabs', $ylab_opts format(%2.0f)) ///
-					xlabel(${first_y}(5)2020, $xlab_opts) ///
+					xlabel(${first_y}(5)2025, $xlab_opts) ///
 					$graph_scheme legend(off)
 				qui graph export ///
-					"figures/`type'/ineqstats/variables/`var'_`unit'.pdf", replace 
+					"output/figures/ineqstats/variables/`var'_`unit'_`type'.pdf", replace 
 				*qui graph export ///
 				*	"figures/`type'/ineqstats/variables/`var'_`unit'.png", replace
 
@@ -457,16 +490,12 @@ global units " $unit_list "
 			`lines_`var'_`shortlab_type'_`unit' ' if !missing(`var'), ///
 			legend(`labels_`var'_`shortlab_type'_`unit'') $graph_scheme
 		qui graph export ///
-			"figures/`type'/ineqstats/variables/legend_ctries.pdf" ///
-			, replace	
-		*qui graph export ///
-		*	"figures/`type'/ineqstats/variables/legend_ctries.png" ///
-		*	, replace		
+			"output/figures/ineqstats/variables/legend_ctries.pdf", replace	
 					
 
 		// PART 2: COMPOSITION -------------------------------------------------
 		//import summary 	
-		qui import excel "${summary}ineqstats_`type'_`unit'.xlsx", ///
+		qui import excel "output/ineqstats/ineqstats_`type'_`unit'.xlsx", ///
 			sheet("Composition") firstrow clear	
 			
 		//merge with shares 
@@ -574,12 +603,12 @@ global units " $unit_list "
 						//count extrapolated values to tag
 						local extrapolated ""
 						local leg_extra ""
-						if ("`type'" == "bfm_norep_pre"){
+						if ("`type'" == "bfm${ext}_pre"){
 							qui count if extrap == 1 & country == "`c'"
 						} 
 						
 						//add a line to graph if needed
-						if (r(N) != 0 & "`type'" == "bfm_norep_pre") {
+						if (r(N) != 0 & "`type'" == "bfm${ext}_pre") {
 							local iter_`c' = `iter_endloop' + 1
 							local extrapolated (scatter `group'_sh year ///
 								if extrap == 1, msize(small) mcolor(black) ///
@@ -629,16 +658,24 @@ global units " $unit_list "
 							local addcond 
 						}
 						
+						//create main folders 
+						local dirpath "output/figures/ineqstats/composition/"
+						mata: st_numscalar("exists", direxists(st_local("dirpath")))
+						if (scalar(exists) == 0) {
+							mkdir "`dirpath'"
+							display "Created directory: `dirpath'"
+						}
+						
 						graph twoway `alines_`group'_`type'_`class'_`unit'' ///
 							`graph_share' `extrapolated' ///
 							 if country == "`c'" `addcond', xtitle("") ///
 							ytitle(/*"`ytit'"*/ "") ///
 							ylabel(0(`midy')`maxy', $ylab_opts) ///
-							xlabel(`firsty'(`midy2')2020, $xlab_opts) ///
+							xlabel(`firsty'(`midy2')2025, $xlab_opts) ///
 							legend(`ll_`group'_`type'_`class'_`unit'') ///
 							$graph_scheme
 						qui graph export ///
-							"figures/`type'/ineqstats/composition/`group'_`c'_`unit'.pdf" ///
+							"output/figures/ineqstats/composition/`type'_`group'_`c'_`unit'.pdf" ///
 							, replace
 						
 					}

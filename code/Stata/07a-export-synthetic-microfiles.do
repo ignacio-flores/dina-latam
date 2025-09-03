@@ -12,12 +12,12 @@ clear all
 
 //get list of paths 
 global aux_part " "preliminary" " 
-qui do "code/Do-files/auxiliar/aux_general.do"
+qui do "code/Stata/auxiliar/aux_general.do"
 local lang $lang 
 
 *get list of countries and years 
-global steps " "raw" "bfm_norep_pre" "rescaled" "natinc" "pod" "pon" "   
-global units " "act" "ind" "pch" "esn" "
+global steps " ${all_steps} "
+global units " ${all_units} "
 
 *get date 
 local date "$S_DATE"
@@ -25,21 +25,44 @@ local date = subinstr("`date'", " ", "", .)
 
 *make room 
 foreach u in $units {
-	global efftax_`u' ${efftaxes}efftax_`u'_`date'.xlsx
+	global efftax_`u' output/efftax/efftax_`u'_`date'.xlsx
 	qui cap erase "${efftax_`u'}"
 }
 
-//save for input in other dofiles 
-qui import excel ${inflation_data}, firstrow ///
-	sheet("inflation-xrates") 
+
+//use wid command to get inflation rates 
+quietly wid, ind(${inflation_wid} ${xppp_eur}) ///
+	areas(${areas_wid_latam}) clear 
+quietly keep country variable year value 	
+reshape wide value, i(country year) j(variable) string	
+quietly rename (value${inflation_wid} value${xppp_eur} country) ///
+	(defl_xxxx xppp_eur countrycode)
+qui sum year if defl_xxxx == 1 	
+local xppp_yr = r(mean)
+qui label var defl_xxxx "GDP deflator year `xppp_yr'"
+quietly drop if year < 2000 
+quietly kountry countrycode, from(iso2c) to(iso3c)
+quietly rename _ISO3C_ country
 qui order country countrycode year defl_xxxx xppp_eur	
 tempfile td_ixd 
-qui save `td_ixd'	
+qui save `td_ixd'
+
+//save for input in other dofiles 
+quietly export excel "input_data/prices_WID/infl_xrates_wid_wb.xlsx", ///
+	firstrow(variables) sheet("inflation-xrates") sheetreplace keepcellfmt  
 
 //prepare file for long format 
 tempfile tf_lformat_detail tf_lformat_grouped tf_lformat_efftax 
 local iter_lformat_detail = 1 
 local iter_lformat_grouped = 1 
+
+//create folders if necessary 
+local dirpath "output/synthetic_microfiles"
+mata: st_numscalar("exists", direxists(st_local("dirpath")))
+if (scalar(exists) == 0) {
+	mkdir "`dirpath'"
+	display "Created directory: `dirpath'"
+}
 
 *loop over units 
 foreach unit in $units {
@@ -51,7 +74,7 @@ foreach unit in $units {
 		di as text "step: `s1'"
 		
 		*erase microfiles if they already exist 
-		global mfile_`s1' ${microfiles}smicrofile_`unit'_`s1'_`date'.xlsx
+		global mfile_`s1' output/synthetic_microfiles/smicrofile_`unit'_`s1'_`date'.xlsx
 		qui cap erase "${mfile_`s1'}"
 		
 		local iter_1st_`sheet' = 1
@@ -66,7 +89,7 @@ foreach unit in $units {
 				
 			*import sheet 
 			qui import excel ///
-				"${summary}ineqstats_`step'_`unit'.xlsx", ///
+				"output/ineqstats/ineqstats_`step'_`unit'.xlsx", ///
 				sheet("`sheet'") firstrow clear
 				
 			*save step and unit 
@@ -75,7 +98,7 @@ foreach unit in $units {
 			qui order step unit country year 
 				
 			*Exclude some cases and missings
-			qui do "code/Do-files/auxiliar/aux_exclude_ctries.do"	
+			qui do "code/Stata/auxiliar/aux_exclude_ctries.do"	
 			qui replace exclude = 1 if country == "DOM" & year < 2012
 			***********ACTIVATE SUPERLIGHT VERSION FOR DEBUGGING
 			*qui replace exclude = 1 if !inlist(country, "CHL", "BRA")
@@ -214,7 +237,7 @@ foreach unit in $units {
 		foreach c in `ctries' {
 			foreach t in ``c'_years' {
 				qui cap import excel ///
-					"${summary}ineqstats_`step'_`unit'.xlsx", ///
+					"output/ineqstats/ineqstats_`step'_`unit'.xlsx", ///
 					sheet("`c'`t'") firstrow clear
 				if _rc == 0 {
 	
@@ -268,11 +291,11 @@ foreach v in mbe wmbe hea edu oex  {
 	qui replace `v' = 0 if mbe < 0 | wmbe < 0 |  hea < 0 | edu < 0 | oex < 0 
 }
 
-qui export delimited "${microfiles}smicrofile_long_detailed.csv", replace 
+qui export delimited "output/synthetic_microfiles/_smicrofile_long_detailed.csv", replace 
 
 qui use `tf_lformat_grouped', clear 
 drop if missing(value)
-qui export delimited "${microfiles}smicrofile_long_grouped.csv", replace 
+qui export delimited "output/synthetic_microfiles/_smicrofile_long_grouped.csv", replace 
 
 *Effective tax rates
 local iter = 1 
@@ -282,7 +305,7 @@ foreach unit in $units {
 		foreach t in ``c'_years' {
 			*import database 
 			cap quietly import excel using ///
-				"${summary}efftax_`unit'.xlsx", ///
+				"output/efftax/efftax_summary_`unit'.xlsx", ///
 				firstrow sheet("`c'`t'") clear 
 			if _rc == 0 & !inlist("`c'`y'", "${excl_ccyy}") & ///
 				!inlist("`c'", "DOM") {
@@ -308,6 +331,6 @@ foreach unit in $units {
  
 *save efftax in long format  
 qui use `tf_lformat_efftax', clear 
-qui export delimited "${microfiles}smicrofile_long_efftax.csv", replace 
+qui export delimited "output/synthetic_microfiles/_smicrofile_long_efftax.csv", replace 
 
  
