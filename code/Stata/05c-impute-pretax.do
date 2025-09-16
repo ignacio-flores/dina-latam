@@ -93,7 +93,7 @@ foreach c in $area {
 			qui la var tax_indg_lcu "${lab_`t'}, Total, in current LCU"
 			
 			//calculate share in factor income distribution
-			foreach u in $unit_list {
+			foreach u in "$unit_list" {
 				if "`u'" != "act" {
 					cap drop `u'_sh_pre_fac_sca
 					qui sum `u'_pre_fac_sca [w = _weight], meanonly 
@@ -129,7 +129,7 @@ foreach c in $area {
 			
 			//cover gaps 
 			global exception_ctries inlist("`c'", "BOL") //"ECU" "CHL"
-			foreach u in $unit_list {
+			foreach u in "$unit_list" {
 				if "`u'" != "act" {
 					
 					//construct total income 
@@ -156,7 +156,7 @@ foreach c in $area {
 			*if macro gap is negative scale down proportionally 
 			if `ind_macrogap' > 1 {
 				local invmg = 1/`ind_macrogap'
-				foreach u in $unit_list {
+				foreach u in "$unit_list" {
 					if "`u'" != "act" {
 						cap drop `u'_pre_lef
 						qui gen `u'_pre_lef = 0 
@@ -183,7 +183,7 @@ foreach c in $area {
 			if `ind_macrogap' <= 1 {
 				cap drop macrogap_lcu 
 				qui gen macrogap_lcu = (1 - `ind_macrogap') * TOT_B5g_wid
-				foreach u in $unit_list {
+				foreach u in "$unit_list" {
 					if "`u'" != "act" {
 						qui sum `u'_totaux [w=_weight], meanonly 
 						qui gen `u'_shtotaux = `u'_totaux / r(sum)
@@ -195,7 +195,7 @@ foreach c in $area {
 			} 
 			
 			*check consistency 
-			foreach u in $unit_list {
+			foreach u in "$unit_list" {
 				if "`u'" != "act" {
 					cap drop `u'_totaux2
 					qui egen `u'_totaux2 = rowtotal(`u'_totaux `u'_pre_lef)

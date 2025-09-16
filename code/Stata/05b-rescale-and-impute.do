@@ -413,7 +413,7 @@ foreach c in $area {
 			}
 			
 			*choose list of variables adapted to each country (raw step only)
-			foreach u in $unit_list {
+			foreach u in "$unit_list" {
 				*chose list of incomes 
 				if !inlist("`c'", "${ex_ct}") local clist_`u' "${`u'_raw_norm}" 
 				if  inlist("`c'", "${ex_ct}") local clist_`u' "${`u'_raw_exep}"
@@ -828,7 +828,7 @@ foreach c in $area {
 				qui la var pch_upr_2 "Per capita hld. uprofits 2"
 				
 				//impute the leftover proportionally to total incomes
-				foreach u in $unit_list {
+				foreach u in "$unit_list" {
 					
 					if "`u'" != "act" {
 						*decide which list of variables 
@@ -860,7 +860,7 @@ foreach c in $area {
 				
 				*loop over units (pre-tax so far) 
 				*to make it faster, we only graph the chosen unit 
-				foreach u in $unit_list { 
+				foreach u in "$unit_list" { 
 					
 					*gen corresponding total
 					cap drop `u'_totaux

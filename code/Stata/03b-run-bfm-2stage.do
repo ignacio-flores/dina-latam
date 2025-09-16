@@ -252,7 +252,7 @@ foreach c in $countries_2stage {
 							
 								// change new variable names
 								foreach _var in _weight _hid _pid _factor _expand _expanded_weight {
-									qui rename `_var' w`_var'
+									cap rename `_var' w`_var'
 								}
 								
 								local cor_weight "w_weight"

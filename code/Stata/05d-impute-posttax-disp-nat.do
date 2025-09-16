@@ -300,7 +300,7 @@ foreach c in $area {
 				*impute tax 
 				qui cap drop tax_`z'_lcu
 				qui gen tax_`z'_lcu = tax_`z'_oecd_gni * TOT_B5g_wid
-				foreach uni in $unit_list {
+				foreach uni in "$unit_list" {
 					if "`uni'" != "act" {
 						qui cap drop `uni'_sh_`v_svy'
 						qui sum `uni'_`v_svy' [w=_weight], meanonly 	
@@ -521,7 +521,7 @@ foreach c in $area {
 			*3. Draw effective rates 
 			
 			*loop over units 
-			foreach u in $unit_list  {
+			foreach u in "$unit_list"  {
 				
 				if "`u'" != "act" {
 					

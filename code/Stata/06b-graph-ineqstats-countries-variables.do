@@ -100,8 +100,8 @@ qui do "code/Stata/auxiliar/aux_general.do"
 //loop over steps and groups 
 local iter_inf = 1 
 
-global units " $unit_list "
-	foreach unit in $units {
+global units "$unit_list"
+	foreach unit in "$units" {
 	foreach type in $all_steps {
 	
 		//define short labels 

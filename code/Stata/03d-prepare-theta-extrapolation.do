@@ -656,7 +656,7 @@ local obs_mp = wordcount("`ctry_yr_list'")
 qui set obs `obs_mp'
 qui gen country_year = ""
 forvalues n = 1 / `obs_mp' {
-	local wd_`n': word `n' of `ctry_yr_list`ext''
+	local wd_`n': word `n' of `ctry_yr_list'
 	qui replace country_year = "`wd_`n''" in `n'
 }	
 

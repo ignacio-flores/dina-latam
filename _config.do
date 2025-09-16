@@ -5,7 +5,7 @@ global last_y 2023
 
 global lang "eng"
 global debug "no"
-global bfm_replace "yes"
+global bfm_replace "no" 
 
-global all_units " "esn" " 
+global all_units " "ind" "esn" "pch" " 
 global all_steps " "natinc" "pon" "

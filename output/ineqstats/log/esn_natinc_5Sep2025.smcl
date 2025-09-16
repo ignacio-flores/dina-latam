@@ -1,0 +1,326 @@
+{smcl}
+{txt}{sf}{ul off}{.-}
+      name:  {res}<unnamed>
+       {txt}log:  {res}E:\Users\i.flores.PSE\Documents\GitHub\dina-latam\output/ineqstats/log/esn_natinc_5Sep2025.smcl
+  {txt}log type:  {res}smcl
+ {txt}opened on:  {res} 5 Sep 2025, 18:14:59
+step: natinc
+{txt}{hline 138}
+                                                            INEQSTATS Settings
+{hline 138}
+Areas (11):{res} COL ARG PER URY CRI ECU CHL BRA SLV MEX DOM
+{txt}Period: {res}2000{txt}-{res}2023
+{txt}Weight: {res}_weight{txt} 
+Unit: {res}esn
+{txt}Decomposing by: {res}esn_pre_wag_sca esn_pre_pen_sca esn_pre_cap_sca esn_pre_imp_sca esn_pre_mix_sca esn_upr_2 esn_tax_indg_pre esn_pre_lef
+{txt}Survey type: {res}bfm_norep_pre
+{txt}edad/age: {res}20
+{txt}{hline 138}
+{res}{txt}ineqstats (06a): COL 2002 saved at 18:15:24.
+{res}{txt}ineqstats (06a): COL 2003 saved at 18:15:50.
+{res}{txt}ineqstats (06a): COL 2004 saved at 18:16:18.
+{res}{txt}ineqstats (06a): COL 2005 saved at 18:16:46.
+{res}{txt}ineqstats (06a): COL 2008 saved at 18:17:25.
+{res}{txt}ineqstats (06a): COL 2009 saved at 18:18:02.
+{res}{txt}ineqstats (06a): COL 2010 saved at 18:18:41.
+{res}{txt}ineqstats (06a): COL 2011 saved at 18:19:20.
+{res}{txt}ineqstats (06a): COL 2012 saved at 18:19:59.
+{res}{txt}ineqstats (06a): COL 2013 saved at 18:20:38.
+{res}{txt}ineqstats (06a): COL 2014 saved at 18:21:18.
+{res}{txt}ineqstats (06a): COL 2015 saved at 18:21:58.
+{res}{txt}ineqstats (06a): COL 2016 saved at 18:22:38.
+{res}{txt}ineqstats (06a): COL 2017 saved at 18:23:18.
+{res}{txt}ineqstats (06a): COL 2018 saved at 18:23:59.
+{res}{txt}ineqstats (06a): COL 2019 saved at 18:24:39.
+{res}{txt}ineqstats (06a): COL 2020 saved at 18:25:18.
+{res}{txt}ineqstats (06a): COL 2021 saved at 18:25:57.
+{res}{txt}ineqstats (06a): COL 2022 saved at 18:26:44.
+{res}{txt}ineqstats (06a): COL 2023 saved at 18:27:29.
+{res}{txt}ineqstats (06a): ARG 2000 saved at 18:27:37.
+{res}{txt}top one should be 12.808978
+top one is: 12.981391
+{res}diff in ppts: .17241289
+{txt}ineqstats (06a): ARG 2001 saved at 18:27:45.
+{res}{txt}ineqstats (06a): ARG 2002 saved at 18:27:53.
+{res}{txt}ineqstats (06a): ARG 2003 saved at 18:28:00.
+{res}{txt}ineqstats (06a): ARG 2004 saved at 18:28:08.
+{res}{txt}ineqstats (06a): ARG 2005 saved at 18:28:15.
+{res}{txt}ineqstats (06a): ARG 2006 saved at 18:28:23.
+{res}{txt}ineqstats (06a): ARG 2007 saved at 18:28:31.
+{res}{txt}ineqstats (06a): ARG 2008 saved at 18:28:39.
+{res}{txt}ineqstats (06a): ARG 2009 saved at 18:28:47.
+{res}{txt}ineqstats (06a): ARG 2010 saved at 18:28:54.
+{res}{txt}ineqstats (06a): ARG 2011 saved at 18:29:02.
+{res}{txt}ineqstats (06a): ARG 2012 saved at 18:29:10.
+{res}{txt}ineqstats (06a): ARG 2013 saved at 18:29:18.
+{res}{txt}ineqstats (06a): ARG 2014 saved at 18:29:29.
+weights contained decimals, integers now
+{res}{txt}top one should be 11.476114
+top one is: 11.829106
+{res}diff in ppts: .35299221
+{txt}ineqstats (06a): ARG 2016 saved at 18:29:36.
+{res}{txt}ineqstats (06a): ARG 2017 saved at 18:29:47.
+{res}{txt}ineqstats (06a): ARG 2018 saved at 18:29:58.
+{res}{txt}ineqstats (06a): ARG 2019 saved at 18:30:08.
+{res}{txt}top one should be 11.806284
+top one is: 12.115034
+{res}diff in ppts: .30875026
+{txt}ineqstats (06a): ARG 2020 saved at 18:30:18.
+{res}{txt}top one should be 11.285631
+top one is: 11.625833
+{res}diff in ppts: .34020158
+{txt}ineqstats (06a): ARG 2021 saved at 18:30:27.
+{res}{txt}top one should be 11.166343
+top one is: 11.316353
+{res}diff in ppts: .15000963
+{txt}ineqstats (06a): ARG 2022 saved at 18:30:37.
+{res}{txt}ineqstats (06a): ARG 2023 saved at 18:30:47.
+{res}{txt}top one should be 20.593934
+top one is: 20.73082
+{res}diff in ppts: .13688646
+{txt}ineqstats (06a): PER 2000 saved at 18:30:52.
+{res}{txt}ineqstats (06a): PER 2001 saved at 18:30:59.
+{res}{txt}top one should be 21.781664
+top one is: 22.188354
+{res}diff in ppts: .40668993
+{txt}ineqstats (06a): PER 2002 saved at 18:31:05.
+{res}{txt}top one should be 32.983464
+top one is: 33.806196
+{res}diff in ppts: .8227318
+{txt}ineqstats (06a): PER 2003 saved at 18:31:12.
+{res}{txt}top one should be 24.951819
+top one is: 25.088781
+{res}diff in ppts: .13696209
+{txt}ineqstats (06a): PER 2004 saved at 18:31:19.
+{res}{txt}ineqstats (06a): PER 2005 saved at 18:31:26.
+{res}{txt}ineqstats (06a): PER 2006 saved at 18:31:33.
+{res}{txt}ineqstats (06a): PER 2007 saved at 18:31:41.
+{res}{txt}ineqstats (06a): PER 2008 saved at 18:31:48.
+{res}{txt}ineqstats (06a): PER 2009 saved at 18:31:56.
+{res}{txt}top one should be 22.619455
+top one is: 22.816238
+{res}diff in ppts: .19678273
+{txt}ineqstats (06a): PER 2010 saved at 18:32:03.
+{res}{txt}top one should be 22.363168
+top one is: 22.519469
+{res}diff in ppts: .15630159
+{txt}ineqstats (06a): PER 2011 saved at 18:32:11.
+{res}{txt}ineqstats (06a): PER 2012 saved at 18:32:19.
+{res}{txt}ineqstats (06a): PER 2013 saved at 18:32:28.
+{res}{txt}ineqstats (06a): PER 2014 saved at 18:32:37.
+{res}{txt}ineqstats (06a): PER 2015 saved at 18:32:46.
+{res}{txt}ineqstats (06a): PER 2016 saved at 18:32:56.
+{res}{txt}ineqstats (06a): PER 2017 saved at 18:33:05.
+{res}{txt}ineqstats (06a): PER 2018 saved at 18:33:15.
+{res}{txt}top one should be 26.754045
+top one is: 26.915604
+{res}diff in ppts: .16155881
+{txt}ineqstats (06a): PER 2021 saved at 18:33:24.
+{res}{txt}ineqstats (06a): PER 2022 saved at 18:33:33.
+{res}{txt}ineqstats (06a): PER 2023 saved at 18:33:43.
+{res}{txt}ineqstats (06a): URY 2000 saved at 18:33:48.
+{res}{txt}ineqstats (06a): URY 2001 saved at 18:33:53.
+{res}{txt}ineqstats (06a): URY 2002 saved at 18:33:59.
+{res}{txt}ineqstats (06a): URY 2003 saved at 18:34:04.
+{res}{txt}ineqstats (06a): URY 2004 saved at 18:34:09.
+{res}{txt}ineqstats (06a): URY 2005 saved at 18:34:15.
+{res}{txt}ineqstats (06a): URY 2007 saved at 18:34:23.
+{res}{txt}ineqstats (06a): URY 2008 saved at 18:34:31.
+{res}{txt}ineqstats (06a): URY 2009 saved at 18:34:39.
+{res}{txt}ineqstats (06a): URY 2010 saved at 18:34:48.
+{res}{txt}ineqstats (06a): URY 2011 saved at 18:34:56.
+{res}{txt}ineqstats (06a): URY 2012 saved at 18:35:03.
+{res}{txt}ineqstats (06a): URY 2013 saved at 18:35:11.
+{res}{txt}ineqstats (06a): URY 2014 saved at 18:35:20.
+{res}{txt}ineqstats (06a): URY 2015 saved at 18:35:27.
+{res}{txt}ineqstats (06a): URY 2016 saved at 18:35:35.
+{res}{txt}ineqstats (06a): URY 2017 saved at 18:35:43.
+{res}{txt}ineqstats (06a): URY 2018 saved at 18:35:51.
+{res}{txt}ineqstats (06a): URY 2019 saved at 18:35:58.
+{res}{txt}ineqstats (06a): URY 2020 saved at 18:36:07.
+{res}{txt}ineqstats (06a): URY 2021 saved at 18:36:12.
+{res}{txt}ineqstats (06a): URY 2022 saved at 18:36:17.
+{res}{txt}ineqstats (06a): URY 2023 saved at 18:36:23.
+{res}{txt}top one should be 18.900017
+top one is: 19.128023
+{res}diff in ppts: .22800626
+{txt}ineqstats (06a): CRI 2010 saved at 18:36:28.
+{res}{txt}ineqstats (06a): CRI 2011 saved at 18:36:33.
+{res}{txt}ineqstats (06a): CRI 2012 saved at 18:36:38.
+{res}{txt}top one should be 17.34264
+top one is: 17.625752
+{res}diff in ppts: .28311234
+{txt}ineqstats (06a): CRI 2013 saved at 18:36:43.
+{res}{txt}top one should be 14.03596
+top one is: 14.73683
+{res}diff in ppts: .70087018
+{txt}ineqstats (06a): CRI 2014 saved at 18:36:48.
+{res}{txt}top one should be 16.088903
+top one is: 16.313748
+{res}diff in ppts: .22484472
+{txt}ineqstats (06a): CRI 2015 saved at 18:36:53.
+{res}{txt}ineqstats (06a): CRI 2016 saved at 18:36:58.
+{res}{txt}top one should be 19.205131
+top one is: 19.306773
+{res}diff in ppts: .10164169
+{txt}ineqstats (06a): ECU 2001 saved at 18:37:03.
+{res}{txt}ineqstats (06a): ECU 2003 saved at 18:37:10.
+{res}{txt}ineqstats (06a): ECU 2005 saved at 18:37:16.
+{res}{txt}ineqstats (06a): ECU 2006 saved at 18:37:22.
+{res}{txt}ineqstats (06a): ECU 2007 saved at 18:37:29.
+{res}{txt}top one should be 14.217864
+top one is: 14.34117
+{res}diff in ppts: .12330548
+{txt}ineqstats (06a): ECU 2008 saved at 18:37:35.
+{res}{txt}top one should be 13.685321
+top one is: 14.076729
+{res}diff in ppts: .39140842
+{txt}ineqstats (06a): ECU 2009 saved at 18:37:42.
+{res}{txt}ineqstats (06a): ECU 2010 saved at 18:37:48.
+{res}{txt}ineqstats (06a): ECU 2011 saved at 18:37:55.
+{res}{txt}ineqstats (06a): ECU 2012 saved at 18:38:01.
+{res}{txt}ineqstats (06a): ECU 2013 saved at 18:38:08.
+{res}{txt}ineqstats (06a): ECU 2014 saved at 18:38:16.
+{res}{txt}ineqstats (06a): ECU 2015 saved at 18:38:24.
+{res}{txt}ineqstats (06a): ECU 2016 saved at 18:38:32.
+{res}{txt}ineqstats (06a): ECU 2017 saved at 18:38:39.
+{res}{txt}ineqstats (06a): ECU 2018 saved at 18:38:46.
+{res}{txt}ineqstats (06a): ECU 2019 saved at 18:38:52.
+{res}{txt}ineqstats (06a): ECU 2020 saved at 18:38:58.
+{res}{txt}ineqstats (06a): ECU 2021 saved at 18:39:17.
+{res}{txt}ineqstats (06a): ECU 2022 saved at 18:39:36.
+{res}{txt}ineqstats (06a): ECU 2023 saved at 18:39:54.
+{res}{txt}ineqstats (06a): CHL 2000 saved at 18:40:07.
+{res}{txt}ineqstats (06a): CHL 2003 saved at 18:40:21.
+{res}{txt}ineqstats (06a): CHL 2006 saved at 18:40:36.
+{res}{txt}ineqstats (06a): CHL 2009 saved at 18:40:50.
+{res}{txt}ineqstats (06a): CHL 2011 saved at 18:41:03.
+{res}{txt}ineqstats (06a): CHL 2013 saved at 18:41:17.
+{res}{txt}ineqstats (06a): CHL 2015 saved at 18:41:34.
+{res}{txt}ineqstats (06a): CHL 2017 saved at 18:41:49.
+{res}{txt}ineqstats (06a): CHL 2020 saved at 18:42:02.
+{res}{txt}ineqstats (06a): CHL 2022 saved at 18:42:16.
+{res}{txt}ineqstats (06a): BRA 2001 saved at 18:42:48.
+{res}{txt}ineqstats (06a): BRA 2002 saved at 18:43:19.
+{res}{txt}ineqstats (06a): BRA 2003 saved at 18:43:52.
+{res}{txt}ineqstats (06a): BRA 2004 saved at 18:44:25.
+{res}{txt}ineqstats (06a): BRA 2005 saved at 18:45:00.
+{res}{txt}ineqstats (06a): BRA 2006 saved at 18:45:35.
+{res}{txt}ineqstats (06a): BRA 2007 saved at 18:46:10.
+{res}{txt}ineqstats (06a): BRA 2008 saved at 18:46:46.
+{res}{txt}ineqstats (06a): BRA 2009 saved at 18:47:22.
+{res}{txt}ineqstats (06a): BRA 2011 saved at 18:47:57.
+{res}{txt}ineqstats (06a): BRA 2012 saved at 18:48:33.
+{res}{txt}ineqstats (06a): BRA 2013 saved at 18:49:09.
+{res}{txt}ineqstats (06a): BRA 2014 saved at 18:49:45.
+{res}{txt}ineqstats (06a): BRA 2015 saved at 18:50:23.
+{res}{txt}ineqstats (06a): BRA 2016 saved at 18:51:04.
+{res}{txt}ineqstats (06a): BRA 2017 saved at 18:51:47.
+{res}{txt}ineqstats (06a): BRA 2018 saved at 18:52:29.
+{res}{txt}ineqstats (06a): BRA 2019 saved at 18:53:11.
+{res}{txt}ineqstats (06a): BRA 2020 saved at 18:53:49.
+{res}{txt}ineqstats (06a): BRA 2021 saved at 18:54:26.
+{res}{txt}ineqstats (06a): BRA 2022 saved at 18:55:06.
+{res}{txt}ineqstats (06a): BRA 2023 saved at 18:55:47.
+{res}{txt}top one should be 16.420063
+top one is: 16.520543
+{res}diff in ppts: .10048087
+{txt}ineqstats (06a): SLV 2001 saved at 18:55:52.
+{res}{txt}ineqstats (06a): SLV 2002 saved at 18:55:58.
+{res}{txt}ineqstats (06a): SLV 2003 saved at 18:56:03.
+{res}{txt}top one should be 17.217772
+top one is: 17.326675
+{res}diff in ppts: .10890342
+{txt}ineqstats (06a): SLV 2004 saved at 18:56:09.
+{res}{txt}ineqstats (06a): SLV 2005 saved at 18:56:15.
+{res}{txt}ineqstats (06a): SLV 2006 saved at 18:56:21.
+{res}{txt}top one should be 17.676789
+top one is: 17.940398
+{res}diff in ppts: .26360865
+{txt}ineqstats (06a): SLV 2007 saved at 18:56:27.
+{res}{txt}top one should be 16.020475
+top one is: 16.12716
+{res}diff in ppts: .10668569
+{txt}ineqstats (06a): SLV 2009 saved at 18:56:33.
+{res}{txt}ineqstats (06a): SLV 2010 saved at 18:56:39.
+{res}{txt}ineqstats (06a): SLV 2012 saved at 18:56:46.
+{res}{txt}top one should be 23.075954
+top one is: 23.20841
+{res}diff in ppts: .13245581
+{txt}ineqstats (06a): SLV 2013 saved at 18:56:52.
+{res}{txt}ineqstats (06a): SLV 2014 saved at 18:56:59.
+{res}{txt}ineqstats (06a): SLV 2015 saved at 18:57:05.
+{res}{txt}ineqstats (06a): SLV 2016 saved at 18:57:12.
+{res}{txt}ineqstats (06a): SLV 2017 saved at 18:57:18.
+{res}{txt}ineqstats (06a): SLV 2018 saved at 18:57:24.
+{res}{txt}ineqstats (06a): SLV 2019 saved at 18:57:31.
+{res}{txt}ineqstats (06a): SLV 2020 saved at 18:57:36.
+{res}{txt}ineqstats (06a): SLV 2021 saved at 18:57:42.
+{res}{txt}ineqstats (06a): SLV 2022 saved at 18:57:48.
+{res}{txt}ineqstats (06a): SLV 2023 saved at 18:57:54.
+{res}{txt}ineqstats (06a): MEX 2000 saved at 18:58:05.
+{res}{txt}ineqstats (06a): MEX 2002 saved at 18:58:18.
+{res}{txt}ineqstats (06a): MEX 2004 saved at 18:58:31.
+{res}{txt}top one should be 14.117346
+top one is: 14.409493
+{res}diff in ppts: .29214662
+{txt}ineqstats (06a): MEX 2006 saved at 18:58:44.
+{res}{txt}ineqstats (06a): MEX 2008 saved at 18:59:03.
+{res}{txt}ineqstats (06a): MEX 2010 saved at 18:59:23.
+{res}{txt}ineqstats (06a): MEX 2012 saved at 18:59:42.
+{res}{txt}ineqstats (06a): MEX 2014 saved at 19:00:02.
+{res}{txt}ineqstats (06a): MEX 2016 saved at 19:00:24.
+{res}{txt}ineqstats (06a): MEX 2018 saved at 19:00:47.
+{res}{txt}ineqstats (06a): MEX 2020 saved at 19:01:13.
+{res}{txt}ineqstats (06a): MEX 2022 saved at 19:01:39.
+{res}{txt}ineqstats (06a): DOM 2000 saved at 19:01:43.
+{res}{txt}top one should be 20.536261
+top one is: 20.787163
+{res}diff in ppts: .2509022
+{txt}ineqstats (06a): DOM 2001 saved at 19:01:48.
+{res}{txt}ineqstats (06a): DOM 2002 saved at 19:01:53.
+{res}{txt}ineqstats (06a): DOM 2003 saved at 19:01:58.
+{res}{txt}ineqstats (06a): DOM 2004 saved at 19:02:03.
+{res}{txt}ineqstats (06a): DOM 2005 saved at 19:02:08.
+{res}{txt}ineqstats (06a): DOM 2006 saved at 19:02:13.
+{res}{txt}ineqstats (06a): DOM 2007 saved at 19:02:18.
+{res}{txt}ineqstats (06a): DOM 2008 saved at 19:02:23.
+{res}{txt}top one should be 21.797988
+top one is: 21.917665
+{res}diff in ppts: .11967712
+{txt}ineqstats (06a): DOM 2009 saved at 19:02:29.
+{res}{txt}top one should be 19.508459
+top one is: 19.612068
+{res}diff in ppts: .10360868
+{txt}ineqstats (06a): DOM 2010 saved at 19:02:34.
+{res}{txt}top one should be 20.455473
+top one is: 20.584044
+{res}diff in ppts: .1285711
+{txt}ineqstats (06a): DOM 2011 saved at 19:02:39.
+{res}{txt}ineqstats (06a): DOM 2012 saved at 19:02:44.
+{res}{txt}top one should be 18.954312
+top one is: 19.392167
+{res}diff in ppts: .43785481
+{txt}ineqstats (06a): DOM 2013 saved at 19:02:50.
+{res}{txt}ineqstats (06a): DOM 2014 saved at 19:02:55.
+{res}{txt}ineqstats (06a): DOM 2015 saved at 19:03:00.
+{res}{txt}ineqstats (06a): DOM 2016 saved at 19:03:07.
+{res}{txt}ineqstats (06a): DOM 2017 saved at 19:03:14.
+{res}{txt}ineqstats (06a): DOM 2018 saved at 19:03:21.
+{res}{txt}ineqstats (06a): DOM 2019 saved at 19:03:28.
+{res}{txt}ineqstats (06a): DOM 2020 saved at 19:03:35.
+{res}{txt}ineqstats (06a): DOM 2021 saved at 19:03:42.
+{res}{txt}ineqstats (06a): DOM 2022 saved at 19:03:49.
+{res}{txt}ineqstats (06a): DOM 2023 saved at 19:03:56.
+{p}
+number of observations (_N)  was 0,
+now 264
+{p_end}
+Summary saved at 19:03:59
+      name:  {res}<unnamed>
+       {txt}log:  {res}E:\Users\i.flores.PSE\Documents\GitHub\dina-latam\output/ineqstats/log/esn_natinc_5Sep2025.smcl
+  {txt}log type:  {res}smcl
+ {txt}closed on:  {res} 5 Sep 2025, 19:04:10
+{txt}{.-}
+{smcl}
+{txt}{sf}{ul off}

@@ -41,7 +41,17 @@ foreach step in $all_steps {
 	if inlist("`step'", "raw", "por") local weight "_fep"
 	if ("`step'" == "raw") local ext "_svy_y" 
 	else local ext ""
-	if inlist("`step'", "bfm${ext}_pre") local bfm_`step' "bfm"
+	
+	*if inlist("`step'", "bfm${ext}_pre") local bfm_`step' "bfm"
+	
+	//define macros 
+	if "${bfm_replace}" == "yes" {
+		local bfm_`step' "bfm"
+	} 	  	
+	if "${bfm_replace}" == "no" {
+		local bfm_`step' ""
+	} 	  
+	
 	if inlist("`step'", "rescaled", "uprofits", ///
 		"natinc", "pod", "pon", "psp") {
 		local type "bfm${ext}_pre"
@@ -63,8 +73,8 @@ foreach step in $all_steps {
 	}
 	
 	//statistical units
-	global units " $units_06a "
-	foreach unit in $units {
+	global units "$units_06a"
+	foreach unit in "${units}" {
 
 		cap log close
 		log using "output/ineqstats/log/`unit'_`step'_`date'.smcl", replace 

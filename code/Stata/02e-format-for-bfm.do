@@ -40,6 +40,8 @@ foreach c in "SLV" "PER" "DOM" "URY" "BRA" "CHL" "COL" "ECU" {
 		
 		*loop over years 
 		forvalues t = $first_y/$last_y {
+		    
+			if ("`c'" == "SLV" & `t' == 2000) continue 
 			
 			clear
 			*import data 
