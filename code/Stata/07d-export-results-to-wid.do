@@ -543,10 +543,11 @@ preserve
 	qui gen perc = "p"+string(p)+"p"+string(p2)
 	qui drop p p2
 	qui rename perc    p
-	qui keep if (p == "p50p51" | p == "p90p91")
+	qui keep if inlist(p, "p50p51", "p90p91", "p20p21")
 	qui reshape wide bottomsh, i(step country year) j(p) string
 	qui rename bottomshp50p51 valuep0p50
 	qui rename bottomshp90p91 valuep0p90
+	qui rename bottomshp20p21 valuep0p20
 	qui bys step country year : gen valuep50p90 = valuep0p90 - valuep0p50
 	qui reshape long value, i(step country year) j(p) string
 	qui gen widcode = "sptinc992j" if step == "nat"
@@ -659,7 +660,6 @@ graph twoway ///
 	xlab(2000(5)2025)
 qui graph export "output/figures/updates/update-`date'-posvspre_b50.pdf", replace	
 
-
 *exclude some obs 
 qui keep if strpos(widcode, "ptinc")
 
@@ -694,7 +694,7 @@ foreach xxx in "sptinc992j" /*"sdiinc992j"*/ {
 		(line old_value year if year <= `ly', lcolor(black*.5)) ///
 		if p == "p99.9p100" & widcode == "`xxx'" ///
 		& (data_quality != 0 /*| inlist(country, "BOL", "CUB")*/) , ///
-		by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Top 0.01% share") ///
+		by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Top 0.1% share") ///
 		$graph_scheme legend(label(1 "Updated") label(2 "Old"))
 	qui graph export "output/figures/updates/update-`date'-`xxx'-t01.pdf", replace 
 	
@@ -729,7 +729,35 @@ foreach xxx in "sptinc992j" /*"sdiinc992j"*/ {
 		by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Bottom 50% share") ///
 		ylabel(0(.1).3) ///
 		$graph_scheme legend(label(1 "Updated") label(2 "Old"))
-	qui graph export "output/figures/updates/update-`date'-`xxx'-b50.pdf", replace 
+	qui graph export "output/figures/updates/update-`date'-`xxx'-b50.pdf", replace
+	
 }
+preserve
+	wid, area(AR BR CL CO CR DO EC MX PE SV UR) ind(sptinc) perc(p0p20) clear 
+	kountry country, from(iso2c) to(iso3c)
+	qui drop country 
+	qui rename _ISO3C_ country
+	qui keep if year >= 2000 & age == "992"
+	qui drop pop age 
+	qui rename value value_web 
+	qui rename variable widcode
+	qui rename percentile p
+	tempfile tf_wid 
+	qui save `tf_wid'
+restore 
+
+qui drop _merge 
+qui merge 1:1 country year widcode p using `tf_wid'
+
+graph twoway (line new_value year, lcolor(red)) ///
+		(line value_web year if year <= `ly', lcolor(black*.5)) ///
+		if p == "p0p20" & widcode == "sptinc992j" ///
+		& (data_quality != 0 /*| inlist(country, "BOL", "CUB")*/) , ///
+		by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Bottom 20% share") ///
+		ylabel(0(.01).03) ///
+		$graph_scheme legend(label(1 "Updated") label(2 "Old"))
+	qui graph export "output/figures/updates/update-`date'-sptinc992j-b20.pdf", replace
+
+
 
 

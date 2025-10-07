@@ -44,8 +44,8 @@ df_base <- df %>%
     avg = pmax(as.numeric(avg), 0),
     
     # kill float noise
-    thr = round(thr, thr_digits),
-    avg = round(avg, avg_digits)
+    #thr = round(thr, thr_digits),
+    #avg = round(avg, avg_digits)
   )
 
 # =======================
@@ -108,22 +108,33 @@ sanitize_eps <- function(x) {
   pmax(1e-6, 1e-9 * pmax(abs(x), 1))
 }
 
-# Enforce avg strictly inside (thr, next_thr) (or > thr for last open bracket)
+# helper that guarantees a margin >= tol
+strict_margin <- function(x) {
+  pmax(sanitize_eps(x), tol)
+}
+
+# Enforce avg strictly inside (use margin >= tol on both sides)
 enforce_avg_strictly_inside <- function(d) {
   d %>%
     arrange(p) %>%
     mutate(
       thr_lo = thr,
       thr_hi = lead(thr),
-      eps_lo = sanitize_eps(thr_lo),
-      eps_hi = sanitize_eps(coalesce(thr_hi, thr_lo)),
+      g      = thr_hi - thr_lo,
+      # base margins from scale + tol
+      m_lo0  = strict_margin(thr_lo),
+      m_hi0  = strict_margin(coalesce(thr_hi, thr_lo)),
+      # gap-aware margin
+      eps    = ifelse(is.finite(thr_hi),
+                      pmax(0, pmin(m_lo0, m_hi0, g/3)),
+                      m_lo0),
       avg = ifelse(
         is.finite(thr_hi),
-        pmin(pmax(avg, thr_lo + eps_lo), thr_hi - eps_hi),
-        pmax(avg, thr_lo + eps_lo)   # open-top: only lower clamp
+        pmin(pmax(avg, thr_lo + eps), thr_hi - eps),
+        pmax(avg, thr_lo + eps)   # open top
       )
     ) %>%
-    select(-thr_lo, -thr_hi, -eps_lo, -eps_hi)
+    select(-thr_lo, -thr_hi, -g, -m_lo0, -m_hi0, -eps)
 }
 
 # =======================
@@ -142,7 +153,24 @@ fit_and_tab <- function(d) {
   if (nrow(d) < 2L) stop("Not enough rows in group after collapsing.")
   
   # extra guard: enforce strictly greater avg than thr (tiny nudge)
-  d <- d %>% mutate(avg = ifelse(avg <= thr + tol, thr + 2 * tol, avg))
+  #d <- d %>% mutate(avg = ifelse(avg <= thr + tol, thr + 2 * tol, avg))
+  d <- d %>%
+    arrange(p) %>%
+    mutate(
+      next_thr = lead(thr),
+      g        = next_thr - thr,
+      m_lo0    = strict_margin(thr),
+      m_hi0    = strict_margin(coalesce(next_thr, thr)),
+      eps      = ifelse(is.finite(next_thr),
+                        pmax(0, pmin(m_lo0, m_hi0, g/3)),
+                        m_lo0),
+      avg = ifelse(
+        is.finite(next_thr),
+        pmin(pmax(avg, thr + eps), next_thr - eps),
+        pmax(avg, thr + eps)
+      )
+    ) %>%
+    select(-next_thr, -g, -m_lo0, -m_hi0, -eps)
   
   all_thr_na <- all(is.na(d$thr))
   dist <- if (all_thr_na) {
