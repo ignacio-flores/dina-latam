@@ -733,7 +733,7 @@ foreach xxx in "sptinc992j" /*"sdiinc992j"*/ {
 	
 }
 preserve
-	wid, area(AR BR CL CO CR DO EC MX PE SV UR) ind(sptinc) perc(p0p20) clear 
+	wid, area(AR BR CL CO CR DO EC MX PE SV UY) ind(sptinc) perc(p0p20) clear 
 	kountry country, from(iso2c) to(iso3c)
 	qui drop country 
 	qui rename _ISO3C_ country
