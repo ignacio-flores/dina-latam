@@ -1,34 +1,11 @@
 # dina-latam
 
-Data and code to build **Distributional National Accounts (DINA)** series for **Latin America and the Caribbean** for inclusion in the **[World Inequality Database (WID)](https://wid.world/)**.
-
-The project organizes input data, processing code (mostly Stata with some R), and generated WID-formatted outputs. It follows the DINA framework to reconcile micro sources (surveys and administrative records) with national accounts and produce consistent distributional series across countries and years.
----
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Repository Structure](#repository-structure)
-- [Quick Start](#quick-start)
-- [Configuration](#configuration)
-- [Outputs](#outputs)
-- [Citation](#citation)
-- [Contact](#contact)
-- [License](#license)
+Data and code to build Distributional National Accounts (DINA) series for Latin America and the Caribbean for the inclusion in the [World Inequality Database](https://wid.world). The project organizes input data, processing code (mostly Stata and some R), and generates WID-formated output. It follows the DINA framework to reconcile micro sources (surveys and administrative records) with national accounts to produce macro-consistent distributional series across countries and years
 
 ---
 
-## Overview
 
-This repository standardizes and publishes DINA-style series for Latin America & the Caribbean in the WID format.  
-It harmonizes microdata (household surveys and administrative files where available), benchmarks to national accounts, and produces series for income concepts and units aligned with WID conventions.
-
-> Steps and settings are defined in `_config.do`.
-> Run everything (Stata and R) with a click in `code/Stata/00-run-everything.do`.
-
----
-
-## Repository Structure (main folders)
+## Repository Structure (main files and folders)
 
 ```
 dina-latam/
@@ -36,7 +13,7 @@ dina-latam/
 ├─ input_data/              # External source data 
 │  ├─ surveys_CEPAL/        # (ignored in Git) household surveys
 │  ├─ sna_UNDATA/           # national accounts
-│  └─ admin_data/<CTR>/     # country-specific admin microdata
+│  └─ admin_data/           # country-specific admin microdata
 ├─ output/
 │  └─ latest_wid_series/    # final WID-formatted TSVs/CSVs (created when running the code)
 |  └─ figures/              # All figures shown in the paper, technical notes and more
@@ -51,7 +28,7 @@ dina-latam/
 
 ### 1. Prepare Input Data
 
-Place your local copies of input data (not tracked by Git for size and confidentiality issues):
+Place your local copies of input data that are not tracked by Git for size and confidentiality issues:
 
 ```
 input_data/
