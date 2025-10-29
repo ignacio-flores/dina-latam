@@ -5,7 +5,7 @@ quietly do "code/Stata/auxiliar/aux_general.do"
 
 //create an exception for Argentina (not used for averages)
 tempvar year_aux
-gen `year_aux' = year /*if country != "ARG"*/
+gen `year_aux' = year if country != "ARG"
 
 //flag inter/extrapolations
 foreach c in $fix_countries {

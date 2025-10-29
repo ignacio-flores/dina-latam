@@ -295,7 +295,7 @@ foreach var in "uprofits_hh_ni_pct" "uprofits_hh_svy_pct" {
 	
 		//graph and save 
 		graph twoway `addgraphlines_`iv'' ///
-			if !inlist(country, "ARG", "BOL", "VEN") ///
+			if !inlist(country, "BOL", "VEN") ///
 			, ylabel(0(5)30, $ylab_opts) ///
 			xlabel(${first_y}(5)2020, $xlab_opts) ///
 			xtitle("") ytitle("") $graph_scheme ///

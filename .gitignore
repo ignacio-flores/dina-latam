@@ -1,13 +1,31 @@
 .DS_Store
+.RData
 .Rapp.history
 .Rhistory
 code/Stata/tests/
-input_data/surveys_CEPAL
+input_data/surveys_CEPAL/ARG
+input_data/surveys_CEPAL/BOL
+input_data/surveys_CEPAL/BRA
+input_data/surveys_CEPAL/CHL
+input_data/surveys_CEPAL/COL
+input_data/surveys_CEPAL/CRI
+input_data/surveys_CEPAL/DOM
+input_data/surveys_CEPAL/ECU
+input_data/surveys_CEPAL/GTM
+input_data/surveys_CEPAL/HND
+input_data/surveys_CEPAL/MEX
+input_data/surveys_CEPAL/NIC
+input_data/surveys_CEPAL/PAN
+input_data/surveys_CEPAL/PER
+input_data/surveys_CEPAL/PRY
+input_data/surveys_CEPAL/SLV
+input_data/surveys_CEPAL/URY
+input_data/surveys_CEPAL/VEN
 input_data/sna_UNDATA/
 input_data/admin_data/URY/microdata
 input_data/admin_data/MEX/microdata
 
 intermediary_data/
-previous_series/
+previous_series/*.dta
 output/latest_wid_series
 

@@ -98,7 +98,7 @@ foreach c in $countries_2stage {
 						quietly replace y_div = ${y_`pf'tax_tot} ///
 							if (${y_`pf'tax_tot} > ind_`pf'_wag ) 
 					}
-					if ("`c'" == "MEX") {
+					if inlist("`c'", "MEX", "ARG") {
 						quietly gen y_div = 0
 						quietly replace y_div = ${y_`pf'tax_tot}
 					}
@@ -183,7 +183,7 @@ foreach c in $countries_2stage {
 						local mpfile "output/bfm_summary/bfm`ext'_`pf'/merging_points.xlsx"
 						
 						//exceptions (only 1st stage)
-						if inlist("`c'", "ARG", "MEX") {
+						if inlist("`c'", "MEX", "ARG") { 
 							local export_results_wages "`export_results'"
 							local mpfile_wages "`mpfile'"
 							local MPgraph_wages "`MPgraph'"
@@ -237,7 +237,7 @@ foreach c in $countries_2stage {
 							local ctry_yr_list`ext' "`ctry_yr_list`ext'' `c'_`t'"
 							
 							//if done with 1st stage 
-							if inlist("`c'", "ARG", "MEX") save `corrfile', replace
+							if inlist("`c'", "MEX", "ARG") save `corrfile', replace  
 							
 							//postestimation commands 
 							postbfm biasplot
@@ -247,7 +247,7 @@ foreach c in $countries_2stage {
 						
 							//3.2. 2nd-stage BFM correction (diverse inc.) ----
 							
-							if !inlist("`c'", "ARG", "MEX") {
+							if !inlist("`c'", "MEX", "ARG") {
 								quietly use `tf', clear
 							
 								// change new variable names
