@@ -13,7 +13,7 @@ do "code/Stata/auxiliar/aux_general.do"
 //choose unit 
 local unit esn
 //choose step 
-local steps nat pon
+local steps nat //pon
 //choose last year 
 local ly = 2024 
 
@@ -47,8 +47,8 @@ qui save `tf_ava'
 
 //open longformat here and keep relevant info 
 qui import delimited ///
-	using "output/ineqstats/_gpinter_all.csv", clear 	
-	
+	using "output/ineqstats/_gpinter_all_topcorrected.csv", clear 	
+
 *qui import delimited step unit country year  ///
 *	using "output/synthetic_microfiles/_smicrofile_long_detailed.csv", clear
 
@@ -226,7 +226,6 @@ foreach s in `steps' {
 				(firstnm) bracketpop step, by(year p)
 			tab `check2'
 			qui gen check2 = `check2'
-
 			if "`x'" == "all" assert `check2' == 10
 			if "`x'" == "CUB" assert `check2' == 3
 
@@ -507,10 +506,10 @@ qui rename perc p
 
 //rename 
 qui reshape wide bracketavg s thr, i(country year p) j(step) string 
-qui rename (bracketavgnat bracketavgpon snat spon thrnat thrpon) ///
-	(aptinc992j adiinc992j sptinc992j sdiinc992j tptinc992j tdiinc992j)
-qui renvars aptinc992j sptinc992j tptinc992j ///
-	adiinc992j sdiinc992j tdiinc992j, prefix(value)
+qui rename (bracketavgnat snat thrnat) (aptinc992j sptinc992j tptinc992j )
+//qui rename (bracketavgpon spon thrpon) (adiinc992j sdiinc992j tdiinc992j)
+qui renvars aptinc992j sptinc992j tptinc992j, prefix(value)
+//qui renvars adiinc992j sdiinc992j tdiinc992j, prefix(value)
 	
 //put in long format 	
 qui greshape long value, i(country year p) j(widcode) string
@@ -628,6 +627,7 @@ qui do "code/Stata/auxiliar/aux_general.do"
 local date "$S_DATE"
 local date = subinstr("`date'", " ", "", .)
 
+/*
 *compare pretax postax 
 local ly = 2022
 graph twoway ///
@@ -659,6 +659,7 @@ graph twoway ///
 	$graph_scheme legend(label(1 "Post-tax") label(2 "Pretax")) ///
 	xlab(2000(5)2025)
 qui graph export "output/figures/updates/update-`date'-posvspre_b50.pdf", replace	
+*/
 
 *exclude some obs 
 qui keep if strpos(widcode, "ptinc")
