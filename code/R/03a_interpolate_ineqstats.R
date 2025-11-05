@@ -1,5 +1,4 @@
 # devtools::install_github("world-inequality-database/gpinter")
-
 library(dplyr)
 library(tidyr)
 library(purrr)
@@ -7,6 +6,8 @@ library(readr)
 library(gpinter)
 library(tibble)
 library(stringr)
+
+options(scipen = 999)
 
 # =======================
 # Config
@@ -31,22 +32,86 @@ p_grid <- c(
 # Read + base prep
 # =======================
 df <- readr::read_csv(path_csv, show_col_types = FALSE)
+df_base <- df
 
-df_base <- df %>%
-  select(step, unit, country, year, p, average, thr, avg, topavg, topsh) %>%
-  filter(p <= 0.99) %>%
+# Step 1: start with base selection and scaling rules
+df_scaled <- df %>%
+ select(step, unit, country, year, p, average, thr, avg, topavg, topsh) %>%
+ filter(p <= 0.99 | p %in% c(0.999, 0.9999)) %>%
+ mutate(
+   # scale top averages for top 0.1% and 0.01%
+   topavg = case_when(
+     country == "CHL" & p == 0.999  ~ ((topsh * 1.98) * average)/0.001,
+     country == "CHL" & p == 0.9999 ~ ((topsh * 6.83) * average)/0.0001,
+     country == "BRA" & p == 0.999  ~ ((topsh * 2.38) * average)/0.001,
+     country == "BRA" & p == 0.9999 ~ ((topsh * 7.62) * average)/0.0001,
+     !(country %in% c("CHL", "BRA")) & p == 0.999  ~ ((topsh * 2.18) * average)/0.001,
+     !(country %in% c("CHL", "BRA")) & p == 0.9999 ~ ((topsh * 7.23) * average)/0.0001,
+     TRUE                                           ~ topavg
+   ),
+   # ensure avg equals topavg for the very top
+   avg = case_when(
+     dplyr::near(p, 0.9999) ~ topavg,
+     TRUE                   ~ avg
+   ),
+   # clamp tiny negatives (e.g., "-0.00")
+   thr = pmax(as.numeric(thr), 0),
+   avg = pmax(as.numeric(avg), 0)
+ )
+
+
+# Step 2: compute the residual bracket mean per group using scaled topavg
+bracket_means <- df_scaled %>%
+ filter(dplyr::near(p, 0.999) | dplyr::near(p, 0.9999)) %>%
+ mutate(
+   p_key = case_when(
+     dplyr::near(p, 0.999)  ~ "mu_0.999",
+     dplyr::near(p, 0.9999) ~ "mu_0.9999"
+   )
+ ) %>%
+ select(country, year, unit, step, p_key, topavg) %>%
+ pivot_wider(names_from = p_key, values_from = topavg) %>%
+ mutate(
+   mu_999_bracket = (10 * mu_0.999 - mu_0.9999) / 9
+ )
+
+# Step 3: join the bracket means back to the main data
+df_joined <- left_join(df_scaled, bracket_means,
+                      by = c("country", "year", "unit", "step"))
+
+# Step 4: update avg at p == 0.999 to the residual bracket mean
+df_base <- df_joined %>%
+ mutate(
+   avg = case_when(
+     dplyr::near(p, 0.999) & !is.na(mu_999_bracket) ~ mu_999_bracket,
+     TRUE                                           ~ avg
+   ),
+   avg = pmax(avg, 0)
+ ) %>%
+ select(-mu_0.999, -mu_0.9999, -mu_999_bracket)
+
+# Step 4: normalize averages and adjust bottom  
+norm <- df_base %>% select(step, unit, country, year, p, thr, avg, average) %>%
+  mutate(avg = avg / average) %>%
+  group_by(step, unit, country, year) %>%
+  mutate(pop = lead(p) - p) %>% 
   mutate(
-    # use topavg on the last open bracket
-    avg = ifelse(p != 0.99, avg, topavg),
-    
-    # clamp tiny negatives to 0 (e.g., "-0.00")
-    thr = pmax(as.numeric(thr), 0),
-    avg = pmax(as.numeric(avg), 0),
-    
-    # kill float noise
-    #thr = round(thr, thr_digits),
-    #avg = round(avg, avg_digits)
-  )
+    pop = if_else(row_number() == 102, 0.0001, pop),
+    top = if_else(p >= 0.999, avg, NA),
+    bot = if_else(p <0.999, avg, NA),
+    topa = weighted.mean(top, pop, na.rm = T),
+    bota = weighted.mean(bot, pop, na.rm = T),
+    tgt = (1 - topa * 0.001)/ 0.999, 
+    sca = tgt / bota,
+    avg = if_else(p < 0.999, avg * sca, avg),
+    checkpop = sum(pop, na.rm=T),
+    checkavg = weighted.mean(avg, pop),
+    )
+
+# Step 5: go back to normality 
+df_base <- select(norm, step, unit, country, year, p, thr, avg, average) %>%
+  mutate(avg = avg * average)
+df_base
 
 # =======================
 # Collapse logic per group
@@ -238,6 +303,9 @@ errors_log <- map2_chr(keys_list, res_list, function(keys, res) {
   discard(is.na)
 
 # Example writes:
-readr::write_csv(result_tabs, "output/ineqstats/_gpinter_all.csv")
+readr::write_csv(result_tabs, "output/ineqstats/_gpinter_all_topcorrected.csv")
 if (length(errors_log)) readr::write_lines(errors_log, "output/data_reports/gpinter_errors.log")
+
+head(filter(df, step == "nat", unit == "esn", country == "ARG", year == 2022, p >= 0.999))
+head(filter(result_tabs, step == "nat", unit == "esn", country == "ARG", year == 2022, p >= 0.999))
 
