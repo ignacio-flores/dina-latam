@@ -37,6 +37,18 @@ df_base <- df
 # Step 1: start with base selection and scaling rules
 df_scaled <- df %>%
  select(step, unit, country, year, p, average, thr, avg, topavg, topsh) %>%
+ group_by(step, unit, country, year) %>%
+ mutate(
+   pop = lead(p) - p, 
+   pop = if_else(row_number() == n(), 0.0001, pop),
+   p2 = "NA",
+   p2 = if_else(p >= 0.99 & p < 0.999, "p99-p99.9", p2),
+   p2 = if_else(p >= 0.999 & p < 0.9999, "p99.9-p99.99", p2)) %>%
+ group_by(step, unit, country, year, p2) %>%
+ mutate(avg2 = weighted.mean(avg, pop)) %>%
+ ungroup() %>%  
+ mutate(avg = if_else(p2 == "p99-p99.9" | p2 == "p99.9p99.99", avg2, avg)) %>%
+ select(-c("p2", "avg2", "pop")) %>%  
  filter(p <= 0.99 | p %in% c(0.999, 0.9999)) %>%
  mutate(
    # scale top averages for top 0.1% and 0.01%
@@ -45,8 +57,18 @@ df_scaled <- df %>%
      country == "CHL" & p == 0.9999 ~ ((topsh * 6.83) * average)/0.0001,
      country == "BRA" & p == 0.999  ~ ((topsh * 2.38) * average)/0.001,
      country == "BRA" & p == 0.9999 ~ ((topsh * 7.62) * average)/0.0001,
-     !(country %in% c("CHL", "BRA")) & p == 0.999  ~ ((topsh * 2.18) * average)/0.001,
-     !(country %in% c("CHL", "BRA")) & p == 0.9999 ~ ((topsh * 7.23) * average)/0.0001,
+     !(country %in% c("CHL", "BRA", "PER", "ECU", "DOM", "CRI", "ARG")) & p == 0.999  ~ ((topsh * 2.18) * average)/0.001,
+     !(country %in% c("CHL", "BRA", "PER", "ECU", "DOM", "CRI", "ARG")) & p == 0.9999 ~ ((topsh * 7.23) * average)/0.0001,
+     (country == "PER" & !(year %in% c(2001, 2003)) & p == 0.999)  ~ ((topsh * 2.18) * average)/0.001,
+     (country == "PER" & !(year %in% c(2001, 2003)) & p == 0.9999) ~ ((topsh * 7.23) * average)/0.0001,
+     (country == "ECU" & !(year %in% c(2007, 2010, 2012)) & p == 0.999)  ~ ((topsh * 2.18) * average)/0.001,
+     (country == "ECU" & !(year %in% c(2007, 2010, 2012)) & p == 0.9999) ~ ((topsh * 7.23) * average)/0.0001,
+     (country == "DOM" & !(year %in% c(2016, 2018)) & p == 0.999)  ~ ((topsh * 2.18) * average)/0.001,
+     (country == "DOM" & !(year %in% c(2016, 2018)) & p == 0.9999) ~ ((topsh * 7.23) * average)/0.0001,
+     (country == "CRI" & !(year %in% c(2016, 2021)) & p == 0.999)  ~ ((topsh * 2.18) * average)/0.001,
+     (country == "cRI" & !(year %in% c(2016, 2021)) & p == 0.9999) ~ ((topsh * 7.23) * average)/0.0001,
+     (country == "ARG" & !(year %in% c(2003, 2007)) & p == 0.999)  ~ ((topsh * 2.18) * average)/0.001,
+     (country == "ARG" & !(year %in% c(2003, 2007)) & p == 0.9999) ~ ((topsh * 7.23) * average)/0.0001,
      TRUE                                           ~ topavg
    ),
    # ensure avg equals topavg for the very top
@@ -91,26 +113,29 @@ df_base <- df_joined %>%
  select(-mu_0.999, -mu_0.9999, -mu_999_bracket)
 
 # Step 4: normalize averages and adjust bottom  
-norm <- df_base %>% select(step, unit, country, year, p, thr, avg, average) %>%
-  mutate(avg = avg / average) %>%
+norm <- df_base %>% 
+  select(step, unit, country, year, p, thr, avg, average, topavg) %>%
+  mutate(avg = avg / average, topavg = topavg / average) %>%
   group_by(step, unit, country, year) %>%
-  mutate(pop = lead(p) - p) %>% 
   mutate(
+    pop = lead(p) - p, 
     pop = if_else(row_number() == 102, 0.0001, pop),
     top = if_else(p >= 0.999, avg, NA),
-    bot = if_else(p <0.999, avg, NA),
+    bot = if_else(p <  0.999 & p >= 0.9, avg, NA),
+    t10a = if_else(p == 0.9, topavg, NA),
+    t10a = sum(t10a, na.rm = T),
     topa = weighted.mean(top, pop, na.rm = T),
     bota = weighted.mean(bot, pop, na.rm = T),
-    tgt = (1 - topa * 0.001)/ 0.999, 
-    sca = tgt / bota,
-    avg = if_else(p < 0.999, avg * sca, avg),
+    tgt = if_else(!is.na(bot), (t10a - topa * 0.01)/ 0.99, NA),
+    sca = if_else(!is.na(bot), tgt / bota, NA),
+    avg = if_else(!is.na(bot), avg * sca, avg),
     checkpop = sum(pop, na.rm=T),
     checkavg = weighted.mean(avg, pop),
+    avg = avg * average
     )
 
 # Step 5: go back to normality 
-df_base <- select(norm, step, unit, country, year, p, thr, avg, average) %>%
-  mutate(avg = avg * average)
+df_base <- select(norm, step, unit, country, year, p, thr, avg, average)  
 df_base
 
 # =======================
@@ -211,6 +236,16 @@ df_clean <- df_base %>%
   group_modify(~ enforce_avg_strictly_inside(.x)) %>%
   ungroup()
 
+#check total average again
+df_clean  <- df_clean %>% group_by(step, unit, country, year) %>%
+  mutate(pop = lead(p) - p, 
+  pop = if_else(row_number() == n(), 1-p, pop),
+  checkpop = sum(pop, na.rm=T),
+  checkavg = weighted.mean(avg, pop)) %>% 
+  mutate(average = checkavg) %>%
+  select(-c("pop", "checkpop", "checkavg")) %>%
+  ungroup()
+
 # =======================
 # Fit + tabulation
 # =======================
@@ -302,10 +337,6 @@ errors_log <- map2_chr(keys_list, res_list, function(keys, res) {
 }) %>%
   discard(is.na)
 
-# Example writes:
 readr::write_csv(result_tabs, "output/ineqstats/_gpinter_all_topcorrected.csv")
 if (length(errors_log)) readr::write_lines(errors_log, "output/data_reports/gpinter_errors.log")
-
-head(filter(df, step == "nat", unit == "esn", country == "ARG", year == 2022, p >= 0.999))
-head(filter(result_tabs, step == "nat", unit == "esn", country == "ARG", year == 2022, p >= 0.999))
 
