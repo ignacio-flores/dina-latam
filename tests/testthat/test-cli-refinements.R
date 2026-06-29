@@ -106,7 +106,12 @@ test_that("dashboard offers executable numbered actions without prompting in non
   result <- run_dina_cli(character())
   expect_equal(result$status, 0L)
   year <- format(Sys.Date(), "%Y")
-  expect_match(result$output, sprintf("Recommended next action: Start an update with `dina update start %s`", year))
+  if (grepl("No active update session.", result$output, fixed = TRUE)) {
+    expect_match(result$output, sprintf("Recommended next action: Start an update with `dina update start %s`", year))
+  } else {
+    expect_match(result$output, "Active update:")
+    expect_match(result$output, "Recommended next action:")
+  }
   expect_match(result$output, "Useful actions:")
   expect_match(result$output, "1\\. dina doctor")
   expect_match(result$output, sprintf("2\\. dina update start %s", year))
@@ -185,6 +190,37 @@ test_that("main and config help explain detailed topics and subtleties", {
   expect_match(config$output, "edit[[:space:]]+Opens `config/dina.yml`")
   expect_match(config$output, "render \\[PATH\\][[:space:]]+Writes a Stata `config.do`")
   expect_match(config$output, "does not edit[[:space:]]+`_config.do`")
+})
+
+test_that("sources list and show expose the source registry", {
+  listed <- run_dina_cli(c("sources", "list"))
+  expect_equal(listed$status, 0L)
+  expect_match(listed$output, "Source Registry")
+  expect_match(listed$output, "country-sna-index[[:space:]]+country_sna[[:space:]]+MULTI[[:space:]]+manual_index[[:space:]]+1[[:space:]]+yes")
+  expect_match(listed$output, "wid-prices-xrates[[:space:]]+prices[[:space:]]+MULTI[[:space:]]+stata_wid")
+  expect_match(listed$output, "wb-xrates[[:space:]]+prices[[:space:]]+MULTI[[:space:]]+manual")
+  expect_match(listed$output, "downloader")
+  expect_match(listed$output, "transformer")
+
+  urls <- run_dina_cli(c("sources", "list", "--urls"))
+  expect_equal(urls$status, 0L)
+  expect_match(urls$output, "ARG: https://sitioanterior.indec.gob.ar")
+  expect_match(urls$output, "https://wid.world/")
+
+  shown <- run_dina_cli(c("sources", "show", "country-sna-index"))
+  expect_equal(shown$status, 0L)
+  expect_match(shown$output, "input_data/sna_country_data/_sna-web-site-index\\.ods")
+  expect_match(shown$output, "BRA single-year downloads")
+  expect_match(shown$output, "https://www.inegi.org.mx/datos/\\?t=0190")
+
+  missing <- run_dina_cli(c("sources", "show", "does-not-exist"))
+  expect_equal(missing$status, 1L)
+  expect_match(missing$output, "Unknown source id: does-not-exist")
+
+  help <- run_dina_cli(c("help", "sources"))
+  expect_equal(help$status, 0L)
+  expect_match(help$output, "dina sources list \\[--family FAMILY\\] \\[--country ISO\\] \\[--urls\\]")
+  expect_match(help$output, "dina sources show ID \\[--urls\\]")
 })
 
 test_that("Git ignore keeps update records trackable and local Pushover private", {

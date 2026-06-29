@@ -143,6 +143,90 @@ dina_sources <- function(root = dina_repo_root()) {
   x
 }
 
+dina_source_values <- function(x) {
+  if (is.null(x) || length(x) == 0) {
+    return(character())
+  }
+  if (is.character(x)) {
+    return(x[!is.na(x) & nzchar(x)])
+  }
+  if (is.list(x)) {
+    values <- unlist(x, use.names = FALSE)
+    if (is.character(values)) {
+      return(values[!is.na(values) & nzchar(values)])
+    }
+  }
+  character()
+}
+
+dina_source_field <- function(source, name, default = character()) {
+  value <- source[[name, exact = TRUE]]
+  if (is.null(value)) {
+    default
+  } else {
+    value
+  }
+}
+
+dina_source_urls <- function(source) {
+  out <- dina_source_values(dina_source_field(source, "url"))
+  urls <- dina_source_field(source, "urls", list())
+  if (is.character(urls)) {
+    out <- c(out, dina_source_values(urls))
+  } else if (is.list(urls) && length(urls)) {
+    formatted <- unlist(lapply(urls, function(item) {
+      if (is.character(item) && is.null(names(item))) {
+        return(dina_source_values(item))
+      }
+      url <- dina_source_field(item, "url", "")
+      if (!is.character(url) || !length(url) || is.na(url[[1]]) || !nzchar(url[[1]])) {
+        return(character())
+      }
+      label <- paste(dina_source_values(c(dina_source_field(item, "country"), dina_source_field(item, "label"))), collapse = " ")
+      if (nzchar(label)) {
+        sprintf("%s: %s", label, url[[1]])
+      } else {
+        url[[1]]
+      }
+    }), use.names = FALSE)
+    out <- c(out, formatted)
+  }
+  unique(out[!is.na(out) & nzchar(out)])
+}
+
+dina_source_has_value <- function(x) {
+  length(dina_source_values(x)) > 0
+}
+
+dina_source_country_matches <- function(source_country, country) {
+  if (is.null(country) || !nzchar(country)) {
+    return(TRUE)
+  }
+  values <- unlist(strsplit(dina_source_values(source_country), ",", fixed = TRUE), use.names = FALSE)
+  values <- toupper(trimws(values))
+  toupper(country) %in% values || "MULTI" %in% values
+}
+
+dina_source_registry <- function(root = dina_repo_root(), family = NULL, country = NULL) {
+  registry <- dina_sources(root)$sources
+  if (!is.null(family) && nzchar(family)) {
+    registry <- registry[vapply(registry, function(source) identical(dina_source_field(source, "family", ""), family), logical(1))]
+  }
+  if (!is.null(country) && nzchar(country)) {
+    registry <- registry[vapply(registry, function(source) dina_source_country_matches(dina_source_field(source, "country", ""), country), logical(1))]
+  }
+  registry
+}
+
+dina_source_by_id <- function(id, root = dina_repo_root()) {
+  registry <- dina_sources(root)$sources
+  matches <- registry[vapply(registry, function(source) identical(dina_source_field(source, "id", ""), id), logical(1))]
+  if (!length(matches)) {
+    stop("Unknown source id: ", id, call. = FALSE)
+  }
+  matches[[1]]
+}
+
 dina_bool_stata <- function(x) {
   if (isTRUE(x)) {
     "yes"
@@ -190,7 +274,7 @@ dina_render_config_do <- function(config = dina_config(), path = NULL) {
 
 dina_hash_file <- function(path) {
   dina_need("digest")
-  if (!file.exists(path)) {
+  if (!file.exists(path) || dir.exists(path)) {
     return(NA_character_)
   }
   digest::digest(file = path, algo = "sha256")
@@ -308,27 +392,29 @@ dina_sources_refresh <- function(session, root = dina_repo_root(), source_ids = 
   results <- list()
   for (source in registry) {
     method <- source$method %||% "manual"
+    url <- dina_source_values(dina_source_field(source, "url"))
+    url <- if (length(url)) url[[1]] else ""
     target_rel <- dina_template_value(source$staging_name %||% source$id)
     target <- file.path(staging_root, target_rel)
     dir.create(dirname(target), recursive = TRUE, showWarnings = FALSE)
     supported <- method %in% c("static_url", "zip_archive")
-    if (!supported || !nzchar(source$url %||% "")) {
+    if (!supported || !nzchar(url)) {
       results[[source$id]] <- list(id = source$id, status = "manual_or_adapter", method = method, target = dina_relative(target, root))
       next
     }
     if (dry_run) {
-      results[[source$id]] <- list(id = source$id, status = "dry_run", url = source$url, target = dina_relative(target, root))
+      results[[source$id]] <- list(id = source$id, status = "dry_run", url = url, target = dina_relative(target, root))
       next
     }
     ok <- tryCatch({
-      utils::download.file(source$url, target, mode = "wb", quiet = TRUE)
+      utils::download.file(url, target, mode = "wb", quiet = TRUE)
       TRUE
     }, error = function(e) {
-      results[[source$id]] <<- list(id = source$id, status = "failed", url = source$url, target = dina_relative(target, root), error = conditionMessage(e))
+      results[[source$id]] <<- list(id = source$id, status = "failed", url = url, target = dina_relative(target, root), error = conditionMessage(e))
       FALSE
     })
     if (ok) {
-      results[[source$id]] <- list(id = source$id, status = "staged", url = source$url, target = dina_relative(target, root), sha256 = dina_hash_file(target))
+      results[[source$id]] <- list(id = source$id, status = "staged", url = url, target = dina_relative(target, root), sha256 = dina_hash_file(target))
     }
   }
   session$source_refreshes[[dina_now()]] <- results

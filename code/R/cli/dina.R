@@ -86,6 +86,7 @@ Annual update:
 
 Source data:
   `sources scan|diff|review`          [read-only] inspect source coverage
+  `sources list|show ID`              [read-only] inspect source registry
   `sources refresh [--dry-run]`       [writes session] stage downloads
   `sources integrate`                 [writes files] copy approved inputs
 
@@ -288,6 +289,8 @@ Examples:
 ",
     sources = "Usage:
   dina sources refresh [--source ID] [--dry-run]
+  dina sources list [--family FAMILY] [--country ISO] [--urls]
+  dina sources show ID [--urls]
   dina sources scan [--deep] [--hash]
   dina sources review
   dina sources diff [--deep] [--hash]
@@ -297,7 +300,13 @@ What it manages:
   Source files before they become canonical inputs. Downloads are staged inside
   the active update first; integration into `input_data/` is a separate step.
 
-Subcommands:
+  Subcommands:
+  list                            Shows compact registry rows: id, family,
+                                  country, method, path count, URL presence,
+                                  downloader presence, and transformer presence.
+  show ID                         Shows the full registry entry for one source,
+                                  including URLs, canonical paths, scripts,
+                                  checks, and notes.
   refresh                         Downloads configured online sources into the
                                   active session staging area. It never directly
                                   overwrites `input_data/`.
@@ -310,8 +319,11 @@ Subcommands:
   integrate                       Copies an approved staged file into its final
                                   destination and records the decision.
 
-Options:
+  Options:
   --source ID                     Limit refresh to one source registry id.
+  --family FAMILY                 For list, keep one source family.
+  --country ISO                   For list, keep one ISO country plus MULTI.
+  --urls                          Print source URLs in list/show output.
   --deep                          Inspect workbook sheets when possible.
   --hash                          Compute file hashes during scan/diff.
   --dry-run                       For refresh, show planned downloads only.
@@ -322,6 +334,8 @@ Gotcha:
   newly available 2024 data or historical backfills.
 
 Examples:
+  dina sources list --urls
+  dina sources show country-sna-index --urls
   dina sources refresh --dry-run
   dina sources refresh --source chl-pit-total
   dina sources scan --deep
@@ -711,11 +725,81 @@ dina_cmd_update <- function(root, args) {
   }
 }
 
+dina_print_source_list <- function(root, flags) {
+  registry <- dina_source_registry(root, family = flags$family %||% NULL, country = flags$country %||% NULL)
+  dina_cli_header("Source Registry")
+  if (!length(registry)) {
+    dina_cli_warn("No sources matched.")
+    return(invisible(registry))
+  }
+  dina_cli_cat(sprintf(
+    "%-36s %-18s %-12s %-14s %5s %-4s %-10s %-11s",
+    "id", "family", "country", "method", "paths", "urls", "downloader", "transformer"
+  ))
+  for (source in registry) {
+    urls <- dina_source_urls(source)
+    dina_cli_cat(sprintf(
+      "%-36s %-18s %-12s %-14s %5s %-4s %-10s %-11s",
+      source$id %||% "",
+      source$family %||% "",
+      source$country %||% "",
+      source$method %||% "",
+      length(dina_source_values(dina_source_field(source, "canonical"))),
+      if (length(urls)) "yes" else "no",
+      if (dina_source_has_value(dina_source_field(source, "downloader"))) "yes" else "no",
+      if (dina_source_has_value(dina_source_field(source, "transformer"))) "yes" else "no"
+    ))
+    if (isTRUE(flags$urls) && length(urls)) {
+      for (url in urls) dina_cli_cat(sprintf("  url: %s", url))
+    }
+  }
+  invisible(registry)
+}
+
+dina_print_source_field <- function(label, values) {
+  values <- dina_source_values(values)
+  if (!length(values)) {
+    return(invisible(NULL))
+  }
+  dina_cli_cat(sprintf("%s:", label))
+  for (value in values) dina_cli_cat(sprintf("  - %s", value))
+}
+
+dina_print_source_show <- function(root, id, include_urls = FALSE) {
+  source <- dina_source_by_id(id, root)
+  dina_cli_header(sprintf("Source %s", source$id))
+  dina_cli_cat(sprintf("family: %s", source$family %||% ""))
+  dina_cli_cat(sprintf("country: %s", source$country %||% ""))
+  dina_cli_cat(sprintf("method: %s", source$method %||% ""))
+  urls <- dina_source_urls(source)
+  if (length(urls)) {
+    dina_cli_cat("urls:")
+    for (url in urls) dina_cli_cat(sprintf("  - %s", url))
+  } else if (isTRUE(include_urls)) {
+    dina_cli_cat("urls: none")
+  }
+  dina_print_source_field("canonical", source$canonical %||% character())
+  dina_print_source_field("staging_name", source$staging_name %||% character())
+  dina_print_source_field("downloader", source$downloader %||% character())
+  dina_print_source_field("transformer", source$transformer %||% character())
+  dina_print_source_field("checks", source$checks %||% character())
+  dina_print_source_field("notes", source$notes %||% character())
+  invisible(source)
+}
+
 dina_cmd_sources <- function(root, args) {
   args <- dina_drop_leading_separator(args)
   sub <- dina_arg(args, 1L, "scan")
-  session <- dina_load_session(root = root)
-  if (identical(sub, "scan")) {
+  if (identical(sub, "list")) {
+    flags <- dina_parse_flags(args[-1])
+    dina_print_source_list(root, flags)
+  } else if (identical(sub, "show")) {
+    flags <- dina_parse_flags(args[-1])
+    id <- dina_arg(flags$positional, 1L, NULL)
+    if (is.null(id)) stop("Usage: dina sources show ID [--urls]", call. = FALSE)
+    dina_print_source_show(root, id, include_urls = isTRUE(flags$urls))
+  } else if (identical(sub, "scan")) {
+    session <- dina_load_session(root = root)
     flags <- dina_parse_flags(args[-1])
     scan <- dina_scan_sources(root, deep = isTRUE(flags$deep), hash = isTRUE(flags$hash) || isTRUE(flags$deep))
     dina_cli_header("Source Scan")
@@ -728,6 +812,7 @@ dina_cmd_sources <- function(root, args) {
       dina_save_session(session, root)
     }
   } else if (identical(sub, "diff")) {
+    session <- dina_load_session(root = root)
     flags <- dina_parse_flags(args[-1])
     current <- dina_scan_sources(root, deep = isTRUE(flags$deep), hash = isTRUE(flags$hash) || isTRUE(flags$deep))
     previous <- if (!is.null(session)) session$source_scan else list()
@@ -737,11 +822,13 @@ dina_cmd_sources <- function(root, args) {
       dina_cli_cat(sprintf("%s: %s current_years=%s previous_years=%s", x$id, paste(x$classes, collapse = ","), paste(x$current_years, collapse = ","), paste(x$previous_years, collapse = ",")))
     }
   } else if (identical(sub, "review")) {
+    session <- dina_load_session(root = root)
     if (is.null(session)) stop("No active update.", call. = FALSE)
     staged <- list.files(file.path(dina_update_dir(session$id, root), "source_staging"), recursive = TRUE)
     dina_cli_header("Staged Sources")
     if (!length(staged)) dina_cli_warn("No staged downloads found.") else dina_cli_cat(paste(staged, collapse = "\n"))
   } else if (identical(sub, "refresh")) {
+    session <- dina_load_session(root = root)
     if (is.null(session)) stop("No active update.", call. = FALSE)
     dina_cli_header("Source Refresh")
     flags <- dina_parse_flags(args[-1])
@@ -759,6 +846,8 @@ dina_cmd_sources <- function(root, args) {
       }
     }
   } else if (identical(sub, "integrate")) {
+    session <- dina_load_session(root = root)
+    if (is.null(session)) stop("No active update.", call. = FALSE)
     flags <- dina_parse_flags(args[-1])
     staged <- flags$staged %||% flags$file %||% NULL
     dest <- flags$to %||% NULL

@@ -14,60 +14,210 @@ sources:
       - file_exists
       - excel_readable
       - years_detected
+    notes: Chile PIT source. The cleaner is a pipeline transform; its update-mode download hook is not the preferred source workflow.
 
   - id: bra-admin-tax
     family: admin_tax
     country: BRA
-    method: r_adapter
-    adapter: code/R/functions/bra_admin_downloader.R
+    method: legacy_script
+    urls:
+      - label: Receita Federal dados abertos
+        url: https://www.gov.br/receitafederal/pt-br/acesso-a-informacao/dados-abertos
     canonical:
       - input_data/admin_data/BRA/gn-irpf-ac*.xlsx
+      - input_data/admin_data/BRA/ptot_*.xlsx
       - input_data/admin_data/BRA/downloads/*
     staging_name: BRA/admin_tax_{date}
-    downloader: code/R/functions/bra_admin_downloader.R
+    downloader: code/R/manual-downloaders/bra_admin_downloader.R
     transformer: code/R/02c_clean_admin_bra.R
     checks:
       - file_exists
       - years_detected
+    notes: Old acquisition helper downloads selected Receita Excel files. Keep canonical reviewed files under input_data/admin_data/BRA/.
 
   - id: bra-minwage
     family: admin_tax_aux
     country: BRA
-    method: scrape_page
+    method: legacy_script
     url: https://es.wikipedia.org/wiki/Anexo:Salario_m%C3%ADnimo_en_Brasil
     canonical:
       - input_data/admin_data/BRA/downloads/wiki_minwage.csv
     staging_name: BRA/wiki_minwage_{date}.csv
-    downloader: code/R/functions/bra_minwage_downloader.R
+    downloader: code/R/manual-downloaders/bra_minwage_downloader.R
     transformer: code/R/02c_clean_admin_bra.R
     checks:
       - file_exists
       - years_detected
+    notes: Scrapes the minimum wage table used by the Brazil admin cleaner.
+
+  - id: admin-tax-static
+    family: admin_tax
+    country: MULTI
+    method: manual
+    canonical:
+      - input_data/admin_data/ARG
+      - input_data/admin_data/COL
+      - input_data/admin_data/DOM
+      - input_data/admin_data/PER
+      - input_data/admin_data/SLV
+    checks:
+      - file_exists
+      - years_detected
+    notes: Manually curated tax/admin inputs consumed by static and updated admin-data pipeline tasks.
 
   - id: un-sna
     family: macro_sna
     country: MULTI
-    method: r_adapter
-    adapter: code/R/01a_download-raw-un-sna.R
+    method: legacy_script
+    urls:
+      - label: UN Data SNA download handler
+        url: http://data.un.org/Handlers/DownloadHandler.ashx
     canonical:
+      - input_data/sna_UNDATA/*.csv.gz
       - input_data/sna_UNDATA/_clean/*.dta
+      - input_data/sna_UNDATA/iso/iso-codes-dict.xlsx
+      - input_data/sna_UNDATA/iso/iso_fullnames.csv
     staging_name: UN_SNA/{date}
-    downloader: code/R/01a_download-raw-un-sna.R
+    downloader: code/R/manual-downloaders/01a_download-raw-un-sna.R
     transformer: code/R/01b_import-un-sna-data.R
     checks:
       - file_exists
       - years_detected
+    notes: The legacy downloader builds UN SNA table URLs from table codes and years. The pipeline consumes the cleaned local DTA files.
+
+  - id: country-sna-index
+    family: country_sna
+    country: MULTI
+    method: manual_index
+    canonical:
+      - input_data/sna_country_data/_sna-web-site-index.ods
+    urls:
+      - country: ARG
+        url: https://sitioanterior.indec.gob.ar/nivel3_default.asp?id_tema_1=3&id_tema_2=9
+      - country: ARG
+        url: https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-9
+      - country: CHL
+        url: https://www.bcentral.cl/web/banco-central/areas/estadisticas
+      - country: URY
+        url: https://www.bcu.gub.uy/Estadisticas-e-Indicadores/Paginas/Cuentas-por-Sectores-Institucionales.aspx
+      - country: BRA
+        label: single-year downloads
+        url: https://www.ibge.gov.br/estatisticas/economicas/contas-nacionais/9052-sistema-de-contas-nacionais-brasil.html?=&t=downloads
+      - country: BRA
+        label: multi-year downloads
+        url: https://www.ibge.gov.br/estatisticas/economicas/contas-nacionais/9052-sistema-de-contas-nacionais-brasil.html?=&t=o-que-e
+      - country: COL
+        url: https://www.dane.gov.co/index.php/estadisticas-por-tema/cuentas-nacionales
+      - country: ECU
+        url: https://www.bce.fin.ec/informacioneconomica/sector-real
+      - country: BOL
+        url: https://www.ine.gob.bo/index.php/notas-de-prensa-y-monitoreo/itemlist/category/7-producto-interno-bruto-anual
+      - country: PRY
+        url: https://www.bcp.gov.py/cuentas-nacionales-anuales-i631
+      - country: MEX
+        url: https://www.inegi.org.mx/datos/?t=0190
+      - country: PER
+        url: https://www.inei.gob.pe/estadisticas/indice-tematico/national-accounts/
+      - country: CRI
+        url: https://www.bccr.fi.cr/seccion-cuentas-nacionales-periodo-2012/cuentas-nacionales-periodo-de-referencia-2012
+      - country: DOM
+        url: https://www.bancentral.gov.do/a/d/2533-sector-real
+    checks:
+      - file_exists
+    notes: Curated ODS index of country SNA websites, coverage notes, and gaps. It is not an executable downloader.
+
+  - id: country-sna-arg
+    family: country_sna
+    country: ARG
+    method: manual
+    canonical:
+      - input_data/sna_country_data/ARG
+    notes: Website is cataloged in country-sna-index; no canonical ARG country SNA folder is present in this checkout.
+
+  - id: country-sna-bra
+    family: country_sna
+    country: BRA
+    method: manual_index
+    canonical:
+      - input_data/sna_country_data/BRA/*.xls
+      - input_data/sna_country_data/BRA/*.xlsx
+    downloader: code/R/manual-downloaders/01c_download_countrysna.R
+    transformer: code/Stata/01b-add-country-sna.do
+    checks:
+      - file_exists
+      - excel_readable
+      - years_detected
+    notes: Brazil SNA website has multiple download modes; use country-sna-index before refreshing manually.
 
   - id: country-sna-chl
     family: country_sna
     country: CHL
-    method: static_url
-    url: https://si3.bcentral.cl/estadisticas/Principal1/Informes/
+    method: manual_index
+    url: https://www.bcentral.cl/web/banco-central/areas/estadisticas
     canonical:
       - input_data/sna_country_data/CHL/*.xls
       - input_data/sna_country_data/CHL/*.xlsx
-    staging_name: CHL/sna_{date}
-    downloader: code/R/01c_download_countrysna.R
+    downloader: code/R/manual-downloaders/01c_download_countrysna.R
+    transformer: code/Stata/01b-add-country-sna.do
+    checks:
+      - file_exists
+      - excel_readable
+      - years_detected
+    notes: Old downloader has a hard-coded historical URL; current source review should start from the website/index.
+
+  - id: country-sna-col
+    family: country_sna
+    country: COL
+    method: manual_index
+    url: https://www.dane.gov.co/index.php/estadisticas-por-tema/cuentas-nacionales
+    canonical:
+      - input_data/sna_country_data/COL/*.xls
+      - input_data/sna_country_data/COL/*.xlsx
+    downloader: code/R/manual-downloaders/01c_download_countrysna.R
+    transformer: code/Stata/01b-add-country-sna.do
+    checks:
+      - file_exists
+      - excel_readable
+      - years_detected
+
+  - id: country-sna-cri
+    family: country_sna
+    country: CRI
+    method: manual_index
+    url: https://www.bccr.fi.cr/seccion-cuentas-nacionales-periodo-2012/cuentas-nacionales-periodo-de-referencia-2012
+    canonical:
+      - input_data/sna_country_data/CRI/*.xls
+      - input_data/sna_country_data/CRI/*.xlsx
+    downloader: code/R/manual-downloaders/01c_download_countrysna.R
+    transformer: code/Stata/01b-add-country-sna.do
+    checks:
+      - file_exists
+      - excel_readable
+      - years_detected
+
+  - id: country-sna-dom
+    family: country_sna
+    country: DOM
+    method: manual_index
+    url: https://www.bancentral.gov.do/a/d/2533-sector-real
+    canonical:
+      - input_data/sna_country_data/DOM/*.xls
+      - input_data/sna_country_data/DOM/*.xlsx
+    transformer: code/Stata/01b-add-country-sna.do
+    checks:
+      - file_exists
+      - excel_readable
+      - years_detected
+
+  - id: country-sna-ecu
+    family: country_sna
+    country: ECU
+    method: manual_index
+    url: https://www.bce.fin.ec/informacioneconomica/sector-real
+    canonical:
+      - input_data/sna_country_data/ECU/*.xls
+      - input_data/sna_country_data/ECU/*.xlsx
+    downloader: code/R/manual-downloaders/01c_download_countrysna.R
     transformer: code/Stata/01b-add-country-sna.do
     checks:
       - file_exists
@@ -81,12 +231,236 @@ sources:
     url: https://www.inegi.org.mx/contenidos/temas/economia/cn/si/tabulados/ori/tabulados_si.zip
     canonical:
       - input_data/sna_country_data/MEX/CSI_*.xlsx
+      - input_data/sna_country_data/MEX/indice_archivos.txt
     staging_name: MEX/tabulados_si_{date}.zip
-    downloader: code/R/01c_download_countrysna.R
+    downloader: code/R/manual-downloaders/01c_download_countrysna.R
     transformer: code/Stata/01b-add-country-sna.do
     checks:
       - file_exists
       - excel_readable
+      - years_detected
+    notes: Current CLI stages the ZIP only; review and integration are still manual.
+
+  - id: country-sna-per
+    family: country_sna
+    country: PER
+    method: manual_index
+    url: https://www.inei.gob.pe/estadisticas/indice-tematico/national-accounts/
+    canonical:
+      - input_data/sna_country_data/PER/*.xls
+      - input_data/sna_country_data/PER/*.xlsx
+    transformer: code/Stata/01b-add-country-sna.do
+    checks:
+      - file_exists
+      - excel_readable
+      - years_detected
+
+  - id: country-sna-ury
+    family: country_sna
+    country: URY
+    method: manual_index
+    url: https://www.bcu.gub.uy/Estadisticas-e-Indicadores/Paginas/Cuentas-por-Sectores-Institucionales.aspx
+    canonical:
+      - input_data/sna_country_data/URY/*.xls
+      - input_data/sna_country_data/URY/*.xlsx
+    transformer: code/Stata/01b-add-country-sna.do
+    checks:
+      - file_exists
+      - excel_readable
+      - years_detected
+
+  - id: country-sna-ven
+    family: country_sna
+    country: VEN
+    method: manual
+    canonical:
+      - input_data/sna_country_data/VEN
+    transformer: code/Stata/01b-add-country-sna.do
+    notes: Local country SNA folder is present, but no active website entry was found in the current ODS index.
+
+  - id: wid-macro
+    family: wid
+    country: MULTI
+    method: stata_wid
+    url: https://wid.world/
+    canonical:
+      - intermediary_data/national_accounts/UNDATA-WID-Merged.dta
+      - intermediary_data/national_accounts/UNDATA-WID-OECD-Merged.dta
+    transformer: code/Stata/01a-clean-macro-data.do
+    checks:
+      - file_exists
+      - years_detected
+    notes: Stata `wid` calls in 01a fetch WID macro indicators used in national accounts construction.
+
+  - id: wid-public-spending
+    family: wid
+    country: MULTI
+    method: stata_wid
+    url: https://wid.world/
+    canonical:
+      - input_data/sna-WID/gov_expenditure_*.dta
+    transformer: code/Stata/01g-add-public-spending-data.do
+    checks:
+      - file_exists
+      - years_detected
+    notes: 01g fetches WID public-spending indicators and merges them with local expenditure inputs.
+
+  - id: wid-export-checks
+    family: wid
+    country: MULTI
+    method: stata_wid
+    url: https://wid.world/
+    canonical:
+      - output/latest_wid_series
+    transformer: code/Stata/07d-export-results-to-wid.do
+    checks:
+      - file_exists
+    notes: 07d calls WID for final export comparisons. This is an online pipeline dependency to make visible before moving it out.
+
+  - id: wid-population-survey-adjustment
+    family: wid
+    country: ARG
+    method: stata_wid
+    url: https://wid.world/
+    transformer: code/Stata/01f-adjust-country-survey-data.do
+    notes: 01f has a targeted WID population call for Argentina survey adjustment.
+
+  - id: wid-prices-xrates
+    family: prices
+    country: MULTI
+    method: stata_wid
+    url: https://wid.world/
+    canonical:
+      - input_data/prices_WID/infl_xrates_wid_wb.xlsx
+    transformer:
+      - code/Stata/06b-graph-ineqstats-countries-variables.do
+      - code/Stata/06c-graph-ineqstats-by-step.do
+      - code/Stata/07a-export-synthetic-microfiles.do
+    checks:
+      - file_exists
+      - excel_readable
+      - years_detected
+    notes: Several reporting/export tasks refresh this file through Stata `wid`; cataloged here as a side-effecting online dependency.
+
+  - id: wb-xrates
+    family: prices
+    country: MULTI
+    method: manual
+    url: https://api.worldbank.org/v2/en/indicator/PA.NUS.FCRF?downloadformat=excel
+    canonical:
+      - input_data/xrates_WB/wb-xrates.xls
+    transformer: code/Stata/05b-rescale-and-impute.do
+    checks:
+      - file_exists
+      - excel_readable
+      - years_detected
+    notes: World Bank official exchange rates. Used for Ecuador old-currency harmonization.
+
+  - id: wb-inflation
+    family: prices
+    country: MULTI
+    method: manual
+    url: https://api.worldbank.org/v2/en/indicator/FP.CPI.TOTL.ZG?downloadformat=csv
+    canonical:
+      - input_data/prices_WB/inflation_latam.dta
+      - input_data/prices_WB/old/inflation_latam.dta
+    transformer:
+      - code/Stata/06b-graph-ineqstats-countries-variables.do
+      - code/Stata/06c-graph-ineqstats-by-step.do
+    checks:
+      - file_exists
+      - years_detected
+
+  - id: cepal-prices
+    family: prices
+    country: MULTI
+    method: manual
+    canonical:
+      - input_data/prices_CEPAL/*.xlsx
+    checks:
+      - file_exists
+      - excel_readable
+      - years_detected
+    notes: Local CEPAL price inputs.
+
+  - id: population
+    family: population
+    country: MULTI
+    method: manual
+    canonical:
+      - input_data/population/PopulationLatAm.dta
+    checks:
+      - file_exists
+      - years_detected
+
+  - id: balance-sheet-imf
+    family: balance_sheet
+    country: MULTI
+    method: manual
+    canonical:
+      - input_data/balance_sheet/IMF/Balance_Sheet_Stock_GG.xlsx
+    transformer: code/Stata/01a-clean-macro-data.do
+    checks:
+      - file_exists
+      - excel_readable
+      - years_detected
+
+  - id: balance-sheet-oecd
+    family: balance_sheet
+    country: BRA,COL,MEX
+    method: manual
+    canonical:
+      - input_data/balance_sheet/OECD/balancesheets-br-col-mex.xls
+    transformer: code/Stata/01a-clean-macro-data.do
+    checks:
+      - file_exists
+      - excel_readable
+      - years_detected
+
+  - id: tax-composition-oecd-ciat-cepal
+    family: tax_composition
+    country: MULTI
+    method: manual
+    canonical:
+      - input_data/OECD-CIAT-CEPAL/*.csv
+    transformer: code/Stata/01c-import-tax-composition.do
+    checks:
+      - file_exists
+      - years_detected
+
+  - id: social-security-oecd
+    family: social_security
+    country: MULTI
+    method: manual
+    canonical:
+      - input_data/social_security_OECD/ssc-LatAm.xls
+      - input_data/OECD_social_security/ssc-LatAm.xls
+    transformer: code/Stata/01a-clean-macro-data.do
+    checks:
+      - file_exists
+      - excel_readable
+      - years_detected
+
+  - id: ceq
+    family: ceq
+    country: MULTI
+    method: manual
+    canonical:
+      - input_data/CEQ
+    transformer: code/Stata/01d-import_ceq_data.do
+    checks:
+      - file_exists
+      - years_detected
+
+  - id: public-spending-local
+    family: public_spending
+    country: MULTI
+    method: manual
+    canonical:
+      - input_data/expenditure_durrer_gethin_fisherpost
+    transformer: code/Stata/01g-add-public-spending-data.do
+    checks:
+      - file_exists
       - years_detected
 
   - id: surveys-cepal
@@ -95,7 +469,13 @@ sources:
     method: manual
     canonical:
       - input_data/surveys_CEPAL/*/*.dta
+      - input_data/surveys_CEPAL/_GENERAL_METADATA/*.xlsx
+      - input_data/surveys_CEPAL/_COUNTRY_METADATA/*.xls
+      - input_data/surveys_CEPAL/_COUNTRY_METADATA/*.xlsx
     staging_name: surveys/{date}
+    transformer:
+      - code/Stata/01e-clean-survey-data.do
+      - code/Stata/02a-get-survey-populations.do
     checks:
       - file_exists
       - years_detected
@@ -109,3 +489,4 @@ sources:
     staging_name: previous_series/{date}
     checks:
       - file_exists
+    notes: Prior WID-format series used during final validation and export comparison.

@@ -50,7 +50,7 @@ bra_tabs_2000_06 %<>% rename(popsize = `population`) %>%
 
 #download more recent (post 2007)? 
 if (mode == "update") {
-  source("code/R/functions/bra_admin_downloader.R")
+  source("code/R/manual-downloaders/bra_admin_downloader.R")
 }
 
 #clean admin 2007-present 
@@ -70,7 +70,7 @@ if (!dir.exists(bra_min)) {
 } 
 wiki_minwage <- "input_data/admin_data/BRA/downloads/wiki_minwage.csv"
 if (mode == "update") {
-  source("code/R/functions/bra_minwage_downloader.R")
+  source("code/R/manual-downloaders/bra_minwage_downloader.R")
 } 
 bra_minwag <- read_csv(wiki_minwage, show_col_types = F)
 
@@ -123,5 +123,4 @@ for(x in 1:length(bra_tab_years)) {
 }
 
 #Apply gpinter (manually)
-
 
