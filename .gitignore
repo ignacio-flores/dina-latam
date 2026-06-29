@@ -29,4 +29,6 @@ input_data/admin_data/ARG/Muestra*
 intermediary_data/
 previous_series/*.dta
 output/latest_wid_series
-
+output/archives/
+output/run_logs/
+output/updates/

@@ -56,6 +56,27 @@ Edit `_config.do` to set:
 ```stata
 do code/Stata/00.run-everything.do
 ```
+
+### CLI Workflow
+
+This repository also includes an experimental R-based project CLI:
+
+```sh
+./bin/dina
+./bin/dina doctor
+./bin/dina update start 2026
+./bin/dina sources scan
+./bin/dina tasks list
+./bin/dina run --task 01a-clean-macro-data --dry-run
+```
+
+The CLI keeps Stata's manual workflow available, but adds update sessions,
+source scans, task freshness checks, generated Stata config files, run logs,
+and archive helpers. Update sessions are stored under `output/updates/`.
+
+To let Stata use a CLI-generated config, the CLI sets `DINA_CONFIG_DO`; manual
+Stata runs continue to use `_config.do` defaults when that environment variable
+is unset.
 ---
 
 ## Outputs

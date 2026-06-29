@@ -1,0 +1,111 @@
+sources:
+  - id: chl-pit-total
+    family: admin_tax
+    country: CHL
+    method: static_url
+    url: https://www.sii.cl/sobre_el_sii/estadisticas/personas_naturales/PUB_Total.xlsb
+    canonical:
+      - input_data/admin_data/CHL/PUB_Total_*.xlsx
+      - input_data/admin_data/CHL/PUB_Total_*.xlsb
+    staging_name: CHL/PUB_Total_{date}.xlsb
+    downloader: code/R/02b_clean_admin_chl.R
+    transformer: code/R/02b_clean_admin_chl.R
+    checks:
+      - file_exists
+      - excel_readable
+      - years_detected
+
+  - id: bra-admin-tax
+    family: admin_tax
+    country: BRA
+    method: r_adapter
+    adapter: code/R/functions/bra_admin_downloader.R
+    canonical:
+      - input_data/admin_data/BRA/gn-irpf-ac*.xlsx
+      - input_data/admin_data/BRA/downloads/*
+    staging_name: BRA/admin_tax_{date}
+    downloader: code/R/functions/bra_admin_downloader.R
+    transformer: code/R/02c_clean_admin_bra.R
+    checks:
+      - file_exists
+      - years_detected
+
+  - id: bra-minwage
+    family: admin_tax_aux
+    country: BRA
+    method: scrape_page
+    url: https://es.wikipedia.org/wiki/Anexo:Salario_m%C3%ADnimo_en_Brasil
+    canonical:
+      - input_data/admin_data/BRA/downloads/wiki_minwage.csv
+    staging_name: BRA/wiki_minwage_{date}.csv
+    downloader: code/R/functions/bra_minwage_downloader.R
+    transformer: code/R/02c_clean_admin_bra.R
+    checks:
+      - file_exists
+      - years_detected
+
+  - id: un-sna
+    family: macro_sna
+    country: MULTI
+    method: r_adapter
+    adapter: code/R/01a_download-raw-un-sna.R
+    canonical:
+      - input_data/sna_UNDATA/_clean/*.dta
+    staging_name: UN_SNA/{date}
+    downloader: code/R/01a_download-raw-un-sna.R
+    transformer: code/R/01b_import-un-sna-data.R
+    checks:
+      - file_exists
+      - years_detected
+
+  - id: country-sna-chl
+    family: country_sna
+    country: CHL
+    method: static_url
+    url: https://si3.bcentral.cl/estadisticas/Principal1/Informes/
+    canonical:
+      - input_data/sna_country_data/CHL/*.xls
+      - input_data/sna_country_data/CHL/*.xlsx
+    staging_name: CHL/sna_{date}
+    downloader: code/R/01c_download_countrysna.R
+    transformer: code/Stata/01b-add-country-sna.do
+    checks:
+      - file_exists
+      - excel_readable
+      - years_detected
+
+  - id: country-sna-mex
+    family: country_sna
+    country: MEX
+    method: zip_archive
+    url: https://www.inegi.org.mx/contenidos/temas/economia/cn/si/tabulados/ori/tabulados_si.zip
+    canonical:
+      - input_data/sna_country_data/MEX/CSI_*.xlsx
+    staging_name: MEX/tabulados_si_{date}.zip
+    downloader: code/R/01c_download_countrysna.R
+    transformer: code/Stata/01b-add-country-sna.do
+    checks:
+      - file_exists
+      - excel_readable
+      - years_detected
+
+  - id: surveys-cepal
+    family: surveys
+    country: MULTI
+    method: manual
+    canonical:
+      - input_data/surveys_CEPAL/*/*.dta
+    staging_name: surveys/{date}
+    checks:
+      - file_exists
+      - years_detected
+
+  - id: previous-series
+    family: validation
+    country: MULTI
+    method: manual
+    canonical:
+      - previous_series/*.dta
+    staging_name: previous_series/{date}
+    checks:
+      - file_exists

@@ -1,0 +1,327 @@
+tasks:
+  - id: 01a-clean-macro-data
+    stage: macro
+    type: stata
+    script: code/Stata/01a-clean-macro-data.do
+    deps: []
+    inputs:
+      - input_data/sna_UNDATA/_clean
+      - input_data/balance_sheet
+      - input_data/prices_WID/infl_xrates_wid_wb.xlsx
+    outputs:
+      - intermediary_data/national_accounts/UNDATA-WID-OECD-Merged.dta
+
+  - id: 01b-add-country-sna
+    stage: macro
+    type: stata
+    script: code/Stata/01b-add-country-sna.do
+    deps:
+      - 01a-clean-macro-data
+    inputs:
+      - input_data/sna_country_data
+    outputs:
+      - output/snacompare_summary
+
+  - id: 01c-import-tax-composition
+    stage: macro
+    type: stata
+    script: code/Stata/01c-import-tax-composition.do
+    deps: []
+    inputs:
+      - input_data/OECD-CIAT-CEPAL
+    outputs:
+      - output/figures/total-taxes
+
+  - id: 01d-import-ceq-data
+    stage: ceq
+    type: stata
+    script: code/Stata/01d-import_ceq_data.do
+    deps: []
+    inputs:
+      - input_data/CEQ
+    outputs:
+      - output/data_reports/ceq_data_availability.xlsx
+
+  - id: 01e-clean-survey-data
+    stage: surveys
+    type: stata
+    script: code/Stata/01e-clean-survey-data.do
+    deps: []
+    inputs:
+      - input_data/surveys_CEPAL
+    outputs:
+      - intermediary_data/microdata/raw
+
+  - id: 01f-adjust-country-survey-data
+    stage: surveys
+    type: stata
+    script: code/Stata/01f-adjust-country-survey-data.do
+    deps:
+      - 01e-clean-survey-data
+    inputs:
+      - intermediary_data/microdata/raw
+    outputs:
+      - intermediary_data/microdata/adjusted
+
+  - id: 01g-add-public-spending-data
+    stage: macro
+    type: stata
+    script: code/Stata/01g-add-public-spending-data.do
+    deps: []
+    inputs:
+      - input_data/expenditure_durrer_gethin_fisherpost
+    outputs:
+      - output/figures/spending
+
+  - id: 02a-get-survey-populations
+    stage: preparation
+    type: stata
+    script: code/Stata/02a-get-survey-populations.do
+    deps:
+      - 01e-clean-survey-data
+    inputs:
+      - input_data/surveys_CEPAL
+      - code/R/02a_get_survey_populations.R
+    outputs:
+      - intermediary_data/population/SurveyPop.dta
+
+  - id: 02c-prepare-static-admin-data
+    stage: admin
+    type: stata
+    script: code/Stata/02c-prepare-static-admin-data.do
+    deps:
+      - 02a-get-survey-populations
+    inputs:
+      - input_data/admin_data
+    outputs:
+      - input_data/admin_data/*/_clean
+
+  - id: 02d-prepare-updated-admin-data
+    stage: admin
+    type: stata
+    script: code/Stata/02d-prepare-frequenly-updated-admin-data.do
+    deps:
+      - 02a-get-survey-populations
+    inputs:
+      - input_data/admin_data/CHL
+      - input_data/admin_data/BRA
+      - input_data/admin_data/COL
+      - code/R/02b_clean_admin_chl.R
+      - code/R/02c_clean_admin_bra.R
+    outputs:
+      - input_data/admin_data/CHL/_clean
+      - input_data/admin_data/BRA/_clean
+      - input_data/admin_data/COL/_clean
+
+  - id: 02e-format-for-bfm
+    stage: admin
+    type: stata
+    script: code/Stata/02e-format-for-bfm.do
+    deps:
+      - 02c-prepare-static-admin-data
+      - 02d-prepare-updated-admin-data
+    inputs:
+      - input_data/admin_data
+    outputs:
+      - input_data/admin_data/*/gpinter_*.xlsx
+
+  - id: 03a-run-bfm
+    stage: bfm
+    type: stata
+    script: code/Stata/03a-run-bfm.do
+    deps:
+      - 01f-adjust-country-survey-data
+      - 02e-format-for-bfm
+    inputs:
+      - intermediary_data/microdata/raw
+      - input_data/admin_data
+    outputs:
+      - intermediary_data/microdata/bfm_norep_pre
+      - output/bfm_summary
+
+  - id: 03b-run-bfm-2stage
+    stage: bfm
+    type: stata
+    script: code/Stata/03b-run-bfm-2stage.do
+    deps:
+      - 03a-run-bfm
+    inputs:
+      - intermediary_data/microdata/bfm_norep_pre
+    outputs:
+      - intermediary_data/microdata/bfm_norep_pos
+
+  - id: 03d-prepare-theta-extrapolation
+    stage: bfm
+    type: stata
+    script: code/Stata/03d-prepare-theta-extrapolation.do
+    deps:
+      - 03a-run-bfm
+      - 03b-run-bfm-2stage
+    inputs:
+      - output/bfm_summary
+    outputs:
+      - output/bfm_summary/pseudo_thetas.xlsx
+
+  - id: 03e-extrapolate-bfm-correction
+    stage: bfm
+    type: stata
+    script: code/Stata/03e-extrapolate-bfm-correction.do
+    deps:
+      - 03d-prepare-theta-extrapolation
+    inputs:
+      - output/bfm_summary/pseudo_thetas.xlsx
+    outputs:
+      - intermediary_data/weight_adjusters
+
+  - id: 04a-compute-effective-rates
+    stage: taxes
+    type: stata
+    script: code/Stata/04a-compute-effective-rates-all.do
+    deps:
+      - 02e-format-for-bfm
+    inputs:
+      - input_data/admin_data
+    outputs:
+      - output/efftax
+
+  - id: 04b-build-pretax-surveys
+    stage: taxes
+    type: stata
+    script: code/Stata/04b-build-pretax-surveys.do
+    deps:
+      - 03a-run-bfm
+      - 04a-compute-effective-rates
+    inputs:
+      - intermediary_data/microdata/bfm_norep_pre
+      - output/efftax
+    outputs:
+      - intermediary_data/microdata/pretax
+
+  - id: 04c-create-raw-postax-units
+    stage: taxes
+    type: stata
+    script: code/Stata/04c-create-raw-postax-units.do
+    deps:
+      - 04b-build-pretax-surveys
+    inputs:
+      - intermediary_data/microdata/pretax
+    outputs:
+      - intermediary_data/microdata/posttax
+
+  - id: 05a-compare-sna-totals
+    stage: imputation
+    type: stata
+    script: code/Stata/05a-compare-sna-totals.do
+    deps:
+      - 01a-clean-macro-data
+      - 04c-create-raw-postax-units
+    inputs:
+      - intermediary_data/national_accounts
+      - intermediary_data/microdata
+    outputs:
+      - output/snacompare_summary
+
+  - id: 05b-rescale-and-impute
+    stage: imputation
+    type: stata
+    script: code/Stata/05b-rescale-and-impute.do
+    deps:
+      - 05a-compare-sna-totals
+    inputs:
+      - intermediary_data/microdata
+      - intermediary_data/national_accounts
+    outputs:
+      - intermediary_data/microdata/rescaled
+
+  - id: 05c-impute-pretax
+    stage: imputation
+    type: stata
+    script: code/Stata/05c-impute-pretax.do
+    deps:
+      - 05b-rescale-and-impute
+    inputs:
+      - intermediary_data/microdata/rescaled
+    outputs:
+      - intermediary_data/microdata/pretax_imputed
+
+  - id: 05d-impute-posttax
+    stage: imputation
+    type: stata
+    script: code/Stata/05d-impute-posttax-disp-nat.do
+    deps:
+      - 05c-impute-pretax
+    inputs:
+      - intermediary_data/microdata/pretax_imputed
+    outputs:
+      - intermediary_data/microdata/posttax_imputed
+
+  - id: 06a-run-ineqstats
+    stage: statistics
+    type: stata
+    script: code/Stata/06a-run-ineqstats.do
+    deps:
+      - 05d-impute-posttax
+    inputs:
+      - intermediary_data/microdata
+    outputs:
+      - output/ineqstats
+
+  - id: 06b-graph-ineqstats-countries
+    stage: reporting
+    type: stata
+    script: code/Stata/06b-graph-ineqstats-countries-variables.do
+    deps:
+      - 06a-run-ineqstats
+    inputs:
+      - output/ineqstats
+    outputs:
+      - output/figures/ineqstats
+
+  - id: 07a-export-synthetic-microfiles
+    stage: export
+    type: stata
+    script: code/Stata/07a-export-synthetic-microfiles.do
+    deps:
+      - 06a-run-ineqstats
+    inputs:
+      - output/ineqstats
+    outputs:
+      - output/synthetic_microfiles
+
+  - id: 07b-report-data-availability
+    stage: validation
+    type: stata
+    script: code/Stata/07b-report_data_availability.do
+    deps:
+      - 07a-export-synthetic-microfiles
+    inputs:
+      - input_data
+      - output
+    outputs:
+      - output/data_reports/latam_availability.xlsx
+
+  - id: 07c-interpolate-ineqstats
+    stage: export
+    type: stata
+    script: code/Stata/07c-interpolate_ineqstats_results.do
+    deps:
+      - 07a-export-synthetic-microfiles
+    inputs:
+      - output/synthetic_microfiles
+      - code/R/03a_interpolate_ineqstats.R
+    outputs:
+      - output/data_reports/gpinter_errors.log
+
+  - id: 07d-export-results-to-wid
+    stage: export
+    type: stata
+    script: code/Stata/07d-export-results-to-wid.do
+    deps:
+      - 07a-export-synthetic-microfiles
+      - 07b-report-data-availability
+      - 07c-interpolate-ineqstats
+    inputs:
+      - output/synthetic_microfiles
+      - previous_series
+    outputs:
+      - output/latest_wid_series
