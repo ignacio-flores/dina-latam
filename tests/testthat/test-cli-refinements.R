@@ -278,6 +278,7 @@ test_that("main and config help explain detailed topics and subtleties", {
 
   tasks <- run_dina_cli(c("help", "tasks"))
   expect_equal(tasks$status, 0L)
+  expect_match(tasks$output, "stage, language, and freshness")
   expect_match(tasks$output, "`tasks why` needs one unique task")
   expect_match(tasks$output, "Block selectors such as `07`")
 
@@ -415,8 +416,54 @@ test_that("sources list and show expose the source registry", {
   expect_match(help$output, "dina sources list method METHOD \\[--urls\\]")
   expect_match(help$output, "dina sources show ID \\[--urls\\]")
   expect_match(help$output, "dina sources methods")
+  expect_match(help$output, "dina sources status \\[--metadata-only\\] \\[--hash-all\\] \\[--deep\\]")
+  expect_match(help$output, "dina sources complete --status STATUS \\[--note TEXT\\]")
   expect_match(help$output, "url[[:space:]]+Direct URL fetchable")
   expect_match(help$output, "manual[[:space:]]+Human-curated input or URL index")
+})
+
+test_that("sources status and complete provide a source-review gate", {
+  root <- mini_repo()
+  path <- file.path(root, "input_data", "source_2024.xlsx")
+  touch(path, "2024-01-01")
+
+  started <- run_dina_cli(c("update", "start", "2026"), root = root)
+  expect_equal(started$status, 0L)
+  expect_match(started$output, "Source baseline hash mode: all")
+
+  status <- run_dina_cli(c("sources", "status"), root = root)
+  expect_equal(status$status, 0L)
+  expect_match(status$output, "Source Status")
+  expect_match(status$output, "hash: changed")
+  expect_match(status$output, "File status counts")
+  expect_match(status$output, "unchanged")
+  expect_match(status$output, "Source review: not recorded")
+
+  Sys.setFileTime(path, as.POSIXct("2024-01-02", tz = "UTC"))
+  timestamp_only <- run_dina_cli(c("sources", "status"), root = root)
+  expect_equal(timestamp_only$status, 0L)
+  expect_match(timestamp_only$output, "timestamp_only")
+
+  complete <- run_dina_cli(c("sources", "complete", "--status", "no-new-data"), root = root)
+  expect_equal(complete$status, 0L)
+  expect_match(complete$output, "Recorded source review: no-new-data")
+
+  update_status <- run_dina_cli(c("update", "status"), root = root)
+  expect_equal(update_status$status, 0L)
+  expect_match(update_status$output, "Source review: no-new-data")
+  expect_false(grepl("sources_unreviewed", update_status$output, fixed = TRUE))
+
+  deferred <- run_dina_cli(c("sources", "complete", "--status", "deferred"), root = root)
+  expect_equal(deferred$status, 1L)
+  expect_match(deferred$output, "needs --note")
+})
+
+test_that("tasks list shows task language", {
+  root <- mini_repo()
+  listed <- run_dina_cli(c("tasks", "list"), root = root)
+  expect_equal(listed$status, 0L)
+  expect_match(listed$output, "language")
+  expect_match(listed$output, "task1[[:space:]]+task1[[:space:]]+one[[:space:]]+Stata")
 })
 
 test_that("update lifecycle commands list, dry-run delete, delete, and restart safely", {

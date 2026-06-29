@@ -87,9 +87,10 @@ Annual update:
   `update finalize [--force]`         [writes session] freeze final records
 
 Source data:
-  `sources scan|diff|review`          [read-only] inspect source coverage
+  `sources status|scan|diff|review`   [read-only] inspect source coverage
   `sources list|show ID`              [read-only] inspect source registry
   `sources refresh [--dry-run]`       [writes session] stage downloads
+  `sources complete --status STATUS`  [writes session] record source decision
   `sources integrate`                 [writes files] copy approved inputs
 
 Pipeline:
@@ -119,6 +120,8 @@ Pipeline selectors
 
 Critical defaults
   `dina run` is dry-run unless `--execute` is present.
+  `update start` records a source baseline with hashes by default.
+  `sources status` uses hashes only when timestamps or sizes changed.
   `sources refresh` stages downloads; `sources integrate` copies into
   `input_data/`.
   `config render` writes a generated Stata config; it does not edit `_config.do`.
@@ -131,7 +134,7 @@ Notes:
 Examples:
   dina help workflow
   dina update start YEAR
-  dina sources scan --deep
+  dina sources status
   dina run 01a --dry-run
   dina run 01 --execute --notify
 ",
@@ -153,7 +156,8 @@ What this page is:
 2. Start or resume the annual update
   dina update start [YEAR]
       Creates `output/updates/<update_id>` and makes it the active session.
-      If YEAR is omitted, the current calendar year is used.
+      If YEAR is omitted, the current calendar year is used. It records a
+      source baseline with hashes by default.
 
   dina update resume
       Recomputes the current state and recommends the next action.
@@ -179,6 +183,15 @@ What this page is:
   dina sources integrate --staged RELPATH --to input_data/... [--yes]
       Copy an approved staged source into its canonical `input_data/` location
       and record the decision.
+
+  dina sources status [--metadata-only] [--hash-all] [--deep]
+      Compare local canonical source files with the update baseline. By default
+      it reuses baseline hashes when size and timestamp are unchanged, and hashes
+      only files whose cheap metadata changed.
+
+  dina sources complete --status STATUS [--note TEXT]
+      Record that source review is complete before moving to the pipeline.
+      STATUS is one of: no-new-data, updated, manual, deferred.
 
 4. Inspect the pipeline before running it
   dina tasks list
@@ -256,7 +269,7 @@ Examples:
   dina install --yes
 ",
     update = "Usage:
-  dina update start [YEAR] [--yes]
+  dina update start [YEAR] [--yes] [--no-source-hash]
   dina update resume
   dina update status
   dina update checklist
@@ -271,7 +284,8 @@ What it manages:
   manifests.
 
 Subcommands:
-  start [YEAR]                    Creates a new session and active pointer.
+  start [YEAR]                    Creates a new session, active pointer, and
+                                  hashed source baseline.
                                   If omitted, YEAR defaults to the current
                                   calendar year. Default id:
                                   YEAR-update-MM-DD. If an unfinished same-day
@@ -302,6 +316,11 @@ What it changes:
   write session records or remove session files. `resume`, `status`,
   `checklist`, and `list` are primarily inspection.
 
+Options:
+  --no-source-hash                For start, record only file size/timestamp in
+                                  the source baseline. The default computes
+                                  source hashes for later comparison.
+
 Examples:
   dina update start YEAR
   dina update start YEAR --yes
@@ -319,6 +338,8 @@ Examples:
   dina sources list method METHOD [--urls]
   dina sources show ID [--urls]
   dina sources methods
+  dina sources status [--metadata-only] [--hash-all] [--deep]
+  dina sources complete --status STATUS [--note TEXT]
   dina sources scan [--deep] [--hash]
   dina sources review
   dina sources diff [--deep] [--hash]
@@ -336,6 +357,11 @@ What it manages:
                                   including URLs, canonical paths, scripts,
                                   checks, and notes.
   methods                         Explains source acquisition method labels.
+  status                          Compares current canonical source files with
+                                  the active update baseline. Default mode uses
+                                  hashes only when size/timestamp changed.
+  complete                        Records that source review is complete before
+                                  pipeline tasks are recommended.
   refresh                         Downloads configured online sources into the
                                   active session staging area. It never directly
                                   overwrites `input_data/`.
@@ -360,6 +386,12 @@ What it manages:
   --urls                          Print source URLs in list/show output.
   --deep                          Inspect workbook sheets when possible.
   --hash                          Compute file hashes during scan/diff.
+  --metadata-only                 For status, compare only paths, size, and
+                                  timestamps; do not compute hashes.
+  --hash-all                      For status, hash all source files.
+  --status STATUS                 For complete: no-new-data, updated, manual,
+                                  or deferred.
+  --note TEXT                     Required when --status deferred.
   --dry-run                       For refresh, show planned downloads only.
   --yes                           For integrate, allow overwriting destination.
 
@@ -382,6 +414,8 @@ Examples:
   dina sources list method manual
   dina sources methods
   dina sources show country-sna-index --urls
+  dina sources status
+  dina sources complete --status no-new-data
   dina sources refresh --dry-run
   dina sources refresh --source chl-pit-total
   dina sources scan --deep
@@ -393,8 +427,8 @@ Examples:
 
 What it does:
   Inspects the configured task graph without running scripts. `list` shows each
-  task alias, full id, stage, and freshness status. `why` explains the reason a
-  task is stale, missing outputs, missing inputs, current, or failed.
+  task alias, full id, stage, language, and freshness status. `why` explains the
+  reason a task is stale, missing outputs, missing inputs, current, or failed.
   Inactive tasks are registered for visibility but skipped by broad runs unless
   selected explicitly.
 
@@ -676,6 +710,65 @@ dina_print_dashboard <- function(root = dina_repo_root()) {
   dina_dashboard_prompt(actions, root)
 }
 
+dina_source_counts_line <- function(counts) {
+  counts <- counts[counts > 0L]
+  if (!length(counts)) {
+    return("none")
+  }
+  paste(sprintf("%s=%s", names(counts), as.integer(counts)), collapse = ", ")
+}
+
+dina_print_update_source_summary <- function(session) {
+  review <- session$source_review %||% NULL
+  baseline_at <- session$source_baseline$created_at %||% session$created_at %||% NA_character_
+  hash_mode <- session$source_baseline$hash_mode %||% "none"
+  dina_cli_alert(sprintf("Source baseline: %s (hash: %s)", baseline_at, hash_mode))
+  refresh <- dina_latest_source_refresh_time(session)
+  integration <- dina_latest_source_decision_time(session)
+  if (!is.na(refresh) && nzchar(refresh)) {
+    dina_cli_alert(sprintf("Last source refresh: %s", refresh))
+  }
+  if (!is.na(integration) && nzchar(integration)) {
+    dina_cli_alert(sprintf("Last source integration: %s", integration))
+  }
+  if (!is.null(review)) {
+    detail <- if (nzchar(review$note %||% "")) sprintf(" (%s)", review$note) else ""
+    dina_cli_alert(sprintf("Source review: %s at %s%s", review$status %||% "", review$reviewed_at %||% "", detail))
+  } else {
+    dina_cli_warn("Source review: not recorded. Run `dina sources status` before running the pipeline.")
+  }
+}
+
+dina_print_source_status <- function(status) {
+  dina_cli_header("Source Status")
+  dina_cli_alert(sprintf("Baseline: %s (hash: %s)", status$baseline_at, status$baseline_hash_mode))
+  dina_cli_alert(sprintf("Current scan: %s (hash: %s)", status$scanned_at, status$scan_hash_mode))
+  if (!is.na(status$last_recorded_scan_at) && nzchar(status$last_recorded_scan_at)) {
+    dina_cli_alert(sprintf("Last recorded scan: %s", status$last_recorded_scan_at))
+  }
+  if (!is.na(status$last_refresh_at) && nzchar(status$last_refresh_at)) {
+    dina_cli_alert(sprintf("Last refresh: %s", status$last_refresh_at))
+  }
+  if (!is.na(status$last_integration_at) && nzchar(status$last_integration_at)) {
+    dina_cli_alert(sprintf("Last integration: %s", status$last_integration_at))
+  }
+  if (!is.null(status$review)) {
+    dina_cli_alert(sprintf("Source review: %s at %s", status$review$status %||% "", status$review$reviewed_at %||% ""))
+  } else {
+    dina_cli_warn("Source review: not recorded.")
+  }
+  dina_cli_cat(sprintf("File status counts: %s", dina_source_counts_line(status$counts)))
+  changed <- Filter(function(x) !identical(x$classes, "unchanged"), status$diff)
+  if (!length(changed)) {
+    dina_cli_ok("No source file changes detected against the baseline.")
+  } else {
+    dina_cli_cat("Changed sources:")
+    for (item in changed) {
+      dina_cli_cat(sprintf("  %s: %s", item$id, paste(item$classes, collapse = ",")))
+    }
+  }
+}
+
 dina_cmd_doctor <- function(root) {
   result <- dina_doctor(root)
   dina_cli_header("Doctor")
@@ -761,7 +854,7 @@ dina_cmd_update <- function(root, args) {
   if (identical(sub, "start")) {
     flags <- dina_parse_flags(rest)
     if (length(flags$positional) > 1L) {
-      stop("Usage: dina update start [YEAR] [--yes]", call. = FALSE)
+      stop("Usage: dina update start [YEAR] [--yes] [--no-source-hash]", call. = FALSE)
     }
     year <- dina_arg(flags$positional, 1L, format(Sys.Date(), "%Y"))
     plan <- dina_update_start_plan(year, root)
@@ -775,9 +868,10 @@ dina_cmd_update <- function(root, args) {
     } else if (isTRUE(plan$finalized)) {
       dina_cli_warn(sprintf("Finalized same-day update already exists: %s. Creating %s.", plan$default_id, plan$id))
     }
-    session <- dina_update_start(year = year, id = plan$id, root = root)
+    session <- dina_update_start(year = year, id = plan$id, root = root, source_hash = !isTRUE(flags[["no-source-hash"]]))
     dina_cli_ok(sprintf("Started update session %s", session$id))
     dina_cli_alert(sprintf("Session directory: %s", dina_relative(dina_update_dir(session$id, root), root)))
+    dina_cli_alert(sprintf("Source baseline hash mode: %s", session$source_baseline$hash_mode %||% "none"))
   } else if (sub %in% c("resume", "status")) {
     session <- dina_load_session(root = root)
     if (is.null(session)) stop("No active update. Run `dina update start YEAR`.", call. = FALSE)
@@ -785,6 +879,7 @@ dina_cmd_update <- function(root, args) {
     dina_cli_header(sprintf("Update %s", session$id))
     dina_cli_alert(sprintf("Status: %s", session$status))
     dina_cli_alert(sprintf("State: %s", state$state))
+    dina_print_update_source_summary(session)
     dina_cli_ok(sprintf("Recommended next action: %s", state$recommendation))
   } else if (identical(sub, "checklist")) {
     session <- dina_load_session(root = root)
@@ -1043,6 +1138,32 @@ dina_cmd_sources <- function(root, args) {
     dina_print_source_show(root, id, include_urls = isTRUE(flags$urls))
   } else if (identical(sub, "methods")) {
     dina_print_source_methods()
+  } else if (identical(sub, "status")) {
+    session <- dina_load_session(root = root)
+    if (is.null(session)) stop("No active update.", call. = FALSE)
+    flags <- dina_parse_flags(args[-1])
+    hash_mode <- if (isTRUE(flags[["metadata-only"]])) {
+      "none"
+    } else if (isTRUE(flags[["hash-all"]])) {
+      "all"
+    } else {
+      "changed"
+    }
+    status <- dina_sources_status(session, root, hash = hash_mode, deep = isTRUE(flags$deep))
+    dina_print_source_status(status)
+  } else if (identical(sub, "complete")) {
+    session <- dina_load_session(root = root)
+    if (is.null(session)) stop("No active update.", call. = FALSE)
+    flags <- dina_parse_flags(args[-1])
+    status <- flags$status %||% dina_arg(flags$positional, 1L, NULL)
+    if (is.null(status)) {
+      stop("Usage: dina sources complete --status STATUS [--note TEXT]", call. = FALSE)
+    }
+    review <- dina_sources_complete(session, root, status = status, note = flags$note %||% "")
+    dina_cli_ok(sprintf("Recorded source review: %s", review$status))
+    if (nzchar(review$note %||% "")) {
+      dina_cli_alert(sprintf("Note: %s", review$note))
+    }
   } else if (identical(sub, "scan")) {
     session <- dina_load_session(root = root)
     flags <- dina_parse_flags(args[-1])
@@ -1053,18 +1174,26 @@ dina_cmd_sources <- function(root, args) {
     }
     if (!is.null(session)) {
       session$latest_source_scan <- scan
+      session$latest_source_scan_at <- dina_now()
       session$updated_at <- dina_now()
       dina_save_session(session, root)
     }
   } else if (identical(sub, "diff")) {
     session <- dina_load_session(root = root)
     flags <- dina_parse_flags(args[-1])
-    current <- dina_scan_sources(root, deep = isTRUE(flags$deep), hash = isTRUE(flags$hash) || isTRUE(flags$deep))
     previous <- if (!is.null(session)) session$source_scan else list()
+    current <- dina_scan_sources(root, deep = isTRUE(flags$deep), hash = isTRUE(flags$hash) || isTRUE(flags$deep), previous = previous)
     diff <- dina_classify_source_changes(current, previous)
     dina_cli_header("Source Diff")
     for (x in diff) {
-      dina_cli_cat(sprintf("%s: %s current_years=%s previous_years=%s", x$id, paste(x$classes, collapse = ","), paste(x$current_years, collapse = ","), paste(x$previous_years, collapse = ",")))
+      dina_cli_cat(sprintf(
+        "%s: %s current_years=%s previous_years=%s counts=%s",
+        x$id,
+        paste(x$classes, collapse = ","),
+        paste(x$current_years, collapse = ","),
+        paste(x$previous_years, collapse = ","),
+        dina_source_counts_line(x$counts)
+      ))
     }
   } else if (identical(sub, "review")) {
     session <- dina_load_session(root = root)
@@ -1120,9 +1249,9 @@ dina_cmd_tasks <- function(root, args) {
   if (identical(sub, "list")) {
     statuses <- dina_all_task_status(root)
     dina_cli_header("Tasks")
-    dina_cli_cat(sprintf("%-6s %-38s %-14s %s", "alias", "id", "stage", "status"))
+    dina_cli_cat(sprintf("%-6s %-38s %-14s %-8s %s", "alias", "id", "stage", "language", "status"))
     for (x in statuses) {
-      dina_cli_cat(sprintf("%-6s %-38s %-14s %s", dina_task_short_id(x$id), x$id, x$stage, x$status))
+      dina_cli_cat(sprintf("%-6s %-38s %-14s %-8s %s", dina_task_short_id(x$id), x$id, x$stage, x$language, x$status))
     }
   } else if (identical(sub, "why")) {
     tasks <- dina_task_map(root)

@@ -474,22 +474,74 @@ dina_excel_sheets_safe <- function(path) {
   tryCatch(readxl::excel_sheets(path), error = function(e) character())
 }
 
-dina_source_file_signature <- function(path, root = dina_repo_root(), deep = FALSE, hash = deep) {
+dina_hash_mode <- function(hash = FALSE) {
+  if (is.character(hash) && length(hash)) {
+    mode <- match.arg(hash[[1]], c("none", "all", "changed"))
+    return(mode)
+  }
+  if (isTRUE(hash)) "all" else "none"
+}
+
+dina_signature_has_hash <- function(signature) {
+  hash <- signature$sha256 %||% NA_character_
+  is.character(hash) && length(hash) && !is.na(hash[[1]]) && nzchar(hash[[1]])
+}
+
+dina_same_cheap_signature <- function(current, previous) {
+  if (is.null(current) || is.null(previous)) {
+    return(FALSE)
+  }
+  identical(isTRUE(current$exists), isTRUE(previous$exists)) &&
+    identical(as.numeric(current$size %||% NA_real_), as.numeric(previous$size %||% NA_real_)) &&
+    identical(as.character(current$mtime %||% NA_character_), as.character(previous$mtime %||% NA_character_))
+}
+
+dina_file_signature_map <- function(source_scan) {
+  files <- source_scan$files %||% list()
+  if (!length(files)) {
+    return(list())
+  }
+  paths <- vapply(files, function(file) file$path %||% "", character(1))
+  files <- files[nzchar(paths)]
+  names(files) <- paths[nzchar(paths)]
+  files
+}
+
+dina_source_file_signature <- function(path, root = dina_repo_root(), deep = FALSE, hash = deep, previous = NULL) {
+  mode <- dina_hash_mode(hash)
   ext <- tolower(tools::file_ext(path))
   sheets <- if (isTRUE(deep) && ext %in% c("xls", "xlsx", "xlsb")) dina_excel_sheets_safe(path) else character()
   years <- unique(c(dina_years_from_filename(path), dina_years_from_text(sheets)))
   info <- file.info(path)
-  list(
+  signature <- list(
     path = dina_relative(path, root),
     exists = file.exists(path),
     size = if (file.exists(path)) unname(info$size) else NA_real_,
     mtime = if (file.exists(path)) format(info$mtime, "%Y-%m-%dT%H:%M:%OS%z") else NA_character_,
-    sha256 = if (isTRUE(hash)) dina_hash_file(path) else NA_character_,
+    sha256 = NA_character_,
+    hash_status = "not_requested",
     filename_years = as.integer(dina_years_from_filename(path)),
     sheet_years = as.integer(dina_years_from_text(sheets)),
     detected_years = as.integer(sort(unique(years))),
     sheets = sheets
   )
+  if (!isTRUE(signature$exists)) {
+    signature$hash_status <- "missing"
+    return(signature)
+  }
+  if (identical(mode, "all")) {
+    signature$sha256 <- dina_hash_file(path)
+    signature$hash_status <- "computed"
+  } else if (identical(mode, "changed")) {
+    if (!is.null(previous) && dina_same_cheap_signature(signature, previous) && dina_signature_has_hash(previous)) {
+      signature$sha256 <- previous$sha256
+      signature$hash_status <- "reused"
+    } else {
+      signature$sha256 <- dina_hash_file(path)
+      signature$hash_status <- "computed"
+    }
+  }
+  signature
 }
 
 dina_template_value <- function(x, values = list()) {
@@ -579,7 +631,8 @@ dina_sources_integrate_file <- function(session, staged_rel, dest_rel, source_id
   decision
 }
 
-dina_scan_sources <- function(root = dina_repo_root(), include_missing = TRUE, deep = FALSE, hash = deep) {
+dina_scan_sources <- function(root = dina_repo_root(), include_missing = TRUE, deep = FALSE, hash = deep, previous = NULL) {
+  hash_mode <- dina_hash_mode(hash)
   registry <- dina_sources(root)$sources
   out <- list()
   for (source in registry) {
@@ -589,7 +642,18 @@ dina_scan_sources <- function(root = dina_repo_root(), include_missing = TRUE, d
     if (!include_missing) {
       files <- files[exists]
     }
-    signatures <- lapply(files, dina_source_file_signature, root = root, deep = deep, hash = hash)
+    previous_source <- previous[[source$id]] %||% list()
+    previous_files <- dina_file_signature_map(previous_source)
+    signatures <- lapply(files, function(path) {
+      rel <- dina_relative(path, root)
+      dina_source_file_signature(
+        path,
+        root = root,
+        deep = deep,
+        hash = hash_mode,
+        previous = previous_files[[rel]] %||% NULL
+      )
+    })
     years <- sort(unique(unlist(lapply(signatures, function(x) x$detected_years))))
     out[[source$id]] <- list(
       id = source$id,
@@ -597,11 +661,96 @@ dina_scan_sources <- function(root = dina_repo_root(), include_missing = TRUE, d
       country = dina_source_country_summary(source, root),
       country_coverage = dina_source_country_values(source, root),
       method = source$method %||% NA_character_,
+      hash_mode = hash_mode,
       files = signatures,
       detected_years = as.integer(years)
     )
   }
   out
+}
+
+dina_empty_source_status_counts <- function() {
+  stats::setNames(
+    rep(0L, 7L),
+    c(
+      "unchanged",
+      "content_changed",
+      "timestamp_only",
+      "metadata_changed_unverified",
+      "new",
+      "missing",
+      "unverified"
+    )
+  )
+}
+
+dina_signature_mtime <- function(signature) {
+  value <- signature$mtime %||% NA_character_
+  if (!is.character(value) || !length(value) || is.na(value[[1]]) || !nzchar(value[[1]])) {
+    return(as.POSIXct(NA))
+  }
+  parsed <- as.POSIXct(value[[1]], format = "%Y-%m-%dT%H:%M:%OS%z", tz = "UTC")
+  if (is.na(parsed)) {
+    parsed <- as.POSIXct(value[[1]], tz = "UTC")
+  }
+  parsed
+}
+
+dina_mtime_direction <- function(current, previous) {
+  cur <- dina_signature_mtime(current)
+  prev <- dina_signature_mtime(previous)
+  if (is.na(cur) || is.na(prev)) {
+    return("unknown")
+  }
+  if (cur > prev) {
+    return("newer_than_baseline")
+  }
+  if (cur < prev) {
+    return("older_than_baseline")
+  }
+  "same"
+}
+
+dina_compare_source_file <- function(current, previous = NULL) {
+  path <- current$path %||% previous$path %||% ""
+  current_exists <- isTRUE(current$exists)
+  previous_exists <- !is.null(previous) && isTRUE(previous$exists)
+  status <- "unverified"
+  if (is.null(previous)) {
+    status <- if (current_exists) "new" else "unverified"
+  } else if (!current_exists && previous_exists) {
+    status <- "missing"
+  } else if (current_exists && !previous_exists) {
+    status <- "new"
+  } else if (!current_exists && !previous_exists) {
+    status <- "unchanged"
+  } else {
+    current_hashable <- dina_signature_has_hash(current)
+    previous_hashable <- dina_signature_has_hash(previous)
+    cheap_same <- dina_same_cheap_signature(current, previous)
+    if (current_hashable && previous_hashable) {
+      if (!identical(current$sha256, previous$sha256)) {
+        status <- "content_changed"
+      } else if (!cheap_same) {
+        status <- "timestamp_only"
+      } else {
+        status <- "unchanged"
+      }
+    } else if (cheap_same) {
+      status <- "unchanged"
+    } else {
+      status <- "metadata_changed_unverified"
+    }
+  }
+  list(
+    path = path,
+    status = status,
+    mtime = dina_mtime_direction(current, previous %||% list()),
+    current_hash_status = current$hash_status %||% NA_character_,
+    previous_hash_status = previous$hash_status %||% NA_character_,
+    current_sha256 = current$sha256 %||% NA_character_,
+    previous_sha256 = previous$sha256 %||% NA_character_
+  )
 }
 
 dina_classify_source_changes <- function(current, previous = list()) {
@@ -612,38 +761,45 @@ dina_classify_source_changes <- function(current, previous = list()) {
     cur_years <- cur$detected_years %||% integer()
     prev_years <- prev$detected_years %||% integer()
 
-    cur_files <- setNames(lapply(cur$files, function(x) x$sha256), vapply(cur$files, function(x) x$path, character(1)))
-    prev_files <- setNames(lapply(prev$files %||% list(), function(x) x$sha256), vapply(prev$files %||% list(), function(x) x$path, character(1)))
-    common <- intersect(names(cur_files), names(prev_files))
-    common_hashable <- common[!is.na(unlist(cur_files[common])) & !is.na(unlist(prev_files[common]))]
-    changed_common <- common_hashable[vapply(common_hashable, function(path) !identical(cur_files[[path]], prev_files[[path]]), logical(1))]
-
-    classes <- character()
-    if (length(setdiff(cur_years, prev_years))) {
-      new_years <- setdiff(cur_years, prev_years)
-      if (length(prev_years) && any(new_years < max(prev_years))) {
-        classes <- c(classes, "backfill")
-      }
-      if (length(prev_years) == 0 || any(new_years > max(prev_years))) {
-        classes <- c(classes, "new_year")
-      }
+    cur_files <- dina_file_signature_map(cur)
+    prev_files <- dina_file_signature_map(prev)
+    paths <- unique(c(names(cur_files), names(prev_files)))
+    comparisons <- lapply(paths, function(path) {
+      dina_compare_source_file(cur_files[[path]] %||% list(path = path, exists = FALSE), prev_files[[path]] %||% NULL)
+    })
+    counts <- dina_empty_source_status_counts()
+    if (length(comparisons)) {
+      statuses <- vapply(comparisons, function(x) x$status, character(1))
+      tab <- table(statuses)
+      counts[names(tab)] <- as.integer(tab)
     }
-    if (length(changed_common)) {
-      classes <- c(classes, "historical_revision")
-    }
-    if (!length(cur$files) || all(!vapply(cur$files, function(x) isTRUE(x$exists), logical(1)))) {
-      classes <- c(classes, "local_missing")
-    }
-    if (!length(classes)) {
-      classes <- "unchanged"
-    }
+    changed <- names(counts)[counts > 0L & names(counts) != "unchanged"]
+    classes <- if (length(changed)) changed else "unchanged"
+    new_years <- setdiff(cur_years, prev_years)
+    removed_years <- setdiff(prev_years, cur_years)
+    changed_files <- vapply(
+      comparisons[vapply(comparisons, function(x) !identical(x$status, "unchanged"), logical(1))],
+      function(x) x$path,
+      character(1)
+    )
+    mtime_statuses <- vapply(comparisons, function(x) x$mtime, character(1))
+    mtime_counts <- table(factor(
+      mtime_statuses,
+      levels = c("newer_than_baseline", "older_than_baseline", "same", "unknown")
+    ))
     out[[id]] <- list(
       id = id,
-      classes = unique(classes),
+      classes = classes,
+      counts = counts,
+      mtime_counts = as.integer(mtime_counts),
       current_years = as.integer(cur_years),
       previous_years = as.integer(prev_years),
-      changed_files = changed_common
+      new_years = as.integer(new_years),
+      removed_years = as.integer(removed_years),
+      files = comparisons,
+      changed_files = unname(changed_files)
     )
+    names(out[[id]]$mtime_counts) <- names(mtime_counts)
   }
   out
 }
@@ -718,7 +874,7 @@ dina_update_start_plan <- function(year = format(Sys.Date(), "%Y"), root = dina_
   )
 }
 
-dina_update_start <- function(year = format(Sys.Date(), "%Y"), id = NULL, root = dina_repo_root()) {
+dina_update_start <- function(year = format(Sys.Date(), "%Y"), id = NULL, root = dina_repo_root(), source_hash = TRUE) {
   if (is.null(id) || !nzchar(id)) {
     id <- dina_next_update_id(year, root)
   }
@@ -730,15 +886,21 @@ dina_update_start <- function(year = format(Sys.Date(), "%Y"), id = NULL, root =
   config <- dina_config(root)
   config_do <- file.path(dir, "config.do")
   dina_render_config_do(config, config_do)
-  source_scan <- dina_scan_sources(root)
+  started_at <- dina_now()
+  source_hash_mode <- if (isTRUE(source_hash)) "all" else "none"
+  source_scan <- dina_scan_sources(root, hash = source_hash_mode)
   session <- list(
     id = id,
     year = as.character(year),
     status = "initialized",
-    created_at = dina_now(),
-    updated_at = dina_now(),
+    created_at = started_at,
+    updated_at = started_at,
     config_file = dina_relative(config_do, root),
     config_hash = dina_hash_file(config_do),
+    source_baseline = list(
+      created_at = started_at,
+      hash_mode = source_hash_mode
+    ),
     source_scan = source_scan,
     source_refreshes = list(),
     source_decisions = list(),
@@ -881,6 +1043,114 @@ dina_default_checklist <- function() {
   )
 }
 
+dina_update_checklist_set <- function(session, ids, status) {
+  if (is.null(session$checklist)) {
+    return(session)
+  }
+  session$checklist <- lapply(session$checklist, function(item) {
+    if (item$id %in% ids) {
+      item$status <- status
+    }
+    item
+  })
+  session
+}
+
+dina_source_review_recorded <- function(session) {
+  review <- session$source_review %||% NULL
+  !is.null(review) && nzchar(review$status %||% "")
+}
+
+dina_latest_source_refresh_time <- function(session) {
+  refreshes <- session$source_refreshes %||% list()
+  if (!length(refreshes)) {
+    return(NA_character_)
+  }
+  names(refreshes)[[length(refreshes)]]
+}
+
+dina_latest_source_decision_time <- function(session) {
+  decisions <- session$source_decisions %||% list()
+  if (!length(decisions)) {
+    return(NA_character_)
+  }
+  times <- vapply(decisions, function(x) x$integrated_at %||% NA_character_, character(1))
+  times <- times[!is.na(times) & nzchar(times)]
+  if (!length(times)) {
+    return(NA_character_)
+  }
+  sort(times)[[length(times)]]
+}
+
+dina_source_diff_counts <- function(diff) {
+  counts <- dina_empty_source_status_counts()
+  if (!length(diff)) {
+    return(counts)
+  }
+  for (item in diff) {
+    item_counts <- item$counts %||% dina_empty_source_status_counts()
+    counts[names(item_counts)] <- counts[names(item_counts)] + as.integer(item_counts)
+  }
+  counts
+}
+
+dina_sources_status <- function(session, root = dina_repo_root(), hash = "changed", deep = FALSE) {
+  if (is.null(session)) {
+    stop("No active update.", call. = FALSE)
+  }
+  baseline <- session$source_scan %||% list()
+  current <- dina_scan_sources(root, deep = deep, hash = hash, previous = baseline)
+  diff <- dina_classify_source_changes(current, baseline)
+  list(
+    baseline_at = session$source_baseline$created_at %||% session$created_at %||% NA_character_,
+    baseline_hash_mode = session$source_baseline$hash_mode %||% "none",
+    scan_hash_mode = dina_hash_mode(hash),
+    scanned_at = dina_now(),
+    last_recorded_scan_at = session$latest_source_scan_at %||% NA_character_,
+    last_refresh_at = dina_latest_source_refresh_time(session),
+    last_integration_at = dina_latest_source_decision_time(session),
+    review = session$source_review %||% NULL,
+    counts = dina_source_diff_counts(diff),
+    diff = diff
+  )
+}
+
+dina_source_review_statuses <- function() {
+  c("no-new-data", "updated", "manual", "deferred")
+}
+
+dina_sources_complete <- function(session, root = dina_repo_root(), status, note = "") {
+  if (is.null(session)) {
+    stop("No active update.", call. = FALSE)
+  }
+  status <- tolower(trimws(status %||% ""))
+  if (!status %in% dina_source_review_statuses()) {
+    stop(
+      "Unknown source completion status: ", status,
+      ". Use one of: ", paste(dina_source_review_statuses(), collapse = ", "),
+      call. = FALSE
+    )
+  }
+  note <- trimws(note %||% "")
+  if (identical(status, "deferred") && !nzchar(note)) {
+    stop("A deferred source review needs --note so the reason is explicit.", call. = FALSE)
+  }
+  session$source_review <- list(
+    status = status,
+    note = note,
+    reviewed_at = dina_now()
+  )
+  if (identical(status, "deferred")) {
+    session <- dina_update_checklist_set(session, c("sources_refresh", "sources_integrate"), "deferred")
+    session <- dina_update_checklist_set(session, "sources_review", "done")
+  } else {
+    session <- dina_update_checklist_set(session, c("sources_refresh", "sources_review", "sources_integrate"), "done")
+  }
+  session$updated_at <- dina_now()
+  dina_save_session(session, root)
+  session$source_review
+}
+
 dina_session_state <- function(session, root = dina_repo_root()) {
   if (is.null(session)) {
     return(list(state = "no_active_update", recommendation = "Start an update with `dina update start YEAR`."))
@@ -895,6 +1165,13 @@ dina_session_state <- function(session, root = dina_repo_root()) {
   }
   if (length(staged)) {
     return(list(state = "sources_pending", recommendation = "Review staged downloads with `dina sources review`.", stale_tasks = stale))
+  }
+  if (!dina_source_review_recorded(session)) {
+    return(list(
+      state = "sources_unreviewed",
+      recommendation = "Check source freshness with `dina sources status`, then record a decision with `dina sources complete --status no-new-data` or `--status updated`.",
+      stale_tasks = stale
+    ))
   }
   if (stale > 0) {
     return(list(state = "build_ready", recommendation = "Run or inspect stale tasks with `dina tasks list` and `dina tasks why TASK`.", stale_tasks = stale))
@@ -916,6 +1193,30 @@ dina_task_active <- function(task) {
 dina_task_short_id <- function(id) {
   match <- regmatches(id, regexpr("^[0-9]{2}[A-Za-z]", id, perl = TRUE))
   if (!length(match) || identical(match, "")) id else match
+}
+
+dina_task_language <- function(task) {
+  type <- tolower(task$type %||% "")
+  if (type %in% c("stata", "r", "python", "shell", "bash")) {
+    return(c(stata = "Stata", r = "R", python = "Python", shell = "Shell", bash = "Shell")[[type]])
+  }
+  ext <- tolower(tools::file_ext(task$script %||% ""))
+  if (ext %in% c("do", "ado")) {
+    return("Stata")
+  }
+  if (ext %in% c("r", "rscript")) {
+    return("R")
+  }
+  if (ext %in% c("py")) {
+    return("Python")
+  }
+  if (ext %in% c("sh", "bash")) {
+    return("Shell")
+  }
+  if (nzchar(type)) {
+    return(type)
+  }
+  "other"
 }
 
 dina_split_task_selectors <- function(x) {
@@ -1062,6 +1363,7 @@ dina_task_status <- function(task, root = dina_repo_root(), session = NULL, seen
     return(list(
       id = task$id,
       stage = task$stage %||% NA_character_,
+      language = dina_task_language(task),
       status = "inactive",
       reasons = task$notes %||% "Task is inactive by default; select it explicitly when this heavy/static input needs to be rebuilt."
     ))
@@ -1110,7 +1412,7 @@ dina_task_status <- function(task, root = dina_repo_root(), session = NULL, seen
   if (!length(reasons)) {
     reasons <- "All declared outputs are present and not older than declared inputs."
   }
-  list(id = task$id, stage = task$stage %||% NA_character_, status = status, reasons = reasons)
+  list(id = task$id, stage = task$stage %||% NA_character_, language = dina_task_language(task), status = status, reasons = reasons)
 }
 
 dina_all_task_status <- function(root = dina_repo_root(), session = dina_load_session(root = root)) {

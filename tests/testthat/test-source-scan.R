@@ -27,11 +27,42 @@ test_that("source scan summarizes broad country coverage for display", {
 test_that("source diff classifies new years and missing files", {
   root <- mini_repo()
   touch(file.path(root, "input_data", "source_2024.xlsx"), "2024-01-01")
-  current <- dina_scan_sources(root)
-  previous <- list(`source-a` = list(files = list(), detected_years = c(2020L, 2021L)))
+  previous <- dina_scan_sources(root, hash = "all")
+  file.remove(file.path(root, "input_data", "source_2024.xlsx"))
+  current <- dina_scan_sources(root, hash = "changed", previous = previous)
   diff <- dina_classify_source_changes(current, previous)
-  expect_true("new_year" %in% diff[["source-a"]]$classes)
-  expect_true("local_missing" %in% diff[["source-missing"]]$classes)
+  expect_true("missing" %in% diff[["source-a"]]$classes)
+  expect_true(diff[["source-a"]]$counts[["missing"]] > 0L)
+  expect_true("unchanged" %in% diff[["source-missing"]]$classes)
+})
+
+test_that("source scan reuses hashes when metadata is unchanged", {
+  root <- mini_repo()
+  path <- file.path(root, "input_data", "source_2024.xlsx")
+  touch(path, "2024-01-01")
+  previous <- dina_scan_sources(root, hash = "all")
+  current <- dina_scan_sources(root, hash = "changed", previous = previous)
+  file <- current[["source-a"]]$files[[1]]
+  expect_equal(file$hash_status, "reused")
+  expect_equal(file$sha256, previous[["source-a"]]$files[[1]]$sha256)
+})
+
+test_that("source diff distinguishes content changes from timestamp-only changes", {
+  root <- mini_repo()
+  path <- file.path(root, "input_data", "source_2024.xlsx")
+  touch(path, "2024-01-01")
+  previous <- dina_scan_sources(root, hash = "all")
+
+  Sys.setFileTime(path, as.POSIXct("2024-01-02", tz = "UTC"))
+  current <- dina_scan_sources(root, hash = "changed", previous = previous)
+  diff <- dina_classify_source_changes(current, previous)
+  expect_true("timestamp_only" %in% diff[["source-a"]]$classes)
+
+  writeLines("changed", path)
+  Sys.setFileTime(path, as.POSIXct("2024-01-03", tz = "UTC"))
+  current <- dina_scan_sources(root, hash = "changed", previous = previous)
+  diff <- dina_classify_source_changes(current, previous)
+  expect_true("content_changed" %in% diff[["source-a"]]$classes)
 })
 
 test_that("project source registry is a complete readable catalog", {
