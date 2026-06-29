@@ -64,41 +64,155 @@ dina_help_text <- function(topic = NULL) {
   topic <- topic %||% "main"
   switch(
     topic,
-    main = "Usage:
+    main = "DINA-LatAm CLI
+
+Usage:
   dina
-  dina help [COMMAND]
+  dina help [TOPIC]
   dina COMMAND [SUBCOMMAND] [OPTIONS]
 
 Plain `dina` opens the guided dashboard and recommends the next action.
-Use `dina help COMMAND` for more detail on any command below.
+Use `dina help workflow` for the annual update recipe.
+Use `dina help COMMAND` for command details.
+After `dina setup command`, `dina` and `./bin/dina` are equivalent.
 
-Main commands:
-  doctor                          Inspect local readiness without changing files.
-  install                         Install missing R package dependencies.
-  update                          Manage annual update sessions and checklists.
-  sources                         Stage, scan, review, and integrate source files.
-  tasks                           Inspect pipeline task freshness and reasons.
-  run                             Dry-run or execute selected pipeline tasks.
-  config                          Read, edit, set, or render project configuration.
-  data                            Check, pack, or unpack primary data bundles.
-  audit                           Search code for hardcoded paths.
-  make                            Export the YAML task graph as a Makefile.
-  notify                          Create/test local Pushover notification setup.
-  setup                           Install the `dina` command wrapper.
+Command map
 
-Detailed help topics:
-  doctor install update sources tasks run config data audit make notify setup
+Annual update:
+  `help workflow`                     [read-only] annual update recipe
+  `update start [YEAR]`               [writes session] create active session
+  `update resume|status|checklist`    [read-only] inspect active session
+  `update finalize [--force]`         [writes session] freeze final records
+
+Source data:
+  `sources scan|diff|review`          [read-only] inspect source coverage
+  `sources refresh [--dry-run]`       [writes session] stage downloads
+  `sources integrate`                 [writes files] copy approved inputs
+
+Pipeline:
+  `tasks list|why TASK`               [read-only] inspect task freshness
+  `run ... --dry-run`                 [read-only] preview selected scripts
+  `run ... --execute`                 [writes files] run selected scripts
+
+Setup and config:
+  `doctor`                            [read-only] check local readiness
+  `install`                           install missing R packages
+  `config show|render`                [read-only/writes files] inspect or render
+  `config set|edit`                   [writes config] modify `config/dina.yml`
+  `data check|pack|unpack`            [read-only/writes archive/writes files]
+  `notify init|test`                  configure or test Pushover
+  `setup command`                     install the user-level `dina` wrapper
+
+Maintenance:
+  `audit paths`                       [read-only] report likely hardcoded paths
+  `make export [PATH]`                [writes files] export task graph
+
+Pipeline selectors
+  `01a`                  one task, such as `01a-clean-macro-data`
+  `01`                   whole numbered block for `dina run`
+  `01a,02a`              multiple tasks for `dina run`
+  `--from 03 --to 05`    range for `dina run`
+  `tasks why` needs a unique selector, such as `01a` or a full task id.
+
+Critical defaults
+  `dina run` is dry-run unless `--execute` is present.
+  `sources refresh` stages downloads; `sources integrate` copies into
+  `input_data/`.
+  `config render` writes a generated Stata config; it does not edit `_config.do`.
+  `config set` and `config edit` modify `config/dina.yml`.
 
 Notes:
   `--` is accepted as an optional separator for shell compatibility, but it is
   never required. For example, `dina help` and `dina -- help` both work.
 
 Examples:
-  dina help config
-  dina update start 2026
+  dina help workflow
+  dina update start YEAR
   dina sources scan --deep
   dina run 01a --dry-run
   dina run 01 --execute --notify
+",
+    workflow = "Usage:
+  dina help workflow
+
+What this page is:
+  A recommended order for an annual DINA-LatAm update. It is a guide, not a new
+  command. Use the command-specific help pages when you need exact options.
+
+1. Check the machine and project state
+  dina doctor
+      Read-only preflight for R packages, Stata, paths, Pushover, and any
+      active update pointer.
+
+  dina data check
+      Read-only check that configured primary data paths exist.
+
+2. Start or resume the annual update
+  dina update start [YEAR]
+      Creates `output/updates/<update_id>` and makes it the active session.
+      If YEAR is omitted, the current calendar year is used.
+
+  dina update resume
+      Recomputes the current state and recommends the next action.
+
+  dina update status
+      Same state summary as resume, without implying that work should continue.
+
+3. Refresh and review source data
+  dina sources scan [--deep] [--hash]
+      Inspect configured source coverage. With an active update, records the
+      latest scan in the session.
+
+  dina sources refresh [--source ID] [--dry-run]
+      Stage configured online downloads inside the active update session.
+      It does not directly overwrite `input_data/`.
+
+  dina sources diff [--deep] [--hash]
+      Compare current source coverage with the active session baseline.
+
+  dina sources review
+      List staged downloads waiting for review.
+
+  dina sources integrate --staged RELPATH --to input_data/... [--yes]
+      Copy an approved staged source into its canonical `input_data/` location
+      and record the decision.
+
+4. Inspect the pipeline before running it
+  dina tasks list
+      Show task ids, aliases, stages, and freshness.
+
+  dina tasks why TASK
+      Explain why a task is current, stale, missing, or failed.
+
+  dina run TASK --dry-run
+      Preview commands without running Stata. Dry-run is the default.
+
+Task selectors:
+  01a                  One task.
+  01                   Whole numbered block for `dina run`.
+  01a,02a              Multiple tasks for `dina run`.
+  full-task-id         Exact task id.
+  --from 03 --to 05    Range from block 03 through block 05.
+  `tasks why` needs one unique task selector, such as 01a or a full task id.
+
+5. Execute the pipeline
+  dina run TASK --execute
+      Actually run selected scripts and write run logs under `output/run_logs/`.
+
+  dina run --from TASK --to TASK --execute --notify
+      Run a range and send Pushover status when notifications are configured.
+
+6. Finalize the update
+  dina update checklist
+      Print the active update checklist.
+
+  dina update finalize
+      Freeze final outputs and checksums. It refuses missing, stale, or failed
+      required tasks unless `--force` is supplied.
+
+More help:
+  dina help update     dina help sources     dina help run
+  dina help tasks      dina help config      dina help data
 ",
     doctor = "Usage:
   dina doctor
@@ -150,7 +264,9 @@ What it manages:
 
 Subcommands:
   start [YEAR]                    Creates a new session and active pointer.
-                                  Default id: YEAR-update-MM-DD.
+                                  If omitted, YEAR defaults to the current
+                                  calendar year. Default id:
+                                  YEAR-update-MM-DD.
   resume                          Recomputes reality and recommends the next
                                   action. It does not blindly continue a run.
   status                          Same state summary as resume, without implying
@@ -166,7 +282,7 @@ What it changes:
   records. `resume`, `status`, and `checklist` are primarily inspection.
 
 Examples:
-  dina update start 2026
+  dina update start YEAR
   dina update resume
   dina update finalize
 ",
@@ -221,8 +337,12 @@ What it does:
   task is stale, missing outputs, missing inputs, current, or failed.
 
 Task selectors:
-  07d                             Resolves to the unique task with that prefix.
+  07d                             Unique short selector.
   07d-export-results-to-wid       Full task id.
+
+Note:
+  `tasks why` needs one unique task. Block selectors such as `07` are mainly for
+  `dina run` and may be ambiguous here.
 
 What it changes:
   Nothing. These are inspection commands.
@@ -244,6 +364,9 @@ Task selectors:
   01a                             One task, e.g. 01a-clean-macro-data.
   01                              Whole numbered block, e.g. all 01* tasks.
   01a,01b                         Multiple selected tasks.
+  --task 01a,01b                  Same selection through the option form.
+  --from 03 --to 05               Range from the first 03* task through the
+                                  last 05* task.
   full-task-id                    Exact task id.
 
 Options:
@@ -298,7 +421,7 @@ What it changes:
 
 Examples:
   dina config show
-  dina config set years.last 2026
+  dina config set years.last YEAR
   dina config set run.units ind,esn,pch
   dina config render output/run_logs/config.do
 ",
@@ -324,8 +447,8 @@ What it changes:
 
 Examples:
   dina data check
-  dina data pack output/archives/primary-data-2026.tar.gz
-  dina data unpack output/archives/primary-data-2026.tar.gz
+  dina data pack output/archives/primary-data-YEAR.tar.gz
+  dina data unpack output/archives/primary-data-YEAR.tar.gz
 ",
     audit = "Usage:
   dina audit paths
@@ -427,10 +550,44 @@ dina_parse_flags <- function(args) {
   out
 }
 
+dina_dashboard_actions <- function() {
+  year <- format(Sys.Date(), "%Y")
+  list(
+    list(label = "dina doctor", args = c("doctor")),
+    list(label = sprintf("dina update start %s", year), args = c("update", "start", year)),
+    list(label = "dina update resume", args = c("update", "resume")),
+    list(label = "dina sources scan", args = c("sources", "scan")),
+    list(label = "dina tasks list", args = c("tasks", "list")),
+    list(label = "dina run --dry-run", args = c("run", "--dry-run"))
+  )
+}
+
+dina_dashboard_prompt <- function(actions, root) {
+  if (!isatty(stdin())) return(invisible(NULL))
+  cat("\nChoose an action number to run, or press Enter to exit: ")
+  answer <- trimws(readLines("stdin", n = 1L, warn = FALSE))
+  if (!nzchar(answer)) return(invisible(NULL))
+  choice <- suppressWarnings(as.integer(answer))
+  if (is.na(choice) || choice < 1L || choice > length(actions)) {
+    dina_cli_warn(sprintf("Unknown action `%s`.", answer))
+    return(invisible(NULL))
+  }
+  selected <- actions[[choice]]
+  dina_cli_alert(sprintf("Running `%s`", selected$label))
+  dina_main(selected$args, root = root)
+}
+
 dina_print_dashboard <- function(root = dina_repo_root()) {
   dina_cli_header("DINA-LatAm")
   session <- dina_load_session(root = root)
   state <- dina_session_state(session, root)
+  actions <- dina_dashboard_actions()
+  recommendation <- gsub(
+    "dina update start YEAR",
+    actions[[2]]$label,
+    state$recommendation,
+    fixed = TRUE
+  )
   if (is.null(session)) {
     dina_cli_alert("No active update session.")
   } else {
@@ -438,16 +595,12 @@ dina_print_dashboard <- function(root = dina_repo_root()) {
     dina_cli_alert(sprintf("State: %s", state$state))
     dina_cli_alert(sprintf("Stale or blocked tasks: %s", state$stale_tasks %||% 0))
   }
-  dina_cli_ok(sprintf("Recommended next action: %s", state$recommendation))
-  cat("
-Useful actions:
-  1. dina doctor
-  2. dina update start YEAR
-  3. dina update resume
-  4. dina sources scan
-  5. dina tasks list
-  6. dina run --dry-run
-")
+  dina_cli_ok(sprintf("Recommended next action: %s", recommendation))
+  cat("\nUseful actions:\n")
+  for (i in seq_along(actions)) {
+    cat(sprintf("  %s. %s\n", i, actions[[i]]$label))
+  }
+  dina_dashboard_prompt(actions, root)
 }
 
 dina_cmd_doctor <- function(root) {

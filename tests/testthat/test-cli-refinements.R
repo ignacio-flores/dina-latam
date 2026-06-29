@@ -70,6 +70,8 @@ test_that("help output documents run variants and short selectors", {
   text <- result$output
   expect_match(text, "dina run 01a --dry-run")
   expect_match(text, "01[[:space:]]+Whole numbered block")
+  expect_match(text, "--task 01a,01b[[:space:]]+Same selection")
+  expect_match(text, "--from 03 --to 05[[:space:]]+Range")
   expect_match(text, "--notify")
   expect_match(text, "Dry-run is the default")
   expect_match(text, "--execute")
@@ -84,6 +86,7 @@ test_that("help and default dispatch accept optional global separator", {
     c("help"),
     c("--help"),
     c("--", "help"),
+    c("help", "workflow"),
     c("sources"),
     c("config"),
     c("data"),
@@ -99,12 +102,81 @@ test_that("help and default dispatch accept optional global separator", {
   }
 })
 
+test_that("dashboard offers executable numbered actions without prompting in non-interactive runs", {
+  result <- run_dina_cli(character())
+  expect_equal(result$status, 0L)
+  year <- format(Sys.Date(), "%Y")
+  expect_match(result$output, sprintf("Recommended next action: Start an update with `dina update start %s`", year))
+  expect_match(result$output, "Useful actions:")
+  expect_match(result$output, "1\\. dina doctor")
+  expect_match(result$output, sprintf("2\\. dina update start %s", year))
+  expect_match(result$output, "3\\. dina update resume")
+  expect_match(result$output, "4\\. dina sources scan")
+  expect_match(result$output, "5\\. dina tasks list")
+  expect_match(result$output, "6\\. dina run --dry-run")
+  expect_false(grepl("Choose an action number", result$output, fixed = TRUE))
+})
+
 test_that("main and config help explain detailed topics and subtleties", {
   main <- run_dina_cli(c("help"))
   expect_equal(main$status, 0L)
+  expect_match(main$output, "DINA-LatAm CLI")
   expect_match(main$output, "Use `dina help COMMAND`")
-  expect_match(main$output, "Detailed help topics")
-  expect_match(main$output, "doctor install update sources tasks run config data audit make notify setup")
+  expect_match(main$output, "\\[read-only\\]")
+  expect_match(main$output, "\\[writes session\\]")
+  expect_match(main$output, "\\[writes files\\]")
+  expect_match(main$output, "\\[writes config\\]")
+  expect_match(main$output, "writes archive")
+  expect_match(main$output, "Command map")
+  expect_match(main$output, "Annual update:")
+  expect_match(main$output, "`help workflow`[[:space:]]+\\[read-only\\]")
+  expect_match(main$output, "`update start \\[YEAR\\]`[[:space:]]+\\[writes session\\]")
+  expect_match(main$output, "Source data:")
+  expect_match(main$output, "`sources refresh \\[--dry-run\\]`[[:space:]]+\\[writes session\\]")
+  expect_match(main$output, "Pipeline:")
+  expect_match(main$output, "`run \\.\\.\\. --execute`[[:space:]]+\\[writes files\\]")
+  expect_match(main$output, "Setup and config:")
+  expect_match(main$output, "Maintenance:")
+  expect_match(main$output, "Pipeline selectors")
+  expect_match(main$output, "`01a`[[:space:]]+one task")
+  expect_match(main$output, "`01`[[:space:]]+whole numbered block for `dina run`")
+  expect_match(main$output, "`--from 03 --to 05`[[:space:]]+range")
+  expect_match(main$output, "`tasks why` needs a unique selector")
+  expect_match(main$output, "Critical defaults")
+  expect_match(main$output, "`dina run` is dry-run unless `--execute`")
+  expect_match(main$output, "does not edit `_config.do`")
+  expect_match(main$output, "dina help workflow")
+  expect_false(grepl("* has detailed help", main$output, fixed = TRUE))
+  expect_false(grepl("**Command map**", main$output, fixed = TRUE))
+  expect_false(grepl("**Pipeline selectors**", main$output, fixed = TRUE))
+  expect_false(grepl("**Critical defaults**", main$output, fixed = TRUE))
+  expect_false(grepl("workflow*", main$output, fixed = TRUE))
+  expect_false(grepl("update*", main$output, fixed = TRUE))
+  expect_false(grepl("sources*", main$output, fixed = TRUE))
+  expect_false(grepl("The CLI is organized around", main$output, fixed = TRUE))
+  expect_false(grepl("Start here:", main$output, fixed = TRUE))
+  expect_false(grepl("Annual update commands:", main$output, fixed = TRUE))
+
+  workflow <- run_dina_cli(c("help", "workflow"))
+  expect_equal(workflow$status, 0L)
+  expect_match(workflow$output, "recommended order")
+  expect_match(workflow$output, "1\\. Check the machine")
+  expect_match(workflow$output, "dina update start \\[YEAR\\]")
+  expect_match(workflow$output, "If YEAR is omitted")
+  expect_match(workflow$output, "dina sources refresh")
+  expect_match(workflow$output, "Task selectors:")
+  expect_match(workflow$output, "`tasks why` needs one unique task selector")
+  expect_match(workflow$output, "dina update finalize")
+
+  run <- run_dina_cli(c("help", "run"))
+  expect_equal(run$status, 0L)
+  expect_match(run$output, "--task 01a,01b[[:space:]]+Same selection")
+  expect_match(run$output, "--from 03 --to 05[[:space:]]+Range")
+
+  tasks <- run_dina_cli(c("help", "tasks"))
+  expect_equal(tasks$status, 0L)
+  expect_match(tasks$output, "`tasks why` needs one unique task")
+  expect_match(tasks$output, "Block selectors such as `07`")
 
   config <- run_dina_cli(c("help", "config"))
   expect_equal(config$status, 0L)
