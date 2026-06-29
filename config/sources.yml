@@ -4,9 +4,13 @@ sources:
     country: CHL
     method: url
     url: https://www.sii.cl/sobre_el_sii/estadisticas/personas_naturales/PUB_Total.xlsb
+    urls:
+      - label: landing page
+        url: https://www.sii.cl/sobre_el_sii/estadisticas/personas_naturales
     canonical:
       - input_data/admin_data/CHL/PUB_Total_*.xlsx
       - input_data/admin_data/CHL/PUB_Total_*.xlsb
+    destination: input_data/admin_data/CHL/{basename}
     staging_name: CHL/PUB_Total_{date}.xlsb
     downloader: code/R/02c_clean_admin_chl.R
     transformer: code/R/02c_clean_admin_chl.R
@@ -21,8 +25,22 @@ sources:
     country: BRA
     method: script
     urls:
-      - label: Receita Federal dados abertos
+      - label: landing page
         url: https://www.gov.br/receitafederal/pt-br/acesso-a-informacao/dados-abertos
+      - label: script template direct file 2007-2013
+        url: https://www.gov.br/receitafederal/pt-br/acesso-a-informacao/dados-abertos/receitadata/estudos-e-tributarios-e-aduaneiros/estudos-e-estatisticas/11-08-2014-grandes-numeros-dirpf/gn-irpf-ac-{year}.xlsx
+      - label: legacy direct file 2014
+        url: https://www.gov.br/receitafederal/pt-br/acesso-a-informacao/dados-abertos/receitadata/estudos-e-tributarios-e-aduaneiros/estudos-e-estatisticas/11-08-2014-grandes-numeros-dirpf/gn_irpf_ac2014.xlsx
+      - label: legacy direct file 2015
+        url: https://www.gov.br/receitafederal/pt-br/acesso-a-informacao/dados-abertos/receitadata/estudos-e-tributarios-e-aduaneiros/estudos-e-estatisticas/11-08-2014-grandes-numeros-dirpf/tabelas-gn-irpf-ac-2015-excel.xlsx
+      - label: legacy direct file 2016
+        url: https://www.gov.br/receitafederal/pt-br/acesso-a-informacao/dados-abertos/receitadata/estudos-e-tributarios-e-aduaneiros/estudos-e-estatisticas/11-08-2014-grandes-numeros-dirpf/estudo-gn-irpf-ac-2016-excel.xlsx
+      - label: legacy direct file 2017
+        url: https://www.gov.br/receitafederal/pt-br/acesso-a-informacao/dados-abertos/receitadata/estudos-e-tributarios-e-aduaneiros/estudos-e-estatisticas/11-08-2014-grandes-numeros-dirpf/relatorio-gn-irpf-ac-2017-excel.xlsx
+      - label: legacy direct file 2018
+        url: https://www.gov.br/receitafederal/pt-br/acesso-a-informacao/dados-abertos/receitadata/estudos-e-tributarios-e-aduaneiros/estudos-e-estatisticas/11-08-2014-grandes-numeros-dirpf/tabelas-gn-irpf-ac-2018-so-tabelas.xlsx
+      - label: legacy direct file 2019
+        url: https://www.gov.br/receitafederal/pt-br/acesso-a-informacao/dados-abertos/receitadata/estudos-e-tributarios-e-aduaneiros/estudos-e-estatisticas/11-08-2014-grandes-numeros-dirpf/tabelas-irpf-ac2019-publicacao.xlsx
     canonical:
       - input_data/admin_data/BRA/gn-irpf-ac*.xlsx
       - input_data/admin_data/BRA/ptot_*.xlsx
@@ -39,7 +57,11 @@ sources:
     family: admin_tax_aux
     country: BRA
     method: script
-    url: https://es.wikipedia.org/wiki/Anexo:Salario_m%C3%ADnimo_en_Brasil
+    urls:
+      - label: scraper page
+        url: https://es.wikipedia.org/wiki/Anexo:Salario_m%C3%ADnimo_en_Brasil
+      - label: reference
+        url: http://www.guiatrabalhista.com.br/guia/salario_minimo.htm
     canonical:
       - input_data/admin_data/BRA/downloads/wiki_minwage.csv
     staging_name: BRA/wiki_minwage_{date}.csv
@@ -50,13 +72,40 @@ sources:
       - years_detected
     notes: Scrapes the minimum wage table used by the Brazil admin cleaner.
 
+  - id: bra-admin-thresholds
+    family: admin_tax_aux
+    country: BRA
+    method: manual
+    urls:
+      - label: INSS historical contribution table
+        url: https://www.gov.br/inss/pt-br/saiba-mais/seus-direitos-e-deveres/calculo-da-guia-da-previdencia-social-gps/tabela-de-contribuicao-mensal/tabela-de-contribuicao-historico
+      - label: INSS current contribution table
+        url: https://www.gov.br/inss/pt-br/direitos-e-deveres/inscricao-e-contribuicao/tabela-de-contribuicao-mensal
+      - label: IRPF monthly calculation reference
+        url: https://www.gov.br/receitafederal/pt-br/assuntos/orientacao-tributaria/tributos/irpf-imposto-de-renda-pessoa-fisica#calculo_mensal_IRPF
+    transformer:
+      - code/Stata/BRA/BRA_impute_socsec_contribs.do
+      - code/Stata/BRA/svy_adj_BRA.do
+    notes: Reference URLs for hard-coded Brazil social-security and IRPF thresholds used by adjustment scripts.
+
+  - id: chl-uta
+    family: admin_tax_aux
+    country: CHL
+    method: script
+    urls:
+      - label: SII UTM/UTA page template 2013+
+        url: https://www.sii.cl/valores_y_fechas/utm/utm{year}.htm
+      - label: SII UTM/UTA page template before 2013
+        url: https://www.sii.cl/pagina/valores/utm/utm{year}.htm
+    transformer: code/R/02c_clean_admin_chl.R
+    notes: The Chile admin cleaner scrapes December UTA values while transforming PIT data; this should eventually become a staged local input.
+
   - id: admin-tax-static
     family: admin_tax
-    country: MULTI
+    country: ARG,DOM,PER,SLV
     method: manual
     canonical:
       - input_data/admin_data/ARG
-      - input_data/admin_data/COL
       - input_data/admin_data/DOM
       - input_data/admin_data/PER
       - input_data/admin_data/SLV
@@ -64,6 +113,43 @@ sources:
       - file_exists
       - years_detected
     notes: Manually curated tax/admin inputs consumed by static and updated admin-data pipeline tasks.
+
+  - id: col-admin-income
+    family: admin_tax
+    country: COL
+    method: manual
+    urls:
+      - label: DIAN Tributos page
+        url: https://www.dian.gov.co/dian/cifras/Paginas/TributosDIAN.aspx
+      - label: DIAN home
+        url: http://www.dian.gov.co/
+    canonical:
+      - input_data/admin_data/COL/1_Cuantiles_Ingreso_Bruto_Naturales_2014-*
+      - input_data/admin_data/COL/Nota-Metodologica-Cuantiles-Personas-Naturales.pdf
+    transformer: code/Stata/tax-data/COL-diverse.do
+    checks:
+      - file_exists
+      - excel_readable
+      - years_detected
+    notes: Colombia DIAN income quantile files. Local methodology PDF points to the DIAN Tributos page.
+
+  - id: col-admin-wealth
+    family: admin_tax
+    country: COL
+    method: manual
+    urls:
+      - label: DIAN Tributos page
+        url: https://www.dian.gov.co/dian/cifras/Paginas/TributosDIAN.aspx
+      - label: DIAN home
+        url: http://www.dian.gov.co/
+    canonical:
+      - input_data/admin_data/COL/2_Cuantiles_Patrimonio_Bruto_Naturales_2014-*
+      - input_data/admin_data/COL/Nota-Metodologica-Cuantiles-Personas-Naturales.pdf
+    checks:
+      - file_exists
+      - excel_readable
+      - years_detected
+    notes: Colombia DIAN wealth quantile files. Cataloged separately because it is a distinct manual update target.
 
   - id: un-sna
     family: macro_sna
@@ -130,6 +216,11 @@ sources:
     family: country_sna
     country: ARG
     method: manual
+    urls:
+      - label: legacy landing page
+        url: https://sitioanterior.indec.gob.ar/nivel3_default.asp?id_tema_1=3&id_tema_2=9
+      - label: landing page
+        url: https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-9
     canonical:
       - input_data/sna_country_data/ARG
     notes: Website is cataloged in country-sna-index; no canonical ARG country SNA folder is present in this checkout.
@@ -138,6 +229,11 @@ sources:
     family: country_sna
     country: BRA
     method: manual
+    urls:
+      - label: landing page single-year downloads
+        url: https://www.ibge.gov.br/estatisticas/economicas/contas-nacionais/9052-sistema-de-contas-nacionais-brasil.html?=&t=downloads
+      - label: landing page multi-year downloads
+        url: https://www.ibge.gov.br/estatisticas/economicas/contas-nacionais/9052-sistema-de-contas-nacionais-brasil.html?=&t=o-que-e
     canonical:
       - input_data/sna_country_data/BRA/*.xls
       - input_data/sna_country_data/BRA/*.xlsx
@@ -153,7 +249,11 @@ sources:
     family: country_sna
     country: CHL
     method: manual
-    url: https://www.bcentral.cl/web/banco-central/areas/estadisticas
+    urls:
+      - label: landing page
+        url: https://www.bcentral.cl/web/banco-central/areas/estadisticas
+      - label: legacy direct file
+        url: https://si3.bcentral.cl/estadisticas/Principal1/Informes/AnuarioCCNN/excel2020/CEI_anuario_2013-2019.xls
     canonical:
       - input_data/sna_country_data/CHL/*.xls
       - input_data/sna_country_data/CHL/*.xlsx
@@ -169,7 +269,11 @@ sources:
     family: country_sna
     country: COL
     method: manual
-    url: https://www.dane.gov.co/index.php/estadisticas-por-tema/cuentas-nacionales
+    urls:
+      - label: landing page
+        url: https://www.dane.gov.co/index.php/estadisticas-por-tema/cuentas-nacionales
+      - label: legacy direct file
+        url: https://www.dane.gov.co/files/investigaciones/boletines/pib/cuentas-nal-anuales/cuentas-economicas-integradas-2019provisional.xls
     canonical:
       - input_data/sna_country_data/COL/*.xls
       - input_data/sna_country_data/COL/*.xlsx
@@ -184,7 +288,13 @@ sources:
     family: country_sna
     country: CRI
     method: manual
-    url: https://www.bccr.fi.cr/seccion-cuentas-nacionales-periodo-2012/cuentas-nacionales-periodo-de-referencia-2012
+    urls:
+      - label: landing page
+        url: https://www.bccr.fi.cr/seccion-cuentas-nacionales-periodo-2012/cuentas-nacionales-periodo-de-referencia-2012
+      - label: legacy direct file template 2012-2016
+        url: https://www.bccr.fi.cr/indicadores-economicos/DocCuentasNacionalesProyecto/documentoscnaestadisticas/Cuentas_Economicas_Integradas_{year}.xlsx
+      - label: legacy direct file 2017
+        url: https://www.bccr.fi.cr/indicadores-economicos/DocCuentasNacionales2017/CEI2017.xlsx
     canonical:
       - input_data/sna_country_data/CRI/*.xls
       - input_data/sna_country_data/CRI/*.xlsx
@@ -199,7 +309,9 @@ sources:
     family: country_sna
     country: DOM
     method: manual
-    url: https://www.bancentral.gov.do/a/d/2533-sector-real
+    urls:
+      - label: landing page
+        url: https://www.bancentral.gov.do/a/d/2533-sector-real
     canonical:
       - input_data/sna_country_data/DOM/*.xls
       - input_data/sna_country_data/DOM/*.xlsx
@@ -213,7 +325,13 @@ sources:
     family: country_sna
     country: ECU
     method: manual
-    url: https://www.bce.fin.ec/informacioneconomica/sector-real
+    urls:
+      - label: landing page
+        url: https://www.bce.fin.ec/informacioneconomica/sector-real
+      - label: legacy direct file
+        url: https://contenido.bce.fin.ec/documentos/PublicacionesNotas/Catalogo/CuentasNacionales/CEI2007-2019p.xlsx
+      - label: legacy direct file
+        url: https://contenido.bce.fin.ec/documentos/PublicacionesNotas/Catalogo/CuentasNacionales/ceinivel2sd.xlsx
     canonical:
       - input_data/sna_country_data/ECU/*.xls
       - input_data/sna_country_data/ECU/*.xlsx
@@ -229,6 +347,9 @@ sources:
     country: MEX
     method: zip
     url: https://www.inegi.org.mx/contenidos/temas/economia/cn/si/tabulados/ori/tabulados_si.zip
+    urls:
+      - label: landing page
+        url: https://www.inegi.org.mx/datos/?t=0190
     canonical:
       - input_data/sna_country_data/MEX/CSI_*.xlsx
       - input_data/sna_country_data/MEX/indice_archivos.txt
@@ -245,7 +366,9 @@ sources:
     family: country_sna
     country: PER
     method: manual
-    url: https://www.inei.gob.pe/estadisticas/indice-tematico/national-accounts/
+    urls:
+      - label: landing page
+        url: https://www.inei.gob.pe/estadisticas/indice-tematico/national-accounts/
     canonical:
       - input_data/sna_country_data/PER/*.xls
       - input_data/sna_country_data/PER/*.xlsx
@@ -259,7 +382,9 @@ sources:
     family: country_sna
     country: URY
     method: manual
-    url: https://www.bcu.gub.uy/Estadisticas-e-Indicadores/Paginas/Cuentas-por-Sectores-Institucionales.aspx
+    urls:
+      - label: landing page
+        url: https://www.bcu.gub.uy/Estadisticas-e-Indicadores/Paginas/Cuentas-por-Sectores-Institucionales.aspx
     canonical:
       - input_data/sna_country_data/URY/*.xls
       - input_data/sna_country_data/URY/*.xlsx
@@ -282,7 +407,9 @@ sources:
     family: wid
     country: MULTI
     method: wid
-    url: https://wid.world/
+    urls:
+      - label: WID data portal
+        url: https://wid.world/
     canonical:
       - intermediary_data/national_accounts/UNDATA-WID-Merged.dta
       - intermediary_data/national_accounts/UNDATA-WID-OECD-Merged.dta
@@ -296,7 +423,9 @@ sources:
     family: wid
     country: MULTI
     method: wid
-    url: https://wid.world/
+    urls:
+      - label: WID data portal
+        url: https://wid.world/
     canonical:
       - input_data/sna-WID/gov_expenditure_*.dta
     transformer: code/Stata/01g-add-public-spending-data.do
@@ -309,7 +438,9 @@ sources:
     family: wid
     country: MULTI
     method: wid
-    url: https://wid.world/
+    urls:
+      - label: WID data portal
+        url: https://wid.world/
     canonical:
       - output/latest_wid_series
     transformer: code/Stata/07d-export-results-to-wid.do
@@ -321,7 +452,9 @@ sources:
     family: wid
     country: ARG
     method: wid
-    url: https://wid.world/
+    urls:
+      - label: WID data portal
+        url: https://wid.world/
     transformer: code/Stata/01f-adjust-country-survey-data.do
     notes: 01f has a targeted WID population call for Argentina survey adjustment.
 
@@ -329,7 +462,9 @@ sources:
     family: prices
     country: MULTI
     method: wid
-    url: https://wid.world/
+    urls:
+      - label: WID data portal
+        url: https://wid.world/
     canonical:
       - input_data/prices_WID/infl_xrates_wid_wb.xlsx
     transformer:
@@ -346,7 +481,9 @@ sources:
     family: prices
     country: MULTI
     method: manual
-    url: https://api.worldbank.org/v2/en/indicator/PA.NUS.FCRF?downloadformat=excel
+    urls:
+      - label: direct manual download
+        url: https://api.worldbank.org/v2/en/indicator/PA.NUS.FCRF?downloadformat=excel
     canonical:
       - input_data/xrates_WB/wb-xrates.xls
     transformer: code/Stata/05b-rescale-and-impute.do
@@ -360,7 +497,9 @@ sources:
     family: prices
     country: MULTI
     method: manual
-    url: https://api.worldbank.org/v2/en/indicator/FP.CPI.TOTL.ZG?downloadformat=csv
+    urls:
+      - label: direct manual download
+        url: https://api.worldbank.org/v2/en/indicator/FP.CPI.TOTL.ZG?downloadformat=csv
     canonical:
       - input_data/prices_WB/inflation_latam.dta
       - input_data/prices_WB/old/inflation_latam.dta
@@ -387,6 +526,9 @@ sources:
     family: population
     country: MULTI
     method: manual
+    urls:
+      - label: UN WPP download page
+        url: https://population.un.org/wpp/Download/Standard/Population/
     canonical:
       - input_data/population/PopulationLatAm.dta
     checks:
@@ -397,6 +539,9 @@ sources:
     family: balance_sheet
     country: MULTI
     method: manual
+    urls:
+      - label: IMF data portal
+        url: http://data.imf.org/
     canonical:
       - input_data/balance_sheet/IMF/Balance_Sheet_Stock_GG.xlsx
     transformer: code/Stata/01a-clean-macro-data.do
@@ -479,6 +624,7 @@ sources:
     checks:
       - file_exists
       - years_detected
+    notes: Manual survey inputs downloaded from a private/server location. Credentials and machine-specific paths are not stored in the source registry.
 
   - id: previous-series
     family: validation

@@ -235,7 +235,7 @@ test_that("main and config help explain detailed topics and subtleties", {
   expect_match(main$output, "`help workflow`[[:space:]]+\\[read-only\\]")
   expect_match(main$output, "`update start \\[YEAR\\]`[[:space:]]+\\[writes session\\]")
   expect_match(main$output, "Source data:")
-  expect_match(main$output, "`sources refresh \\[--dry-run\\]`[[:space:]]+\\[writes session\\]")
+  expect_match(main$output, "`sources refresh \\[--dry-run\\]`[[:space:]]+\\[read-only/writes session\\]")
   expect_match(main$output, "Pipeline:")
   expect_match(main$output, "`run \\.\\.\\. --execute`[[:space:]]+\\[writes files\\]")
   expect_match(main$output, "Setup and config:")
@@ -477,6 +477,118 @@ test_that("tasks list shows task language", {
   expect_equal(listed$status, 0L)
   expect_match(listed$output, "language")
   expect_match(listed$output, "task1[[:space:]]+task1[[:space:]]+one[[:space:]]+Stata")
+})
+
+test_that("source refresh dry-run is non-mutating and grouped by method", {
+  root <- mini_repo()
+  remote_dir <- file.path(root, "remote")
+  dir.create(remote_dir, recursive = TRUE)
+  remote_file <- file.path(remote_dir, "source.txt")
+  writeLines("remote source", remote_file)
+  dina_write_yaml(list(sources = list(
+    list(id = "url-source", family = "fixture", country = "AAA", method = "url", url = paste0("file://", normalizePath(remote_file, mustWork = TRUE)), canonical = c("input_data/url-source.txt"), staging_name = "URL/source.txt", destination = "input_data/url-source.txt"),
+    list(id = "manual-source", family = "fixture", country = "AAA", method = "manual", urls = list(list(label = "manual page", url = "https://example.test/manual"), list(label = "manual docs", url = "https://example.test/docs")), canonical = c("input_data/manual-source.txt"), staging_name = "MANUAL/manual-source.txt"),
+    list(id = "script-source", family = "fixture", country = "AAA", method = "script", urls = list(list(label = "script page", url = "https://example.test/script")), canonical = c("input_data/script-source.txt"), staging_name = "SCRIPT/script-source.txt"),
+    list(id = "wid-source", family = "fixture", country = "AAA", method = "wid", urls = list(list(label = "wid page", url = "https://example.test/wid")), canonical = c("input_data/wid-source.txt"), staging_name = "WID/wid-source.txt")
+  )), file.path(root, "config", "sources.yml"))
+  session <- dina_update_start("2026", root = root)
+  staging_root <- dina_source_staging_root(session, root)
+
+  dry <- run_dina_cli(c("sources", "refresh", "--dry-run"), root = root)
+  expect_equal(dry$status, 0L)
+  expect_match(dry$output, "Active update: 2026-update")
+  expect_match(dry$output, "Staging root: output/updates/")
+  expect_match(dry$output, "Targets in the table are relative to the staging root")
+  expect_match(dry$output, "Fetchable now")
+  expect_match(dry$output, "url-source[[:space:]]+will_fetch")
+  expect_match(dry$output, "Manual download/stage")
+  expect_match(dry$output, "manual-source[[:space:]]+manual_needed")
+  expect_match(dry$output, "Script acquisition")
+  expect_match(dry$output, "script-source[[:space:]]+script_needed")
+  expect_match(dry$output, "Pipeline online dependency")
+  expect_match(dry$output, "wid-source[[:space:]]+wid_pipeline")
+  expect_match(dry$output, "URL appendix")
+  expect_match(dry$output, "https://example.test/manual")
+  expect_match(dry$output, "https://example.test/script")
+  expect_match(dry$output, "https://example.test/wid")
+  expect_match(dry$output, "1 more URL")
+  expect_match(dry$output, "Dry-run only: no folders")
+  staging_mentions <- gregexpr("output/updates/", dry$output, fixed = TRUE)[[1]]
+  expect_equal(sum(staging_mentions > 0), 1L)
+  expect_equal(list.files(staging_root, recursive = TRUE, all.files = TRUE, no.. = TRUE), character())
+  expect_equal(length(dina_load_session(root = root)$source_refreshes), 0L)
+
+  expanded <- run_dina_cli(c("sources", "refresh", "--dry-run", "--urls", "--source", "manual-source"), root = root)
+  expect_equal(expanded$status, 0L)
+  expect_match(expanded$output, "https://example.test/manual")
+  expect_match(expanded$output, "https://example.test/docs")
+})
+
+test_that("source refresh fetches only URL ZIP sources and records real attempts", {
+  root <- mini_repo()
+  remote_dir <- file.path(root, "remote")
+  dir.create(remote_dir, recursive = TRUE)
+  remote_file <- file.path(remote_dir, "source.txt")
+  writeLines("remote source", remote_file)
+  dina_write_yaml(list(sources = list(
+    list(id = "url-source", family = "fixture", country = "AAA", method = "url", url = paste0("file://", normalizePath(remote_file, mustWork = TRUE)), canonical = c("input_data/url-source.txt"), staging_name = "URL/source.txt", destination = "input_data/url-source.txt"),
+    list(id = "manual-source", family = "fixture", country = "AAA", method = "manual", canonical = c("input_data/manual-source.txt"), staging_name = "MANUAL/manual-source.txt")
+  )), file.path(root, "config", "sources.yml"))
+  session <- dina_update_start("2026", root = root)
+
+  refreshed <- run_dina_cli(c("sources", "refresh"), root = root)
+  expect_equal(refreshed$status, 0L)
+  expect_match(refreshed$output, "url-source[[:space:]]+staged")
+  expect_match(refreshed$output, "manual-source[[:space:]]+manual_needed")
+  expect_match(refreshed$output, "Next: run `dina sources review`")
+  expect_true(file.exists(file.path(dina_source_staging_root(session, root), "URL", "source.txt")))
+  expect_false(dir.exists(file.path(dina_source_staging_root(session, root), "MANUAL")))
+  loaded <- dina_load_session(root = root)
+  expect_equal(length(loaded$source_refreshes), 1L)
+  first_refresh <- loaded$source_refreshes[[1]]
+  expect_true("url-source" %in% names(first_refresh))
+  expect_false("manual-source" %in% names(first_refresh))
+})
+
+test_that("manual source staging review and bulk integration are explicit", {
+  root <- mini_repo()
+  dina_write_yaml(list(sources = list(
+    list(id = "manual-ready", family = "fixture", country = "AAA", method = "manual", canonical = c("input_data/manual-ready.csv"), staging_name = "manual/{basename}", destination = "input_data/{basename}"),
+    list(id = "manual-ambiguous", family = "fixture", country = "AAA", method = "manual", canonical = c("input_data/manual-ambiguous.csv"), staging_name = "ambiguous/{basename}")
+  )), file.path(root, "config", "sources.yml"))
+  dina_update_start("2026", root = root)
+  dir.create(file.path(root, "downloads"), recursive = TRUE)
+  ready_file <- file.path(root, "downloads", "manual-ready.csv")
+  ambiguous_file <- file.path(root, "downloads", "manual-ambiguous.csv")
+  writeLines("ready", ready_file)
+  writeLines("ambiguous", ambiguous_file)
+
+  staged <- run_dina_cli(c("sources", "stage", "--source", "manual-ready", "--file", ready_file), root = root)
+  expect_equal(staged$status, 0L)
+  expect_match(staged$output, "Staged manual-ready")
+  staged_ambiguous <- run_dina_cli(c("sources", "stage", "--source", "manual-ambiguous", "--file", ambiguous_file), root = root)
+  expect_equal(staged_ambiguous$status, 0L)
+
+  reviewed <- run_dina_cli(c("sources", "review"), root = root)
+  expect_equal(reviewed$status, 0L)
+  expect_match(reviewed$output, "Ready for bulk integration")
+  expect_match(reviewed$output, "manual-ready")
+  expect_match(reviewed$output, "missing_destination")
+  expect_match(reviewed$output, "manual-ambiguous")
+  expect_false(grepl("unknown_source", reviewed$output, fixed = TRUE))
+
+  preview <- run_dina_cli(c("sources", "integrate", "--all"), root = root)
+  expect_equal(preview$status, 0L)
+  expect_match(preview$output, "Would integrate")
+  expect_match(preview$output, "Skipped")
+  expect_false(file.exists(file.path(root, "input_data", "manual-ready.csv")))
+
+  integrated <- run_dina_cli(c("sources", "integrate", "--all", "--yes"), root = root)
+  expect_equal(integrated$status, 0L)
+  expect_match(integrated$output, "Integrated")
+  expect_match(integrated$output, "Skipped")
+  expect_true(file.exists(file.path(root, "input_data", "manual-ready.csv")))
+  expect_false(file.exists(file.path(root, "input_data", "manual-ambiguous.csv")))
 })
 
 test_that("update lifecycle commands list, dry-run delete, delete, and restart safely", {

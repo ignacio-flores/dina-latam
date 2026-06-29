@@ -89,7 +89,8 @@ Annual update:
 Source data:
   `sources status|scan|diff|review`   [read-only] inspect source coverage
   `sources list|show ID`              [read-only] inspect source registry
-  `sources refresh [--dry-run]`       [writes session] stage downloads
+  `sources refresh [--dry-run]`       [read-only/writes session] plan/fetch
+  `sources stage --source ID --file`  [writes session] stage manual files
   `sources complete --status STATUS`  [writes session] record source decision
   `sources integrate`                 [writes files] copy approved inputs
 
@@ -122,8 +123,10 @@ Critical defaults
   `dina run` is dry-run unless `--execute` is present.
   `update start` records a source baseline with hashes by default.
   `sources status` uses hashes only when timestamps or sizes changed.
-  `sources refresh` stages downloads; `sources integrate` copies into
-  `input_data/`.
+  Source URLs are cataloged even for manual downloads. URL presence does not
+  mean automatic download: `sources refresh` fetches only `url`/`zip` methods.
+  `sources refresh --dry-run` writes nothing. `sources integrate` copies
+  approved files into `input_data/`.
   `config render` writes a generated Stata config; it does not edit `_config.do`.
   `config set` and `config edit` modify `config/dina.yml`.
 
@@ -170,15 +173,32 @@ What this page is:
       Inspect configured source coverage. With an active update, records the
       latest scan in the session.
 
-  dina sources refresh [--source ID] [--dry-run]
-      Stage configured online downloads inside the active update session.
-      It does not directly overwrite `input_data/`.
+  dina sources refresh [--source ID] [--dry-run] [--urls]
+      Show file state, URL availability, staging targets, and next actions.
+      It fetches only URL/ZIP sources. With --dry-run, it writes nothing.
+      URLs listed for manual/script/WID sources are update targets, not
+      automatic downloads.
+
+  dina sources list method manual --urls
+  dina sources show ID --urls
+      Inspect manual source URLs before downloading or staging files.
+
+  dina sources stage --source ID --file PATH
+  dina sources stage --source ID --dir PATH
+      Copy a hand-downloaded file or folder into the active update staging area
+      and record its source id, hash, original path, and staged path.
+
+  dina sources review
+      Show staged files, source ids, destination readiness, hashes, and the
+      recommended integration action.
+
+  dina sources integrate --all [--yes]
+  dina sources integrate --source ID [--yes]
+      Bulk-integrate staged files only when the source has an explicit
+      destination configured. Without --yes, this previews the copy.
 
   dina sources diff [--deep] [--hash]
       Compare current source coverage with the active session baseline.
-
-  dina sources review
-      List staged downloads waiting for review.
 
   dina sources integrate --staged RELPATH --to input_data/... [--yes]
       Copy an approved staged source into its canonical `input_data/` location
@@ -331,7 +351,9 @@ Examples:
   dina update finalize
 ",
     sources = "Usage:
-  dina sources refresh [--source ID] [--dry-run]
+  dina sources refresh [--source ID] [--dry-run] [--urls]
+  dina sources stage --source ID --file PATH [--yes]
+  dina sources stage --source ID --dir PATH [--yes]
   dina sources list [--family FAMILY] [--country ISO] [--method METHOD] [--urls]
   dina sources list country ISO [--urls]
   dina sources list family FAMILY [--urls]
@@ -343,6 +365,8 @@ Examples:
   dina sources scan [--deep] [--hash]
   dina sources review
   dina sources diff [--deep] [--hash]
+  dina sources integrate --all [--yes]
+  dina sources integrate --source ID [--yes]
   dina sources integrate --staged RELPATH --to input_data/... [--source ID] [--yes]
 
 What it manages:
@@ -362,20 +386,29 @@ What it manages:
                                   hashes only when size/timestamp changed.
   complete                        Records that source review is complete before
                                   pipeline tasks are recommended.
-  refresh                         Downloads configured online sources into the
-                                  active session staging area. It never directly
-                                  overwrites `input_data/`.
+  refresh                         Shows file state, URL availability, staging
+                                  targets, and next actions. It fetches only
+                                  URL/ZIP methods. --dry-run writes nothing.
+  stage                           Copies a hand-downloaded file/folder into
+                                  staging and records source metadata.
   scan                            Reads the source registry and detects local
                                   coverage from filenames and, with --deep,
                                   workbook metadata.
-  review                          Lists staged files waiting for human review.
+  review                          Lists staged files, hashes, destination
+                                  readiness, and recommended actions.
   diff                            Compares current scan results with the active
                                   session baseline and classifies changes.
-  integrate                       Copies an approved staged file into its final
-                                  destination and records the decision.
+  integrate                       Copies approved staged files into final
+                                  destinations and records decisions.
 
   Options:
   --source ID                     Limit refresh to one source registry id.
+                                  For integrate, bulk-integrate one source when
+                                  it has an explicit destination.
+  --all                           For integrate, preview/integrate all ready
+                                  staged files with explicit destinations.
+  --file PATH                     For stage, copy one manual file into staging.
+  --dir PATH                      For stage, copy one manual folder into staging.
   --family FAMILY                 For list, keep one source family.
   --method METHOD                 For list, keep one acquisition method.
   --country ISO                   For list, keep one ISO country plus broad
@@ -383,7 +416,9 @@ What it manages:
   country ISO                     Friendly form of --country ISO for list.
   family FAMILY                   Friendly form of --family FAMILY for list.
   method METHOD                   Friendly form of --method METHOD for list.
-  --urls                          Print source URLs in list/show output.
+  --urls                          Print/expand source URLs in list/show/refresh
+                                  output. Manual URLs are catalog targets, not
+                                  automatic downloads.
   --deep                          Inspect workbook sheets when possible.
   --hash                          Compute file hashes during scan/diff.
   --metadata-only                 For status, compare only paths, size, and
@@ -392,12 +427,19 @@ What it manages:
   --status STATUS                 For complete: no-new-data, updated, manual,
                                   or deferred.
   --note TEXT                     Required when --status deferred.
-  --dry-run                       For refresh, show planned downloads only.
-  --yes                           For integrate, allow overwriting destination.
+  --dry-run                       For refresh, show planned downloads only and
+                                  write nothing.
+  --yes                           For stage/integrate, allow overwriting the
+                                  staged/final destination.
 
 Gotcha:
   Source coverage is independent of update year. A 2026 update may discover
   newly available 2024 data or historical backfills.
+  URL presence does not mean automatic download. `manual`, `script`, and `wid`
+  sources can have URLs that you inspect, download from, or use for verification.
+  Directly replacing files under `input_data/` is allowed as an escape hatch,
+  but it bypasses staging records. Use `dina sources status --hash-all` and a
+  clear `dina sources complete --status manual --note ...` if you do that.
 
 Methods:
   url                             Direct URL fetchable by `sources refresh`.
@@ -414,10 +456,17 @@ Examples:
   dina sources list method manual
   dina sources methods
   dina sources show country-sna-index --urls
+  dina sources show col-admin-income --urls
+  dina sources show surveys-cepal --urls
   dina sources status
   dina sources complete --status no-new-data
-  dina sources refresh --dry-run
+  dina sources refresh --dry-run --urls
   dina sources refresh --source chl-pit-total
+  dina sources list method manual --urls
+  dina sources stage --source wb-xrates --file ~/Downloads/API_PA.NUS.FCRF.xls
+  dina sources review
+  dina sources integrate --source chl-pit-total
+  dina sources integrate --all --yes
   dina sources scan --deep
   dina sources integrate --staged CHL/file.xlsx --to input_data/admin_data/CHL/file.xlsx --yes
 ",
@@ -1162,6 +1211,213 @@ dina_print_source_show <- function(root, id, include_urls = FALSE) {
   invisible(source)
 }
 
+dina_refresh_shorten <- function(x, width = 28L) {
+  x <- x %||% ""
+  if (!nzchar(x) || nchar(x) <= width) {
+    return(x)
+  }
+  paste0(substr(x, 1L, width - 3L), "...")
+}
+
+dina_refresh_path_label <- function(x) {
+  values <- dina_source_values(x)
+  if (!length(values)) {
+    return("")
+  }
+  out <- basename(values[[1]])
+  if (length(values) > 1L) {
+    out <- sprintf("%s +%s", out, length(values) - 1L)
+  }
+  out
+}
+
+dina_refresh_canonical_label <- function(result) {
+  latest <- result$canonical_latest %||% "none"
+  sprintf("%s/%s latest:%s", result$canonical_found %||% 0L, result$canonical_patterns %||% 0L, latest)
+}
+
+dina_refresh_url_label <- function(result) {
+  count <- result$url_count %||% length(result$urls %||% character())
+  if (!count) {
+    return("none")
+  }
+  if (count == 1L) {
+    return("1 url [1]")
+  }
+  sprintf("%s urls [1-%s]", count, count)
+}
+
+dina_refresh_action <- function(result) {
+  switch(
+    result$status %||% "",
+    will_fetch = "run refresh",
+    already_staged = "review staged",
+    staged = "review staged",
+    failed = "check error",
+    manual_needed = sprintf("stage: dina sources stage --source %s", result$id),
+    script_needed = sprintf("run/review script, then stage --source %s", result$id),
+    wid_pipeline = "visible online dependency",
+    skipped = "review registry",
+    "review"
+  )
+}
+
+dina_print_refresh_group <- function(title, results, statuses, detail_label, detail_fn) {
+  group <- results[vapply(results, function(result) result$status %in% statuses, logical(1))]
+  if (!length(group)) {
+    return(invisible(NULL))
+  }
+  dina_cli_cat("")
+  dina_cli_cat(sprintf("%s:", title))
+  dina_cli_cat(sprintf(
+    "%-34s %-15s %-24s %-20s %-13s %s",
+    "source", "status", detail_label, "canonical", "urls", "next"
+  ))
+  for (result in group) {
+    detail <- detail_fn(result)
+    dina_cli_cat(sprintf(
+      "%-34s %-15s %-24s %-20s %-13s %s",
+      dina_refresh_shorten(result$id, 34L),
+      result$status %||% "",
+      dina_refresh_shorten(detail, 24L),
+      dina_refresh_shorten(dina_refresh_canonical_label(result), 20L),
+      dina_refresh_url_label(result),
+      dina_refresh_shorten(dina_refresh_action(result), 46L)
+    ))
+    if (!is.null(result$error)) {
+      dina_cli_warn(sprintf("%s: %s", result$id, result$error))
+    }
+  }
+}
+
+dina_print_source_refresh_url_appendix <- function(results, include_urls = FALSE) {
+  with_urls <- results[vapply(results, function(result) length(result$urls %||% character()) > 0L, logical(1))]
+  if (!length(with_urls)) {
+    return(invisible(NULL))
+  }
+  dina_cli_cat("")
+  dina_cli_cat("URL appendix:")
+  index <- 1L
+  for (result in with_urls) {
+    urls <- result$urls %||% character()
+    shown <- if (isTRUE(include_urls)) urls else urls[[1]]
+    for (url in shown) {
+      dina_cli_cat(sprintf("  [%s] %s: %s", index, result$id, url))
+      index <- index + 1L
+    }
+    if (!isTRUE(include_urls) && length(urls) > 1L) {
+      dina_cli_cat(sprintf("      %s more URL(s): dina sources show %s --urls", length(urls) - 1L, result$id))
+    }
+  }
+}
+
+dina_print_source_refresh_results <- function(results, session = NULL, root = dina_repo_root(), dry_run = FALSE, include_urls = FALSE) {
+  if (!is.null(session)) {
+    dina_cli_alert(sprintf("Active update: %s", session$id %||% ""))
+    dina_cli_alert(sprintf("Mode: %s", if (isTRUE(dry_run)) "dry-run (no folders, downloads, or records)" else "refresh"))
+    dina_cli_alert(sprintf("Staging root: %s", dina_relative(dina_source_staging_root(session, root), root)))
+    dina_cli_alert("Targets in the table are relative to the staging root.")
+  }
+  dina_print_refresh_group(
+    "Fetchable now",
+    results,
+    c("will_fetch", "staged", "already_staged", "failed"),
+    "target",
+    function(result) result$target_rel %||% ""
+  )
+  dina_print_refresh_group(
+    "Manual download/stage",
+    results,
+    "manual_needed",
+    "target",
+    function(result) result$target_rel %||% ""
+  )
+  dina_print_refresh_group(
+    "Script acquisition",
+    results,
+    "script_needed",
+    "downloader",
+    function(result) dina_refresh_path_label(result$downloader)
+  )
+  dina_print_refresh_group(
+    "Pipeline online dependency",
+    results,
+    "wid_pipeline",
+    "transformer",
+    function(result) dina_refresh_path_label(result$transformer)
+  )
+  dina_print_refresh_group(
+    "Skipped",
+    results,
+    "skipped",
+    "target",
+    function(result) result$target_rel %||% ""
+  )
+  dina_print_source_refresh_url_appendix(results, include_urls = include_urls)
+  if (isTRUE(dry_run)) {
+    dina_cli_ok("Dry-run only: no folders, downloads, or session records were written.")
+    dina_cli_alert("Run `dina sources refresh` to fetch URL/ZIP sources, or `dina sources stage --source ID --file PATH` for manual files.")
+  } else {
+    dina_cli_ok("Next: run `dina sources review`, then `dina sources integrate`.")
+  }
+}
+
+dina_print_source_review_rows <- function(rows) {
+  dina_cli_header("Staged Sources")
+  if (!nrow(rows)) {
+    dina_cli_warn("No staged downloads or manual source files found.")
+    return(invisible(rows))
+  }
+  ready <- rows[rows$destination_status == "ready", , drop = FALSE]
+  needs <- rows[rows$destination_status != "ready", , drop = FALSE]
+  print_rows <- function(title, data) {
+    if (!nrow(data)) {
+      return(invisible(NULL))
+    }
+    dina_cli_cat("")
+    dina_cli_cat(sprintf("%s:", title))
+    dina_cli_cat(sprintf("%-28s %-8s %-38s %-20s %s", "source", "method", "staged", "destination_status", "action"))
+    for (i in seq_len(nrow(data))) {
+      dina_cli_cat(sprintf(
+        "%-28s %-8s %-38s %-20s %s",
+        data$source_id[[i]],
+        data$method[[i]],
+        data$staged_rel[[i]],
+        data$destination_status[[i]],
+        data$action[[i]]
+      ))
+      if (!is.na(data$destination[[i]]) && nzchar(data$destination[[i]])) {
+        dina_cli_cat(sprintf("  destination: %s", data$destination[[i]]))
+      }
+      if (!is.na(data$sha256[[i]]) && nzchar(data$sha256[[i]])) {
+        dina_cli_cat(sprintf("  sha256: %s", data$sha256[[i]]))
+      }
+    }
+  }
+  print_rows("Ready for bulk integration", ready)
+  print_rows("Needs manual integration target", needs)
+  invisible(rows)
+}
+
+dina_print_bulk_integration_results <- function(results, executed = FALSE) {
+  if (!length(results)) {
+    dina_cli_warn("No staged sources matched.")
+    return(invisible(results))
+  }
+  for (result in results) {
+    if (identical(result$status, "integrated")) {
+      dina_cli_ok(sprintf("Integrated %s -> %s", result$staged, result$destination))
+    } else if (identical(result$status, "would_integrate")) {
+      dina_cli_alert(sprintf("Would integrate %s -> %s", result$staged, result$destination))
+    } else {
+      dina_cli_warn(sprintf("Skipped %s: %s. Action: %s", result$staged %||% result$source_id, result$reason %||% result$status, result$action %||% "review"))
+    }
+  }
+  if (!isTRUE(executed)) {
+    dina_cli_alert("Preview only. Pass --yes to integrate ready staged files.")
+  }
+}
+
 dina_cmd_sources <- function(root, args) {
   args <- dina_drop_leading_separator(args)
   sub <- dina_arg(args, 1L, "scan")
@@ -1175,6 +1431,18 @@ dina_cmd_sources <- function(root, args) {
     dina_print_source_show(root, id, include_urls = isTRUE(flags$urls))
   } else if (identical(sub, "methods")) {
     dina_print_source_methods()
+  } else if (identical(sub, "stage")) {
+    session <- dina_load_session(root = root)
+    if (is.null(session)) stop("No active update.", call. = FALSE)
+    flags <- dina_parse_flags(args[-1])
+    source_id <- flags$source %||% NULL
+    input <- flags$file %||% flags$dir %||% NULL
+    if (is.null(source_id) || is.null(input)) {
+      stop("Usage: dina sources stage --source ID --file PATH [--yes]\n       dina sources stage --source ID --dir PATH [--yes]", call. = FALSE)
+    }
+    record <- dina_sources_stage_path(session, source_id = source_id, input_path = input, root = root, overwrite = isTRUE(flags$yes))
+    dina_cli_ok(sprintf("Staged %s -> %s", record$source_id, record$staged))
+    dina_cli_alert(sprintf("sha256: %s", record$sha256))
   } else if (identical(sub, "status")) {
     session <- dina_load_session(root = root)
     if (is.null(session)) stop("No active update.", call. = FALSE)
@@ -1235,9 +1503,8 @@ dina_cmd_sources <- function(root, args) {
   } else if (identical(sub, "review")) {
     session <- dina_load_session(root = root)
     if (is.null(session)) stop("No active update.", call. = FALSE)
-    staged <- list.files(file.path(dina_update_dir(session$id, root), "source_staging"), recursive = TRUE)
-    dina_cli_header("Staged Sources")
-    if (!length(staged)) dina_cli_warn("No staged downloads found.") else dina_cli_cat(paste(staged, collapse = "\n"))
+    rows <- dina_sources_review_rows(session, root)
+    dina_print_source_review_rows(rows)
   } else if (identical(sub, "refresh")) {
     session <- dina_load_session(root = root)
     if (is.null(session)) stop("No active update.", call. = FALSE)
@@ -1245,25 +1512,32 @@ dina_cmd_sources <- function(root, args) {
     flags <- dina_parse_flags(args[-1])
     source_ids <- if (!is.null(flags$source)) strsplit(flags$source, ",", fixed = TRUE)[[1]] else NULL
     results <- dina_sources_refresh(session, root, source_ids = source_ids, dry_run = isTRUE(flags[["dry-run"]]))
-    for (result in results) {
-      msg <- sprintf("%s: %s", result$id, result$status)
-      if (!is.null(result$target)) msg <- paste(msg, "->", result$target)
-      if (identical(result$status, "failed")) {
-        dina_cli_err(paste(msg, result$error))
-      } else if (identical(result$status, "staged")) {
-        dina_cli_ok(msg)
-      } else {
-        dina_cli_alert(msg)
-      }
-    }
+    dina_print_source_refresh_results(
+      results,
+      session = session,
+      root = root,
+      dry_run = isTRUE(flags[["dry-run"]]),
+      include_urls = isTRUE(flags$urls)
+    )
   } else if (identical(sub, "integrate")) {
     session <- dina_load_session(root = root)
     if (is.null(session)) stop("No active update.", call. = FALSE)
     flags <- dina_parse_flags(args[-1])
     staged <- flags$staged %||% flags$file %||% NULL
     dest <- flags$to %||% NULL
+    if (is.null(staged) && is.null(dest) && (isTRUE(flags$all) || !is.null(flags$source))) {
+      results <- dina_sources_integrate_bulk(
+        session,
+        root = root,
+        source_id = flags$source %||% NULL,
+        all = isTRUE(flags$all),
+        overwrite = isTRUE(flags$yes)
+      )
+      dina_print_bulk_integration_results(results, executed = isTRUE(flags$yes))
+      return(invisible(results))
+    }
     if (is.null(staged) || is.null(dest)) {
-      dina_cli_warn("Usage: dina sources integrate --staged RELPATH --to input_data/... [--source ID] [--yes]")
+      dina_cli_warn("Usage: dina sources integrate --staged RELPATH --to input_data/... [--source ID] [--yes]\n       dina sources integrate --source ID [--yes]\n       dina sources integrate --all [--yes]")
       return(invisible(NULL))
     }
     decision <- dina_sources_integrate_file(

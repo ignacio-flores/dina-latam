@@ -92,6 +92,10 @@ test_that("project source registry is a complete readable catalog", {
 
   expect_true(all(c(
     "country-sna-index",
+    "col-admin-income",
+    "col-admin-wealth",
+    "chl-uta",
+    "bra-admin-thresholds",
     "wid-prices-xrates",
     "wb-xrates",
     "wb-inflation"
@@ -99,6 +103,21 @@ test_that("project source registry is a complete readable catalog", {
   methods <- unique(vapply(registry, function(source) source$method, character(1)))
   expect_true(all(methods %in% c("url", "zip", "script", "manual", "wid")))
   expect_false(any(methods %in% c("legacy_script", "static_url", "zip_archive", "manual_index", "stata_wid")))
+
+  top_level_url_methods <- vapply(registry, function(source) {
+    if (length(dina_source_values(dina_source_field(source, "url"))) > 0) source$method else NA_character_
+  }, character(1))
+  expect_true(all(na.omit(top_level_url_methods) %in% c("url", "zip")))
+
+  registry_by_id <- stats::setNames(registry, ids)
+  expect_match(paste(dina_source_urls(registry_by_id[["col-admin-income"]]), collapse = "\n"), "TributosDIAN")
+  expect_match(paste(dina_source_urls(registry_by_id[["col-admin-wealth"]]), collapse = "\n"), "TributosDIAN")
+  expect_match(paste(dina_source_urls(registry_by_id[["chl-uta"]]), collapse = "\n"), "utm\\{year\\}\\.htm")
+  expect_match(paste(dina_source_urls(registry_by_id[["bra-admin-tax"]]), collapse = "\n"), "gn-irpf-ac-\\{year\\}\\.xlsx")
+  expect_match(paste(dina_source_urls(registry_by_id[["bra-minwage"]]), collapse = "\n"), "salario_minimo")
+  expect_match(paste(dina_source_urls(registry_by_id[["country-sna-col"]]), collapse = "\n"), "cuentas-economicas-integradas-2019provisional")
+  expect_match(paste(dina_source_urls(registry_by_id[["country-sna-ecu"]]), collapse = "\n"), "CEI2007-2019p")
+  expect_match(paste(dina_source_values(dina_source_field(registry_by_id[["surveys-cepal"]], "notes")), collapse = "\n"), "private/server")
 
   moved_downloaders <- c(
     "code/R/manual-downloaders/download-raw-un-sna.R",
