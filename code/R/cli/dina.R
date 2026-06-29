@@ -650,11 +650,8 @@ dina_parse_flags <- function(args) {
   out
 }
 
-dina_confirm_continue <- function() {
-  if (!isatty(stdin())) {
-    return(FALSE)
-  }
-  dina_confirm_response(readline("Continue? [y/N] "))
+dina_cli_progress <- function(text) {
+  dina_cli_cat(sprintf("  %s", text))
 }
 
 dina_dashboard_actions <- function() {
@@ -837,8 +834,7 @@ dina_cmd_install <- function(root, args) {
     return(invisible(missing))
   }
   if (!yes) {
-    answer <- readline("Install missing packages now? [y/N] ")
-    if (!tolower(answer) %in% c("y", "yes")) {
+    if (!dina_confirm_continue("Install missing packages now? [y/N] ")) {
       dina_cli_warn("Installation skipped.")
       return(invisible(missing))
     }
@@ -859,22 +855,48 @@ dina_cmd_update <- function(root, args) {
     year <- dina_arg(flags$positional, 1L, format(Sys.Date(), "%Y"))
     plan <- dina_update_start_plan(year, root)
     if (isTRUE(plan$requires_confirmation) && !isTRUE(flags$yes)) {
-      dina_cli_warn(sprintf("Unfinished same-day update already exists: %s.", plan$default_id))
-      dina_cli_alert(sprintf("Would create a separate session: %s.", plan$id))
+      if (isTRUE(plan$incomplete)) {
+        dina_cli_warn(sprintf("Same-day update directory exists but manifest is missing: %s.", plan$default_id))
+        dina_cli_alert(sprintf("Use `dina update restart %s` to rebuild the same update id.", plan$default_id))
+      } else {
+        dina_cli_warn(sprintf("Unfinished same-day update already exists: %s.", plan$default_id))
+      }
+      dina_cli_alert(sprintf("Starting now would create a separate session: %s.", plan$id))
       if (!dina_confirm_continue()) {
         dina_cli_alert("No changes made. Pass --yes for non-interactive creation of the suffixed session.")
         quit(status = if (isatty(stdin())) 0 else 1)
       }
     } else if (isTRUE(plan$finalized)) {
       dina_cli_warn(sprintf("Finalized same-day update already exists: %s. Creating %s.", plan$default_id, plan$id))
+    } else if (isTRUE(plan$incomplete)) {
+      dina_cli_warn(sprintf("Same-day update directory exists but manifest is missing: %s. Creating separate session %s.", plan$default_id, plan$id))
+      dina_cli_alert(sprintf("Use `dina update restart %s` instead to rebuild the same update id.", plan$default_id))
     }
-    session <- dina_update_start(year = year, id = plan$id, root = root, source_hash = !isTRUE(flags[["no-source-hash"]]))
+    dina_cli_header("Update Start")
+    session <- dina_update_start(
+      year = year,
+      id = plan$id,
+      root = root,
+      source_hash = !isTRUE(flags[["no-source-hash"]]),
+      progress = dina_cli_progress
+    )
     dina_cli_ok(sprintf("Started update session %s", session$id))
     dina_cli_alert(sprintf("Session directory: %s", dina_relative(dina_update_dir(session$id, root), root)))
     dina_cli_alert(sprintf("Source baseline hash mode: %s", session$source_baseline$hash_mode %||% "none"))
+    dina_cli_ok("Recommended next action: dina sources status")
   } else if (sub %in% c("resume", "status")) {
+    active <- dina_current_update(root)
     session <- dina_load_session(root = root)
-    if (is.null(session)) stop("No active update. Run `dina update start YEAR`.", call. = FALSE)
+    if (is.null(session)) {
+      if (!is.null(active) && dir.exists(dina_update_dir(active, root))) {
+        dina_cli_header(sprintf("Update %s", active))
+        dina_cli_warn("Active update directory exists, but manifest.json is missing.")
+        dina_cli_alert(sprintf("Session directory: %s", dina_relative(dina_update_dir(active, root), root)))
+        dina_cli_ok(sprintf("Recommended next action: dina update restart %s", active))
+        return(invisible(NULL))
+      }
+      stop("No active update. Run `dina update start YEAR`.", call. = FALSE)
+    }
     state <- dina_session_state(session, root)
     dina_cli_header(sprintf("Update %s", session$id))
     dina_cli_alert(sprintf("Status: %s", session$status))
@@ -935,14 +957,29 @@ dina_cmd_update <- function(root, args) {
     if (length(flags$positional) > 1L) {
       stop("Usage: dina update restart [ID] [--yes]", call. = FALSE)
     }
-    result <- dina_update_restart(dina_arg(flags$positional, 1L, NULL), root = root, yes = isTRUE(flags$yes))
+    update_id <- dina_arg(flags$positional, 1L, NULL)
+    if (isTRUE(flags$yes)) {
+      dina_cli_header("Update Restart")
+    }
+    result <- dina_update_restart(update_id, root = root, yes = isTRUE(flags$yes), progress = if (isTRUE(flags$yes)) dina_cli_progress else NULL)
     if (isTRUE(result$dry_run)) {
-      dina_cli_warn(sprintf("Would reset update %s from scratch at %s.", result$id, result$dir))
+      dina_cli_warn(sprintf("Would reset update %s from scratch.", result$id))
+      dina_cli_alert(sprintf("Year: %s", result$year))
+      dina_cli_alert(sprintf("Current status: %s", result$current_status))
+      dina_cli_alert(sprintf("Session directory: %s", result$dir))
+      dina_cli_alert(sprintf(
+        "Files to clear: %s staged, %s logs, %s snapshots.",
+        result$staged_files,
+        result$log_files,
+        result$snapshot_files
+      ))
+      dina_cli_alert("Restart reuses the same update id; no suffixed session will be created.")
       if (!dina_confirm_continue()) {
         dina_cli_alert("No changes made. Pass --yes for non-interactive restart.")
         return(invisible(result))
       }
-      result <- dina_update_restart(result$id, root = root, yes = TRUE)
+      dina_cli_header("Update Restart")
+      result <- dina_update_restart(result$id, root = root, yes = TRUE, progress = dina_cli_progress)
       dina_cli_ok(sprintf("Restarted update %s from scratch.", result$id))
     } else {
       dina_cli_ok(sprintf("Restarted update %s from scratch.", result$id))

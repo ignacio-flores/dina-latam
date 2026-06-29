@@ -429,7 +429,20 @@ test_that("sources status and complete provide a source-review gate", {
 
   started <- run_dina_cli(c("update", "start", "2026"), root = root)
   expect_equal(started$status, 0L)
+  expect_match(started$output, "Preparing update session")
+  expect_match(started$output, "Creating session scaffold directories")
+  expect_match(started$output, "Rendering session config")
+  expect_match(started$output, "Scanning source registry and hashing source baseline")
+  expect_match(started$output, "Source baseline summary")
   expect_match(started$output, "Source baseline hash mode: all")
+  expect_match(started$output, "Recommended next action: dina sources status")
+
+  no_hash_root <- mini_repo()
+  no_hash <- run_dina_cli(c("update", "start", "2026", "--no-source-hash"), root = no_hash_root)
+  expect_equal(no_hash$status, 0L)
+  expect_match(no_hash$output, "Scanning source registry without source hashes")
+  expect_match(no_hash$output, "hash mode none")
+  expect_match(no_hash$output, "Source baseline hash mode: none")
 
   status <- run_dina_cli(c("sources", "status"), root = root)
   expect_equal(status$status, 0L)
@@ -485,6 +498,10 @@ test_that("update lifecycle commands list, dry-run delete, delete, and restart s
   dry_restart <- run_dina_cli(c("update", "restart"), root = root)
   expect_equal(dry_restart$status, 0L)
   expect_match(dry_restart$output, "Would reset update")
+  expect_match(dry_restart$output, "Year: 2026")
+  expect_match(dry_restart$output, "Current status: initialized")
+  expect_match(dry_restart$output, "Files to clear:")
+  expect_match(dry_restart$output, "same update id")
   expect_equal(dina_load_session(root = root)$status, "initialized")
 
   writeLines("old staged file", file.path(dina_update_dir(first$id, root), "source_staging", "old.txt"))
@@ -496,6 +513,11 @@ test_that("update lifecycle commands list, dry-run delete, delete, and restart s
 
   restarted <- run_dina_cli(c("update", "restart", "--yes"), root = root)
   expect_equal(restarted$status, 0L)
+  expect_match(restarted$output, "Update Restart")
+  expect_match(restarted$output, "Resetting session directory")
+  expect_match(restarted$output, "Preparing update session")
+  expect_match(restarted$output, "Source baseline summary")
+  expect_match(restarted$output, "Writing manifest and active update pointer")
   restarted_id <- dina_current_update(root)
   expect_equal(restarted_id, first$id)
   restarted_session <- dina_load_session(first$id, root)
@@ -534,12 +556,58 @@ test_that("update lifecycle commands list, dry-run delete, delete, and restart s
   expect_true(dina_confirm_response("yes"))
   expect_false(dina_confirm_response(""))
   expect_false(dina_confirm_response("no"))
+  con <- textConnection("y\n")
+  prompt_output <- capture.output(confirmed <- dina_confirm_continue(input = con, is_terminal = TRUE))
+  close(con)
+  expect_true(confirmed)
+  expect_match(paste(prompt_output, collapse = "\n"), "Continue\\? \\[y/N\\]")
+
+  con <- textConnection("\n")
+  capture.output(rejected <- dina_confirm_continue(input = con, is_terminal = TRUE))
+  close(con)
+  expect_false(rejected)
+  con <- textConnection("y\n")
+  expect_false(dina_confirm_continue(input = con, is_terminal = FALSE))
+  close(con)
 
   help <- run_dina_cli(c("help", "update"))
   expect_equal(help$status, 0L)
   expect_match(help$output, "dina update list")
   expect_match(help$output, "dina update restart \\[ID\\] \\[--yes\\]")
   expect_match(help$output, "dina update delete \\[ID\\] \\[--yes\\]")
+})
+
+test_that("update commands agree when active session manifest is missing", {
+  root <- mini_repo()
+  session <- dina_update_start("2026", root = root)
+  unlink(dina_session_manifest_path(session$id, root))
+
+  status <- run_dina_cli(c("update", "status"), root = root)
+  expect_equal(status$status, 0L)
+  expect_match(status$output, "manifest\\.json is missing")
+  expect_match(status$output, paste0("dina update restart ", session$id))
+
+  listed <- run_dina_cli(c("update", "list"), root = root)
+  expect_equal(listed$status, 0L)
+  expect_match(listed$output, "missing_manifest")
+  expect_match(listed$output, session$id)
+
+  restart <- run_dina_cli(c("update", "restart"), root = root)
+  expect_equal(restart$status, 0L)
+  expect_match(restart$output, "Current status: missing_manifest")
+  expect_match(restart$output, "Restart reuses the same update id")
+
+  start <- run_dina_cli(c("update", "start", "2026"), root = root)
+  expect_equal(start$status, 1L)
+  expect_match(start$output, "manifest is missing")
+  expect_match(start$output, paste0("dina update restart ", session$id))
+  expect_match(start$output, paste0(session$id, "-02"))
+
+  restarted <- run_dina_cli(c("update", "restart", "--yes"), root = root)
+  expect_equal(restarted$status, 0L)
+  expect_match(restarted$output, "Restarted update")
+  expect_equal(dina_current_update(root), session$id)
+  expect_true(file.exists(dina_session_manifest_path(session$id, root)))
 })
 
 test_that("Git ignore keeps update records trackable and local Pushover private", {

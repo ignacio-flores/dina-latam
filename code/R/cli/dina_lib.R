@@ -544,6 +544,13 @@ dina_source_file_signature <- function(path, root = dina_repo_root(), deep = FAL
   signature
 }
 
+dina_progress <- function(progress = NULL, message, ...) {
+  if (is.function(progress)) {
+    progress(sprintf(message, ...))
+  }
+  invisible(NULL)
+}
+
 dina_template_value <- function(x, values = list()) {
   if (is.null(x) || !length(x)) {
     return("")
@@ -631,11 +638,13 @@ dina_sources_integrate_file <- function(session, staged_rel, dest_rel, source_id
   decision
 }
 
-dina_scan_sources <- function(root = dina_repo_root(), include_missing = TRUE, deep = FALSE, hash = deep, previous = NULL) {
+dina_scan_sources <- function(root = dina_repo_root(), include_missing = TRUE, deep = FALSE, hash = deep, previous = NULL, progress = NULL) {
   hash_mode <- dina_hash_mode(hash)
   registry <- dina_sources(root)$sources
+  dina_progress(progress, "Scanning source registry: %s source entries, hash mode %s.", length(registry), hash_mode)
   out <- list()
-  for (source in registry) {
+  for (i in seq_along(registry)) {
+    source <- registry[[i]]
     patterns <- source$canonical %||% character()
     files <- dina_expand_paths(patterns, root = root)
     exists <- file.exists(files)
@@ -654,6 +663,9 @@ dina_scan_sources <- function(root = dina_repo_root(), include_missing = TRUE, d
         previous = previous_files[[rel]] %||% NULL
       )
     })
+    if (is.function(progress) && length(registry) > 5L && (i == length(registry) || i %% 10L == 0L)) {
+      dina_progress(progress, "  scanned %s/%s source entries...", i, length(registry))
+    }
     years <- sort(unique(unlist(lapply(signatures, function(x) x$detected_years))))
     out[[source$id]] <- list(
       id = source$id,
@@ -667,6 +679,18 @@ dina_scan_sources <- function(root = dina_repo_root(), include_missing = TRUE, d
     )
   }
   out
+}
+
+dina_source_scan_summary <- function(scan) {
+  files <- unlist(lapply(scan, function(source) source$files %||% list()), recursive = FALSE)
+  existing <- if (length(files)) vapply(files, function(file) isTRUE(file$exists), logical(1)) else logical()
+  hash_modes <- unique(vapply(scan, function(source) source$hash_mode %||% "none", character(1)))
+  list(
+    sources = length(scan),
+    files_found = sum(existing),
+    missing_files = sum(!existing),
+    hash_mode = paste(hash_modes, collapse = ", ")
+  )
 }
 
 dina_empty_source_status_counts <- function() {
@@ -832,6 +856,14 @@ dina_session_manifest_path <- function(update_id, root = dina_repo_root()) {
   file.path(dina_update_dir(update_id, root), "manifest.json")
 }
 
+dina_update_year_from_id <- function(update_id) {
+  match <- regmatches(update_id, regexpr("^[0-9]{4}", update_id, perl = TRUE))
+  if (length(match) && nzchar(match[[1]])) {
+    return(match[[1]])
+  }
+  format(Sys.Date(), "%Y")
+}
+
 dina_load_session <- function(update_id = dina_current_update(root), root = dina_repo_root()) {
   if (is.null(update_id)) {
     return(NULL)
@@ -862,33 +894,63 @@ dina_update_start_plan <- function(year = format(Sys.Date(), "%Y"), root = dina_
   default_id <- dina_update_default_id(year)
   existing <- dina_load_session(default_id, root)
   exists <- dir.exists(dina_update_dir(default_id, root))
+  manifest_exists <- file.exists(dina_session_manifest_path(default_id, root))
+  incomplete <- exists && !manifest_exists
   finalized <- !is.null(existing) && identical(existing$status, "finalized")
   list(
     year = as.character(year),
     default_id = default_id,
     id = if (exists) dina_next_update_id(year, root) else default_id,
     exists = exists,
-    existing_status = if (!is.null(existing)) existing$status %||% "" else "",
+    manifest_exists = manifest_exists,
+    incomplete = incomplete,
+    existing_status = if (isTRUE(incomplete)) "missing_manifest" else if (!is.null(existing)) existing$status %||% "" else "",
     requires_confirmation = exists && !finalized,
     finalized = exists && finalized
   )
 }
 
-dina_update_start <- function(year = format(Sys.Date(), "%Y"), id = NULL, root = dina_repo_root(), source_hash = TRUE) {
+dina_count_files <- function(path) {
+  if (!dir.exists(path)) {
+    return(0L)
+  }
+  files <- list.files(path, recursive = TRUE, all.files = TRUE, no.. = TRUE, full.names = TRUE)
+  files <- files[file.exists(files)]
+  sum(!file.info(files)$isdir, na.rm = TRUE)
+}
+
+dina_update_start <- function(year = format(Sys.Date(), "%Y"), id = NULL, root = dina_repo_root(), source_hash = TRUE, progress = NULL) {
   if (is.null(id) || !nzchar(id)) {
     id <- dina_next_update_id(year, root)
   }
+  dina_progress(progress, "Preparing update session %s for year %s.", id, year)
   dir <- dina_update_dir(id, root)
+  dina_progress(progress, "Creating session scaffold directories.")
   dir.create(file.path(dir, "source_staging"), recursive = TRUE, showWarnings = FALSE)
   dir.create(file.path(dir, "logs"), recursive = TRUE, showWarnings = FALSE)
   dir.create(file.path(dir, "snapshots"), recursive = TRUE, showWarnings = FALSE)
 
   config <- dina_config(root)
   config_do <- file.path(dir, "config.do")
+  dina_progress(progress, "Rendering session config.")
   dina_render_config_do(config, config_do)
   started_at <- dina_now()
   source_hash_mode <- if (isTRUE(source_hash)) "all" else "none"
-  source_scan <- dina_scan_sources(root, hash = source_hash_mode)
+  if (identical(source_hash_mode, "all")) {
+    dina_progress(progress, "Scanning source registry and hashing source baseline.")
+  } else {
+    dina_progress(progress, "Scanning source registry without source hashes.")
+  }
+  source_scan <- dina_scan_sources(root, hash = source_hash_mode, progress = progress)
+  summary <- dina_source_scan_summary(source_scan)
+  dina_progress(
+    progress,
+    "Source baseline summary: %s sources, %s files found, %s missing files, hash mode %s.",
+    summary$sources,
+    summary$files_found,
+    summary$missing_files,
+    summary$hash_mode
+  )
   session <- list(
     id = id,
     year = as.character(year),
@@ -907,6 +969,7 @@ dina_update_start <- function(year = format(Sys.Date(), "%Y"), id = NULL, root =
     task_runs = list(),
     checklist = dina_default_checklist()
   )
+  dina_progress(progress, "Writing manifest and active update pointer.")
   dina_save_session(session, root)
   dir.create(dirname(dina_active_update_file(root)), recursive = TRUE, showWarnings = FALSE)
   writeLines(id, dina_active_update_file(root))
@@ -931,16 +994,14 @@ dina_update_list <- function(root = dina_repo_root()) {
   ids <- ids[dir.exists(file.path(updates_root, ids))]
   rows <- lapply(sort(ids), function(id) {
     session <- dina_load_session(id, root)
-    if (is.null(session)) {
-      return(NULL)
-    }
+    missing_manifest <- is.null(session)
     data.frame(
       active = if (identical(id, active)) "*" else "",
       id = id,
-      year = as.character(session$year %||% ""),
-      status = as.character(session$status %||% ""),
-      created_at = as.character(session$created_at %||% ""),
-      updated_at = as.character(session$updated_at %||% ""),
+      year = if (missing_manifest) dina_update_year_from_id(id) else as.character(session$year %||% ""),
+      status = if (missing_manifest) "missing_manifest" else as.character(session$status %||% ""),
+      created_at = if (missing_manifest) "" else as.character(session$created_at %||% ""),
+      updated_at = if (missing_manifest) "" else as.character(session$updated_at %||% ""),
       stringsAsFactors = FALSE
     )
   })
@@ -990,7 +1051,7 @@ dina_update_delete <- function(update_id = NULL, root = dina_repo_root(), yes = 
   result
 }
 
-dina_update_restart <- function(update_id = NULL, root = dina_repo_root(), yes = FALSE) {
+dina_update_restart <- function(update_id = NULL, root = dina_repo_root(), yes = FALSE, progress = NULL) {
   active <- dina_current_update(root)
   if (is.null(update_id) || !nzchar(update_id)) {
     update_id <- active
@@ -999,23 +1060,29 @@ dina_update_restart <- function(update_id = NULL, root = dina_repo_root(), yes =
     stop("No active update to restart. Pass an update id.", call. = FALSE)
   }
   session <- dina_load_session(update_id, root = root)
-  if (is.null(session)) {
+  dir <- dina_update_dir(update_id, root)
+  if (is.null(session) && !dir.exists(dir)) {
     stop("Unknown update id: ", update_id, call. = FALSE)
   }
-  dir <- dina_update_dir(update_id, root)
   result <- list(
     id = update_id,
     dir = dina_relative(dir, root),
     active = identical(update_id, active),
-    year = as.character(session$year %||% format(Sys.Date(), "%Y")),
+    year = if (is.null(session)) dina_update_year_from_id(update_id) else as.character(session$year %||% format(Sys.Date(), "%Y")),
+    current_status = if (is.null(session)) "missing_manifest" else as.character(session$status %||% ""),
+    staged_files = dina_count_files(file.path(dir, "source_staging")),
+    log_files = dina_count_files(file.path(dir, "logs")),
+    snapshot_files = dina_count_files(file.path(dir, "snapshots")),
+    same_id = TRUE,
     dry_run = !isTRUE(yes),
     restarted = FALSE
   )
   if (!isTRUE(yes)) {
     return(result)
   }
+  dina_progress(progress, "Resetting session directory %s.", result$dir)
   unlink(dir, recursive = TRUE)
-  new_session <- dina_update_start(year = result$year, id = update_id, root = root)
+  new_session <- dina_update_start(year = result$year, id = update_id, root = root, progress = progress)
   result$dry_run <- FALSE
   result$restarted <- TRUE
   result$new_session <- new_session
@@ -1024,6 +1091,24 @@ dina_update_restart <- function(update_id = NULL, root = dina_repo_root(), yes =
 
 dina_confirm_response <- function(answer) {
   tolower(trimws(answer %||% "")) %in% c("y", "yes")
+}
+
+dina_read_prompt <- function(prompt, input = "stdin") {
+  cat(prompt)
+  flush.console()
+  try(flush(stdout()), silent = TRUE)
+  answer <- readLines(input, n = 1L, warn = FALSE)
+  if (!length(answer)) {
+    return("")
+  }
+  answer[[1]]
+}
+
+dina_confirm_continue <- function(prompt = "Continue? [y/N] ", input = "stdin", is_terminal = isatty(stdin())) {
+  if (!isTRUE(is_terminal)) {
+    return(FALSE)
+  }
+  dina_confirm_response(dina_read_prompt(prompt, input = input))
 }
 
 dina_now <- function() {
