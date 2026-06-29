@@ -2,14 +2,14 @@ sources:
   - id: chl-pit-total
     family: admin_tax
     country: CHL
-    method: static_url
+    method: url
     url: https://www.sii.cl/sobre_el_sii/estadisticas/personas_naturales/PUB_Total.xlsb
     canonical:
       - input_data/admin_data/CHL/PUB_Total_*.xlsx
       - input_data/admin_data/CHL/PUB_Total_*.xlsb
     staging_name: CHL/PUB_Total_{date}.xlsb
-    downloader: code/R/02b_clean_admin_chl.R
-    transformer: code/R/02b_clean_admin_chl.R
+    downloader: code/R/02c_clean_admin_chl.R
+    transformer: code/R/02c_clean_admin_chl.R
     checks:
       - file_exists
       - excel_readable
@@ -19,7 +19,7 @@ sources:
   - id: bra-admin-tax
     family: admin_tax
     country: BRA
-    method: legacy_script
+    method: script
     urls:
       - label: Receita Federal dados abertos
         url: https://www.gov.br/receitafederal/pt-br/acesso-a-informacao/dados-abertos
@@ -38,7 +38,7 @@ sources:
   - id: bra-minwage
     family: admin_tax_aux
     country: BRA
-    method: legacy_script
+    method: script
     url: https://es.wikipedia.org/wiki/Anexo:Salario_m%C3%ADnimo_en_Brasil
     canonical:
       - input_data/admin_data/BRA/downloads/wiki_minwage.csv
@@ -68,7 +68,7 @@ sources:
   - id: un-sna
     family: macro_sna
     country: MULTI
-    method: legacy_script
+    method: script
     urls:
       - label: UN Data SNA download handler
         url: http://data.un.org/Handlers/DownloadHandler.ashx
@@ -78,8 +78,8 @@ sources:
       - input_data/sna_UNDATA/iso/iso-codes-dict.xlsx
       - input_data/sna_UNDATA/iso/iso_fullnames.csv
     staging_name: UN_SNA/{date}
-    downloader: code/R/manual-downloaders/01a_download-raw-un-sna.R
-    transformer: code/R/01b_import-un-sna-data.R
+    downloader: code/R/manual-downloaders/download-raw-un-sna.R
+    transformer: code/R/01a_import-un-sna-data.R
     checks:
       - file_exists
       - years_detected
@@ -88,7 +88,7 @@ sources:
   - id: country-sna-index
     family: country_sna
     country: MULTI
-    method: manual_index
+    method: manual
     canonical:
       - input_data/sna_country_data/_sna-web-site-index.ods
     urls:
@@ -137,11 +137,11 @@ sources:
   - id: country-sna-bra
     family: country_sna
     country: BRA
-    method: manual_index
+    method: manual
     canonical:
       - input_data/sna_country_data/BRA/*.xls
       - input_data/sna_country_data/BRA/*.xlsx
-    downloader: code/R/manual-downloaders/01c_download_countrysna.R
+    downloader: code/R/manual-downloaders/download-country-sna.R
     transformer: code/Stata/01b-add-country-sna.do
     checks:
       - file_exists
@@ -152,12 +152,12 @@ sources:
   - id: country-sna-chl
     family: country_sna
     country: CHL
-    method: manual_index
+    method: manual
     url: https://www.bcentral.cl/web/banco-central/areas/estadisticas
     canonical:
       - input_data/sna_country_data/CHL/*.xls
       - input_data/sna_country_data/CHL/*.xlsx
-    downloader: code/R/manual-downloaders/01c_download_countrysna.R
+    downloader: code/R/manual-downloaders/download-country-sna.R
     transformer: code/Stata/01b-add-country-sna.do
     checks:
       - file_exists
@@ -168,12 +168,12 @@ sources:
   - id: country-sna-col
     family: country_sna
     country: COL
-    method: manual_index
+    method: manual
     url: https://www.dane.gov.co/index.php/estadisticas-por-tema/cuentas-nacionales
     canonical:
       - input_data/sna_country_data/COL/*.xls
       - input_data/sna_country_data/COL/*.xlsx
-    downloader: code/R/manual-downloaders/01c_download_countrysna.R
+    downloader: code/R/manual-downloaders/download-country-sna.R
     transformer: code/Stata/01b-add-country-sna.do
     checks:
       - file_exists
@@ -183,12 +183,12 @@ sources:
   - id: country-sna-cri
     family: country_sna
     country: CRI
-    method: manual_index
+    method: manual
     url: https://www.bccr.fi.cr/seccion-cuentas-nacionales-periodo-2012/cuentas-nacionales-periodo-de-referencia-2012
     canonical:
       - input_data/sna_country_data/CRI/*.xls
       - input_data/sna_country_data/CRI/*.xlsx
-    downloader: code/R/manual-downloaders/01c_download_countrysna.R
+    downloader: code/R/manual-downloaders/download-country-sna.R
     transformer: code/Stata/01b-add-country-sna.do
     checks:
       - file_exists
@@ -198,7 +198,7 @@ sources:
   - id: country-sna-dom
     family: country_sna
     country: DOM
-    method: manual_index
+    method: manual
     url: https://www.bancentral.gov.do/a/d/2533-sector-real
     canonical:
       - input_data/sna_country_data/DOM/*.xls
@@ -212,12 +212,12 @@ sources:
   - id: country-sna-ecu
     family: country_sna
     country: ECU
-    method: manual_index
+    method: manual
     url: https://www.bce.fin.ec/informacioneconomica/sector-real
     canonical:
       - input_data/sna_country_data/ECU/*.xls
       - input_data/sna_country_data/ECU/*.xlsx
-    downloader: code/R/manual-downloaders/01c_download_countrysna.R
+    downloader: code/R/manual-downloaders/download-country-sna.R
     transformer: code/Stata/01b-add-country-sna.do
     checks:
       - file_exists
@@ -227,13 +227,13 @@ sources:
   - id: country-sna-mex
     family: country_sna
     country: MEX
-    method: zip_archive
+    method: zip
     url: https://www.inegi.org.mx/contenidos/temas/economia/cn/si/tabulados/ori/tabulados_si.zip
     canonical:
       - input_data/sna_country_data/MEX/CSI_*.xlsx
       - input_data/sna_country_data/MEX/indice_archivos.txt
     staging_name: MEX/tabulados_si_{date}.zip
-    downloader: code/R/manual-downloaders/01c_download_countrysna.R
+    downloader: code/R/manual-downloaders/download-country-sna.R
     transformer: code/Stata/01b-add-country-sna.do
     checks:
       - file_exists
@@ -244,7 +244,7 @@ sources:
   - id: country-sna-per
     family: country_sna
     country: PER
-    method: manual_index
+    method: manual
     url: https://www.inei.gob.pe/estadisticas/indice-tematico/national-accounts/
     canonical:
       - input_data/sna_country_data/PER/*.xls
@@ -258,7 +258,7 @@ sources:
   - id: country-sna-ury
     family: country_sna
     country: URY
-    method: manual_index
+    method: manual
     url: https://www.bcu.gub.uy/Estadisticas-e-Indicadores/Paginas/Cuentas-por-Sectores-Institucionales.aspx
     canonical:
       - input_data/sna_country_data/URY/*.xls
@@ -281,7 +281,7 @@ sources:
   - id: wid-macro
     family: wid
     country: MULTI
-    method: stata_wid
+    method: wid
     url: https://wid.world/
     canonical:
       - intermediary_data/national_accounts/UNDATA-WID-Merged.dta
@@ -295,7 +295,7 @@ sources:
   - id: wid-public-spending
     family: wid
     country: MULTI
-    method: stata_wid
+    method: wid
     url: https://wid.world/
     canonical:
       - input_data/sna-WID/gov_expenditure_*.dta
@@ -308,7 +308,7 @@ sources:
   - id: wid-export-checks
     family: wid
     country: MULTI
-    method: stata_wid
+    method: wid
     url: https://wid.world/
     canonical:
       - output/latest_wid_series
@@ -320,7 +320,7 @@ sources:
   - id: wid-population-survey-adjustment
     family: wid
     country: ARG
-    method: stata_wid
+    method: wid
     url: https://wid.world/
     transformer: code/Stata/01f-adjust-country-survey-data.do
     notes: 01f has a targeted WID population call for Argentina survey adjustment.
@@ -328,7 +328,7 @@ sources:
   - id: wid-prices-xrates
     family: prices
     country: MULTI
-    method: stata_wid
+    method: wid
     url: https://wid.world/
     canonical:
       - input_data/prices_WID/infl_xrates_wid_wb.xlsx

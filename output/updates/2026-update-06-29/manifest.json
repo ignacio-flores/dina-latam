@@ -3,7 +3,7 @@
   "year": "2026",
   "status": "initialized",
   "created_at": "2026-06-29T14:28:15+0200",
-  "updated_at": "2026-06-29T15:06:37+0200",
+  "updated_at": "2026-06-29T16:43:20+0200",
   "config_file": "output/updates/2026-update-06-29/config.do",
   "config_hash": "0f5782f5a7f3f560c8997b87cd97f1d82d330f4977783dde433917e4325e9525",
   "source_scan": {
@@ -5232,7 +5232,7 @@
       "id": "chl-pit-total",
       "family": "admin_tax",
       "country": "CHL",
-      "method": "static_url",
+      "method": "url",
       "files": [
         {
           "path": "input_data/admin_data/CHL/PUB_Total_*.xlsx",
@@ -5274,7 +5274,7 @@
       "id": "bra-admin-tax",
       "family": "admin_tax",
       "country": "BRA",
-      "method": "legacy_script",
+      "method": "script",
       "files": [
         {
           "path": "input_data/admin_data/BRA/gn-irpf-ac2007.xlsx",
@@ -5514,7 +5514,7 @@
       "id": "bra-minwage",
       "family": "admin_tax_aux",
       "country": "BRA",
-      "method": "legacy_script",
+      "method": "script",
       "files": [
         {
           "path": "input_data/admin_data/BRA/downloads/wiki_minwage.csv",
@@ -5598,7 +5598,7 @@
       "id": "un-sna",
       "family": "macro_sna",
       "country": "MULTI",
-      "method": "legacy_script",
+      "method": "script",
       "files": [
         {
           "path": "input_data/sna_UNDATA/101.csv.gz",
@@ -6113,7 +6113,7 @@
       "id": "country-sna-index",
       "family": "country_sna",
       "country": "MULTI",
-      "method": "manual_index",
+      "method": "manual",
       "files": [
         {
           "path": "input_data/sna_country_data/_sna-web-site-index.ods",
@@ -6153,7 +6153,7 @@
       "id": "country-sna-bra",
       "family": "country_sna",
       "country": "BRA",
-      "method": "manual_index",
+      "method": "manual",
       "files": [
         {
           "path": "input_data/sna_country_data/BRA/contas_economicas_a_precos_correntes_2000a2021.xls",
@@ -6184,7 +6184,7 @@
       "id": "country-sna-chl",
       "family": "country_sna",
       "country": "CHL",
-      "method": "manual_index",
+      "method": "manual",
       "files": [
         {
           "path": "input_data/sna_country_data/CHL/CEI_merged.xls",
@@ -6215,7 +6215,7 @@
       "id": "country-sna-col",
       "family": "country_sna",
       "country": "COL",
-      "method": "manual_index",
+      "method": "manual",
       "files": [
         {
           "path": "input_data/sna_country_data/COL/*.xls",
@@ -6246,7 +6246,7 @@
       "id": "country-sna-cri",
       "family": "country_sna",
       "country": "CRI",
-      "method": "manual_index",
+      "method": "manual",
       "files": [
         {
           "path": "input_data/sna_country_data/CRI/*.xls",
@@ -6376,7 +6376,7 @@
       "id": "country-sna-dom",
       "family": "country_sna",
       "country": "DOM",
-      "method": "manual_index",
+      "method": "manual",
       "files": [
         {
           "path": "input_data/sna_country_data/DOM/*.xls",
@@ -6407,7 +6407,7 @@
       "id": "country-sna-ecu",
       "family": "country_sna",
       "country": "ECU",
-      "method": "manual_index",
+      "method": "manual",
       "files": [
         {
           "path": "input_data/sna_country_data/ECU/*.xls",
@@ -6471,7 +6471,7 @@
       "id": "country-sna-mex",
       "family": "country_sna",
       "country": "MEX",
-      "method": "zip_archive",
+      "method": "zip",
       "files": [
         {
           "path": "input_data/sna_country_data/MEX/CSI_10.xlsx",
@@ -6722,7 +6722,7 @@
       "id": "country-sna-per",
       "family": "country_sna",
       "country": "PER",
-      "method": "manual_index",
+      "method": "manual",
       "files": [
         {
           "path": "input_data/sna_country_data/PER/*.xls",
@@ -6951,7 +6951,7 @@
       "id": "country-sna-ury",
       "family": "country_sna",
       "country": "URY",
-      "method": "manual_index",
+      "method": "manual",
       "files": [
         {
           "path": "input_data/sna_country_data/URY/*.xls",
@@ -7343,7 +7343,7 @@
       "id": "wid-macro",
       "family": "wid",
       "country": "MULTI",
-      "method": "stata_wid",
+      "method": "wid",
       "files": [
         {
           "path": "intermediary_data/national_accounts/UNDATA-WID-Merged.dta",
@@ -7374,7 +7374,7 @@
       "id": "wid-public-spending",
       "family": "wid",
       "country": "MULTI",
-      "method": "stata_wid",
+      "method": "wid",
       "files": [
         {
           "path": "input_data/sna-WID/gov_expenditure_12Aug2025.dta",
@@ -7405,7 +7405,7 @@
       "id": "wid-export-checks",
       "family": "wid",
       "country": "MULTI",
-      "method": "stata_wid",
+      "method": "wid",
       "files": [
         {
           "path": "output/latest_wid_series",
@@ -7425,7 +7425,7 @@
       "id": "wid-population-survey-adjustment",
       "family": "wid",
       "country": "ARG",
-      "method": "stata_wid",
+      "method": "wid",
       "files": [],
       "detected_years": []
     },
@@ -7433,7 +7433,7 @@
       "id": "wid-prices-xrates",
       "family": "prices",
       "country": "MULTI",
-      "method": "stata_wid",
+      "method": "wid",
       "files": [
         {
           "path": "input_data/prices_WID/infl_xrates_wid_wb.xlsx",

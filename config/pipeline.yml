@@ -85,6 +85,22 @@ tasks:
     outputs:
       - intermediary_data/population/SurveyPop.dta
 
+  - id: 02b-prepare-admin-microdata
+    stage: admin
+    type: stata
+    active: false
+    script: code/Stata/02b-prepare-admin-microdata.do
+    deps:
+      - 02a-get-survey-populations
+    inputs:
+      - input_data/admin_data/MEX
+      - input_data/admin_data/URY
+    outputs:
+      - input_data/admin_data/MEX/_clean
+      - input_data/admin_data/URY/_clean
+    notes:
+      - Heavy static admin-database preparation. Inactive by default because these inputs rarely change.
+
   - id: 02c-prepare-static-admin-data
     stage: admin
     type: stata
@@ -99,14 +115,14 @@ tasks:
   - id: 02d-prepare-updated-admin-data
     stage: admin
     type: stata
-    script: code/Stata/02d-prepare-frequenly-updated-admin-data.do
+    script: code/Stata/02d-prepare-updated-admin-data.do
     deps:
       - 02a-get-survey-populations
     inputs:
       - input_data/admin_data/CHL
       - input_data/admin_data/BRA
       - input_data/admin_data/COL
-      - code/R/02b_clean_admin_chl.R
+      - code/R/02c_clean_admin_chl.R
       - code/R/02c_clean_admin_bra.R
     outputs:
       - input_data/admin_data/CHL/_clean
@@ -308,7 +324,7 @@ tasks:
       - 07a-export-synthetic-microfiles
     inputs:
       - output/synthetic_microfiles
-      - code/R/03a_interpolate_ineqstats.R
+      - code/R/07c_interpolate_ineqstats.R
     outputs:
       - output/data_reports/gpinter_errors.log
 

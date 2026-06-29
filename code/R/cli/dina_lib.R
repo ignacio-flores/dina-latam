@@ -198,6 +198,122 @@ dina_source_has_value <- function(x) {
   length(dina_source_values(x)) > 0
 }
 
+dina_source_norm <- function(x) {
+  gsub("-", "_", tolower(trimws(as.character(x))), fixed = TRUE)
+}
+
+dina_source_method_glossary <- function() {
+  data.frame(
+    method = c("url", "zip", "script", "manual", "wid"),
+    description = c(
+      "Direct URL that dina sources refresh can fetch into staging.",
+      "Direct archive URL that dina sources refresh can fetch into staging.",
+      "Custom acquisition script exists; not a simple direct URL fetch.",
+      "Human-curated/manual input or URL index.",
+      "Currently acquired through Stata/WID calls in pipeline scripts."
+    ),
+    refresh = c("yes", "yes", "no", "no", "no"),
+    stringsAsFactors = FALSE
+  )
+}
+
+dina_source_method_description <- function(method) {
+  glossary <- dina_source_method_glossary()
+  match <- glossary[dina_source_norm(glossary$method) == dina_source_norm(method), , drop = FALSE]
+  if (!nrow(match)) {
+    return("")
+  }
+  match$description[[1]]
+}
+
+dina_source_filter_label <- function(kind, requested, resolved) {
+  if (is.null(requested) || !nzchar(requested)) {
+    return(NULL)
+  }
+  resolved <- unique(resolved[nzchar(resolved)])
+  if (!length(resolved)) {
+    return(requested)
+  }
+  if (identical(dina_source_norm(requested), dina_source_norm(resolved[[1]])) && length(resolved) == 1L) {
+    return(requested)
+  }
+  sprintf("%s (%s)", requested, paste(resolved, collapse = ", "))
+}
+
+dina_source_resolve_family_filter <- function(value, root = dina_repo_root()) {
+  if (is.null(value) || !nzchar(value)) {
+    return(character())
+  }
+  normalized <- dina_source_norm(value)
+  alias <- switch(
+    normalized,
+    admin_data = c("admin_tax", "admin_tax_aux"),
+    admin = c("admin_tax", "admin_tax_aux"),
+    sna = c("macro_sna", "country_sna"),
+    normalized
+  )
+  registry <- dina_sources(root)$sources
+  available <- unique(vapply(registry, function(source) dina_source_field(source, "family", ""), character(1)))
+  matches <- available[dina_source_norm(available) %in% dina_source_norm(alias)]
+  if (!length(matches)) {
+    stop("Unknown source family: ", value, "\nAvailable families: ", paste(sort(available), collapse = ", "), call. = FALSE)
+  }
+  matches
+}
+
+dina_source_resolve_method_filter <- function(value) {
+  if (is.null(value) || !nzchar(value)) {
+    return(character())
+  }
+  glossary <- dina_source_method_glossary()
+  matches <- glossary$method[dina_source_norm(glossary$method) == dina_source_norm(value)]
+  if (!length(matches)) {
+    stop("Unknown source method: ", value, "\nAvailable methods: ", paste(glossary$method, collapse = ", "), call. = FALSE)
+  }
+  matches
+}
+
+dina_source_url_countries <- function(source) {
+  urls <- dina_source_field(source, "urls", list())
+  if (!is.list(urls) || !length(urls)) {
+    return(character())
+  }
+  countries <- unlist(lapply(urls, function(item) {
+    if (!is.list(item)) {
+      return(character())
+    }
+    dina_source_values(dina_source_field(item, "country"))
+  }), use.names = FALSE)
+  unique(toupper(trimws(countries[nzchar(countries)])))
+}
+
+dina_source_country_values <- function(source, root = dina_repo_root()) {
+  values <- unlist(strsplit(dina_source_values(dina_source_field(source, "country", "")), ",", fixed = TRUE), use.names = FALSE)
+  values <- unique(toupper(trimws(values[nzchar(values)])))
+  if (!length(values)) {
+    return(character())
+  }
+  if ("MULTI" %in% values) {
+    from_urls <- dina_source_url_countries(source)
+    if (length(from_urls)) {
+      return(from_urls)
+    }
+    return(unique(toupper(dina_config(root)$countries %||% character())))
+  }
+  values
+}
+
+dina_source_country_summary <- function(source, root = dina_repo_root()) {
+  values <- dina_source_country_values(source, root)
+  if (!length(values)) {
+    return("")
+  }
+  if (length(values) <= 3L) {
+    return(paste(values, collapse = ","))
+  }
+  sprintf("%s countries", length(values))
+}
+
 dina_source_country_matches <- function(source_country, country) {
   if (is.null(country) || !nzchar(country)) {
     return(TRUE)
@@ -207,13 +323,16 @@ dina_source_country_matches <- function(source_country, country) {
   toupper(country) %in% values || "MULTI" %in% values
 }
 
-dina_source_registry <- function(root = dina_repo_root(), family = NULL, country = NULL) {
+dina_source_registry <- function(root = dina_repo_root(), family = NULL, country = NULL, method = NULL) {
   registry <- dina_sources(root)$sources
-  if (!is.null(family) && nzchar(family)) {
-    registry <- registry[vapply(registry, function(source) identical(dina_source_field(source, "family", ""), family), logical(1))]
+  if (!is.null(family) && length(family) && any(nzchar(family))) {
+    registry <- registry[vapply(registry, function(source) dina_source_field(source, "family", "") %in% family, logical(1))]
   }
   if (!is.null(country) && nzchar(country)) {
     registry <- registry[vapply(registry, function(source) dina_source_country_matches(dina_source_field(source, "country", ""), country), logical(1))]
+  }
+  if (!is.null(method) && length(method) && any(nzchar(method))) {
+    registry <- registry[vapply(registry, function(source) dina_source_field(source, "method", "") %in% method, logical(1))]
   }
   registry
 }
@@ -397,7 +516,7 @@ dina_sources_refresh <- function(session, root = dina_repo_root(), source_ids = 
     target_rel <- dina_template_value(source$staging_name %||% source$id)
     target <- file.path(staging_root, target_rel)
     dir.create(dirname(target), recursive = TRUE, showWarnings = FALSE)
-    supported <- method %in% c("static_url", "zip_archive")
+    supported <- method %in% c("url", "zip")
     if (!supported || !nzchar(url)) {
       results[[source$id]] <- list(id = source$id, status = "manual_or_adapter", method = method, target = dina_relative(target, root))
       next
@@ -527,8 +646,12 @@ dina_active_update_file <- function(root = dina_repo_root()) {
   dina_path("output", "updates", ".active_update", root = root)
 }
 
+dina_updates_root <- function(root = dina_repo_root()) {
+  dirname(dina_active_update_file(root))
+}
+
 dina_update_dir <- function(update_id, root = dina_repo_root()) {
-  dina_path("output", "updates", update_id, root = root)
+  file.path(dina_updates_root(root), update_id)
 }
 
 dina_current_update <- function(root = dina_repo_root()) {
@@ -558,15 +681,20 @@ dina_save_session <- function(session, root = dina_repo_root()) {
   dina_write_json(session, dina_session_manifest_path(session$id, root))
 }
 
+dina_next_update_id <- function(year = format(Sys.Date(), "%Y"), root = dina_repo_root()) {
+  base_id <- sprintf("%s-update-%s", year, format(Sys.Date(), "%m-%d"))
+  id <- base_id
+  suffix <- 1L
+  while (dir.exists(dina_update_dir(id, root))) {
+    suffix <- suffix + 1L
+    id <- sprintf("%s-%02d", base_id, suffix)
+  }
+  id
+}
+
 dina_update_start <- function(year = format(Sys.Date(), "%Y"), id = NULL, root = dina_repo_root()) {
   if (is.null(id) || !nzchar(id)) {
-    base_id <- sprintf("%s-update-%s", year, format(Sys.Date(), "%m-%d"))
-    id <- base_id
-    suffix <- 1L
-    while (dir.exists(dina_update_dir(id, root))) {
-      suffix <- suffix + 1L
-      id <- sprintf("%s-%02d", base_id, suffix)
-    }
+    id <- dina_next_update_id(year, root)
   }
   dir <- dina_update_dir(id, root)
   dir.create(file.path(dir, "source_staging"), recursive = TRUE, showWarnings = FALSE)
@@ -595,6 +723,116 @@ dina_update_start <- function(year = format(Sys.Date(), "%Y"), id = NULL, root =
   dir.create(dirname(dina_active_update_file(root)), recursive = TRUE, showWarnings = FALSE)
   writeLines(id, dina_active_update_file(root))
   session
+}
+
+dina_update_list <- function(root = dina_repo_root()) {
+  updates_root <- dina_updates_root(root)
+  active <- dina_current_update(root)
+  if (!dir.exists(updates_root)) {
+    return(data.frame(
+      active = character(),
+      id = character(),
+      year = character(),
+      status = character(),
+      created_at = character(),
+      updated_at = character(),
+      stringsAsFactors = FALSE
+    ))
+  }
+  ids <- list.files(updates_root, all.files = FALSE, no.. = TRUE, full.names = FALSE)
+  ids <- ids[dir.exists(file.path(updates_root, ids))]
+  rows <- lapply(sort(ids), function(id) {
+    session <- dina_load_session(id, root)
+    if (is.null(session)) {
+      return(NULL)
+    }
+    data.frame(
+      active = if (identical(id, active)) "*" else "",
+      id = id,
+      year = as.character(session$year %||% ""),
+      status = as.character(session$status %||% ""),
+      created_at = as.character(session$created_at %||% ""),
+      updated_at = as.character(session$updated_at %||% ""),
+      stringsAsFactors = FALSE
+    )
+  })
+  rows <- Filter(Negate(is.null), rows)
+  if (!length(rows)) {
+    return(data.frame(
+      active = character(),
+      id = character(),
+      year = character(),
+      status = character(),
+      created_at = character(),
+      updated_at = character(),
+      stringsAsFactors = FALSE
+    ))
+  }
+  do.call(rbind, rows)
+}
+
+dina_update_delete <- function(update_id = NULL, root = dina_repo_root(), yes = FALSE) {
+  active <- dina_current_update(root)
+  if (is.null(update_id) || !nzchar(update_id)) {
+    update_id <- active
+  }
+  if (is.null(update_id) || !nzchar(update_id)) {
+    stop("No active update to delete. Pass an update id.", call. = FALSE)
+  }
+  dir <- dina_update_dir(update_id, root)
+  if (!dir.exists(dir)) {
+    stop("Unknown update id: ", update_id, call. = FALSE)
+  }
+  result <- list(
+    id = update_id,
+    dir = dina_relative(dir, root),
+    active = identical(update_id, active),
+    deleted = FALSE,
+    dry_run = !isTRUE(yes)
+  )
+  if (!isTRUE(yes)) {
+    return(result)
+  }
+  unlink(dir, recursive = TRUE)
+  if (identical(update_id, active)) {
+    unlink(dina_active_update_file(root))
+  }
+  result$deleted <- TRUE
+  result$dry_run <- FALSE
+  result
+}
+
+dina_update_restart <- function(year = NULL, root = dina_repo_root(), yes = FALSE) {
+  session <- dina_load_session(root = root)
+  if (is.null(session)) {
+    stop("No active update to restart.", call. = FALSE)
+  }
+  if (is.null(year) || !nzchar(year)) {
+    year <- as.character(session$year %||% format(Sys.Date(), "%Y"))
+  }
+  new_id <- dina_next_update_id(year, root)
+  result <- list(
+    old_id = session$id,
+    new_id = new_id,
+    year = as.character(year),
+    dry_run = !isTRUE(yes),
+    restarted = FALSE
+  )
+  if (!isTRUE(yes)) {
+    return(result)
+  }
+  session$successor_update <- new_id
+  session$updated_at <- dina_now()
+  if (!identical(session$status, "finalized")) {
+    session$status <- "abandoned"
+    session$abandoned_at <- dina_now()
+  }
+  dina_save_session(session, root)
+  new_session <- dina_update_start(year = year, id = new_id, root = root)
+  result$dry_run <- FALSE
+  result$restarted <- TRUE
+  result$new_session <- new_session
+  result
 }
 
 dina_now <- function() {
@@ -640,6 +878,10 @@ dina_task_map <- function(root = dina_repo_root()) {
   ids <- vapply(tasks, function(x) x$id, character(1))
   names(tasks) <- ids
   tasks
+}
+
+dina_task_active <- function(task) {
+  !identical(task$active, FALSE) && !isTRUE(task$inactive)
 }
 
 dina_task_short_id <- function(id) {
@@ -728,12 +970,24 @@ dina_resolve_task_selectors <- function(selectors, ids, mode = c("all", "single"
 dina_select_tasks <- function(root = dina_repo_root(), task = NULL, stage = NULL, from = NULL, to = NULL) {
   tasks <- dina_pipeline(root)$tasks
   ids <- vapply(tasks, function(x) x$id, character(1))
+  active <- vapply(tasks, dina_task_active, logical(1))
+  explicit_inactive <- character()
   keep <- rep(TRUE, length(tasks))
   if (!is.null(stage)) {
     keep <- keep & vapply(tasks, function(x) identical(x$stage, stage), logical(1))
   }
   if (!is.null(task)) {
-    keep <- keep & ids %in% dina_resolve_task_selectors(task, ids, mode = "all")
+    selectors <- dina_split_task_selectors(task)
+    selected <- dina_resolve_task_selectors(task, ids, mode = "all")
+    short_ids <- vapply(ids, dina_task_short_id, character(1))
+    for (selector in selectors) {
+      selector_lower <- tolower(selector)
+      direct <- ids[tolower(ids) == selector_lower | tolower(short_ids) == selector_lower]
+      if (length(direct) == 1L && !active[[match(direct, ids)]]) {
+        explicit_inactive <- c(explicit_inactive, direct)
+      }
+    }
+    keep <- keep & ids %in% selected
   }
   if (!is.null(from)) {
     from_id <- dina_resolve_task_selector(from, ids, mode = "from")
@@ -745,6 +999,7 @@ dina_select_tasks <- function(root = dina_repo_root(), task = NULL, stage = NULL
     end <- match(to_id, ids)
     keep <- keep & seq_along(tasks) <= end
   }
+  keep <- keep & (active | ids %in% explicit_inactive)
   tasks[keep]
 }
 
@@ -774,6 +1029,15 @@ dina_earliest_mtime <- function(paths, root = dina_repo_root()) {
 }
 
 dina_task_status <- function(task, root = dina_repo_root(), session = NULL, seen = character()) {
+  if (!dina_task_active(task)) {
+    return(list(
+      id = task$id,
+      stage = task$stage %||% NA_character_,
+      status = "inactive",
+      reasons = task$notes %||% "Task is inactive by default; select it explicitly when this heavy/static input needs to be rebuilt."
+    ))
+  }
+
   inputs <- unique(c(task$inputs %||% character(), task$script %||% character(), "_config.do", "config/dina.yml"))
   outputs <- task$outputs %||% character()
 
@@ -877,10 +1141,11 @@ dina_run_task <- function(task, root = dina_repo_root(), session = dina_load_ses
 
 dina_make_export <- function(path = dina_path("Makefile.dina", root = root), root = dina_repo_root()) {
   tasks <- dina_pipeline(root)$tasks
+  active_tasks <- tasks[vapply(tasks, dina_task_active, logical(1))]
   lines <- c(
     "# Generated by dina. The YAML task graph remains authoritative.",
     ".PHONY: all",
-    sprintf("all: %s", paste(vapply(tasks, function(x) x$id, character(1)), collapse = " ")),
+    sprintf("all: %s", paste(vapply(active_tasks, function(x) x$id, character(1)), collapse = " ")),
     ""
   )
   for (task in tasks) {

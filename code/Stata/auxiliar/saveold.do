@@ -9,8 +9,8 @@
 
 //This do file uses SNA data scrapped from http://data.un.org/ (in section 1.1)
 //Gov. Balance Sheets from http://data.imf.org/ (in section 1.3)
-//using "R/download-raw-un-sna.R", which then was
-//cleaned using "R/import-un-sna-data.R"
+//using "code/R/manual-downloaders/download-raw-un-sna.R", which then was
+//cleaned using "code/R/01a_import-un-sna-data.R"
 
 //Required programs: 
 //ssc install kountry

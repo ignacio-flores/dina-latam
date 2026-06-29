@@ -7,8 +7,14 @@ numbered_pipeline <- function(root) {
   )), file.path(root, "config", "pipeline.yml"))
 }
 
-run_dina_cli <- function(args) {
-  output <- system2(file.path(repo_root_for_tests, "bin", "dina"), args, stdout = TRUE, stderr = TRUE)
+run_dina_cli <- function(args, root = repo_root_for_tests) {
+  output <- system2(
+    file.path(repo_root_for_tests, "bin", "dina"),
+    args,
+    stdout = TRUE,
+    stderr = TRUE,
+    env = c(sprintf("DINA_REPO_ROOT=%s", root))
+  )
   status <- attr(output, "status")
   if (is.null(status)) status <- 0L
   list(status = status, output = paste(output, collapse = "\n"))
@@ -36,6 +42,42 @@ test_that("task selector aliases resolve numbered tasks and blocks", {
 
   expect_error(dina_resolve_task_selector("01", ids, mode = "single"), "matches multiple tasks")
   expect_error(dina_resolve_task_selector("09a", ids), "Unknown task selector")
+})
+
+test_that("project pipeline keeps admin task aliases sequential", {
+  tasks <- dina_pipeline(repo_root_for_tests)$tasks
+  ids <- vapply(tasks, function(task) task$id, character(1))
+  deps <- unlist(lapply(tasks, function(task) task$deps %||% character()), use.names = FALSE)
+  scripts <- vapply(tasks, function(task) task$script %||% "", character(1))
+  names(tasks) <- ids
+
+  expect_true(all(c(
+    "02a-get-survey-populations",
+    "02b-prepare-admin-microdata",
+    "02c-prepare-static-admin-data",
+    "02d-prepare-updated-admin-data",
+    "02e-format-for-bfm"
+  ) %in% ids))
+  expect_false(isTRUE(dina_task_active(tasks[["02b-prepare-admin-microdata"]])))
+  expect_true(all(vapply(tasks[c(
+    "02a-get-survey-populations",
+    "02c-prepare-static-admin-data",
+    "02d-prepare-updated-admin-data",
+    "02e-format-for-bfm"
+  )], dina_task_active, logical(1))))
+  expect_true("02e-format-for-bfm" %in% deps)
+  expect_false(any(grepl("02d-prepare-frequenly|02b-prepare-static-admin-data|02c-prepare-updated-admin-data|02d-format-for-bfm", scripts)))
+
+  selected_block <- vapply(dina_select_tasks(repo_root_for_tests, task = "02"), function(task) task$id, character(1))
+  expect_equal(selected_block, c(
+    "02a-get-survey-populations",
+    "02c-prepare-static-admin-data",
+    "02d-prepare-updated-admin-data",
+    "02e-format-for-bfm"
+  ))
+  selected_inactive <- vapply(dina_select_tasks(repo_root_for_tests, task = "02b"), function(task) task$id, character(1))
+  expect_equal(selected_inactive, "02b-prepare-admin-microdata")
+  expect_equal(dina_task_status(tasks[["02b-prepare-admin-microdata"]], repo_root_for_tests)$status, "inactive")
 })
 
 test_that("Pushover local config can be initialized and reported by doctor", {
@@ -196,20 +238,91 @@ test_that("sources list and show expose the source registry", {
   listed <- run_dina_cli(c("sources", "list"))
   expect_equal(listed$status, 0L)
   expect_match(listed$output, "Source Registry")
-  expect_match(listed$output, "country-sna-index[[:space:]]+country_sna[[:space:]]+MULTI[[:space:]]+manual_index[[:space:]]+1[[:space:]]+yes")
-  expect_match(listed$output, "wid-prices-xrates[[:space:]]+prices[[:space:]]+MULTI[[:space:]]+stata_wid")
-  expect_match(listed$output, "wb-xrates[[:space:]]+prices[[:space:]]+MULTI[[:space:]]+manual")
+  expect_match(listed$output, "country-sna-index[[:space:]]+country_sna[[:space:]]+12 countries[[:space:]]+manual[[:space:]]+1[[:space:]]+yes")
+  expect_match(listed$output, "wid-prices-xrates[[:space:]]+prices[[:space:]]+11 countries[[:space:]]+wid")
+  expect_match(listed$output, "wb-xrates[[:space:]]+prices[[:space:]]+11 countries[[:space:]]+manual")
+  expect_false(grepl("MULTI", listed$output, fixed = TRUE))
   expect_match(listed$output, "downloader")
   expect_match(listed$output, "transformer")
+
+  methods <- run_dina_cli(c("sources", "methods"))
+  expect_equal(methods$status, 0L)
+  expect_match(methods$output, "url[[:space:]]+yes[[:space:]]+Direct URL")
+  expect_match(methods$output, "zip[[:space:]]+yes[[:space:]]+Direct archive")
+  expect_match(methods$output, "script[[:space:]]+no[[:space:]]+Custom acquisition script")
+  expect_match(methods$output, "manual[[:space:]]+no[[:space:]]+Human-curated")
+  expect_match(methods$output, "wid[[:space:]]+no[[:space:]]+Currently acquired")
 
   urls <- run_dina_cli(c("sources", "list", "--urls"))
   expect_equal(urls$status, 0L)
   expect_match(urls$output, "ARG: https://sitioanterior.indec.gob.ar")
   expect_match(urls$output, "https://wid.world/")
 
+  country <- run_dina_cli(c("sources", "list", "--country", "CHL"))
+  expect_equal(country$status, 0L)
+  expect_match(country$output, "Filter: country CHL, including broad-country sources")
+  expect_match(country$output, "country-sna-chl")
+  expect_false(grepl("bra-admin-tax", country$output, fixed = TRUE))
+
+  country_friendly <- run_dina_cli(c("sources", "list", "country", "CHL"))
+  expect_equal(country_friendly$status, 0L)
+  expect_match(country_friendly$output, "Filter: country CHL, including broad-country sources")
+  expect_match(country_friendly$output, "country-sna-chl")
+  expect_false(grepl("bra-admin-tax", country_friendly$output, fixed = TRUE))
+
+  country_flag_friendly <- run_dina_cli(c("sources", "list", "country", "--CHL"))
+  expect_equal(country_flag_friendly$status, 0L)
+  expect_match(country_flag_friendly$output, "Filter: country CHL, including broad-country sources")
+  expect_match(country_flag_friendly$output, "country-sna-chl")
+  expect_false(grepl("bra-admin-tax", country_flag_friendly$output, fixed = TRUE))
+
+  family <- run_dina_cli(c("sources", "list", "family", "admin-data"))
+  expect_equal(family$status, 0L)
+  expect_match(family$output, "Filter: family admin-data \\(admin_tax, admin_tax_aux\\)")
+  expect_match(family$output, "chl-pit-total")
+  expect_match(family$output, "bra-minwage")
+  expect_false(grepl("country-sna-index", family$output, fixed = TRUE))
+
+  family_flag_friendly <- run_dina_cli(c("sources", "list", "family", "--admin-data"))
+  expect_equal(family_flag_friendly$status, 0L)
+  expect_match(family_flag_friendly$output, "Filter: family admin-data \\(admin_tax, admin_tax_aux\\)")
+
+  family_canonical <- run_dina_cli(c("sources", "list", "--family", "admin-data"))
+  expect_equal(family_canonical$status, 0L)
+  expect_match(family_canonical$output, "Filter: family admin-data \\(admin_tax, admin_tax_aux\\)")
+
+  method <- run_dina_cli(c("sources", "list", "method", "manual"))
+  expect_equal(method$status, 0L)
+  expect_match(method$output, "Filter: method manual")
+  expect_match(method$output, "country-sna-index")
+  expect_false(grepl("chl-pit-total", method$output, fixed = TRUE))
+
+  method_flag_friendly <- run_dina_cli(c("sources", "list", "method", "--manual"))
+  expect_equal(method_flag_friendly$status, 0L)
+  expect_match(method_flag_friendly$output, "Filter: method manual")
+
+  method_canonical <- run_dina_cli(c("sources", "list", "--method", "manual"))
+  expect_equal(method_canonical$status, 0L)
+  expect_match(method_canonical$output, "Filter: method manual")
+
+  malformed_positional <- run_dina_cli(c("sources", "list", "CHL"))
+  expect_equal(malformed_positional$status, 1L)
+  expect_match(malformed_positional$output, "Unknown sources list filter: CHL")
+
+  malformed_flag <- run_dina_cli(c("sources", "list", "--CHL"))
+  expect_equal(malformed_flag$status, 1L)
+  expect_match(malformed_flag$output, "Unknown sources list option: --CHL")
+
+  malformed_family <- run_dina_cli(c("sources", "list", "family", "not-a-family"))
+  expect_equal(malformed_family$status, 1L)
+  expect_match(malformed_family$output, "Unknown source family: not-a-family")
+
   shown <- run_dina_cli(c("sources", "show", "country-sna-index"))
   expect_equal(shown$status, 0L)
+  expect_match(shown$output, "country: 12 countries")
+  expect_match(shown$output, "country coverage:")
   expect_match(shown$output, "input_data/sna_country_data/_sna-web-site-index\\.ods")
+  expect_match(shown$output, "method: manual - Human-curated/manual input or URL index")
   expect_match(shown$output, "BRA single-year downloads")
   expect_match(shown$output, "https://www.inegi.org.mx/datos/\\?t=0190")
 
@@ -219,8 +332,62 @@ test_that("sources list and show expose the source registry", {
 
   help <- run_dina_cli(c("help", "sources"))
   expect_equal(help$status, 0L)
-  expect_match(help$output, "dina sources list \\[--family FAMILY\\] \\[--country ISO\\] \\[--urls\\]")
+  expect_match(help$output, "dina sources list \\[--family FAMILY\\] \\[--country ISO\\] \\[--method METHOD\\] \\[--urls\\]")
+  expect_match(help$output, "dina sources list country ISO \\[--urls\\]")
+  expect_match(help$output, "dina sources list family FAMILY \\[--urls\\]")
+  expect_match(help$output, "dina sources list method METHOD \\[--urls\\]")
   expect_match(help$output, "dina sources show ID \\[--urls\\]")
+  expect_match(help$output, "dina sources methods")
+  expect_match(help$output, "url[[:space:]]+Direct URL fetchable")
+  expect_match(help$output, "manual[[:space:]]+Human-curated input or URL index")
+})
+
+test_that("update lifecycle commands list, dry-run delete, delete, and restart safely", {
+  root <- mini_repo()
+  first <- dina_update_start("2026", root = root)
+
+  listed <- run_dina_cli(c("update", "list"), root = root)
+  expect_equal(listed$status, 0L)
+  expect_match(listed$output, "Update Sessions")
+  expect_match(listed$output, first$id)
+  expect_match(listed$output, "\\*[[:space:]]+2026-update")
+
+  dry_delete <- run_dina_cli(c("update", "delete"), root = root)
+  expect_equal(dry_delete$status, 0L)
+  expect_match(dry_delete$output, "Would delete update")
+  expect_true(dir.exists(dina_update_dir(first$id, root)))
+  expect_equal(dina_current_update(root), first$id)
+
+  dry_restart <- run_dina_cli(c("update", "restart"), root = root)
+  expect_equal(dry_restart$status, 0L)
+  expect_match(dry_restart$output, "Would preserve update")
+  expect_equal(dina_load_session(root = root)$status, "initialized")
+
+  restarted <- run_dina_cli(c("update", "restart", "--yes"), root = root)
+  expect_equal(restarted$status, 0L)
+  second_id <- dina_current_update(root)
+  expect_false(identical(second_id, first$id))
+  old_session <- dina_load_session(first$id, root)
+  expect_equal(old_session$status, "abandoned")
+  expect_equal(old_session$successor_update, second_id)
+  expect_true(dir.exists(dina_update_dir(first$id, root)))
+  expect_true(dir.exists(dina_update_dir(second_id, root)))
+
+  dry_delete_id <- run_dina_cli(c("update", "delete", second_id), root = root)
+  expect_equal(dry_delete_id$status, 0L)
+  expect_match(dry_delete_id$output, second_id)
+  expect_true(dir.exists(dina_update_dir(second_id, root)))
+
+  deleted <- run_dina_cli(c("update", "delete", second_id, "--yes"), root = root)
+  expect_equal(deleted$status, 0L)
+  expect_false(dir.exists(dina_update_dir(second_id, root)))
+  expect_null(dina_current_update(root))
+
+  help <- run_dina_cli(c("help", "update"))
+  expect_equal(help$status, 0L)
+  expect_match(help$output, "dina update list")
+  expect_match(help$output, "dina update restart \\[YEAR\\] \\[--yes\\]")
+  expect_match(help$output, "dina update delete \\[ID\\] \\[--yes\\]")
 })
 
 test_that("Git ignore keeps update records trackable and local Pushover private", {

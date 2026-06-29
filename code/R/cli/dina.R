@@ -82,6 +82,8 @@ Annual update:
   `help workflow`                     [read-only] annual update recipe
   `update start [YEAR]`               [writes session] create active session
   `update resume|status|checklist`    [read-only] inspect active session
+  `update list`                       [read-only] list update sessions
+  `update restart|delete`             [writes session] lifecycle controls
   `update finalize [--force]`         [writes session] freeze final records
 
 Source data:
@@ -256,6 +258,9 @@ Examples:
   dina update resume
   dina update status
   dina update checklist
+  dina update list
+  dina update restart [YEAR] [--yes]
+  dina update delete [ID] [--yes]
   dina update finalize [--force]
 
 What it manages:
@@ -274,23 +279,40 @@ Subcommands:
                                   that work should continue automatically.
   checklist                       Prints the update checklist stored in the
                                   active session.
+  list                            Lists update sessions and marks the active
+                                  one with `*`.
+  restart [YEAR] [--yes]          Starts a fresh active session while preserving
+                                  the old one. Without --yes, only prints the
+                                  planned restart. If YEAR is omitted, reuses
+                                  the active session year.
+  delete [ID] [--yes]             Deletes an update session. If ID is omitted,
+                                  uses the active session. Without --yes, only
+                                  prints what would be deleted.
   finalize [--force]              Freezes final outputs and checksums. Without
                                   --force it refuses missing, stale, or failed
                                   required tasks.
 
 What it changes:
-  `start`, source commands during a session, and `finalize` write session
-  records. `resume`, `status`, and `checklist` are primarily inspection.
+  `start`, source commands during a session, `restart`, `delete`, and `finalize`
+  write session records or remove session files. `resume`, `status`,
+  `checklist`, and `list` are primarily inspection.
 
 Examples:
   dina update start YEAR
+  dina update list
+  dina update restart --yes
+  dina update delete 2026-update-06-29 --yes
   dina update resume
   dina update finalize
 ",
     sources = "Usage:
   dina sources refresh [--source ID] [--dry-run]
-  dina sources list [--family FAMILY] [--country ISO] [--urls]
+  dina sources list [--family FAMILY] [--country ISO] [--method METHOD] [--urls]
+  dina sources list country ISO [--urls]
+  dina sources list family FAMILY [--urls]
+  dina sources list method METHOD [--urls]
   dina sources show ID [--urls]
+  dina sources methods
   dina sources scan [--deep] [--hash]
   dina sources review
   dina sources diff [--deep] [--hash]
@@ -307,6 +329,7 @@ What it manages:
   show ID                         Shows the full registry entry for one source,
                                   including URLs, canonical paths, scripts,
                                   checks, and notes.
+  methods                         Explains source acquisition method labels.
   refresh                         Downloads configured online sources into the
                                   active session staging area. It never directly
                                   overwrites `input_data/`.
@@ -322,7 +345,12 @@ What it manages:
   Options:
   --source ID                     Limit refresh to one source registry id.
   --family FAMILY                 For list, keep one source family.
-  --country ISO                   For list, keep one ISO country plus MULTI.
+  --method METHOD                 For list, keep one acquisition method.
+  --country ISO                   For list, keep one ISO country plus broad
+                                  country sources.
+  country ISO                     Friendly form of --country ISO for list.
+  family FAMILY                   Friendly form of --family FAMILY for list.
+  method METHOD                   Friendly form of --method METHOD for list.
   --urls                          Print source URLs in list/show output.
   --deep                          Inspect workbook sheets when possible.
   --hash                          Compute file hashes during scan/diff.
@@ -333,8 +361,20 @@ Gotcha:
   Source coverage is independent of update year. A 2026 update may discover
   newly available 2024 data or historical backfills.
 
+Methods:
+  url                             Direct URL fetchable by `sources refresh`.
+  zip                             Direct archive URL fetchable by `sources refresh`.
+  script                          Custom acquisition script exists.
+  manual                          Human-curated input or URL index.
+  wid                             Data currently acquired through Stata/WID calls.
+
 Examples:
   dina sources list --urls
+  dina sources list --country CHL --urls
+  dina sources list country CHL
+  dina sources list family admin-data
+  dina sources list method manual
+  dina sources methods
   dina sources show country-sna-index --urls
   dina sources refresh --dry-run
   dina sources refresh --source chl-pit-total
@@ -349,6 +389,8 @@ What it does:
   Inspects the configured task graph without running scripts. `list` shows each
   task alias, full id, stage, and freshness status. `why` explains the reason a
   task is stale, missing outputs, missing inputs, current, or failed.
+  Inactive tasks are registered for visibility but skipped by broad runs unless
+  selected explicitly.
 
 Task selectors:
   07d                             Unique short selector.
@@ -707,6 +749,52 @@ dina_cmd_update <- function(root, args) {
     for (item in session$checklist) {
       dina_cli_cat(sprintf("[%s] %s - %s", item$status, item$id, item$label))
     }
+  } else if (identical(sub, "list")) {
+    updates <- dina_update_list(root)
+    dina_cli_header("Update Sessions")
+    if (!nrow(updates)) {
+      dina_cli_warn("No update sessions found.")
+      return(invisible(updates))
+    }
+    dina_cli_cat(sprintf("%-6s %-28s %-6s %-12s %-25s %-25s", "active", "id", "year", "status", "created", "updated"))
+    for (i in seq_len(nrow(updates))) {
+      dina_cli_cat(sprintf(
+        "%-6s %-28s %-6s %-12s %-25s %-25s",
+        updates$active[[i]], updates$id[[i]], updates$year[[i]], updates$status[[i]],
+        updates$created_at[[i]], updates$updated_at[[i]]
+      ))
+    }
+    invisible(updates)
+  } else if (identical(sub, "delete")) {
+    flags <- dina_parse_flags(rest)
+    if (length(flags$positional) > 1L) {
+      stop("Usage: dina update delete [ID] [--yes]", call. = FALSE)
+    }
+    result <- dina_update_delete(dina_arg(flags$positional, 1L, NULL), root = root, yes = isTRUE(flags$yes))
+    if (isTRUE(result$dry_run)) {
+      dina_cli_warn(sprintf("Would delete update %s at %s.", result$id, result$dir))
+      if (isTRUE(result$active)) {
+        dina_cli_warn("This is the active update; deletion would clear the active pointer.")
+      }
+      dina_cli_alert("Run the same command with --yes to delete it.")
+    } else {
+      dina_cli_ok(sprintf("Deleted update %s.", result$id))
+      if (isTRUE(result$active)) {
+        dina_cli_alert("Cleared active update pointer.")
+      }
+    }
+  } else if (identical(sub, "restart")) {
+    flags <- dina_parse_flags(rest)
+    if (length(flags$positional) > 1L) {
+      stop("Usage: dina update restart [YEAR] [--yes]", call. = FALSE)
+    }
+    result <- dina_update_restart(dina_arg(flags$positional, 1L, NULL), root = root, yes = isTRUE(flags$yes))
+    if (isTRUE(result$dry_run)) {
+      dina_cli_warn(sprintf("Would preserve update %s and start fresh update %s.", result$old_id, result$new_id))
+      dina_cli_alert("Run the same command with --yes to restart.")
+    } else {
+      dina_cli_ok(sprintf("Restarted update. Old: %s; active: %s.", result$old_id, result$new_id))
+    }
   } else if (identical(sub, "finalize")) {
     flags <- dina_parse_flags(rest)
     session <- dina_load_session(root = root)
@@ -725,9 +813,35 @@ dina_cmd_update <- function(root, args) {
   }
 }
 
+dina_source_list_filters <- function(root, flags) {
+  family <- dina_source_resolve_family_filter(flags$family %||% NULL, root)
+  method <- dina_source_resolve_method_filter(flags$method %||% NULL)
+  country <- flags$country %||% NULL
+  if (!is.null(country) && nzchar(country)) {
+    country <- toupper(country)
+  }
+  list(
+    family = family,
+    family_label = dina_source_filter_label("family", flags$family %||% NULL, family),
+    method = method,
+    method_label = dina_source_filter_label("method", flags$method %||% NULL, method),
+    country = country
+  )
+}
+
 dina_print_source_list <- function(root, flags) {
-  registry <- dina_source_registry(root, family = flags$family %||% NULL, country = flags$country %||% NULL)
+  filters <- dina_source_list_filters(root, flags)
+  registry <- dina_source_registry(root, family = filters$family, country = filters$country, method = filters$method)
   dina_cli_header("Source Registry")
+  if (!is.null(filters$family_label)) {
+    dina_cli_alert(sprintf("Filter: family %s", filters$family_label))
+  }
+  if (!is.null(filters$country) && nzchar(filters$country)) {
+    dina_cli_alert(sprintf("Filter: country %s, including broad-country sources", filters$country))
+  }
+  if (!is.null(filters$method_label)) {
+    dina_cli_alert(sprintf("Filter: method %s", filters$method_label))
+  }
   if (!length(registry)) {
     dina_cli_warn("No sources matched.")
     return(invisible(registry))
@@ -742,7 +856,7 @@ dina_print_source_list <- function(root, flags) {
       "%-36s %-18s %-12s %-14s %5s %-4s %-10s %-11s",
       source$id %||% "",
       source$family %||% "",
-      source$country %||% "",
+      dina_source_country_summary(source, root),
       source$method %||% "",
       length(dina_source_values(dina_source_field(source, "canonical"))),
       if (length(urls)) "yes" else "no",
@@ -765,12 +879,84 @@ dina_print_source_field <- function(label, values) {
   for (value in values) dina_cli_cat(sprintf("  - %s", value))
 }
 
+dina_source_list_usage <- function() {
+  paste(
+    "Usage: dina sources list [--family FAMILY] [--country ISO] [--method METHOD] [--urls]",
+    "       dina sources list country ISO [--urls]",
+    "       dina sources list family FAMILY [--urls]",
+    "       dina sources list method METHOD [--urls]",
+    sep = "\n"
+  )
+}
+
+dina_parse_source_list_flags <- function(args) {
+  flags <- dina_parse_flags(args)
+  allowed <- c("positional", "family", "country", "method", "urls")
+  friendly_filters <- c("country", "family", "method")
+  positional <- flags$positional %||% character()
+  extra <- setdiff(names(flags), allowed)
+
+  if (length(positional)) {
+    filter_name <- positional[[1]]
+    if (!filter_name %in% friendly_filters) {
+      stop("Unknown sources list filter: ", paste(positional, collapse = " "), "\n", dina_source_list_usage(), call. = FALSE)
+    }
+    if (!is.null(flags[[filter_name]])) {
+      stop("Duplicate sources list filter: ", filter_name, "\n", dina_source_list_usage(), call. = FALSE)
+    }
+    if (length(positional) == 2L) {
+      flags[[filter_name]] <- positional[[2]]
+    } else if (length(positional) == 1L && length(extra) == 1L && isTRUE(flags[[extra[[1]]]])) {
+      flags[[filter_name]] <- extra[[1]]
+      flags[[extra[[1]]]] <- NULL
+    } else {
+      stop(dina_source_list_usage(), call. = FALSE)
+    }
+    flags$positional <- character()
+  }
+
+  extra <- setdiff(names(flags), allowed)
+  if (length(extra)) {
+    stop("Unknown sources list option: --", extra[[1]], "\n", dina_source_list_usage(), call. = FALSE)
+  }
+  if (isTRUE(flags$family)) {
+    stop("Missing value for --family\n", dina_source_list_usage(), call. = FALSE)
+  }
+  if (isTRUE(flags$country)) {
+    stop("Missing value for --country\n", dina_source_list_usage(), call. = FALSE)
+  }
+  if (isTRUE(flags$method)) {
+    stop("Missing value for --method\n", dina_source_list_usage(), call. = FALSE)
+  }
+  flags
+}
+
+dina_print_source_methods <- function() {
+  methods <- dina_source_method_glossary()
+  dina_cli_header("Source Methods")
+  dina_cli_cat(sprintf("%-8s %-7s %s", "method", "refresh", "meaning"))
+  for (i in seq_len(nrow(methods))) {
+    dina_cli_cat(sprintf("%-8s %-7s %s", methods$method[[i]], methods$refresh[[i]], methods$description[[i]]))
+  }
+  invisible(methods)
+}
+
 dina_print_source_show <- function(root, id, include_urls = FALSE) {
   source <- dina_source_by_id(id, root)
   dina_cli_header(sprintf("Source %s", source$id))
   dina_cli_cat(sprintf("family: %s", source$family %||% ""))
-  dina_cli_cat(sprintf("country: %s", source$country %||% ""))
-  dina_cli_cat(sprintf("method: %s", source$method %||% ""))
+  dina_cli_cat(sprintf("country: %s", dina_source_country_summary(source, root)))
+  coverage <- dina_source_country_values(source, root)
+  if (length(coverage) > 1L) {
+    dina_print_source_field("country coverage", coverage)
+  }
+  method <- source$method %||% ""
+  method_description <- dina_source_method_description(method)
+  if (nzchar(method_description)) {
+    dina_cli_cat(sprintf("method: %s - %s", method, method_description))
+  } else {
+    dina_cli_cat(sprintf("method: %s", method))
+  }
   urls <- dina_source_urls(source)
   if (length(urls)) {
     dina_cli_cat("urls:")
@@ -791,13 +977,15 @@ dina_cmd_sources <- function(root, args) {
   args <- dina_drop_leading_separator(args)
   sub <- dina_arg(args, 1L, "scan")
   if (identical(sub, "list")) {
-    flags <- dina_parse_flags(args[-1])
+    flags <- dina_parse_source_list_flags(args[-1])
     dina_print_source_list(root, flags)
   } else if (identical(sub, "show")) {
     flags <- dina_parse_flags(args[-1])
     id <- dina_arg(flags$positional, 1L, NULL)
     if (is.null(id)) stop("Usage: dina sources show ID [--urls]", call. = FALSE)
     dina_print_source_show(root, id, include_urls = isTRUE(flags$urls))
+  } else if (identical(sub, "methods")) {
+    dina_print_source_methods()
   } else if (identical(sub, "scan")) {
     session <- dina_load_session(root = root)
     flags <- dina_parse_flags(args[-1])
@@ -1075,7 +1263,7 @@ dina_main <- function(args = commandArgs(trailingOnly = TRUE), root = dina_repo_
 }
 
 tryCatch(
-  dina_main(root = dina_cli_root),
+  dina_main(root = dina_repo_root(dina_cli_root)),
   error = function(e) {
     dina_cli_err(conditionMessage(e))
     quit(status = 1)

@@ -47,19 +47,27 @@ test_that("project source registry is a complete readable catalog", {
     "wb-xrates",
     "wb-inflation"
   ) %in% ids))
+  methods <- unique(vapply(registry, function(source) source$method, character(1)))
+  expect_true(all(methods %in% c("url", "zip", "script", "manual", "wid")))
+  expect_false(any(methods %in% c("legacy_script", "static_url", "zip_archive", "manual_index", "stata_wid")))
 
   moved_downloaders <- c(
-    "code/R/manual-downloaders/01a_download-raw-un-sna.R",
-    "code/R/manual-downloaders/01c_download_countrysna.R",
+    "code/R/manual-downloaders/download-raw-un-sna.R",
+    "code/R/manual-downloaders/download-country-sna.R",
     "code/R/manual-downloaders/bra_admin_downloader.R",
     "code/R/manual-downloaders/bra_minwage_downloader.R"
   )
   expect_true(all(file.exists(file.path(repo_root_for_tests, moved_downloaders))))
+  manual_downloaders <- list.files(file.path(repo_root_for_tests, "code/R/manual-downloaders"), pattern = "\\.R$")
+  expect_false(any(grepl("^[0-9]{2}[a-z]_", manual_downloaders)))
 
-  downloader_paths <- unlist(lapply(registry, function(source) {
-    dina_source_values(dina_source_field(source, "downloader"))
+  script_paths <- unlist(lapply(registry, function(source) {
+    c(
+      dina_source_values(dina_source_field(source, "downloader")),
+      dina_source_values(dina_source_field(source, "transformer"))
+    )
   }), use.names = FALSE)
-  downloader_paths <- downloader_paths[nzchar(downloader_paths)]
-  expect_true(all(file.exists(file.path(repo_root_for_tests, downloader_paths))))
-  expect_false(any(grepl("code/R/functions/bra_.*downloader|code/R/01a_download|code/R/01c_download", downloader_paths)))
+  script_paths <- script_paths[nzchar(script_paths)]
+  expect_true(all(file.exists(file.path(repo_root_for_tests, script_paths))))
+  expect_false(any(grepl("code/R/functions/bra_.*downloader|code/R/.*/[0-9]{2}[a-z]_download|code/R/01b_import|code/R/02b_clean_admin_chl|code/R/03a_interpolate", script_paths)))
 })
