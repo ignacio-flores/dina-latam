@@ -24,7 +24,8 @@ input_data/surveys_CEPAL/VEN
 input_data/sna_UNDATA/
 input_data/admin_data/URY/microdata
 input_data/admin_data/MEX/microdata
-
+input_data/admin_data/ARG/Estadisticas*
+input_data/admin_data/ARG/Muestra*
 intermediary_data/
 previous_series/*.dta
 output/latest_wid_series
