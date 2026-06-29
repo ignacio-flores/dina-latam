@@ -308,6 +308,11 @@ dina_source_country_summary <- function(source, root = dina_repo_root()) {
   if (!length(values)) {
     return("")
   }
+  raw <- unlist(strsplit(dina_source_values(dina_source_field(source, "country", "")), ",", fixed = TRUE), use.names = FALSE)
+  raw <- unique(toupper(trimws(raw[nzchar(raw)])))
+  if ("MULTI" %in% raw) {
+    return(sprintf("%s %s", length(values), if (length(values) == 1L) "country" else "countries"))
+  }
   if (length(values) <= 3L) {
     return(paste(values, collapse = ","))
   }
@@ -589,7 +594,8 @@ dina_scan_sources <- function(root = dina_repo_root(), include_missing = TRUE, d
     out[[source$id]] <- list(
       id = source$id,
       family = source$family %||% NA_character_,
-      country = source$country %||% NA_character_,
+      country = dina_source_country_summary(source, root),
+      country_coverage = dina_source_country_values(source, root),
       method = source$method %||% NA_character_,
       files = signatures,
       detected_years = as.integer(years)
@@ -681,8 +687,12 @@ dina_save_session <- function(session, root = dina_repo_root()) {
   dina_write_json(session, dina_session_manifest_path(session$id, root))
 }
 
+dina_update_default_id <- function(year = format(Sys.Date(), "%Y")) {
+  sprintf("%s-update-%s", year, format(Sys.Date(), "%m-%d"))
+}
+
 dina_next_update_id <- function(year = format(Sys.Date(), "%Y"), root = dina_repo_root()) {
-  base_id <- sprintf("%s-update-%s", year, format(Sys.Date(), "%m-%d"))
+  base_id <- dina_update_default_id(year)
   id <- base_id
   suffix <- 1L
   while (dir.exists(dina_update_dir(id, root))) {
@@ -690,6 +700,22 @@ dina_next_update_id <- function(year = format(Sys.Date(), "%Y"), root = dina_rep
     id <- sprintf("%s-%02d", base_id, suffix)
   }
   id
+}
+
+dina_update_start_plan <- function(year = format(Sys.Date(), "%Y"), root = dina_repo_root()) {
+  default_id <- dina_update_default_id(year)
+  existing <- dina_load_session(default_id, root)
+  exists <- dir.exists(dina_update_dir(default_id, root))
+  finalized <- !is.null(existing) && identical(existing$status, "finalized")
+  list(
+    year = as.character(year),
+    default_id = default_id,
+    id = if (exists) dina_next_update_id(year, root) else default_id,
+    exists = exists,
+    existing_status = if (!is.null(existing)) existing$status %||% "" else "",
+    requires_confirmation = exists && !finalized,
+    finalized = exists && finalized
+  )
 }
 
 dina_update_start <- function(year = format(Sys.Date(), "%Y"), id = NULL, root = dina_repo_root()) {
@@ -802,37 +828,40 @@ dina_update_delete <- function(update_id = NULL, root = dina_repo_root(), yes = 
   result
 }
 
-dina_update_restart <- function(year = NULL, root = dina_repo_root(), yes = FALSE) {
-  session <- dina_load_session(root = root)
+dina_update_restart <- function(update_id = NULL, root = dina_repo_root(), yes = FALSE) {
+  active <- dina_current_update(root)
+  if (is.null(update_id) || !nzchar(update_id)) {
+    update_id <- active
+  }
+  if (is.null(update_id) || !nzchar(update_id)) {
+    stop("No active update to restart. Pass an update id.", call. = FALSE)
+  }
+  session <- dina_load_session(update_id, root = root)
   if (is.null(session)) {
-    stop("No active update to restart.", call. = FALSE)
+    stop("Unknown update id: ", update_id, call. = FALSE)
   }
-  if (is.null(year) || !nzchar(year)) {
-    year <- as.character(session$year %||% format(Sys.Date(), "%Y"))
-  }
-  new_id <- dina_next_update_id(year, root)
+  dir <- dina_update_dir(update_id, root)
   result <- list(
-    old_id = session$id,
-    new_id = new_id,
-    year = as.character(year),
+    id = update_id,
+    dir = dina_relative(dir, root),
+    active = identical(update_id, active),
+    year = as.character(session$year %||% format(Sys.Date(), "%Y")),
     dry_run = !isTRUE(yes),
     restarted = FALSE
   )
   if (!isTRUE(yes)) {
     return(result)
   }
-  session$successor_update <- new_id
-  session$updated_at <- dina_now()
-  if (!identical(session$status, "finalized")) {
-    session$status <- "abandoned"
-    session$abandoned_at <- dina_now()
-  }
-  dina_save_session(session, root)
-  new_session <- dina_update_start(year = year, id = new_id, root = root)
+  unlink(dir, recursive = TRUE)
+  new_session <- dina_update_start(year = result$year, id = update_id, root = root)
   result$dry_run <- FALSE
   result$restarted <- TRUE
   result$new_session <- new_session
   result
+}
+
+dina_confirm_response <- function(answer) {
+  tolower(trimws(answer %||% "")) %in% c("y", "yes")
 }
 
 dina_now <- function() {
@@ -1261,12 +1290,106 @@ dina_data_check <- function(root = dina_repo_root()) {
   ))
 }
 
-dina_doctor <- function(root = dina_repo_root()) {
+dina_command_program <- function(command) {
+  command <- trimws(command %||% "")
+  if (!nzchar(command)) {
+    return("")
+  }
+  parts <- strsplit(command, "[[:space:]]+")[[1]]
+  gsub("^[\"']|[\"']$", "", parts[[1]])
+}
+
+dina_command_available <- function(command) {
+  program <- dina_command_program(command)
+  if (!nzchar(program)) {
+    return(FALSE)
+  }
+  if (grepl("/", program, fixed = TRUE)) {
+    return(file.exists(program) && file.access(program, 1) == 0)
+  }
+  nzchar(Sys.which(program))
+}
+
+dina_stata_path_names <- function() {
+  c("stata-mp", "stata-se", "stata", "StataMP", "StataSE", "Stata")
+}
+
+dina_stata_app_dirs <- function() {
+  override <- Sys.getenv("DINA_STATA_APP_DIRS", unset = "")
+  if (nzchar(override)) {
+    return(strsplit(override, .Platform$path.sep, fixed = TRUE)[[1]])
+  }
+  c("/Applications/Stata", "/Applications")
+}
+
+dina_discover_stata <- function(path_names = dina_stata_path_names(), app_dirs = dina_stata_app_dirs()) {
+  for (name in path_names) {
+    found <- Sys.which(name)
+    if (nzchar(found)) {
+      return(list(command = unname(found), source = "PATH"))
+    }
+  }
+
+  executables <- c("stata-mp", "stata-se", "stata", "StataMP", "StataSE", "Stata")
+  for (dir in app_dirs) {
+    if (!dir.exists(dir)) {
+      next
+    }
+    apps <- if (grepl("\\.app$", dir)) {
+      dir
+    } else {
+      list.files(dir, pattern = "^Stata.*\\.app$", full.names = TRUE)
+    }
+    for (app in apps) {
+      for (exe in executables) {
+        candidate <- file.path(app, "Contents", "MacOS", exe)
+        if (file.exists(candidate) && file.access(candidate, 1) == 0) {
+          return(list(command = candidate, source = "macOS app bundle"))
+        }
+      }
+    }
+  }
+
+  list(command = "", source = "none")
+}
+
+dina_stata_status <- function(root = dina_repo_root(), path_names = dina_stata_path_names(), app_dirs = dina_stata_app_dirs()) {
+  config <- dina_config(root)
+  env_command <- Sys.getenv("DINA_STATA_CMD", unset = "")
+  config_command <- config$stata$command %||% ""
+  command <- if (nzchar(env_command)) env_command else config_command
+  source <- if (nzchar(env_command)) {
+    "environment"
+  } else if (nzchar(config_command)) {
+    "config"
+  } else {
+    "none"
+  }
+  configured <- nzchar(command)
+  available <- configured && dina_command_available(command)
+  discovered <- if (available) {
+    list(command = "", source = "none")
+  } else {
+    dina_discover_stata(path_names = path_names, app_dirs = app_dirs)
+  }
+  discovered_command <- discovered$command %||% ""
+  list(
+    command = command,
+    source = source,
+    configured = configured,
+    available = available,
+    discovered_command = discovered_command,
+    discovered_source = discovered$source %||% "none",
+    discovered = nzchar(discovered_command),
+    suggestion = if (nzchar(discovered_command)) sprintf("export DINA_STATA_CMD=\"%s\"", discovered_command) else ""
+  )
+}
+
+dina_doctor <- function(root = dina_repo_root(), stata_path_names = dina_stata_path_names(), stata_app_dirs = dina_stata_app_dirs()) {
   config_raw <- dina_read_yaml(dina_config_path(root))
   packages <- config_raw$dependencies$r_packages %||% character()
   installed <- vapply(packages, function(pkg) nzchar(system.file(package = pkg)), logical(1))
-  config <- dina_config(root)
-  stata <- Sys.getenv("DINA_STATA_CMD", unset = config$stata$command %||% "")
+  stata <- dina_stata_status(root, path_names = stata_path_names, app_dirs = stata_app_dirs)
   path_checks <- data.frame(
     path = c("input_data", "output", "previous_series", "config"),
     exists = file.exists(file.path(root, c("input_data", "output", "previous_series", "config"))),
@@ -1278,7 +1401,7 @@ dina_doctor <- function(root = dina_repo_root()) {
   list(
     root = root,
     packages = data.frame(package = packages, installed = installed, stringsAsFactors = FALSE),
-    stata = list(command = stata, configured = nzchar(stata), available = nzchar(stata) && nzchar(Sys.which(strsplit(stata, " ")[[1]][1]))),
+    stata = stata,
     pushover = dina_pushover_status(root),
     paths = path_checks,
     active_update = dina_current_update(root)

@@ -6,6 +6,24 @@ test_that("source scan detects years from filenames quickly", {
   expect_equal(scan[["source-missing"]]$detected_years, integer())
 })
 
+test_that("source scan summarizes broad country coverage for display", {
+  root <- mini_repo()
+  dina_write_yaml(list(sources = list(
+    list(
+      id = "multi-source",
+      family = "fixture",
+      country = "MULTI",
+      method = "manual",
+      canonical = c("input_data/multi_*.csv"),
+      notes = "Fixture broad-country source."
+    )
+  )), file.path(root, "config", "sources.yml"))
+
+  scan <- dina_scan_sources(root)
+  expect_equal(scan[["multi-source"]]$country, "2 countries")
+  expect_equal(scan[["multi-source"]]$country_coverage, c("COL", "ARG"))
+})
+
 test_that("source diff classifies new years and missing files", {
   root <- mini_repo()
   touch(file.path(root, "input_data", "source_2024.xlsx"), "2024-01-01")

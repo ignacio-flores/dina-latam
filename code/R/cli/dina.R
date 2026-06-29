@@ -224,6 +224,8 @@ What it does:
   Runs a read-only preflight check for the local machine. It reports missing R
   packages, whether Stata is configured and discoverable, write access for key
   project paths, Pushover configuration source, and the active update pointer.
+  Stata is configured only when DINA has a runnable command for batch jobs;
+  having the Stata app installed is not enough unless DINA can find it.
 
 What it changes:
   Nothing. This is safe to run before, during, or after an update.
@@ -254,12 +256,12 @@ Examples:
   dina install --yes
 ",
     update = "Usage:
-  dina update start [YEAR]
+  dina update start [YEAR] [--yes]
   dina update resume
   dina update status
   dina update checklist
   dina update list
-  dina update restart [YEAR] [--yes]
+  dina update restart [ID] [--yes]
   dina update delete [ID] [--yes]
   dina update finalize [--force]
 
@@ -272,7 +274,9 @@ Subcommands:
   start [YEAR]                    Creates a new session and active pointer.
                                   If omitted, YEAR defaults to the current
                                   calendar year. Default id:
-                                  YEAR-update-MM-DD.
+                                  YEAR-update-MM-DD. If an unfinished same-day
+                                  session exists, creating YEAR-update-MM-DD-02
+                                  requires confirmation.
   resume                          Recomputes reality and recommends the next
                                   action. It does not blindly continue a run.
   status                          Same state summary as resume, without implying
@@ -281,13 +285,14 @@ Subcommands:
                                   active session.
   list                            Lists update sessions and marks the active
                                   one with `*`.
-  restart [YEAR] [--yes]          Starts a fresh active session while preserving
-                                  the old one. Without --yes, only prints the
-                                  planned restart. If YEAR is omitted, reuses
-                                  the active session year.
+  restart [ID] [--yes]            Resets one update session from scratch using
+                                  the same id. If ID is omitted, uses the active
+                                  session. Without --yes, interactive terminals
+                                  ask before resetting; scripts only preview.
   delete [ID] [--yes]             Deletes an update session. If ID is omitted,
-                                  uses the active session. Without --yes, only
-                                  prints what would be deleted.
+                                  uses the active session. Without --yes,
+                                  interactive terminals ask before deleting;
+                                  scripts only preview.
   finalize [--force]              Freezes final outputs and checksums. Without
                                   --force it refuses missing, stale, or failed
                                   required tasks.
@@ -299,6 +304,7 @@ What it changes:
 
 Examples:
   dina update start YEAR
+  dina update start YEAR --yes
   dina update list
   dina update restart --yes
   dina update delete 2026-update-06-29 --yes
@@ -436,6 +442,10 @@ Options:
   --execute                       Actually run scripts and write run logs.
   --force                         Run even when a task appears current.
   --notify                        Send a Pushover message at completion/failure.
+
+Stata:
+  Stata tasks need a runnable command. If `dina doctor` finds Stata but says it
+  is not configured, set DINA_STATA_CMD to the suggested executable path.
 
 What it changes:
   With --dry-run, nothing. With --execute, scripts may update data/output files
@@ -606,6 +616,13 @@ dina_parse_flags <- function(args) {
   out
 }
 
+dina_confirm_continue <- function() {
+  if (!isatty(stdin())) {
+    return(FALSE)
+  }
+  dina_confirm_response(readline("Continue? [y/N] "))
+}
+
 dina_dashboard_actions <- function() {
   year <- format(Sys.Date(), "%Y")
   list(
@@ -670,9 +687,21 @@ dina_cmd_doctor <- function(root) {
   }
   cat("\nStata:\n")
   if (result$stata$configured) {
-    if (result$stata$available) dina_cli_ok(result$stata$command) else dina_cli_warn(sprintf("Configured but not found on PATH: %s", result$stata$command))
+    if (result$stata$available) {
+      dina_cli_ok(sprintf("%s (%s)", result$stata$command, result$stata$source))
+    } else {
+      dina_cli_warn(sprintf("Configured via %s but not runnable: %s", result$stata$source, result$stata$command))
+      if (isTRUE(result$stata$discovered)) {
+        dina_cli_alert(sprintf("Discovered Stata via %s: %s", result$stata$discovered_source, result$stata$discovered_command))
+        dina_cli_cat(sprintf("  %s", result$stata$suggestion))
+      }
+    }
+  } else if (isTRUE(result$stata$discovered)) {
+    dina_cli_warn("Installed but not configured for DINA.")
+    dina_cli_alert(sprintf("Discovered Stata via %s: %s", result$stata$discovered_source, result$stata$discovered_command))
+    dina_cli_cat(sprintf("  %s", result$stata$suggestion))
   } else {
-    dina_cli_warn("Not configured. Set DINA_STATA_CMD or config/dina.yml stata.command.")
+    dina_cli_warn("Not configured and no Stata executable was discovered. Set DINA_STATA_CMD or config/dina.yml stata.command.")
   }
   cat("\nPaths:\n")
   for (i in seq_len(nrow(result$paths))) {
@@ -730,8 +759,23 @@ dina_cmd_update <- function(root, args) {
   sub <- dina_arg(args, 1L, "status")
   rest <- args[-1]
   if (identical(sub, "start")) {
-    year <- dina_arg(rest, 1L, format(Sys.Date(), "%Y"))
-    session <- dina_update_start(year = year, root = root)
+    flags <- dina_parse_flags(rest)
+    if (length(flags$positional) > 1L) {
+      stop("Usage: dina update start [YEAR] [--yes]", call. = FALSE)
+    }
+    year <- dina_arg(flags$positional, 1L, format(Sys.Date(), "%Y"))
+    plan <- dina_update_start_plan(year, root)
+    if (isTRUE(plan$requires_confirmation) && !isTRUE(flags$yes)) {
+      dina_cli_warn(sprintf("Unfinished same-day update already exists: %s.", plan$default_id))
+      dina_cli_alert(sprintf("Would create a separate session: %s.", plan$id))
+      if (!dina_confirm_continue()) {
+        dina_cli_alert("No changes made. Pass --yes for non-interactive creation of the suffixed session.")
+        quit(status = if (isatty(stdin())) 0 else 1)
+      }
+    } else if (isTRUE(plan$finalized)) {
+      dina_cli_warn(sprintf("Finalized same-day update already exists: %s. Creating %s.", plan$default_id, plan$id))
+    }
+    session <- dina_update_start(year = year, id = plan$id, root = root)
     dina_cli_ok(sprintf("Started update session %s", session$id))
     dina_cli_alert(sprintf("Session directory: %s", dina_relative(dina_update_dir(session$id, root), root)))
   } else if (sub %in% c("resume", "status")) {
@@ -776,7 +820,15 @@ dina_cmd_update <- function(root, args) {
       if (isTRUE(result$active)) {
         dina_cli_warn("This is the active update; deletion would clear the active pointer.")
       }
-      dina_cli_alert("Run the same command with --yes to delete it.")
+      if (!dina_confirm_continue()) {
+        dina_cli_alert("No changes made. Pass --yes for non-interactive deletion.")
+        return(invisible(result))
+      }
+      result <- dina_update_delete(result$id, root = root, yes = TRUE)
+      dina_cli_ok(sprintf("Deleted update %s.", result$id))
+      if (isTRUE(result$active)) {
+        dina_cli_alert("Cleared active update pointer.")
+      }
     } else {
       dina_cli_ok(sprintf("Deleted update %s.", result$id))
       if (isTRUE(result$active)) {
@@ -786,14 +838,19 @@ dina_cmd_update <- function(root, args) {
   } else if (identical(sub, "restart")) {
     flags <- dina_parse_flags(rest)
     if (length(flags$positional) > 1L) {
-      stop("Usage: dina update restart [YEAR] [--yes]", call. = FALSE)
+      stop("Usage: dina update restart [ID] [--yes]", call. = FALSE)
     }
     result <- dina_update_restart(dina_arg(flags$positional, 1L, NULL), root = root, yes = isTRUE(flags$yes))
     if (isTRUE(result$dry_run)) {
-      dina_cli_warn(sprintf("Would preserve update %s and start fresh update %s.", result$old_id, result$new_id))
-      dina_cli_alert("Run the same command with --yes to restart.")
+      dina_cli_warn(sprintf("Would reset update %s from scratch at %s.", result$id, result$dir))
+      if (!dina_confirm_continue()) {
+        dina_cli_alert("No changes made. Pass --yes for non-interactive restart.")
+        return(invisible(result))
+      }
+      result <- dina_update_restart(result$id, root = root, yes = TRUE)
+      dina_cli_ok(sprintf("Restarted update %s from scratch.", result$id))
     } else {
-      dina_cli_ok(sprintf("Restarted update. Old: %s; active: %s.", result$old_id, result$new_id))
+      dina_cli_ok(sprintf("Restarted update %s from scratch.", result$id))
     }
   } else if (identical(sub, "finalize")) {
     flags <- dina_parse_flags(rest)

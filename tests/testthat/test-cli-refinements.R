@@ -7,17 +7,25 @@ numbered_pipeline <- function(root) {
   )), file.path(root, "config", "pipeline.yml"))
 }
 
-run_dina_cli <- function(args, root = repo_root_for_tests) {
+run_dina_cli <- function(args, root = repo_root_for_tests, env = character()) {
   output <- system2(
     file.path(repo_root_for_tests, "bin", "dina"),
     args,
     stdout = TRUE,
     stderr = TRUE,
-    env = c(sprintf("DINA_REPO_ROOT=%s", root))
+    env = c(sprintf("DINA_REPO_ROOT=%s", root), env)
   )
   status <- attr(output, "status")
   if (is.null(status)) status <- 0L
   list(status = status, output = paste(output, collapse = "\n"))
+}
+
+fake_executable <- function(dir, name) {
+  dir.create(dir, recursive = TRUE, showWarnings = FALSE)
+  path <- file.path(dir, name)
+  writeLines(c("#!/bin/sh", "exit 0"), path)
+  Sys.chmod(path, "0755")
+  path
 }
 
 test_that("task selector aliases resolve numbered tasks and blocks", {
@@ -106,6 +114,53 @@ test_that("Pushover local config can be initialized and reported by doctor", {
   expect_equal(doctor$pushover$source, "local_file")
 })
 
+test_that("doctor distinguishes configured and discovered Stata commands", {
+  old_stata <- Sys.getenv("DINA_STATA_CMD", unset = NA_character_)
+  old_path <- Sys.getenv("PATH", unset = "")
+  on.exit({
+    if (is.na(old_stata)) Sys.unsetenv("DINA_STATA_CMD") else Sys.setenv(DINA_STATA_CMD = old_stata)
+    Sys.setenv(PATH = old_path)
+  }, add = TRUE)
+
+  root <- mini_repo()
+  Sys.unsetenv("DINA_STATA_CMD")
+  empty <- dina_doctor(root, stata_path_names = character(), stata_app_dirs = character())$stata
+  expect_false(empty$configured)
+  expect_false(empty$discovered)
+
+  app_dir <- tempfile("stata-app-")
+  app_exe <- fake_executable(file.path(app_dir, "StataMP.app", "Contents", "MacOS"), "stata-mp")
+  discovered <- dina_doctor(root, stata_path_names = character(), stata_app_dirs = app_dir)$stata
+  expect_false(discovered$configured)
+  expect_true(discovered$discovered)
+  expect_equal(discovered$discovered_command, app_exe)
+  expect_match(discovered$suggestion, "export DINA_STATA_CMD=")
+
+  path_dir <- tempfile("stata-path-")
+  path_exe <- fake_executable(path_dir, "stata-mp")
+  Sys.setenv(PATH = paste(path_dir, old_path, sep = .Platform$path.sep))
+  Sys.setenv(DINA_STATA_CMD = "stata-mp")
+  configured <- dina_doctor(root, stata_path_names = "stata-mp", stata_app_dirs = character())$stata
+  expect_true(configured$configured)
+  expect_true(configured$available)
+  expect_equal(unname(Sys.which("stata-mp")), path_exe)
+
+  Sys.setenv(DINA_STATA_CMD = "missing-stata")
+  missing_configured <- dina_doctor(root, stata_path_names = "stata-mp", stata_app_dirs = character())$stata
+  expect_true(missing_configured$configured)
+  expect_false(missing_configured$available)
+  expect_true(missing_configured$discovered)
+
+  output <- run_dina_cli(
+    c("doctor"),
+    root = root,
+    env = c(sprintf("DINA_STATA_APP_DIRS=%s", app_dir), "DINA_STATA_CMD=")
+  )
+  expect_equal(output$status, 0L)
+  expect_match(output$output, "Installed but not configured for DINA")
+  expect_match(output$output, "export DINA_STATA_CMD=\"")
+})
+
 test_that("help output documents run variants and short selectors", {
   result <- run_dina_cli(c("help", "run"))
   expect_equal(result$status, 0L)
@@ -124,22 +179,23 @@ test_that("help output documents run variants and short selectors", {
 })
 
 test_that("help and default dispatch accept optional global separator", {
+  source_root <- mini_repo()
   commands <- list(
-    c("help"),
-    c("--help"),
-    c("--", "help"),
-    c("help", "workflow"),
-    c("sources"),
-    c("config"),
-    c("data"),
-    c("tasks"),
-    c("notify", "--help"),
-    c("--", "config", "--help"),
-    c("--", "run", "01a", "--dry-run")
+    list(args = c("help")),
+    list(args = c("--help")),
+    list(args = c("--", "help")),
+    list(args = c("help", "workflow")),
+    list(args = c("sources"), root = source_root),
+    list(args = c("config")),
+    list(args = c("data")),
+    list(args = c("tasks")),
+    list(args = c("notify", "--help")),
+    list(args = c("--", "config", "--help")),
+    list(args = c("--", "run", "01a", "--dry-run"))
   )
 
-  for (args in commands) {
-    result <- run_dina_cli(args)
+  for (command in commands) {
+    result <- run_dina_cli(command$args, root = command$root %||% repo_root_for_tests)
     expect_equal(result$status, 0L)
   }
 })
@@ -244,6 +300,27 @@ test_that("sources list and show expose the source registry", {
   expect_false(grepl("MULTI", listed$output, fixed = TRUE))
   expect_match(listed$output, "downloader")
   expect_match(listed$output, "transformer")
+
+  project_scan <- dina_scan_sources(repo_root_for_tests)
+  scan_countries <- vapply(project_scan, function(source) source$country, character(1))
+  expect_equal(project_scan[["country-sna-index"]]$country, "12 countries")
+  expect_false(any(scan_countries == "MULTI"))
+
+  scan_root <- mini_repo()
+  dina_write_yaml(list(sources = list(
+    list(
+      id = "broad-source",
+      family = "fixture",
+      country = "MULTI",
+      method = "manual",
+      canonical = c("input_data/broad_*.csv"),
+      notes = "Fixture broad-country source."
+    )
+  )), file.path(scan_root, "config", "sources.yml"))
+  scanned <- run_dina_cli(c("sources", "scan"), root = scan_root)
+  expect_equal(scanned$status, 0L)
+  expect_match(scanned$output, "broad-source \\[fixture/2 countries\\]")
+  expect_false(grepl("MULTI", scanned$output, fixed = TRUE))
 
   methods <- run_dina_cli(c("sources", "methods"))
   expect_equal(methods$status, 0L)
@@ -360,33 +437,61 @@ test_that("update lifecycle commands list, dry-run delete, delete, and restart s
 
   dry_restart <- run_dina_cli(c("update", "restart"), root = root)
   expect_equal(dry_restart$status, 0L)
-  expect_match(dry_restart$output, "Would preserve update")
+  expect_match(dry_restart$output, "Would reset update")
   expect_equal(dina_load_session(root = root)$status, "initialized")
+
+  writeLines("old staged file", file.path(dina_update_dir(first$id, root), "source_staging", "old.txt"))
+  writeLines("old log", file.path(dina_update_dir(first$id, root), "logs", "old.log"))
+  session <- dina_load_session(root = root)
+  session$source_refreshes <- list(old = list(status = "done"))
+  session$task_runs <- list(old = list(status = "done"))
+  dina_save_session(session, root)
 
   restarted <- run_dina_cli(c("update", "restart", "--yes"), root = root)
   expect_equal(restarted$status, 0L)
-  second_id <- dina_current_update(root)
-  expect_false(identical(second_id, first$id))
-  old_session <- dina_load_session(first$id, root)
-  expect_equal(old_session$status, "abandoned")
-  expect_equal(old_session$successor_update, second_id)
+  restarted_id <- dina_current_update(root)
+  expect_equal(restarted_id, first$id)
+  restarted_session <- dina_load_session(first$id, root)
+  expect_equal(restarted_session$status, "initialized")
+  expect_equal(length(restarted_session$source_refreshes), 0L)
+  expect_equal(length(restarted_session$task_runs), 0L)
+  expect_true(is.null(restarted_session$successor_update))
+  expect_false(file.exists(file.path(dina_update_dir(first$id, root), "source_staging", "old.txt")))
+  expect_false(file.exists(file.path(dina_update_dir(first$id, root), "logs", "old.log")))
   expect_true(dir.exists(dina_update_dir(first$id, root)))
-  expect_true(dir.exists(dina_update_dir(second_id, root)))
 
-  dry_delete_id <- run_dina_cli(c("update", "delete", second_id), root = root)
+  dry_delete_id <- run_dina_cli(c("update", "delete", first$id), root = root)
   expect_equal(dry_delete_id$status, 0L)
-  expect_match(dry_delete_id$output, second_id)
-  expect_true(dir.exists(dina_update_dir(second_id, root)))
+  expect_match(dry_delete_id$output, first$id)
+  expect_true(dir.exists(dina_update_dir(first$id, root)))
 
-  deleted <- run_dina_cli(c("update", "delete", second_id, "--yes"), root = root)
+  deleted <- run_dina_cli(c("update", "delete", first$id, "--yes"), root = root)
   expect_equal(deleted$status, 0L)
-  expect_false(dir.exists(dina_update_dir(second_id, root)))
-  expect_null(dina_current_update(root))
+  expect_false(dir.exists(dina_update_dir(first$id, root)))
+  expect_true(is.null(dina_current_update(root)))
+
+  start_root <- mini_repo()
+  existing <- dina_update_start("2027", root = start_root)
+  refused <- run_dina_cli(c("update", "start", "2027"), root = start_root)
+  expect_equal(refused$status, 1L)
+  expect_match(refused$output, "Unfinished same-day update already exists")
+  expect_equal(dina_current_update(start_root), existing$id)
+  expect_false(dir.exists(dina_update_dir(paste0(existing$id, "-02"), start_root)))
+
+  suffixed <- run_dina_cli(c("update", "start", "2027", "--yes"), root = start_root)
+  expect_equal(suffixed$status, 0L)
+  expect_match(suffixed$output, "-02")
+  expect_equal(dina_current_update(start_root), paste0(existing$id, "-02"))
+
+  expect_true(dina_confirm_response("y"))
+  expect_true(dina_confirm_response("yes"))
+  expect_false(dina_confirm_response(""))
+  expect_false(dina_confirm_response("no"))
 
   help <- run_dina_cli(c("help", "update"))
   expect_equal(help$status, 0L)
   expect_match(help$output, "dina update list")
-  expect_match(help$output, "dina update restart \\[YEAR\\] \\[--yes\\]")
+  expect_match(help$output, "dina update restart \\[ID\\] \\[--yes\\]")
   expect_match(help$output, "dina update delete \\[ID\\] \\[--yes\\]")
 })
 
