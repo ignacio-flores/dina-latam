@@ -92,6 +92,33 @@ dina_sources_path <- function(root = dina_repo_root()) {
   dina_path("config", "sources.yml", root = root)
 }
 
+dina_pushover_local_path <- function(root = dina_repo_root()) {
+  dina_path("config", "pushover.local.R", root = root)
+}
+
+dina_pushover_example_path <- function(root = dina_repo_root()) {
+  dina_path("config", "pushover.local.R.example", root = root)
+}
+
+dina_pushover_template <- function() {
+  c(
+    "# Local Pushover credentials for DINA-LatAm.",
+    "# This file is ignored by Git. Replace the placeholders with your values.",
+    "pushoverr::set_pushover_user(user = \"xxxxxx\")",
+    "pushoverr::set_pushover_app(token = \"xxxxxx\")"
+  )
+}
+
+dina_notify_init <- function(root = dina_repo_root(), overwrite = FALSE) {
+  path <- dina_pushover_local_path(root)
+  if (file.exists(path) && !overwrite) {
+    return(list(path = path, created = FALSE))
+  }
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+  writeLines(dina_pushover_template(), path)
+  list(path = path, created = TRUE)
+}
+
 dina_config <- function(root = dina_repo_root(), expand_env = TRUE) {
   config <- dina_read_yaml(dina_config_path(root))
   if (expand_env) {
@@ -447,7 +474,7 @@ dina_save_session <- function(session, root = dina_repo_root()) {
 
 dina_update_start <- function(year = format(Sys.Date(), "%Y"), id = NULL, root = dina_repo_root()) {
   if (is.null(id) || !nzchar(id)) {
-    base_id <- sprintf("%s-update-%s", year, format(Sys.Date(), "%Y-%m-%d"))
+    base_id <- sprintf("%s-update-%s", year, format(Sys.Date(), "%m-%d"))
     id <- base_id
     suffix <- 1L
     while (dir.exists(dina_update_dir(id, root))) {
@@ -529,6 +556,89 @@ dina_task_map <- function(root = dina_repo_root()) {
   tasks
 }
 
+dina_task_short_id <- function(id) {
+  match <- regmatches(id, regexpr("^[0-9]{2}[A-Za-z]", id, perl = TRUE))
+  if (!length(match) || identical(match, "")) id else match
+}
+
+dina_split_task_selectors <- function(x) {
+  if (is.null(x) || !length(x)) {
+    return(character())
+  }
+  selectors <- unlist(strsplit(as.character(x), ",", fixed = TRUE), use.names = FALSE)
+  selectors <- trimws(selectors)
+  unique(selectors[nzchar(selectors)])
+}
+
+dina_selector_candidates <- function(selector, ids) {
+  block <- substr(selector, 1L, 2L)
+  candidates <- ids[startsWith(tolower(ids), tolower(block))]
+  if (!length(candidates)) {
+    candidates <- ids
+  }
+  paste(utils::head(candidates, 8L), collapse = ", ")
+}
+
+dina_resolve_task_selector <- function(selector, ids, mode = c("all", "single", "from", "to")) {
+  mode <- match.arg(mode)
+  selector <- trimws(selector)
+  if (!nzchar(selector)) {
+    stop("Empty task selector.", call. = FALSE)
+  }
+
+  ids_lower <- tolower(ids)
+  selector_lower <- tolower(selector)
+  exact <- which(ids_lower == selector_lower)
+  if (length(exact) == 1L) {
+    return(ids[[exact]])
+  }
+
+  if (grepl("^[0-9]{2}[A-Za-z]$", selector, perl = TRUE)) {
+    hits <- which(startsWith(ids_lower, paste0(selector_lower, "-")))
+    if (length(hits) == 1L) {
+      return(ids[[hits]])
+    }
+    if (length(hits) > 1L) {
+      stop(
+        sprintf("Task selector `%s` is ambiguous. Candidates: %s", selector, paste(ids[hits], collapse = ", ")),
+        call. = FALSE
+      )
+    }
+  } else if (grepl("^[0-9]{2}$", selector, perl = TRUE)) {
+    hits <- which(startsWith(ids_lower, selector_lower))
+    if (length(hits)) {
+      if (identical(mode, "from")) {
+        return(ids[[hits[[1L]]]])
+      }
+      if (identical(mode, "to")) {
+        return(ids[[hits[[length(hits)]]]])
+      }
+      if (identical(mode, "single")) {
+        stop(
+          sprintf("Task selector `%s` matches multiple tasks. Candidates: %s", selector, paste(ids[hits], collapse = ", ")),
+          call. = FALSE
+        )
+      }
+      return(ids[hits])
+    }
+  }
+
+  stop(
+    sprintf("Unknown task selector `%s`. Candidates include: %s", selector, dina_selector_candidates(selector, ids)),
+    call. = FALSE
+  )
+}
+
+dina_resolve_task_selectors <- function(selectors, ids, mode = c("all", "single", "from", "to")) {
+  mode <- match.arg(mode)
+  selectors <- dina_split_task_selectors(selectors)
+  if (!length(selectors)) {
+    return(character())
+  }
+  resolved <- unlist(lapply(selectors, dina_resolve_task_selector, ids = ids, mode = mode), use.names = FALSE)
+  ids[ids %in% unique(resolved)]
+}
+
 dina_select_tasks <- function(root = dina_repo_root(), task = NULL, stage = NULL, from = NULL, to = NULL) {
   tasks <- dina_pipeline(root)$tasks
   ids <- vapply(tasks, function(x) x$id, character(1))
@@ -537,16 +647,16 @@ dina_select_tasks <- function(root = dina_repo_root(), task = NULL, stage = NULL
     keep <- keep & vapply(tasks, function(x) identical(x$stage, stage), logical(1))
   }
   if (!is.null(task)) {
-    keep <- keep & ids %in% task
+    keep <- keep & ids %in% dina_resolve_task_selectors(task, ids, mode = "all")
   }
   if (!is.null(from)) {
-    start <- match(from, ids)
-    if (is.na(start)) stop("Unknown --from task: ", from, call. = FALSE)
+    from_id <- dina_resolve_task_selector(from, ids, mode = "from")
+    start <- match(from_id, ids)
     keep <- keep & seq_along(tasks) >= start
   }
   if (!is.null(to)) {
-    end <- match(to, ids)
-    if (is.na(end)) stop("Unknown --to task: ", to, call. = FALSE)
+    to_id <- dina_resolve_task_selector(to, ids, mode = "to")
+    end <- match(to_id, ids)
     keep <- keep & seq_along(tasks) <= end
   }
   tasks[keep]
@@ -818,11 +928,7 @@ dina_doctor <- function(root = dina_repo_root()) {
     root = root,
     packages = data.frame(package = packages, installed = installed, stringsAsFactors = FALSE),
     stata = list(command = stata, configured = nzchar(stata), available = nzchar(stata) && nzchar(Sys.which(strsplit(stata, " ")[[1]][1]))),
-    pushover = list(
-      enabled = isTRUE(config$notifications$pushover$enabled),
-      token_configured = nzchar(config$notifications$pushover$token %||% ""),
-      user_configured = nzchar(config$notifications$pushover$user %||% "")
-    ),
+    pushover = dina_pushover_status(root),
     paths = path_checks,
     active_update = dina_current_update(root)
   )
@@ -843,13 +949,84 @@ dina_audit_paths <- function(root = dina_repo_root()) {
   hits
 }
 
-dina_notify_test <- function(root = dina_repo_root()) {
+dina_pushover_credentials <- function(root = dina_repo_root()) {
   config <- dina_config(root)
-  token <- config$notifications$pushover$token %||% ""
-  user <- config$notifications$pushover$user %||% ""
-  if (!nzchar(token) || !nzchar(user)) {
-    stop("Pushover token/user not configured in environment.", call. = FALSE)
+  pushover <- (config$notifications %||% list())$pushover %||% list()
+  token <- Sys.getenv("PUSHOVER_APP_TOKEN", unset = "")
+  user <- Sys.getenv("PUSHOVER_USER_KEY", unset = "")
+  if (!nzchar(token)) {
+    token <- pushover$token %||% ""
+  }
+  if (!nzchar(user)) {
+    user <- pushover$user %||% ""
+  }
+  list(token = token, user = user)
+}
+
+dina_pushover_status <- function(root = dina_repo_root()) {
+  config <- dina_config(root)
+  pushover <- (config$notifications %||% list())$pushover %||% list()
+  local_path <- dina_pushover_local_path(root)
+  env_token <- Sys.getenv("PUSHOVER_APP_TOKEN", unset = "")
+  env_user <- Sys.getenv("PUSHOVER_USER_KEY", unset = "")
+  config_token <- pushover$token %||% ""
+  config_user <- pushover$user %||% ""
+
+  local_configured <- file.exists(local_path)
+  env_configured <- nzchar(env_token) && nzchar(env_user)
+  config_configured <- nzchar(config_token) && nzchar(config_user)
+  source <- if (local_configured) {
+    "local_file"
+  } else if (env_configured) {
+    "environment"
+  } else if (config_configured) {
+    "config"
+  } else {
+    "none"
+  }
+
+  list(
+    enabled = isTRUE(pushover$enabled),
+    configured = local_configured || env_configured || config_configured,
+    source = source,
+    local_path = dina_relative(local_path, root),
+    local_configured = local_configured,
+    env_configured = env_configured,
+    config_configured = config_configured,
+    token_configured = local_configured || nzchar(dina_pushover_credentials(root)$token),
+    user_configured = local_configured || nzchar(dina_pushover_credentials(root)$user)
+  )
+}
+
+dina_source_pushover_local <- function(root = dina_repo_root()) {
+  path <- dina_pushover_local_path(root)
+  if (!file.exists(path)) {
+    return(FALSE)
   }
   dina_need("pushoverr")
-  pushoverr::pushover(message = "DINA-LatAm CLI notification test", app = token, user = user)
+  env <- new.env(parent = baseenv())
+  env$set_pushover_user <- pushoverr::set_pushover_user
+  env$set_pushover_app <- pushoverr::set_pushover_app
+  sys.source(path, envir = env)
+  TRUE
+}
+
+dina_notify <- function(message, root = dina_repo_root(), title = "DINA-LatAm") {
+  dina_need("pushoverr")
+  args <- list(message = message, title = title)
+  if (file.exists(dina_pushover_local_path(root))) {
+    dina_source_pushover_local(root)
+  } else {
+    credentials <- dina_pushover_credentials(root)
+    if (!nzchar(credentials$token) || !nzchar(credentials$user)) {
+      stop("Pushover is not configured. Run `dina notify init` or set PUSHOVER_APP_TOKEN and PUSHOVER_USER_KEY.", call. = FALSE)
+    }
+    args$app <- credentials$token
+    args$user <- credentials$user
+  }
+  do.call(pushoverr::pushover, args)
+}
+
+dina_notify_test <- function(root = dina_repo_root()) {
+  dina_notify("DINA-LatAm CLI notification test", root = root, title = "DINA-LatAm")
 }

@@ -67,12 +67,20 @@ This repository also includes an experimental R-based project CLI:
 ./bin/dina update start 2026
 ./bin/dina sources scan
 ./bin/dina tasks list
-./bin/dina run --task 01a-clean-macro-data --dry-run
+./bin/dina run 01a --dry-run
+./bin/dina help run
 ```
 
 The CLI keeps Stata's manual workflow available, but adds update sessions,
 source scans, task freshness checks, generated Stata config files, run logs,
 and archive helpers. Update sessions are stored under `output/updates/`.
+Task selectors can use full task IDs, step aliases like `01a`, or whole-block
+aliases like `01`.
+
+For Pushover notifications, copy `config/pushover.local.R.example` to
+`config/pushover.local.R` or run `./bin/dina notify init`, then replace the
+placeholders. The local credentials file is ignored by Git; server runs can
+instead use `PUSHOVER_USER_KEY` and `PUSHOVER_APP_TOKEN`.
 
 To let Stata use a CLI-generated config, the CLI sets `DINA_CONFIG_DO`; manual
 Stata runs continue to use `_config.do` defaults when that environment variable

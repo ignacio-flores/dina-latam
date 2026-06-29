@@ -33,6 +33,19 @@ test_env$expect_match <- function(object, regexp) {
   if (!grepl(regexp, object)) stop(sprintf("Expected `%s` to match `%s`", object, regexp), call. = FALSE)
 }
 
+test_env$expect_error <- function(object, regexp = NULL) {
+  error <- tryCatch({
+    force(object)
+    NULL
+  }, error = function(e) e)
+  if (is.null(error)) {
+    stop("Expected an error", call. = FALSE)
+  }
+  if (!is.null(regexp) && !grepl(regexp, conditionMessage(error))) {
+    stop(sprintf("Expected error `%s` to match `%s`", conditionMessage(error), regexp), call. = FALSE)
+  }
+}
+
 source("tests/testthat/helper-fixtures.R", local = test_env)
 for (file in sort(list.files("tests/testthat", pattern = "^test-.*\\.R$", full.names = TRUE))) {
   source(file, local = test_env)

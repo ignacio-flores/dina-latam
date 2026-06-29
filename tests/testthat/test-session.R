@@ -1,7 +1,7 @@
 test_that("update start creates a session and active pointer", {
   root <- mini_repo()
   session <- dina_update_start("2026", root = root)
-  expect_match(session$id, "2026-update")
+  expect_equal(session$id, sprintf("2026-update-%s", format(Sys.Date(), "%m-%d")))
   expect_true(file.exists(file.path(root, "output", "updates", ".active_update")))
   expect_true(file.exists(file.path(root, session$config_file)))
 

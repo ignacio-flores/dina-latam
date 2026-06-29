@@ -1,0 +1,4 @@
+# Local Pushover credentials for DINA-LatAm.
+# Copy this file to config/pushover.local.R and replace the placeholders.
+pushoverr::set_pushover_user(user = "xxxxxx")
+pushoverr::set_pushover_app(token = "xxxxxx")
