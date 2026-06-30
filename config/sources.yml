@@ -10,6 +10,9 @@ sources:
     canonical:
       - input_data/admin_data/CHL/PUB_Total_*.xlsx
       - input_data/admin_data/CHL/PUB_Total_*.xlsb
+    inbox:
+      - input_data/admin_data/CHL/_new/PUB_Total_*.xlsb
+      - input_data/admin_data/CHL/_new/PUB_Total_*.xlsx
     destination: input_data/admin_data/CHL/{basename}
     staging_name: CHL/PUB_Total_{date}.xlsb
     downloader: code/R/02c_clean_admin_chl.R
@@ -44,7 +47,9 @@ sources:
     canonical:
       - input_data/admin_data/BRA/gn-irpf-ac*.xlsx
       - input_data/admin_data/BRA/ptot_*.xlsx
-      - input_data/admin_data/BRA/downloads/*
+    inbox:
+      - input_data/admin_data/BRA/_new/gn-irpf-ac*.xlsx
+    destination: input_data/admin_data/BRA/{basename}
     staging_name: BRA/admin_tax_{date}
     downloader: code/R/manual-downloaders/bra_admin_downloader.R
     transformer: code/R/02c_clean_admin_bra.R
@@ -64,6 +69,7 @@ sources:
         url: http://www.guiatrabalhista.com.br/guia/salario_minimo.htm
     canonical:
       - input_data/admin_data/BRA/downloads/wiki_minwage.csv
+    destination: input_data/admin_data/BRA/downloads/{basename}
     staging_name: BRA/wiki_minwage_{date}.csv
     downloader: code/R/manual-downloaders/bra_minwage_downloader.R
     transformer: code/R/02c_clean_admin_bra.R
@@ -126,6 +132,9 @@ sources:
     canonical:
       - input_data/admin_data/COL/1_Cuantiles_Ingreso_Bruto_Naturales_2014-*
       - input_data/admin_data/COL/Nota-Metodologica-Cuantiles-Personas-Naturales.pdf
+    inbox:
+      - input_data/admin_data/COL/_new/1_Cuantiles_Ingreso_Bruto_Naturales_2014-*
+    destination: input_data/admin_data/COL/{basename}
     transformer: code/Stata/tax-data/COL-diverse.do
     checks:
       - file_exists

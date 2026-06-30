@@ -62,6 +62,32 @@ mini_repo <- function() {
     list(id = "source-missing", family = "fixture", country = "BBB", method = "manual", canonical = c("input_data/missing_*.csv"), staging_name = "BBB/missing_{date}.csv", checks = c("file_exists"))
   )), file.path(root, "config", "sources.yml"))
 
+  dina_write_yaml(list(gates = list(
+    list(
+      id = "parameters",
+      label = "Update parameters",
+      goal = "Review update parameters.",
+      source_families = list(),
+      tasks = list(),
+      checks = list(
+        list(id = "year-scope", label = "Year scope reviewed.")
+      ),
+      commands = c("dina config show")
+    ),
+    list(
+      id = "tax-admin",
+      label = "Admin tax microdata and GPInter",
+      goal = "Review admin tax inputs.",
+      source_families = c("fixture"),
+      tasks = c("task1"),
+      checks = list(
+        list(id = "raw-accepted", label = "Raw files accepted."),
+        list(id = "structure-validated", label = "Structure validated.")
+      ),
+      commands = c("dina sources review")
+    )
+  )), file.path(root, "config", "update_roadmap.yml"))
+
   root
 }
 

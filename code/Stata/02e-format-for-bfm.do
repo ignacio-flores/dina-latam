@@ -2,7 +2,7 @@ run _config.do
 local list_noquotes : subinstr global all_countries `"""' "" , all
 foreach c in "SLV" "PER" "DOM" "URY" "BRA" "CHL" "COL" "ECU" {
 	
-	if strpos("`list_noquotes'", "`sub'") > 0 {
+	if strpos("`list_noquotes'", "`c'") > 0 {
 		
 		*define locals for each country 
 		local vars year country component average

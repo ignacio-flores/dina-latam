@@ -67,7 +67,8 @@ tasks:
     stage: macro
     type: stata
     script: code/Stata/01g-add-public-spending-data.do
-    deps: []
+    deps:
+      - 01a-clean-macro-data
     inputs:
       - input_data/expenditure_durrer_gethin_fisherpost
     outputs:

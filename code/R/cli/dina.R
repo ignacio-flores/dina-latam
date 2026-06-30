@@ -81,7 +81,9 @@ Command map
 Annual update:
   `help workflow`                     [read-only] annual update recipe
   `update start [YEAR]`               [writes session] create active session
-  `update resume|status|checklist`    [read-only] inspect active session
+  `update roadmap|gate [GATE]`        [read-only] inspect gate workflow
+  `update mark|unmark GATE/CHECK`     [writes session] record gate progress
+  `update resume|status`              [read-only] inspect active session
   `update list`                       [read-only] list update sessions
   `update restart|delete`             [writes session] lifecycle controls
   `update finalize [--force]`         [writes session] freeze final records
@@ -89,9 +91,8 @@ Annual update:
 Source data:
   `sources status|scan|diff|review`   [read-only] inspect source coverage
   `sources list|show ID`              [read-only] inspect source registry
-  `sources refresh [--dry-run]`       [read-only/writes session] plan/fetch
-  `sources stage --source ID --file`  [writes session] stage manual files
-  `sources complete --status STATUS`  [writes session] record source decision
+  `sources refresh [--dry-run]`       [read-only/writes session] fetch URL/ZIP
+  `sources integrate --incoming`      [writes files] accept _new inbox files
   `sources integrate`                 [writes files] copy approved inputs
 
 Pipeline:
@@ -120,6 +121,7 @@ Pipeline selectors
   `tasks why` needs a unique selector, such as `01a` or a full task id.
 
 Critical defaults
+  Update progress is recorded with roadmap gate checks, not source commands.
   `dina run` is dry-run unless `--execute` is present.
   `update start` records a source baseline with hashes by default.
   `sources status` uses hashes only when timestamps or sizes changed.
@@ -137,7 +139,8 @@ Notes:
 Examples:
   dina help workflow
   dina update start YEAR
-  dina sources status
+  dina update roadmap
+  dina update gate tax-admin
   dina run 01a --dry-run
   dina run 01 --execute --notify
 ",
@@ -145,83 +148,65 @@ Examples:
   dina help workflow
 
 What this page is:
-  A recommended order for an annual DINA-LatAm update. It is a guide, not a new
-  command. Use the command-specific help pages when you need exact options.
+  The annual update guide. The executable progress model is the roadmap:
+  each gate documents the source families, checks, task ids, and next commands.
 
-1. Check the machine and project state
+1. Start with the roadmap
   dina doctor
-      Read-only preflight for R packages, Stata, paths, Pushover, and any
-      active update pointer.
+      Read-only preflight for R packages, Stata, paths, notifications, and
+      the active update pointer.
 
-  dina data check
-      Read-only check that configured primary data paths exist.
-
-2. Start or resume the annual update
   dina update start [YEAR]
-      Creates `output/updates/<update_id>` and makes it the active session.
-      If YEAR is omitted, the current calendar year is used. It records a
-      source baseline with hashes by default.
+      Creates `output/updates/<update_id>`, records a hashed source baseline,
+      and makes the session active.
 
-  dina update resume
-      Recomputes the current state and recommends the next action.
+  dina update roadmap
+      Shows the ordered gate map and the next unfinished check.
 
-  dina update status
-      Same state summary as resume, without implying that work should continue.
+2. Work gate by gate
+  dina update gate parameters
+  dina update gate macro-sna
+  dina update gate surveys
+  dina update gate tax-admin
+  dina update gate tax-rates
+  dina update gate spending
+  dina update gate bfm
+  dina update gate imputation
+  dina update gate export-validation
+      Show gate-specific sources, checks, task ids, old-reference notes, inbox
+      files, and suggested commands.
 
-3. Refresh and review source data
-  dina sources scan [--deep] [--hash]
-      Inspect configured source coverage. With an active update, records the
-      latest scan in the session.
+  dina update mark GATE/CHECK --status done --note TEXT
+      Records a human/intermediate decision in the active session.
+
+  dina update unmark GATE/CHECK
+      Clears a check that was marked too early.
+
+3. Use source tools inside gates
+  dina sources list family admin-data --urls
+  dina sources show ID --urls
+      Inspect cataloged source URLs and local canonical paths.
 
   dina sources refresh [--source ID] [--dry-run] [--urls]
-      Show file state, URL availability, staging targets, and next actions.
-      It fetches only URL/ZIP sources. With --dry-run, it writes nothing.
-      URLs listed for manual/script/WID sources are update targets, not
-      automatic downloads.
-
-  dina sources list method manual --urls
-  dina sources show ID --urls
-      Inspect manual source URLs before downloading or staging files.
-
-  dina sources stage --source ID --file PATH
-  dina sources stage --source ID --dir PATH
-      Copy a hand-downloaded file or folder into the active update staging area
-      and record its source id, hash, original path, and staged path.
+      Fetches only `url` and `zip` methods into update staging.
 
   dina sources review
-      Show staged files, source ids, destination readiness, hashes, and the
-      recommended integration action.
+      Shows staged files and configured `_new` inbox candidates.
 
-  dina sources integrate --all [--yes]
-  dina sources integrate --source ID [--yes]
-      Bulk-integrate staged files only when the source has an explicit
-      destination configured. Without --yes, this previews the copy.
-
-  dina sources diff [--deep] [--hash]
-      Compare current source coverage with the active session baseline.
-
-  dina sources integrate --staged RELPATH --to input_data/... [--yes]
-      Copy an approved staged source into its canonical `input_data/` location
-      and record the decision.
+  dina sources integrate --incoming --source ID [--yes]
+      Previews or copies an approved `_new` inbox file/folder into its canonical
+      `input_data/` destination.
 
   dina sources status [--metadata-only] [--hash-all] [--deep]
-      Compare local canonical source files with the update baseline. By default
-      it reuses baseline hashes when size and timestamp are unchanged, and hashes
-      only files whose cheap metadata changed.
+      Diagnostic comparison against the update baseline.
 
-  dina sources complete --status STATUS [--note TEXT]
-      Record that source review is complete before moving to the pipeline.
-      STATUS is one of: no-new-data, updated, manual, deferred.
-
-4. Inspect the pipeline before running it
+4. Run tasks when the gate says they are ready
   dina tasks list
-      Show task ids, aliases, stages, and freshness.
-
   dina tasks why TASK
-      Explain why a task is current, stale, missing, or failed.
-
   dina run TASK --dry-run
-      Preview commands without running Stata. Dry-run is the default.
+  dina run TASK --execute
+      `pipeline.yml` task ids remain the executable graph. Gates explain when
+      and why to run them.
 
 Task selectors:
   01a                  One task.
@@ -231,19 +216,9 @@ Task selectors:
   --from 03 --to 05    Range from block 03 through block 05.
   `tasks why` needs one unique task selector, such as 01a or a full task id.
 
-5. Execute the pipeline
-  dina run TASK --execute
-      Actually run selected scripts and write run logs under `output/run_logs/`.
-
-  dina run --from TASK --to TASK --execute --notify
-      Run a range and send Pushover status when notifications are configured.
-
-6. Finalize the update
-  dina update checklist
-      Print the active update checklist.
-
+5. Finalize
   dina update finalize
-      Freeze final outputs and checksums. It refuses missing, stale, or failed
+      Freezes final outputs and checksums. It refuses missing, stale, or failed
       required tasks unless `--force` is supplied.
 
 More help:
@@ -292,7 +267,10 @@ Examples:
   dina update start [YEAR] [--yes] [--no-source-hash]
   dina update resume
   dina update status
-  dina update checklist
+  dina update roadmap
+  dina update gate [GATE]
+  dina update mark GATE/CHECK --status STATUS [--note TEXT]
+  dina update unmark GATE/CHECK
   dina update list
   dina update restart [ID] [--yes]
   dina update delete [ID] [--yes]
@@ -300,8 +278,8 @@ Examples:
 
 What it manages:
   Annual update sessions under `output/updates/<update_id>`. A session stores
-  effective config, source scans, task run records, checklist state, and final
-  manifests.
+  effective config, source scans, gate records, task run records, and final
+  manifests. Update progress is recorded through roadmap gate checks.
 
 Subcommands:
   start [YEAR]                    Creates a new session, active pointer, and
@@ -315,8 +293,14 @@ Subcommands:
                                   action. It does not blindly continue a run.
   status                          Same state summary as resume, without implying
                                   that work should continue automatically.
-  checklist                       Prints the update checklist stored in the
-                                  active session.
+  roadmap                         Prints the ordered data-family gate map.
+  gate [GATE]                     Prints detailed checks, source families,
+                                  inbox files, task ids, and suggested commands
+                                  for one gate. With no GATE, shows the next
+                                  unfinished gate.
+  mark GATE/CHECK                 Records a gate check as done, deferred, or
+                                  needs-code.
+  unmark GATE/CHECK               Clears a previously recorded gate check.
   list                            Lists update sessions and marks the active
                                   one with `*`.
   restart [ID] [--yes]            Resets one update session from scratch using
@@ -333,17 +317,24 @@ Subcommands:
 
 What it changes:
   `start`, source commands during a session, `restart`, `delete`, and `finalize`
-  write session records or remove session files. `resume`, `status`,
-  `checklist`, and `list` are primarily inspection.
+  write session records or remove session files. `mark` and `unmark` write gate
+  records. `resume`, `status`, `roadmap`, `gate`, and `list` are inspection.
 
 Options:
   --no-source-hash                For start, record only file size/timestamp in
                                   the source baseline. The default computes
                                   source hashes for later comparison.
+  --status STATUS                 For mark: done, deferred, or needs-code.
+  --note TEXT                     Explanation for a marked check. Required for
+                                  deferred and needs-code.
 
 Examples:
   dina update start YEAR
   dina update start YEAR --yes
+  dina update roadmap
+  dina update gate tax-admin
+  dina update mark tax-admin/raw-accepted --status done
+  dina update unmark tax-admin/raw-accepted
   dina update list
   dina update restart --yes
   dina update delete 2026-update-06-29 --yes
@@ -361,17 +352,19 @@ Examples:
   dina sources show ID [--urls]
   dina sources methods
   dina sources status [--metadata-only] [--hash-all] [--deep]
-  dina sources complete --status STATUS [--note TEXT]
   dina sources scan [--deep] [--hash]
   dina sources review
   dina sources diff [--deep] [--hash]
+  dina sources integrate --incoming --source ID [--yes]
+  dina sources integrate --incoming --all [--yes]
   dina sources integrate --all [--yes]
   dina sources integrate --source ID [--yes]
   dina sources integrate --staged RELPATH --to input_data/... [--source ID] [--yes]
 
 What it manages:
-  Source files before they become canonical inputs. Downloads are staged inside
-  the active update first; integration into `input_data/` is a separate step.
+  Source catalog inspection, URL/ZIP fetching, staged-file review, and copying
+  approved inputs into canonical `input_data/` paths. Update progress itself is
+  recorded with `dina update mark GATE/CHECK`.
 
   Subcommands:
   list                            Shows compact registry rows: id, family,
@@ -384,22 +377,22 @@ What it manages:
   status                          Compares current canonical source files with
                                   the active update baseline. Default mode uses
                                   hashes only when size/timestamp changed.
-  complete                        Records that source review is complete before
-                                  pipeline tasks are recommended.
   refresh                         Shows file state, URL availability, staging
                                   targets, and next actions. It fetches only
                                   URL/ZIP methods. --dry-run writes nothing.
   stage                           Copies a hand-downloaded file/folder into
-                                  staging and records source metadata.
+                                  staging and records source metadata. Advanced
+                                  utility; `_new` inboxes are preferred for
+                                  routine manual admin updates.
   scan                            Reads the source registry and detects local
                                   coverage from filenames and, with --deep,
                                   workbook metadata.
-  review                          Lists staged files, hashes, destination
-                                  readiness, and recommended actions.
+  review                          Lists staged files and configured `_new`
+                                  inbox candidates with hashes and validation.
   diff                            Compares current scan results with the active
                                   session baseline and classifies changes.
-  integrate                       Copies approved staged files into final
-                                  destinations and records decisions.
+  integrate                       Copies approved staged or incoming files into
+                                  final destinations and records decisions.
 
   Options:
   --source ID                     Limit refresh to one source registry id.
@@ -407,6 +400,8 @@ What it manages:
                                   it has an explicit destination.
   --all                           For integrate, preview/integrate all ready
                                   staged files with explicit destinations.
+  --incoming                      For integrate, use configured `_new` inbox
+                                  candidates instead of update staging.
   --file PATH                     For stage, copy one manual file into staging.
   --dir PATH                      For stage, copy one manual folder into staging.
   --family FAMILY                 For list, keep one source family.
@@ -424,9 +419,6 @@ What it manages:
   --metadata-only                 For status, compare only paths, size, and
                                   timestamps; do not compute hashes.
   --hash-all                      For status, hash all source files.
-  --status STATUS                 For complete: no-new-data, updated, manual,
-                                  or deferred.
-  --note TEXT                     Required when --status deferred.
   --dry-run                       For refresh, show planned downloads only and
                                   write nothing.
   --yes                           For stage/integrate, allow overwriting the
@@ -437,9 +429,8 @@ Gotcha:
   newly available 2024 data or historical backfills.
   URL presence does not mean automatic download. `manual`, `script`, and `wid`
   sources can have URLs that you inspect, download from, or use for verification.
-  Directly replacing files under `input_data/` is allowed as an escape hatch,
-  but it bypasses staging records. Use `dina sources status --hash-all` and a
-  clear `dina sources complete --status manual --note ...` if you do that.
+  `_new` folders are treated as manual inboxes. Pipeline scripts consume
+  canonical paths only, never `_new` directly.
 
 Methods:
   url                             Direct URL fetchable by `sources refresh`.
@@ -459,12 +450,11 @@ Examples:
   dina sources show col-admin-income --urls
   dina sources show surveys-cepal --urls
   dina sources status
-  dina sources complete --status no-new-data
   dina sources refresh --dry-run --urls
   dina sources refresh --source chl-pit-total
   dina sources list method manual --urls
-  dina sources stage --source wb-xrates --file ~/Downloads/API_PA.NUS.FCRF.xls
   dina sources review
+  dina sources integrate --incoming --source chl-pit-total
   dina sources integrate --source chl-pit-total
   dina sources integrate --all --yes
   dina sources scan --deep
@@ -708,8 +698,8 @@ dina_dashboard_actions <- function() {
   list(
     list(label = "dina doctor", args = c("doctor")),
     list(label = sprintf("dina update start %s", year), args = c("update", "start", year)),
-    list(label = "dina update resume", args = c("update", "resume")),
-    list(label = "dina sources scan", args = c("sources", "scan")),
+    list(label = "dina update roadmap", args = c("update", "roadmap")),
+    list(label = "dina update gate", args = c("update", "gate")),
     list(label = "dina tasks list", args = c("tasks", "list")),
     list(label = "dina run --dry-run", args = c("run", "--dry-run"))
   )
@@ -746,7 +736,8 @@ dina_print_dashboard <- function(root = dina_repo_root()) {
   } else {
     dina_cli_alert(sprintf("Active update: %s", session$id))
     dina_cli_alert(sprintf("State: %s", state$state))
-    dina_cli_alert(sprintf("Stale or blocked tasks: %s", state$stale_tasks %||% 0))
+    stale_label <- if (is.na(state$stale_tasks %||% NA_integer_)) "not checked before gates complete" else as.character(state$stale_tasks %||% 0)
+    dina_cli_alert(sprintf("Stale or blocked tasks: %s", stale_label))
   }
   dina_cli_ok(sprintf("Recommended next action: %s", recommendation))
   cat("\nUseful actions:\n")
@@ -764,8 +755,7 @@ dina_source_counts_line <- function(counts) {
   paste(sprintf("%s=%s", names(counts), as.integer(counts)), collapse = ", ")
 }
 
-dina_print_update_source_summary <- function(session) {
-  review <- session$source_review %||% NULL
+dina_print_update_gate_summary <- function(session, root = dina_repo_root()) {
   baseline_at <- session$source_baseline$created_at %||% session$created_at %||% NA_character_
   hash_mode <- session$source_baseline$hash_mode %||% "none"
   dina_cli_alert(sprintf("Source baseline: %s (hash: %s)", baseline_at, hash_mode))
@@ -777,12 +767,124 @@ dina_print_update_source_summary <- function(session) {
   if (!is.na(integration) && nzchar(integration)) {
     dina_cli_alert(sprintf("Last source integration: %s", integration))
   }
-  if (!is.null(review)) {
-    detail <- if (nzchar(review$note %||% "")) sprintf(" (%s)", review$note) else ""
-    dina_cli_alert(sprintf("Source review: %s at %s%s", review$status %||% "", review$reviewed_at %||% "", detail))
+  next_gate <- dina_next_gate_status(session, root)
+  if (is.null(next_gate)) {
+    dina_cli_ok("Roadmap gates: complete or deferred.")
   } else {
-    dina_cli_warn("Source review: not recorded. Run `dina sources status` before running the pipeline.")
+    dina_cli_warn(sprintf("Next gate: %s (%s)", next_gate$label, next_gate$status))
+    if (nzchar(next_gate$next_check_label %||% "")) {
+      dina_cli_alert(sprintf("Next check: %s", next_gate$next_check_label))
+    }
   }
+}
+
+dina_print_update_roadmap <- function(session, root = dina_repo_root()) {
+  dina_cli_header("Update Roadmap")
+  if (is.null(session)) {
+    dina_cli_warn("No active update. Run `dina update start YEAR` first.")
+  } else {
+    dina_cli_alert(sprintf("Active update: %s", session$id))
+  }
+  statuses <- dina_roadmap_status(session, root)
+  dina_cli_cat(sprintf("%-3s %-18s %-13s %-28s %s", "#", "gate", "status", "next check", "tasks"))
+  for (i in seq_along(statuses)) {
+    status <- statuses[[i]]
+    gate <- status$gate
+    tasks <- paste(dina_source_values(gate$tasks %||% character()), collapse = ",")
+    next_check <- status$next_check %||% ""
+    dina_cli_cat(sprintf(
+      "%-3s %-18s %-13s %-28s %s",
+      i,
+      status$id,
+      status$status,
+      next_check,
+      tasks
+    ))
+  }
+  next_gate <- dina_next_gate_status(session, root)
+  if (is.null(next_gate)) {
+    dina_cli_ok("Next action: inspect tasks or finalize when outputs are ready.")
+  } else {
+    dina_cli_ok(sprintf("Next action: dina update gate %s", next_gate$id))
+  }
+  invisible(statuses)
+}
+
+dina_print_gate_field <- function(label, values) {
+  values <- dina_source_values(values)
+  if (!length(values)) {
+    return(invisible(NULL))
+  }
+  dina_cli_cat(sprintf("%s:", label))
+  for (value in values) {
+    dina_cli_cat(sprintf("  - %s", value))
+  }
+}
+
+dina_print_update_gate <- function(session, root = dina_repo_root(), gate_id = NULL) {
+  if (is.null(gate_id) || !nzchar(gate_id)) {
+    next_gate <- dina_next_gate_status(session, root)
+    gate_id <- next_gate$id %||% "parameters"
+  }
+  gate <- dina_find_gate(gate_id, root)
+  status <- dina_gate_status(gate, session)
+  dina_cli_header(sprintf("Gate: %s", gate$id))
+  dina_cli_alert(sprintf("Status: %s", status))
+  if (nzchar(gate$label %||% "")) dina_cli_alert(gate$label)
+  if (nzchar(gate$goal %||% "")) dina_cli_cat(gate$goal)
+  dina_print_gate_field("Source families", gate$source_families %||% character())
+  dina_print_gate_field("Tasks", gate$tasks %||% character())
+  dina_print_gate_field("Old-reference notes", gate$old_refs %||% character())
+
+  dina_cli_cat("")
+  dina_cli_cat("Checks:")
+  for (check in gate$checks %||% list()) {
+    record <- dina_gate_check_record(session, gate$id %||% "", check$id %||% "")
+    check_status <- record$status %||% "pending"
+    line <- sprintf("  [%s] %s - %s", check_status, check$id %||% "", check$label %||% "")
+    dina_cli_cat(line)
+    if (nzchar(record$note %||% "")) {
+      dina_cli_cat(sprintf("      note: %s", record$note))
+    }
+  }
+
+  inbox_families <- dina_source_values(gate$source_families %||% character())
+  inbox <- dina_sources_inbox_rows(root)
+  if (length(inbox_families) && nrow(inbox)) {
+    sources <- dina_sources(root)$sources
+    source_family <- stats::setNames(
+      vapply(sources, function(source) source$family %||% "", character(1)),
+      vapply(sources, function(source) source$id %||% "", character(1))
+    )
+    inbox <- inbox[inbox$source_id %in% names(source_family)[source_family %in% inbox_families], , drop = FALSE]
+  } else {
+    inbox <- inbox[FALSE, , drop = FALSE]
+  }
+  if (nrow(inbox)) {
+    dina_cli_cat("")
+    dina_cli_cat("Incoming inbox candidates:")
+    dina_cli_cat(sprintf("%-24s %-8s %-11s %-34s %s", "source", "kind", "validation", "inbox", "destination"))
+    for (i in seq_len(nrow(inbox))) {
+      dina_cli_cat(sprintf(
+        "%-24s %-8s %-11s %-34s %s",
+        inbox$source_id[[i]],
+        inbox$kind[[i]],
+        inbox$validation[[i]],
+        dina_refresh_shorten(inbox$inbox[[i]], 34L),
+        inbox$destination[[i]]
+      ))
+      if (!identical(inbox$validation_detail[[i]], "ok")) {
+        dina_cli_cat(sprintf("  validation detail: %s", inbox$validation_detail[[i]]))
+      }
+    }
+  }
+
+  dina_print_gate_field("Suggested commands", gate$commands %||% character())
+  next_check <- dina_gate_next_check(gate, session)
+  if (!is.null(next_check)) {
+    dina_cli_ok(sprintf("To record this check: dina update mark %s/%s --status done", gate$id, next_check$id))
+  }
+  invisible(gate)
 }
 
 dina_print_source_status <- function(status) {
@@ -798,11 +900,7 @@ dina_print_source_status <- function(status) {
   if (!is.na(status$last_integration_at) && nzchar(status$last_integration_at)) {
     dina_cli_alert(sprintf("Last integration: %s", status$last_integration_at))
   }
-  if (!is.null(status$review)) {
-    dina_cli_alert(sprintf("Source review: %s at %s", status$review$status %||% "", status$review$reviewed_at %||% ""))
-  } else {
-    dina_cli_warn("Source review: not recorded.")
-  }
+  dina_cli_alert("Source status is diagnostic; update progress is recorded with `dina update mark GATE/CHECK`.")
   dina_cli_cat(sprintf("File status counts: %s", dina_source_counts_line(status$counts)))
   changed <- Filter(function(x) !identical(x$classes, "unchanged"), status$diff)
   if (!length(changed)) {
@@ -932,7 +1030,7 @@ dina_cmd_update <- function(root, args) {
     dina_cli_ok(sprintf("Started update session %s", session$id))
     dina_cli_alert(sprintf("Session directory: %s", dina_relative(dina_update_dir(session$id, root), root)))
     dina_cli_alert(sprintf("Source baseline hash mode: %s", session$source_baseline$hash_mode %||% "none"))
-    dina_cli_ok("Recommended next action: dina sources status")
+    dina_cli_ok("Recommended next action: dina update roadmap")
   } else if (sub %in% c("resume", "status")) {
     active <- dina_current_update(root)
     session <- dina_load_session(root = root)
@@ -950,15 +1048,40 @@ dina_cmd_update <- function(root, args) {
     dina_cli_header(sprintf("Update %s", session$id))
     dina_cli_alert(sprintf("Status: %s", session$status))
     dina_cli_alert(sprintf("State: %s", state$state))
-    dina_print_update_source_summary(session)
+    dina_print_update_gate_summary(session, root)
     dina_cli_ok(sprintf("Recommended next action: %s", state$recommendation))
-  } else if (identical(sub, "checklist")) {
+  } else if (identical(sub, "roadmap")) {
+    session <- dina_load_session(root = root)
+    dina_print_update_roadmap(session, root)
+  } else if (identical(sub, "gate")) {
+    session <- dina_load_session(root = root)
+    gate_id <- dina_arg(rest, 1L, NULL)
+    dina_print_update_gate(session, root, gate_id)
+  } else if (identical(sub, "mark")) {
     session <- dina_load_session(root = root)
     if (is.null(session)) stop("No active update.", call. = FALSE)
-    dina_cli_header("Checklist")
-    for (item in session$checklist) {
-      dina_cli_cat(sprintf("[%s] %s - %s", item$status, item$id, item$label))
+    flags <- dina_parse_flags(rest)
+    target <- dina_arg(flags$positional, 1L, NULL)
+    status <- flags$status %||% dina_arg(flags$positional, 2L, NULL)
+    if (is.null(target) || is.null(status)) {
+      stop("Usage: dina update mark GATE/CHECK --status done|deferred|needs-code [--note TEXT]", call. = FALSE)
     }
+    record <- dina_update_mark_gate(session, root = root, target = target, status = status, note = flags$note %||% "")
+    dina_cli_ok(sprintf("Recorded %s/%s: %s", record$gate, record$check, record$status))
+    if (nzchar(record$note %||% "")) dina_cli_alert(sprintf("Note: %s", record$note))
+  } else if (identical(sub, "unmark")) {
+    session <- dina_load_session(root = root)
+    if (is.null(session)) stop("No active update.", call. = FALSE)
+    target <- dina_arg(rest, 1L, NULL)
+    if (is.null(target)) stop("Usage: dina update unmark GATE/CHECK", call. = FALSE)
+    result <- dina_update_unmark_gate(session, root = root, target = target)
+    if (isTRUE(result$removed)) {
+      dina_cli_ok(sprintf("Cleared %s/%s", result$gate, result$check))
+    } else {
+      dina_cli_warn(sprintf("No record existed for %s/%s", result$gate, result$check))
+    }
+  } else if (identical(sub, "checklist")) {
+    stop("Unknown update command: checklist. Use `dina update roadmap`.", call. = FALSE)
   } else if (identical(sub, "list")) {
     updates <- dina_update_list(root)
     dina_cli_header("Update Sessions")
@@ -1203,6 +1326,9 @@ dina_print_source_show <- function(root, id, include_urls = FALSE) {
     dina_cli_cat("urls: none")
   }
   dina_print_source_field("canonical", source$canonical %||% character())
+  dina_print_source_field("inbox", source$inbox %||% character())
+  dina_print_source_field("destination", source$destination %||% character())
+  dina_print_source_field("destinations", source$destinations %||% character())
   dina_print_source_field("staging_name", source$staging_name %||% character())
   dina_print_source_field("downloader", source$downloader %||% character())
   dina_print_source_field("transformer", source$transformer %||% character())
@@ -1399,6 +1525,32 @@ dina_print_source_review_rows <- function(rows) {
   invisible(rows)
 }
 
+dina_print_source_inbox_rows <- function(rows) {
+  dina_cli_header("Incoming Source Inbox")
+  if (!nrow(rows)) {
+    dina_cli_warn("No configured _new inbox files found.")
+    return(invisible(rows))
+  }
+  dina_cli_cat(sprintf("%-24s %-8s %-11s %-38s %s", "source", "kind", "validation", "inbox", "destination"))
+  for (i in seq_len(nrow(rows))) {
+    dina_cli_cat(sprintf(
+      "%-24s %-8s %-11s %-38s %s",
+      rows$source_id[[i]],
+      rows$kind[[i]],
+      rows$validation[[i]],
+      dina_refresh_shorten(rows$inbox[[i]], 38L),
+      rows$destination[[i]]
+    ))
+    if (!identical(rows$validation_detail[[i]], "ok")) {
+      dina_cli_cat(sprintf("  validation detail: %s", rows$validation_detail[[i]]))
+    }
+    if (!is.na(rows$sha256[[i]]) && nzchar(rows$sha256[[i]])) {
+      dina_cli_cat(sprintf("  sha256: %s", rows$sha256[[i]]))
+    }
+  }
+  invisible(rows)
+}
+
 dina_print_bulk_integration_results <- function(results, executed = FALSE) {
   if (!length(results)) {
     dina_cli_warn("No staged sources matched.")
@@ -1416,6 +1568,29 @@ dina_print_bulk_integration_results <- function(results, executed = FALSE) {
   if (!isTRUE(executed)) {
     dina_cli_alert("Preview only. Pass --yes to integrate ready staged files.")
   }
+}
+
+dina_print_incoming_integration_results <- function(results, executed = FALSE) {
+  if (!length(results)) {
+    dina_cli_warn("No incoming sources matched.")
+    return(invisible(results))
+  }
+  for (result in results) {
+    if (identical(result$status, "integrated")) {
+      dina_cli_ok(sprintf("Integrated incoming %s -> %s", result$incoming, result$destination))
+    } else if (identical(result$status, "would_integrate")) {
+      dina_cli_alert(sprintf("Would integrate incoming %s -> %s", result$incoming, result$destination))
+      if (nzchar(result$validation %||% "")) {
+        dina_cli_alert(sprintf("Validation: %s", result$validation))
+      }
+    } else {
+      dina_cli_warn(sprintf("Skipped %s: %s", result$incoming %||% result$source_id, result$reason %||% result$status))
+    }
+  }
+  if (!isTRUE(executed)) {
+    dina_cli_alert("Preview only. Pass --yes to copy incoming files into canonical input paths.")
+  }
+  invisible(results)
 }
 
 dina_cmd_sources <- function(root, args) {
@@ -1457,18 +1632,7 @@ dina_cmd_sources <- function(root, args) {
     status <- dina_sources_status(session, root, hash = hash_mode, deep = isTRUE(flags$deep))
     dina_print_source_status(status)
   } else if (identical(sub, "complete")) {
-    session <- dina_load_session(root = root)
-    if (is.null(session)) stop("No active update.", call. = FALSE)
-    flags <- dina_parse_flags(args[-1])
-    status <- flags$status %||% dina_arg(flags$positional, 1L, NULL)
-    if (is.null(status)) {
-      stop("Usage: dina sources complete --status STATUS [--note TEXT]", call. = FALSE)
-    }
-    review <- dina_sources_complete(session, root, status = status, note = flags$note %||% "")
-    dina_cli_ok(sprintf("Recorded source review: %s", review$status))
-    if (nzchar(review$note %||% "")) {
-      dina_cli_alert(sprintf("Note: %s", review$note))
-    }
+    stop("Unknown sources command: complete. Record update progress with `dina update mark GATE/CHECK`.", call. = FALSE)
   } else if (identical(sub, "scan")) {
     session <- dina_load_session(root = root)
     flags <- dina_parse_flags(args[-1])
@@ -1505,6 +1669,7 @@ dina_cmd_sources <- function(root, args) {
     if (is.null(session)) stop("No active update.", call. = FALSE)
     rows <- dina_sources_review_rows(session, root)
     dina_print_source_review_rows(rows)
+    dina_print_source_inbox_rows(dina_sources_inbox_rows(root))
   } else if (identical(sub, "refresh")) {
     session <- dina_load_session(root = root)
     if (is.null(session)) stop("No active update.", call. = FALSE)
@@ -1523,6 +1688,17 @@ dina_cmd_sources <- function(root, args) {
     session <- dina_load_session(root = root)
     if (is.null(session)) stop("No active update.", call. = FALSE)
     flags <- dina_parse_flags(args[-1])
+    if (isTRUE(flags$incoming)) {
+      results <- dina_sources_integrate_incoming(
+        session,
+        root = root,
+        source_id = flags$source %||% NULL,
+        all = isTRUE(flags$all),
+        overwrite = isTRUE(flags$yes)
+      )
+      dina_print_incoming_integration_results(results, executed = isTRUE(flags$yes))
+      return(invisible(results))
+    }
     staged <- flags$staged %||% flags$file %||% NULL
     dest <- flags$to %||% NULL
     if (is.null(staged) && is.null(dest) && (isTRUE(flags$all) || !is.null(flags$source))) {

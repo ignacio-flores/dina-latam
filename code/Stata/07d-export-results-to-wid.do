@@ -761,4 +761,3 @@ graph twoway (line new_value year, lcolor(red)) ///
 
 
 
-

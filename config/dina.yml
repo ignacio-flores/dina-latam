@@ -72,4 +72,5 @@ dependencies:
     - testthat
     - withr
     - readxl
+    - readxlsb
     - openxlsx

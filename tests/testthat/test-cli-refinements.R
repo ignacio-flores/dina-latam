@@ -213,8 +213,8 @@ test_that("dashboard offers executable numbered actions without prompting in non
   expect_match(result$output, "Useful actions:")
   expect_match(result$output, "1\\. dina doctor")
   expect_match(result$output, sprintf("2\\. dina update start %s", year))
-  expect_match(result$output, "3\\. dina update resume")
-  expect_match(result$output, "4\\. dina sources scan")
+  expect_match(result$output, "3\\. dina update roadmap")
+  expect_match(result$output, "4\\. dina update gate")
   expect_match(result$output, "5\\. dina tasks list")
   expect_match(result$output, "6\\. dina run --dry-run")
   expect_false(grepl("Choose an action number", result$output, fixed = TRUE))
@@ -235,7 +235,10 @@ test_that("main and config help explain detailed topics and subtleties", {
   expect_match(main$output, "`help workflow`[[:space:]]+\\[read-only\\]")
   expect_match(main$output, "`update start \\[YEAR\\]`[[:space:]]+\\[writes session\\]")
   expect_match(main$output, "Source data:")
+  expect_match(main$output, "`update roadmap\\|gate \\[GATE\\]`[[:space:]]+\\[read-only\\]")
+  expect_match(main$output, "`update mark\\|unmark GATE/CHECK`[[:space:]]+\\[writes session\\]")
   expect_match(main$output, "`sources refresh \\[--dry-run\\]`[[:space:]]+\\[read-only/writes session\\]")
+  expect_match(main$output, "`sources integrate --incoming`[[:space:]]+\\[writes files\\]")
   expect_match(main$output, "Pipeline:")
   expect_match(main$output, "`run \\.\\.\\. --execute`[[:space:]]+\\[writes files\\]")
   expect_match(main$output, "Setup and config:")
@@ -246,9 +249,14 @@ test_that("main and config help explain detailed topics and subtleties", {
   expect_match(main$output, "`--from 03 --to 05`[[:space:]]+range")
   expect_match(main$output, "`tasks why` needs a unique selector")
   expect_match(main$output, "Critical defaults")
+  expect_match(main$output, "Update progress is recorded with roadmap gate checks")
   expect_match(main$output, "`dina run` is dry-run unless `--execute`")
   expect_match(main$output, "does not edit `_config.do`")
   expect_match(main$output, "dina help workflow")
+  expect_match(main$output, "dina update roadmap")
+  expect_match(main$output, "dina update gate tax-admin")
+  expect_false(grepl("sources complete", main$output, fixed = TRUE))
+  expect_false(grepl("update checklist", main$output, fixed = TRUE))
   expect_false(grepl("* has detailed help", main$output, fixed = TRUE))
   expect_false(grepl("**Command map**", main$output, fixed = TRUE))
   expect_false(grepl("**Pipeline selectors**", main$output, fixed = TRUE))
@@ -262,14 +270,18 @@ test_that("main and config help explain detailed topics and subtleties", {
 
   workflow <- run_dina_cli(c("help", "workflow"))
   expect_equal(workflow$status, 0L)
-  expect_match(workflow$output, "recommended order")
-  expect_match(workflow$output, "1\\. Check the machine")
+  expect_match(workflow$output, "annual update guide")
+  expect_match(workflow$output, "1\\. Start with the roadmap")
   expect_match(workflow$output, "dina update start \\[YEAR\\]")
-  expect_match(workflow$output, "If YEAR is omitted")
-  expect_match(workflow$output, "dina sources refresh")
+  expect_match(workflow$output, "dina update roadmap")
+  expect_match(workflow$output, "dina update gate tax-admin")
+  expect_match(workflow$output, "dina update mark GATE/CHECK")
+  expect_match(workflow$output, "dina sources integrate --incoming")
   expect_match(workflow$output, "Task selectors:")
   expect_match(workflow$output, "`tasks why` needs one unique task selector")
   expect_match(workflow$output, "dina update finalize")
+  expect_false(grepl("dina update checklist", workflow$output, fixed = TRUE))
+  expect_false(grepl("dina sources complete", workflow$output, fixed = TRUE))
 
   run <- run_dina_cli(c("help", "run"))
   expect_equal(run$status, 0L)
@@ -417,12 +429,14 @@ test_that("sources list and show expose the source registry", {
   expect_match(help$output, "dina sources show ID \\[--urls\\]")
   expect_match(help$output, "dina sources methods")
   expect_match(help$output, "dina sources status \\[--metadata-only\\] \\[--hash-all\\] \\[--deep\\]")
-  expect_match(help$output, "dina sources complete --status STATUS \\[--note TEXT\\]")
+  expect_match(help$output, "dina sources integrate --incoming --source ID \\[--yes\\]")
+  expect_match(help$output, "Update progress itself is[[:space:]]+recorded with `dina update mark GATE/CHECK`")
   expect_match(help$output, "url[[:space:]]+Direct URL fetchable")
   expect_match(help$output, "manual[[:space:]]+Human-curated input or URL index")
+  expect_false(grepl("sources complete", help$output, fixed = TRUE))
 })
 
-test_that("sources status and complete provide a source-review gate", {
+test_that("update roadmap and gate records provide the update progress model", {
   root <- mini_repo()
   path <- file.path(root, "input_data", "source_2024.xlsx")
   touch(path, "2024-01-01")
@@ -435,7 +449,7 @@ test_that("sources status and complete provide a source-review gate", {
   expect_match(started$output, "Scanning source registry and hashing source baseline")
   expect_match(started$output, "Source baseline summary")
   expect_match(started$output, "Source baseline hash mode: all")
-  expect_match(started$output, "Recommended next action: dina sources status")
+  expect_match(started$output, "Recommended next action: dina update roadmap")
 
   no_hash_root <- mini_repo()
   no_hash <- run_dina_cli(c("update", "start", "2026", "--no-source-hash"), root = no_hash_root)
@@ -450,25 +464,44 @@ test_that("sources status and complete provide a source-review gate", {
   expect_match(status$output, "hash: changed")
   expect_match(status$output, "File status counts")
   expect_match(status$output, "unchanged")
-  expect_match(status$output, "Source review: not recorded")
+  expect_match(status$output, "Source status is diagnostic")
 
   Sys.setFileTime(path, as.POSIXct("2024-01-02", tz = "UTC"))
   timestamp_only <- run_dina_cli(c("sources", "status"), root = root)
   expect_equal(timestamp_only$status, 0L)
   expect_match(timestamp_only$output, "timestamp_only")
 
-  complete <- run_dina_cli(c("sources", "complete", "--status", "no-new-data"), root = root)
-  expect_equal(complete$status, 0L)
-  expect_match(complete$output, "Recorded source review: no-new-data")
+  roadmap <- run_dina_cli(c("update", "roadmap"), root = root)
+  expect_equal(roadmap$status, 0L)
+  expect_match(roadmap$output, "Update Roadmap")
+  expect_match(roadmap$output, "parameters[[:space:]]+pending[[:space:]]+year-scope")
+
+  gate <- run_dina_cli(c("update", "gate", "parameters"), root = root)
+  expect_equal(gate$status, 0L)
+  expect_match(gate$output, "Gate: parameters")
+  expect_match(gate$output, "\\[pending\\] year-scope")
+
+  marked <- run_dina_cli(c("update", "mark", "parameters/year-scope", "--status", "done"), root = root)
+  expect_equal(marked$status, 0L)
+  expect_match(marked$output, "Recorded parameters/year-scope: done")
 
   update_status <- run_dina_cli(c("update", "status"), root = root)
   expect_equal(update_status$status, 0L)
-  expect_match(update_status$output, "Source review: no-new-data")
+  expect_match(update_status$output, "Next gate: Admin tax microdata and GPInter")
   expect_false(grepl("sources_unreviewed", update_status$output, fixed = TRUE))
+  expect_false(grepl("sources complete", update_status$output, fixed = TRUE))
 
-  deferred <- run_dina_cli(c("sources", "complete", "--status", "deferred"), root = root)
-  expect_equal(deferred$status, 1L)
-  expect_match(deferred$output, "needs --note")
+  unmarked <- run_dina_cli(c("update", "unmark", "parameters/year-scope"), root = root)
+  expect_equal(unmarked$status, 0L)
+  expect_match(unmarked$output, "Cleared parameters/year-scope")
+
+  removed_update_checklist <- run_dina_cli(c("update", "checklist"), root = root)
+  expect_equal(removed_update_checklist$status, 1L)
+  expect_match(removed_update_checklist$output, "Use `dina update roadmap`")
+
+  removed_sources_complete <- run_dina_cli(c("sources", "complete", "--status", "no-new-data"), root = root)
+  expect_equal(removed_sources_complete$status, 1L)
+  expect_match(removed_sources_complete$output, "dina update mark GATE/CHECK")
 })
 
 test_that("tasks list shows task language", {
@@ -589,6 +622,49 @@ test_that("manual source staging review and bulk integration are explicit", {
   expect_match(integrated$output, "Skipped")
   expect_true(file.exists(file.path(root, "input_data", "manual-ready.csv")))
   expect_false(file.exists(file.path(root, "input_data", "manual-ambiguous.csv")))
+})
+
+test_that("incoming _new source inbox files are reviewed, validated, integrated, and ignored for freshness", {
+  root <- mini_repo()
+  dina_write_yaml(list(sources = list(
+    list(
+      id = "chl-pit-total",
+      family = "admin_tax",
+      country = "CHL",
+      method = "manual",
+      canonical = c("input_data/admin_data/CHL/PUB_Total_*.xlsb"),
+      inbox = c("input_data/admin_data/CHL/_new/PUB_Total_*.xlsb"),
+      destination = "input_data/admin_data/CHL/{basename}",
+      checks = c("file_exists", "years_detected")
+    )
+  )), file.path(root, "config", "sources.yml"))
+  incoming <- file.path(root, "input_data", "admin_data", "CHL", "_new", "PUB_Total_2023.xlsb")
+  canonical_old <- file.path(root, "input_data", "admin_data", "CHL", "PUB_Total_2022.xlsb")
+  touch(canonical_old, "2024-01-01")
+  touch(incoming, "2024-01-05")
+  writeLines("incoming", incoming)
+  dina_update_start("2026", root = root)
+
+  latest <- dina_latest_mtime("input_data/admin_data/CHL", root = root, ignore = TRUE, recursive_dirs = TRUE)
+  expect_equal(format(latest, "%Y-%m-%d"), "2024-01-01")
+
+  review <- run_dina_cli(c("sources", "review"), root = root)
+  expect_equal(review$status, 0L)
+  expect_match(review$output, "Incoming Source Inbox")
+  expect_match(review$output, "chl-pit-total[[:space:]]+file[[:space:]]+ok")
+  expect_match(review$output, "input_data/admin_data/CHL/PUB_Total_2023\\.xlsb")
+
+  preview <- run_dina_cli(c("sources", "integrate", "--incoming", "--source", "chl-pit-total"), root = root)
+  expect_equal(preview$status, 0L)
+  expect_match(preview$output, "Would integrate incoming")
+  expect_false(file.exists(file.path(root, "input_data", "admin_data", "CHL", "PUB_Total_2023.xlsb")))
+
+  integrated <- run_dina_cli(c("sources", "integrate", "--incoming", "--source", "chl-pit-total", "--yes"), root = root)
+  expect_equal(integrated$status, 0L)
+  expect_match(integrated$output, "Integrated incoming")
+  expect_true(file.exists(file.path(root, "input_data", "admin_data", "CHL", "PUB_Total_2023.xlsb")))
+  decisions <- dina_load_session(root = root)$source_decisions
+  expect_equal(decisions[[length(decisions)]]$origin, "incoming")
 })
 
 test_that("update lifecycle commands list, dry-run delete, delete, and restart safely", {

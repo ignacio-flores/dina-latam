@@ -65,15 +65,17 @@ This repository also includes an experimental R-based project CLI:
 ./bin/dina
 ./bin/dina doctor
 ./bin/dina update start 2026
-./bin/dina sources scan
+./bin/dina update roadmap
+./bin/dina update gate tax-admin
 ./bin/dina tasks list
 ./bin/dina run 01a --dry-run
 ./bin/dina help run
 ```
 
 The CLI keeps Stata's manual workflow available, but adds update sessions,
-source scans, task freshness checks, generated Stata config files, run logs,
-and archive helpers. Update sessions are stored under `output/updates/`.
+roadmap gates, source scans, task freshness checks, generated Stata config
+files, run logs, and archive helpers. Update sessions are stored under
+`output/updates/`.
 Task selectors can use full task IDs, step aliases like `01a`, or whole-block
 aliases like `01`.
 

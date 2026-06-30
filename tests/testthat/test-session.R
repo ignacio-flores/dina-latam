@@ -11,6 +11,8 @@ test_that("update start creates a session and active pointer", {
   loaded <- dina_load_session(root = root)
   expect_equal(loaded$id, session$id)
   expect_equal(loaded$status, "initialized")
+  expect_true(is.list(loaded$gate_records))
+  expect_true(is.null(loaded$checklist))
 })
 
 test_that("dashboard state is no_active_update without session", {
@@ -19,17 +21,17 @@ test_that("dashboard state is no_active_update without session", {
   expect_equal(state$state, "no_active_update")
 })
 
-test_that("session state requires source review before recommending pipeline", {
+test_that("session state follows roadmap gates before recommending pipeline", {
   root <- mini_repo()
   session <- dina_update_start("2026", root = root)
   state <- dina_session_state(session, root = root)
-  expect_equal(state$state, "sources_unreviewed")
-  expect_match(state$recommendation, "dina sources status")
+  expect_equal(state$state, "gate_pending")
+  expect_match(state$recommendation, "dina update gate parameters")
 
-  review <- dina_sources_complete(session, root = root, status = "no-new-data")
-  expect_equal(review$status, "no-new-data")
+  record <- dina_update_mark_gate(session, root = root, target = "parameters/year-scope", status = "done")
+  expect_equal(record$status, "done")
   session <- dina_load_session(root = root)
   state <- dina_session_state(session, root = root)
-  expect_false(identical(state$state, "sources_unreviewed"))
-  expect_error(dina_sources_complete(session, root = root, status = "deferred"), "needs --note")
+  expect_equal(state$next_gate, "tax-admin")
+  expect_error(dina_update_mark_gate(session, root = root, target = "tax-admin/raw-accepted", status = "deferred"), "requires --note")
 })
