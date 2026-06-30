@@ -11,8 +11,14 @@ sources:
       - input_data/admin_data/CHL/PUB_Total_*.xlsx
       - input_data/admin_data/CHL/PUB_Total_*.xlsb
     inbox:
+      - input_data/_new/admin_tax/PUB_Total_*.xlsb
+      - input_data/_new/admin_tax/PUB_Total_*.xlsx
+    legacy_inbox:
       - input_data/admin_data/CHL/_new/PUB_Total_*.xlsb
       - input_data/admin_data/CHL/_new/PUB_Total_*.xlsx
+    inbox_examples:
+      - PUB_Total_2024.xlsb
+      - PUB_Total_2024.xlsx
     destination: input_data/admin_data/CHL/{basename}
     staging_name: CHL/PUB_Total_{date}.xlsb
     downloader: code/R/02c_clean_admin_chl.R
@@ -48,7 +54,11 @@ sources:
       - input_data/admin_data/BRA/gn-irpf-ac*.xlsx
       - input_data/admin_data/BRA/ptot_*.xlsx
     inbox:
+      - input_data/_new/admin_tax/gn-irpf-ac*.xlsx
+    legacy_inbox:
       - input_data/admin_data/BRA/_new/gn-irpf-ac*.xlsx
+    inbox_examples:
+      - gn-irpf-ac2024.xlsx
     destination: input_data/admin_data/BRA/{basename}
     staging_name: BRA/admin_tax_{date}
     downloader: code/R/manual-downloaders/bra_admin_downloader.R
@@ -69,6 +79,10 @@ sources:
         url: http://www.guiatrabalhista.com.br/guia/salario_minimo.htm
     canonical:
       - input_data/admin_data/BRA/downloads/wiki_minwage.csv
+    inbox:
+      - input_data/_new/admin_tax_aux/wiki_minwage*.csv
+    inbox_examples:
+      - wiki_minwage.csv
     destination: input_data/admin_data/BRA/downloads/{basename}
     staging_name: BRA/wiki_minwage_{date}.csv
     downloader: code/R/manual-downloaders/bra_minwage_downloader.R
@@ -133,7 +147,11 @@ sources:
       - input_data/admin_data/COL/1_Cuantiles_Ingreso_Bruto_Naturales_2014-*
       - input_data/admin_data/COL/Nota-Metodologica-Cuantiles-Personas-Naturales.pdf
     inbox:
+      - input_data/_new/admin_tax/1_Cuantiles_Ingreso_Bruto_Naturales_2014-*
+    legacy_inbox:
       - input_data/admin_data/COL/_new/1_Cuantiles_Ingreso_Bruto_Naturales_2014-*
+    inbox_examples:
+      - 1_Cuantiles_Ingreso_Bruto_Naturales_2014-2023
     destination: input_data/admin_data/COL/{basename}
     transformer: code/Stata/tax-data/COL-diverse.do
     checks:
@@ -154,6 +172,13 @@ sources:
     canonical:
       - input_data/admin_data/COL/2_Cuantiles_Patrimonio_Bruto_Naturales_2014-*
       - input_data/admin_data/COL/Nota-Metodologica-Cuantiles-Personas-Naturales.pdf
+    inbox:
+      - input_data/_new/admin_tax/2_Cuantiles_Patrimonio_Bruto_Naturales_2014-*
+    legacy_inbox:
+      - input_data/admin_data/COL/_new/2_Cuantiles_Patrimonio_Bruto_Naturales_2014-*
+    inbox_examples:
+      - 2_Cuantiles_Patrimonio_Bruto_Naturales_2014-2023
+    destination: input_data/admin_data/COL/{basename}
     checks:
       - file_exists
       - excel_readable
@@ -186,6 +211,11 @@ sources:
     method: manual
     canonical:
       - input_data/sna_country_data/_sna-web-site-index.ods
+    inbox:
+      - input_data/_new/country_sna/_sna-web-site-index.ods
+    inbox_examples:
+      - _sna-web-site-index.ods
+    destination: input_data/sna_country_data/{basename}
     urls:
       - country: ARG
         url: https://sitioanterior.indec.gob.ar/nivel3_default.asp?id_tema_1=3&id_tema_2=9
@@ -232,6 +262,9 @@ sources:
         url: https://www.indec.gob.ar/indec/web/Nivel3-Tema-3-9
     canonical:
       - input_data/sna_country_data/ARG
+    inbox:
+      - input_data/_new/country_sna/ARG/*
+    destination: input_data/sna_country_data/ARG/{basename}
     notes: Website is cataloged in country-sna-index; no canonical ARG country SNA folder is present in this checkout.
 
   - id: country-sna-bra
@@ -246,6 +279,10 @@ sources:
     canonical:
       - input_data/sna_country_data/BRA/*.xls
       - input_data/sna_country_data/BRA/*.xlsx
+    inbox:
+      - input_data/_new/country_sna/BRA/*.xls
+      - input_data/_new/country_sna/BRA/*.xlsx
+    destination: input_data/sna_country_data/BRA/{basename}
     downloader: code/R/manual-downloaders/download-country-sna.R
     transformer: code/Stata/01b-add-country-sna.do
     checks:
@@ -266,6 +303,10 @@ sources:
     canonical:
       - input_data/sna_country_data/CHL/*.xls
       - input_data/sna_country_data/CHL/*.xlsx
+    inbox:
+      - input_data/_new/country_sna/CHL/*.xls
+      - input_data/_new/country_sna/CHL/*.xlsx
+    destination: input_data/sna_country_data/CHL/{basename}
     downloader: code/R/manual-downloaders/download-country-sna.R
     transformer: code/Stata/01b-add-country-sna.do
     checks:
@@ -286,6 +327,10 @@ sources:
     canonical:
       - input_data/sna_country_data/COL/*.xls
       - input_data/sna_country_data/COL/*.xlsx
+    inbox:
+      - input_data/_new/country_sna/COL/*.xls
+      - input_data/_new/country_sna/COL/*.xlsx
+    destination: input_data/sna_country_data/COL/{basename}
     downloader: code/R/manual-downloaders/download-country-sna.R
     transformer: code/Stata/01b-add-country-sna.do
     checks:
@@ -307,6 +352,10 @@ sources:
     canonical:
       - input_data/sna_country_data/CRI/*.xls
       - input_data/sna_country_data/CRI/*.xlsx
+    inbox:
+      - input_data/_new/country_sna/CRI/*.xls
+      - input_data/_new/country_sna/CRI/*.xlsx
+    destination: input_data/sna_country_data/CRI/{basename}
     downloader: code/R/manual-downloaders/download-country-sna.R
     transformer: code/Stata/01b-add-country-sna.do
     checks:
@@ -324,6 +373,10 @@ sources:
     canonical:
       - input_data/sna_country_data/DOM/*.xls
       - input_data/sna_country_data/DOM/*.xlsx
+    inbox:
+      - input_data/_new/country_sna/DOM/*.xls
+      - input_data/_new/country_sna/DOM/*.xlsx
+    destination: input_data/sna_country_data/DOM/{basename}
     transformer: code/Stata/01b-add-country-sna.do
     checks:
       - file_exists
@@ -344,6 +397,10 @@ sources:
     canonical:
       - input_data/sna_country_data/ECU/*.xls
       - input_data/sna_country_data/ECU/*.xlsx
+    inbox:
+      - input_data/_new/country_sna/ECU/*.xls
+      - input_data/_new/country_sna/ECU/*.xlsx
+    destination: input_data/sna_country_data/ECU/{basename}
     downloader: code/R/manual-downloaders/download-country-sna.R
     transformer: code/Stata/01b-add-country-sna.do
     checks:
@@ -362,6 +419,10 @@ sources:
     canonical:
       - input_data/sna_country_data/MEX/CSI_*.xlsx
       - input_data/sna_country_data/MEX/indice_archivos.txt
+    inbox:
+      - input_data/_new/country_sna/MEX/*
+    inbox_examples:
+      - tabulados_si.zip
     staging_name: MEX/tabulados_si_{date}.zip
     downloader: code/R/manual-downloaders/download-country-sna.R
     transformer: code/Stata/01b-add-country-sna.do
@@ -381,6 +442,10 @@ sources:
     canonical:
       - input_data/sna_country_data/PER/*.xls
       - input_data/sna_country_data/PER/*.xlsx
+    inbox:
+      - input_data/_new/country_sna/PER/*.xls
+      - input_data/_new/country_sna/PER/*.xlsx
+    destination: input_data/sna_country_data/PER/{basename}
     transformer: code/Stata/01b-add-country-sna.do
     checks:
       - file_exists
@@ -397,6 +462,10 @@ sources:
     canonical:
       - input_data/sna_country_data/URY/*.xls
       - input_data/sna_country_data/URY/*.xlsx
+    inbox:
+      - input_data/_new/country_sna/URY/*.xls
+      - input_data/_new/country_sna/URY/*.xlsx
+    destination: input_data/sna_country_data/URY/{basename}
     transformer: code/Stata/01b-add-country-sna.do
     checks:
       - file_exists
@@ -409,6 +478,9 @@ sources:
     method: manual
     canonical:
       - input_data/sna_country_data/VEN
+    inbox:
+      - input_data/_new/country_sna/VEN/*
+    destination: input_data/sna_country_data/VEN/{basename}
     transformer: code/Stata/01b-add-country-sna.do
     notes: Local country SNA folder is present, but no active website entry was found in the current ODS index.
 
@@ -495,6 +567,14 @@ sources:
         url: https://api.worldbank.org/v2/en/indicator/PA.NUS.FCRF?downloadformat=excel
     canonical:
       - input_data/xrates_WB/wb-xrates.xls
+    inbox:
+      - input_data/_new/prices/wb-xrates.xls
+      - input_data/_new/prices/API_PA.NUS.FCRF*.xls
+      - input_data/_new/prices/API_PA.NUS.FCRF*.xlsx
+    inbox_examples:
+      - wb-xrates.xls
+      - API_PA.NUS.FCRF_DS2_en_excel_v2_*.xls
+    destination: input_data/xrates_WB/{basename}
     transformer: code/Stata/05b-rescale-and-impute.do
     checks:
       - file_exists
@@ -512,6 +592,10 @@ sources:
     canonical:
       - input_data/prices_WB/inflation_latam.dta
       - input_data/prices_WB/old/inflation_latam.dta
+    inbox:
+      - input_data/_new/prices/API_FP.CPI.TOTL.ZG*
+    inbox_examples:
+      - API_FP.CPI.TOTL.ZG_DS2_en_csv_v2_*.zip
     transformer:
       - code/Stata/06b-graph-ineqstats-countries-variables.do
       - code/Stata/06c-graph-ineqstats-by-step.do
@@ -525,6 +609,9 @@ sources:
     method: manual
     canonical:
       - input_data/prices_CEPAL/*.xlsx
+    inbox:
+      - input_data/_new/prices/*.xlsx
+    destination: input_data/prices_CEPAL/{basename}
     checks:
       - file_exists
       - excel_readable
@@ -540,6 +627,11 @@ sources:
         url: https://population.un.org/wpp/Download/Standard/Population/
     canonical:
       - input_data/population/PopulationLatAm.dta
+    inbox:
+      - input_data/_new/population/*
+    inbox_examples:
+      - PopulationLatAm.dta
+      - UN WPP download files
     checks:
       - file_exists
       - years_detected
@@ -553,6 +645,9 @@ sources:
         url: http://data.imf.org/
     canonical:
       - input_data/balance_sheet/IMF/Balance_Sheet_Stock_GG.xlsx
+    inbox:
+      - input_data/_new/balance_sheet/Balance_Sheet_Stock_GG.xlsx
+    destination: input_data/balance_sheet/IMF/{basename}
     transformer: code/Stata/01a-clean-macro-data.do
     checks:
       - file_exists
@@ -565,6 +660,9 @@ sources:
     method: manual
     canonical:
       - input_data/balance_sheet/OECD/balancesheets-br-col-mex.xls
+    inbox:
+      - input_data/_new/balance_sheet/balancesheets-br-col-mex.xls
+    destination: input_data/balance_sheet/OECD/{basename}
     transformer: code/Stata/01a-clean-macro-data.do
     checks:
       - file_exists
@@ -577,6 +675,9 @@ sources:
     method: manual
     canonical:
       - input_data/OECD-CIAT-CEPAL/*.csv
+    inbox:
+      - input_data/_new/tax_composition/*.csv
+    destination: input_data/OECD-CIAT-CEPAL/{basename}
     transformer: code/Stata/01c-import-tax-composition.do
     checks:
       - file_exists
@@ -589,6 +690,9 @@ sources:
     canonical:
       - input_data/social_security_OECD/ssc-LatAm.xls
       - input_data/OECD_social_security/ssc-LatAm.xls
+    inbox:
+      - input_data/_new/social_security/ssc-LatAm.xls
+    destination: input_data/social_security_OECD/{basename}
     transformer: code/Stata/01a-clean-macro-data.do
     checks:
       - file_exists
@@ -601,6 +705,8 @@ sources:
     method: manual
     canonical:
       - input_data/CEQ
+    inbox:
+      - input_data/_new/ceq/*
     transformer: code/Stata/01d-import_ceq_data.do
     checks:
       - file_exists
@@ -612,6 +718,8 @@ sources:
     method: manual
     canonical:
       - input_data/expenditure_durrer_gethin_fisherpost
+    inbox:
+      - input_data/_new/public_spending/*
     transformer: code/Stata/01g-add-public-spending-data.do
     checks:
       - file_exists
@@ -626,6 +734,11 @@ sources:
       - input_data/surveys_CEPAL/_GENERAL_METADATA/*.xlsx
       - input_data/surveys_CEPAL/_COUNTRY_METADATA/*.xls
       - input_data/surveys_CEPAL/_COUNTRY_METADATA/*.xlsx
+    inbox:
+      - input_data/_new/surveys/*
+    inbox_examples:
+      - country survey .dta files
+      - survey metadata spreadsheets
     staging_name: surveys/{date}
     transformer:
       - code/Stata/01e-clean-survey-data.do

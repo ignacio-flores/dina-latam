@@ -201,22 +201,21 @@ test_that("help and default dispatch accept optional global separator", {
 })
 
 test_that("dashboard offers executable numbered actions without prompting in non-interactive runs", {
-  result <- run_dina_cli(character())
+  root <- mini_repo()
+  result <- run_dina_cli(character(), root = root)
   expect_equal(result$status, 0L)
   year <- format(Sys.Date(), "%Y")
-  if (grepl("No active update session.", result$output, fixed = TRUE)) {
-    expect_match(result$output, sprintf("Recommended next action: Start an update with `dina update start %s`", year))
-  } else {
-    expect_match(result$output, "Active update:")
-    expect_match(result$output, "Recommended next action:")
-  }
+  expect_match(result$output, "No active update session.")
+  expect_match(result$output, sprintf("Recommended next action: Start an update with `dina update start %s`", year))
   expect_match(result$output, "Useful actions:")
-  expect_match(result$output, "1\\. dina doctor")
-  expect_match(result$output, sprintf("2\\. dina update start %s", year))
+  expect_match(result$output, sprintf("1\\. dina update start %s", year))
+  expect_equal(length(gregexpr(sprintf("dina update start %s", year), result$output, fixed = TRUE)[[1]][gregexpr(sprintf("dina update start %s", year), result$output, fixed = TRUE)[[1]] > 0]), 2L)
+  expect_match(result$output, "2\\. dina doctor")
   expect_match(result$output, "3\\. dina update roadmap")
   expect_match(result$output, "4\\. dina update gate")
-  expect_match(result$output, "5\\. dina tasks list")
-  expect_match(result$output, "6\\. dina run --dry-run")
+  expect_match(result$output, "5\\. dina sources inbox guide")
+  expect_match(result$output, "6\\. dina tasks list")
+  expect_match(result$output, "7\\. dina run --dry-run")
   expect_false(grepl("Choose an action number", result$output, fixed = TRUE))
 })
 
@@ -428,8 +427,11 @@ test_that("sources list and show expose the source registry", {
   expect_match(help$output, "dina sources list method METHOD \\[--urls\\]")
   expect_match(help$output, "dina sources show ID \\[--urls\\]")
   expect_match(help$output, "dina sources methods")
+  expect_match(help$output, "dina sources inbox guide \\[--family FAMILY\\] \\[--urls\\]")
+  expect_match(help$output, "dina sources inbox init \\[--dry-run\\]")
   expect_match(help$output, "dina sources status \\[--metadata-only\\] \\[--hash-all\\] \\[--deep\\]")
   expect_match(help$output, "dina sources integrate --incoming --source ID \\[--yes\\]")
+  expect_match(help$output, "central `input_data/_new` buckets")
   expect_match(help$output, "Update progress itself is[[:space:]]+recorded with `dina update mark GATE/CHECK`")
   expect_match(help$output, "url[[:space:]]+Direct URL fetchable")
   expect_match(help$output, "manual[[:space:]]+Human-curated input or URL index")
@@ -624,6 +626,74 @@ test_that("manual source staging review and bulk integration are explicit", {
   expect_false(file.exists(file.path(root, "input_data", "manual-ambiguous.csv")))
 })
 
+test_that("source inbox guide and init use central buckets and safe legacy copying", {
+  root <- mini_repo()
+  dina_write_yaml(list(sources = list(
+    list(
+      id = "chl-pit-total",
+      family = "admin_tax",
+      country = "CHL",
+      method = "manual",
+      urls = list(list(label = "landing page", url = "https://example.test/chl")),
+      canonical = c("input_data/admin_data/CHL/PUB_Total_*.xlsb"),
+      inbox = c("input_data/_new/admin_tax/PUB_Total_*.xlsb"),
+      legacy_inbox = c("input_data/admin_data/CHL/_new/PUB_Total_*.xlsb"),
+      inbox_examples = c("PUB_Total_2024.xlsb"),
+      destination = "input_data/admin_data/CHL/{basename}"
+    ),
+    list(
+      id = "surveys-cepal",
+      family = "surveys",
+      country = "MULTI",
+      method = "manual",
+      canonical = c("input_data/surveys_CEPAL/*/*.dta"),
+      inbox = c("input_data/_new/surveys/*"),
+      inbox_examples = c("country survey .dta files", "survey metadata spreadsheets")
+    )
+  )), file.path(root, "config", "sources.yml"))
+  legacy <- file.path(root, "input_data", "admin_data", "CHL", "_new", "PUB_Total_2024.xlsb")
+  dir.create(dirname(legacy), recursive = TRUE, showWarnings = FALSE)
+  writeLines("legacy", legacy)
+  central <- file.path(root, "input_data", "_new", "admin_tax", "PUB_Total_2024.xlsb")
+
+  guide <- run_dina_cli(c("sources", "inbox", "guide"), root = root)
+  expect_equal(guide$status, 0L)
+  expect_match(guide$output, "Source Inbox Guide")
+  expect_match(guide$output, "input_data/_new/admin_tax")
+  expect_match(guide$output, "input_data/_new/surveys")
+  expect_match(guide$output, "PUB_Total_2024\\.xlsb")
+  expect_match(guide$output, "country survey \\.dta files")
+
+  urls <- run_dina_cli(c("sources", "inbox", "guide", "--family", "admin_tax", "--urls"), root = root)
+  expect_equal(urls$status, 0L)
+  expect_match(urls$output, "https://example.test/chl")
+  expect_false(grepl("surveys-cepal", urls$output, fixed = TRUE))
+
+  dry <- run_dina_cli(c("sources", "inbox", "init", "--dry-run"), root = root)
+  expect_equal(dry$status, 0L)
+  expect_match(dry$output, "would_create")
+  expect_match(dry$output, "would_copy")
+  expect_false(dir.exists(file.path(root, "input_data", "_new", "admin_tax")))
+  expect_false(file.exists(central))
+
+  initialized <- run_dina_cli(c("sources", "inbox", "init"), root = root)
+  expect_equal(initialized$status, 0L)
+  expect_match(initialized$output, "created")
+  expect_match(initialized$output, "copied")
+  expect_true(dir.exists(file.path(root, "input_data", "_new", "surveys")))
+  expect_true(file.exists(central))
+
+  same <- run_dina_cli(c("sources", "inbox", "init"), root = root)
+  expect_equal(same$status, 0L)
+  expect_match(same$output, "already_present")
+
+  writeLines("central changed", central)
+  conflict <- run_dina_cli(c("sources", "inbox", "init"), root = root)
+  expect_equal(conflict$status, 0L)
+  expect_match(conflict$output, "conflict")
+  expect_equal(readLines(central), "central changed")
+})
+
 test_that("incoming _new source inbox files are reviewed, validated, integrated, and ignored for freshness", {
   root <- mini_repo()
   dina_write_yaml(list(sources = list(
@@ -633,12 +703,14 @@ test_that("incoming _new source inbox files are reviewed, validated, integrated,
       country = "CHL",
       method = "manual",
       canonical = c("input_data/admin_data/CHL/PUB_Total_*.xlsb"),
-      inbox = c("input_data/admin_data/CHL/_new/PUB_Total_*.xlsb"),
+      inbox = c("input_data/_new/admin_tax/PUB_Total_*.xlsb"),
+      legacy_inbox = c("input_data/admin_data/CHL/_new/PUB_Total_*.xlsb"),
+      inbox_examples = c("PUB_Total_2024.xlsb"),
       destination = "input_data/admin_data/CHL/{basename}",
       checks = c("file_exists", "years_detected")
     )
   )), file.path(root, "config", "sources.yml"))
-  incoming <- file.path(root, "input_data", "admin_data", "CHL", "_new", "PUB_Total_2023.xlsb")
+  incoming <- file.path(root, "input_data", "_new", "admin_tax", "PUB_Total_2023.xlsb")
   canonical_old <- file.path(root, "input_data", "admin_data", "CHL", "PUB_Total_2022.xlsb")
   touch(canonical_old, "2024-01-01")
   touch(incoming, "2024-01-05")
@@ -650,9 +722,12 @@ test_that("incoming _new source inbox files are reviewed, validated, integrated,
 
   review <- run_dina_cli(c("sources", "review"), root = root)
   expect_equal(review$status, 0L)
+  expect_match(review$output, "Source Inbox Guide")
+  expect_match(review$output, "input_data/_new/admin_tax")
+  expect_match(review$output, "PUB_Total_2024\\.xlsb")
   expect_match(review$output, "Incoming Source Inbox")
   expect_match(review$output, "chl-pit-total[[:space:]]+file[[:space:]]+ok")
-  expect_match(review$output, "input_data/admin_data/CHL/PUB_Total_2023\\.xlsb")
+  expect_match(review$output, "input_data/_new/admin_tax/PUB_Total_2023\\.xlsb")
 
   preview <- run_dina_cli(c("sources", "integrate", "--incoming", "--source", "chl-pit-total"), root = root)
   expect_equal(preview$status, 0L)

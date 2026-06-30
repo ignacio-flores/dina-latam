@@ -7,6 +7,7 @@ test_that("update start creates a session and active pointer", {
   expect_true(file.exists(file.path(root, session$config_file)))
   expect_equal(session$source_baseline$hash_mode, "all")
   expect_true(dina_signature_has_hash(session$source_scan[["source-a"]]$files[[1]]))
+  expect_true(dir.exists(file.path(root, "input_data", "_new", "fixture")))
 
   loaded <- dina_load_session(root = root)
   expect_equal(loaded$id, session$id)
