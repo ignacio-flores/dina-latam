@@ -19,15 +19,14 @@ mini_repo <- function() {
   dir.create(file.path(root, "previous_series"), recursive = TRUE)
 
   writeLines(c(
-    "* Configuration file",
-    "global all_countries \" \"COL\" \"ARG\" \" \"",
-    "global first_y 2000",
-    "global last_y 2023",
-    "global lang \"eng\"",
-    "global debug \"no\"",
-    "global bfm_replace \"no\"",
-    "global all_units \" \"ind\" \"esn\" \" \"",
-    "global all_steps \" \"natinc\" \"pon\" \" \""
+    "* Runtime DINA config loader.",
+    "local dina_config_runtime : environment DINA_CONFIG_DO",
+    "if \"`dina_config_runtime'\" != \"\" {",
+    "\trun \"`dina_config_runtime'\"",
+    "\texit",
+    "}",
+    "di as error \"DINA config globals are no longer stored in _config.do.\"",
+    "exit 198"
   ), file.path(root, "_config.do"))
 
   dina_write_yaml(list(
@@ -35,6 +34,13 @@ mini_repo <- function() {
     countries = c("COL", "ARG"),
     years = list(first = 2000L, last = 2023L),
     run = list(lang = "eng", debug = FALSE, bfm_replace = FALSE, units = c("ind", "esn"), steps = c("natinc", "pon")),
+    export_validation = list(
+      unit = "esn",
+      steps = c("nat"),
+      last_year = 2024L,
+      previous_update_date = "3Oct2024",
+      previous_update_file = "previous_series/dina_latam_3Oct2024.dta"
+    ),
     stata = list(command = "${DINA_STATA_CMD}", batch_args = c("-b", "do")),
     paths = list(
       input_data = "input_data",
@@ -69,6 +75,7 @@ mini_repo <- function() {
       goal = "Review update parameters.",
       source_families = list(),
       tasks = list(),
+      old_refs = c("Preliminary: include new last year in the update config."),
       checks = list(
         list(id = "year-scope", label = "Year scope reviewed.")
       ),

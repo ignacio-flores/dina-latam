@@ -15,21 +15,13 @@ suppressMessages(suppressPackageStartupMessages({
   }
 }))
 source("code/R/functions/get_svy_totpop.R")
+source("code/R/functions/read_dina_config.R")
 
-#read config file 
-lines <- readLines("_config.do")
-config <- list()
-for (line in lines) {
-  if (grepl("^\\s*global\\s+", line)) {
-    parts <- strcapture("^\\s*global\\s+([a-zA-Z0-9_]+)\\s+\"?(.+?)\"?$", line, proto = list(name = "", value = ""))
-    config[[parts$name]] <- parts$value
-  }
-}
+# Read the effective DINA YAML config, including a session override under `dina run`.
+config <- read_dina_config()
 config$first_year <- as.integer(config$first_y)
 config$last_year <- as.integer(config$last_y)
-raw_list <- strsplit(config$all_countries, "\\s+")[[1]]
-raw_list <- raw_list[raw_list != ""]
-countries <- gsub('^"|"$', "", raw_list)
+countries <- read_dina_countries(config)
 
 print("Using an R call to compute survey populations...")
 

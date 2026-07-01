@@ -10,16 +10,20 @@ clear all
 global aux_part  ""preliminary"" 
 do "code/Stata/auxiliar/aux_general.do"
 
-//choose unit 
-local unit esn
-//choose step 
-local steps nat //pon
-//choose last year 
-local ly = 2024 
+// DINA supplies these export-validation settings from the effective YAML config.
+// Fail loudly if the runtime config was not provided instead of using stale defaults.
+foreach required in export_unit export_steps export_last_y previous_update_date previous_update {
+	if `"${`required'}"' == "" {
+		di as error "Missing required DINA config global: `required'"
+		di as error "Run this task through dina run, or provide DINA_CONFIG_DO explicitly."
+		exit 198
+	}
+}
+local unit "$export_unit"
+local steps: copy global export_steps
+local ly = $export_last_y
 
 //compare with previous update? 
-local prev_date 3Oct2024
-global previous_update "previous_series/dina_latam_`prev_date'.dta"
 qui use $previous_update, clear 
 qui drop data_quality comment extrap_points interp_points
 tempfile tf_prev
@@ -758,6 +762,3 @@ graph twoway (line new_value year, lcolor(red)) ///
 		ylabel(0(.01).03) ///
 		$graph_scheme legend(label(1 "Updated") label(2 "Old"))
 	qui graph export "output/figures/updates/update-`date'-sptinc992j-b20.pdf", replace
-
-
-

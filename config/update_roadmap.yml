@@ -5,7 +5,7 @@ gates:
     source_families: []
     tasks: []
     old_refs:
-      - Preliminary: include new last year in _config.do.
+      - Preliminary: include new last year in the update config.
       - Export: update last year and previous-series date.
     checks:
       - id: year-scope
@@ -13,10 +13,10 @@ gates:
       - id: export-settings
         label: Previous-series date and export comparison settings reviewed.
       - id: config-rendered
-        label: Session config rendered and checked.
+        label: Effective config reviewed and ready for runtime use.
     commands:
       - dina config show
-      - dina config render
+      - dina update config show
 
   - id: macro-sna
     label: National accounts and macro SNA

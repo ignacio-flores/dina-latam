@@ -13,16 +13,10 @@ suppressMessages(suppressPackageStartupMessages({
   }
 }))
 
+source("code/R/functions/read_dina_config.R")
 
-#read config file 
-lines <- readLines("_config.do")
-config <- list()
-for (line in lines) {
-  if (grepl("^\\s*global\\s+", line)) {
-    parts <- strcapture("^\\s*global\\s+([a-zA-Z0-9_]+)\\s+\"?(.+?)\"?$", line, proto = list(name = "", value = ""))
-    config[[parts$name]] <- parts$value
-  }
-}
+# Read the effective DINA YAML config, including a session override under `dina run`.
+config <- read_dina_config()
 config$last_year <- as.integer(config$last_y)
 last_y <- config$last_year
 
@@ -123,4 +117,3 @@ for(x in 1:length(bra_tab_years)) {
 }
 
 #Apply gpinter (manually)
-

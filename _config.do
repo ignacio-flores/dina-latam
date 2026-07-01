@@ -1,17 +1,13 @@
-* Configuration file
-local dina_config_override : environment DINA_CONFIG_DO
-if "`dina_config_override'" != "" {
-	run "`dina_config_override'"
+* Runtime DINA config loader.
+* DINA keeps config in YAML and passes a temporary Stata globals file at run time.
+local dina_config_runtime : environment DINA_CONFIG_DO
+if "`dina_config_runtime'" != "" {
+	run "`dina_config_runtime'"
 	exit
 }
 
-global all_countries " "COL" "ARG" "PER" "URY" "CRI" "ECU" "CHL" "BRA" "SLV" "MEX" "DOM" "
-global first_y 2000
-global last_y 2023
-
-global lang "eng"
-global debug "no"
-global bfm_replace "no" 
-
-global all_units " "ind" "esn" "pch" " 
-global all_steps " "natinc" "pon" "
+di as error "DINA config globals are no longer stored in _config.do."
+di as error "Run pipeline tasks through: dina run TASK --execute"
+di as error "For manual Stata runs, export a temporary config with: dina config stata --output PATH"
+di as error "Then set DINA_CONFIG_DO to that PATH before running Stata."
+exit 198

@@ -83,10 +83,13 @@ Annual update:
   `update start [YEAR]`               [writes session] create active session
   `update roadmap|gate [GATE]`        [read-only] inspect gate workflow
   `update mark|unmark GATE/CHECK`     [writes session] record gate progress
+  `update prefs|config`               [read-only/writes session] session choices
+  `update repo-status|repo-diff`      [read-only] compare with start baseline
+  `update repo-restore`               [writes files] restore captured files
   `update resume|status`              [read-only] inspect active session
   `update list`                       [read-only] list update sessions
   `update restart|delete`             [writes session] lifecycle controls
-  `update finalize [--force]`         [writes session] freeze final records
+  `update finalize [--force] [--yes]` [writes session/config] freeze records
 
 Source data:
   `sources status|scan|diff|review`   [read-only] inspect source coverage
@@ -104,7 +107,7 @@ Pipeline:
 Setup and config:
   `doctor`                            [read-only] check local readiness
   `install`                           install missing R packages
-  `config show|render`                [read-only/writes files] inspect or render
+  `config show|stata`                 [read-only/writes files] inspect/export
   `config set|edit`                   [writes config] modify `config/dina.yml`
   `data check|pack|unpack`            [read-only/writes archive/writes files]
   `notify init|test`                  configure or test Pushover
@@ -125,12 +128,14 @@ Critical defaults
   Update progress is recorded with roadmap gate checks, not source commands.
   `dina run` is dry-run unless `--execute` is present.
   `update start` records a source baseline with hashes by default.
+  `update start` uses benchmark `config/dina.yml` plus a working override.
+  Working overrides do not change the benchmark until `update finalize --yes`.
   `sources status` uses hashes only when timestamps or sizes changed.
   Source URLs are cataloged even for manual downloads. URL presence does not
   mean automatic download: `sources refresh` fetches only `url`/`zip` methods.
   `sources refresh --dry-run` writes nothing. `sources integrate` copies
   approved files into `input_data/`.
-  `config render` writes a generated Stata config; it does not edit `_config.do`.
+  `config stata --output PATH` writes an explicit manual Stata runtime config.
   `config set` and `config edit` modify `config/dina.yml`.
 
 Notes:
@@ -159,7 +164,8 @@ What this page is:
 
   dina update start [YEAR]
       Creates `output/updates/<update_id>`, records a hashed source baseline,
-      and makes the session active.
+      prepares a working override location, records a repo-state baseline, and
+      makes the session active.
 
   dina update roadmap
       Shows the ordered gate map and the next unfinished check.
@@ -182,6 +188,13 @@ What this page is:
 
   dina update unmark GATE/CHECK
       Clears a check that was marked too early.
+
+  dina update prefs old-refs on
+  dina update prefs old-refs off
+      Shows or hides old-reference notes on gate pages.
+
+  dina update repo-status
+      Compares current code/config/docs with the session start baseline.
 
 3. Use source tools inside gates
   dina sources list family admin-data --urls
@@ -221,6 +234,8 @@ Task selectors:
   dina update finalize
       Freezes final outputs and checksums. It refuses missing, stale, or failed
       required tasks unless `--force` is supplied.
+      With `--yes`, also promotes the effective update config to benchmark
+      `config/dina.yml`.
 
 More help:
   dina help update     dina help sources     dina help run
@@ -272,19 +287,28 @@ Examples:
   dina update gate [GATE]
   dina update mark GATE/CHECK --status STATUS [--note TEXT]
   dina update unmark GATE/CHECK
+  dina update prefs [old-refs on|off]
+  dina update config show|set
+  dina update repo-status [--baseline NAME]
+  dina update repo-diff [--stat] [--patch] [--files] [--baseline NAME]
+  dina update repo-restore [--dry-run] [--yes] [--baseline NAME]
   dina update list
-  dina update restart [ID] [--yes]
+  dina update restart [ID] [--yes] [--replace-repo-baseline]
   dina update delete [ID] [--yes]
-  dina update finalize [--force]
+  dina update finalize [--force] [--yes]
 
 What it manages:
   Annual update sessions under `output/updates/<update_id>`. A session stores
-  effective config, source scans, gate records, task run records, and final
-  manifests. Update progress is recorded through roadmap gate checks.
+  a working config override when needed, repo-state baselines, source scans,
+  gate records, task run records, and final manifests. Update progress is
+  recorded through roadmap gate checks.
 
 Subcommands:
   start [YEAR]                    Creates a new session, active pointer, and
-                                  hashed source baseline.
+                                  hashed source baseline. It uses benchmark
+                                  `config/dina.yml` plus an optional working
+                                  override and records a recoverable repo-state
+                                  baseline.
                                   If omitted, YEAR defaults to the current
                                   calendar year. Default id:
                                   YEAR-update-MM-DD. If an unfinished same-day
@@ -298,36 +322,64 @@ Subcommands:
   gate [GATE]                     Prints detailed checks, source families,
                                   inbox files, task ids, and suggested commands
                                   for one gate. With no GATE, shows the next
-                                  unfinished gate.
+                                  unfinished gate. `gate parameters` is guided
+                                  in an interactive terminal and read-only in
+                                  scripts.
   mark GATE/CHECK                 Records a gate check as done, deferred, or
                                   needs-code.
   unmark GATE/CHECK               Clears a previously recorded gate check.
+  prefs                           Shows session preferences.
+  prefs old-refs on|off           Shows or hides old-reference notes on gate
+                                  pages.
+  config show|set                 Inspects effective config or writes only the
+                                  active session override. Benchmark config
+                                  changes only through finalize promotion.
+  repo-status                     Compares current repo files with a captured
+                                  session baseline.
+  repo-diff                       Shows stat, file, or patch-style differences
+                                  against a captured baseline.
+  repo-restore                    Restores captured modified/deleted files from
+                                  a baseline. It never touches excluded data
+                                  roots and requires --yes to mutate.
   list                            Lists update sessions and marks the active
                                   one with `*`.
   restart [ID] [--yes]            Resets one update session from scratch using
                                   the same id. If ID is omitted, uses the active
                                   session. Without --yes, interactive terminals
-                                  ask before resetting; scripts only preview.
+                                  ask before resetting. By default it preserves
+                                  the original repo baseline and adds a restart
+                                  snapshot; use --replace-repo-baseline to make
+                                  current repo state the new start baseline.
   delete [ID] [--yes]             Deletes an update session. If ID is omitted,
                                   uses the active session. Without --yes,
                                   interactive terminals ask before deleting;
                                   scripts only preview.
   finalize [--force]              Freezes final outputs and checksums. Without
                                   --force it refuses missing, stale, or failed
-                                  required tasks.
+                                  required tasks. With --yes, promotes the
+                                  effective update config to benchmark config.
 
 What it changes:
   `start`, source commands during a session, `restart`, `delete`, and `finalize`
   write session records or remove session files. `mark` and `unmark` write gate
-  records. `resume`, `status`, `roadmap`, `gate`, and `list` are inspection.
+  records. `update config set` writes only the working override. `repo-restore --yes`
+  restores captured code/config/docs outside excluded data roots. `resume`,
+  `status`, `roadmap`, `gate`, `repo-status`, `repo-diff`, and `list` inspect.
 
 Options:
   --no-source-hash                For start, record only file size/timestamp in
                                   the source baseline. The default computes
                                   source hashes for later comparison.
+  --old-refs / --no-old-refs      For start/restart, set Old-reference notes.
+  --replace-repo-baseline         For restart, discard the original repo
+                                  baseline and capture current repo state.
+  --baseline NAME                 For repo commands, compare against `start` or
+                                  a `restart-...` baseline.
   --status STATUS                 For mark: done, deferred, or needs-code.
   --note TEXT                     Explanation for a marked check. Required for
                                   deferred and needs-code.
+  --yes                           For finalize, promote effective config to
+                                  benchmark config after checks pass.
 
 Examples:
   dina update start YEAR
@@ -336,11 +388,16 @@ Examples:
   dina update gate tax-admin
   dina update mark tax-admin/raw-accepted --status done
   dina update unmark tax-admin/raw-accepted
+  dina update prefs old-refs off
+  dina update config set years.last YEAR
+  dina update repo-status
+  dina update repo-diff --stat --files
+  dina update repo-restore --dry-run
   dina update list
   dina update restart --yes
   dina update delete 2026-update-06-29 --yes
   dina update resume
-  dina update finalize
+  dina update finalize --yes
 ",
     sources = "Usage:
   dina sources refresh [--source ID] [--dry-run] [--urls]
@@ -548,12 +605,12 @@ Examples:
   dina config show
   dina config set KEY VALUE
   dina config edit
-  dina config render [PATH]
+  dina config stata --output PATH
 
 What it manages:
-  `config/dina.yml`, the CLI's default project configuration. CLI runs can render
-  a session-specific Stata config without changing `_config.do`, so manual Stata
-  usage stays backward compatible.
+  `config/dina.yml`, the current benchmark project configuration. Update
+  sessions may add a working override; Stata runtime configs are temporary
+  during `dina run`.
 
 Subcommands:
   show                            Prints the committed default YAML exactly as
@@ -563,20 +620,20 @@ Subcommands:
                                   booleans, integers, or comma-separated vectors
                                   when they look like those types.
   edit                            Opens `config/dina.yml` in `$EDITOR`.
-  render [PATH]                   Writes a Stata `config.do` from the effective
-                                  CLI config. Default path:
-                                  `output/run_logs/config.do`.
+  stata --output PATH             Writes an explicit Stata runtime config for
+                                  manual Stata runs. Normal `dina run` uses a
+                                  temporary file and does not keep it.
 
 What it changes:
   `show` changes nothing. `set` and `edit` modify committed defaults.
-  `render` writes only the rendered Stata config path; it does not edit
-  `_config.do`.
+  `stata --output` writes only the requested manual export path; it does not
+  edit `_config.do`.
 
 Examples:
   dina config show
   dina config set years.last YEAR
   dina config set run.units ind,esn,pch
-  dina config render output/run_logs/config.do
+  dina config stata --output /tmp/dina-config.do
 ",
     data = "Usage:
   dina data check
@@ -705,6 +762,231 @@ dina_parse_flags <- function(args) {
 
 dina_cli_progress <- function(text) {
   dina_cli_cat(sprintf("  %s", text))
+}
+
+dina_cli_old_refs_choice <- function(flags = list(), current = TRUE, input = "stdin", is_terminal = isatty(stdin())) {
+  if (isTRUE(flags[["old-refs"]])) {
+    return(TRUE)
+  }
+  if (isTRUE(flags[["no-old-refs"]])) {
+    return(FALSE)
+  }
+  dina_cli_alert("Old-reference notes map the old update notes to the current gate workflow.")
+  dina_cli_alert("Later: `dina update prefs old-refs on` or `dina update prefs old-refs off`.")
+  if (!isTRUE(is_terminal)) {
+    dina_cli_alert(sprintf("Old-reference notes: %s", if (isTRUE(current)) "on" else "off"))
+    return(isTRUE(current))
+  }
+  prompt <- sprintf("Show Old-reference notes in gate pages? [%s] ", if (isTRUE(current)) "Y/n" else "y/N")
+  dina_prompt_yes_no(prompt, default = isTRUE(current), input = input, is_terminal = TRUE)
+}
+
+dina_cli_prompt_value <- function(prompt, default = "", input = "stdin", is_terminal = isatty(stdin())) {
+  if (!isTRUE(is_terminal)) {
+    return(default)
+  }
+  answer <- trimws(dina_read_prompt(prompt, input = input))
+  if (nzchar(answer)) answer else default
+}
+
+dina_cli_config_value <- function(x) {
+  values <- dina_source_values(x)
+  if (!length(values)) {
+    return("")
+  }
+  paste(values, collapse = ",")
+}
+
+dina_print_parameter_summary <- function(session, root = dina_repo_root()) {
+  config <- dina_session_config(session, root, expand_env = FALSE)
+  export <- dina_export_validation_config(config)
+  suggested <- as.integer(config$years$last %||% as.integer(format(Sys.Date(), "%Y"))) + 1L
+  override_path <- dina_session_config_override_path(session$id, root)
+  dina_cli_cat("")
+  dina_cli_cat("Session config:")
+  dina_cli_alert("Benchmark: config/dina.yml")
+  dina_cli_alert(sprintf(
+    "Working override: %s (%s)",
+    dina_relative(override_path, root),
+    if (file.exists(override_path)) "present" else "not created yet"
+  ))
+  dina_cli_cat(sprintf("%-28s %s", "years.first", config$years$first %||% ""))
+  dina_cli_cat(sprintf("%-28s %s", "years.last", config$years$last %||% ""))
+  dina_cli_cat(sprintf("%-28s %s", "suggested next years.last", suggested))
+  dina_cli_cat(sprintf("%-28s %s", "countries", dina_cli_config_value(config$countries %||% character())))
+  dina_cli_cat(sprintf("%-28s %s", "run.units", dina_cli_config_value(config$run$units %||% character())))
+  dina_cli_cat(sprintf("%-28s %s", "run.steps", dina_cli_config_value(config$run$steps %||% character())))
+  dina_cli_cat(sprintf("%-28s %s", "export_validation.unit", export$unit))
+  dina_cli_cat(sprintf("%-28s %s", "export_validation.steps", dina_cli_config_value(export$steps)))
+  dina_cli_cat(sprintf("%-28s %s", "export_validation.last_year", export$last_year))
+  dina_cli_cat(sprintf("%-28s %s", "previous_update_date", export$previous_update_date))
+  dina_cli_cat(sprintf("%-28s %s", "previous_update_file", export$previous_update_file))
+  dina_cli_alert("Session edits use `dina update config set KEY VALUE`; benchmark config is promoted only at finalize.")
+}
+
+dina_update_parameters_wizard <- function(session, root = dina_repo_root(), input = "stdin", is_terminal = isatty(stdin())) {
+  if (!isTRUE(is_terminal)) {
+    dina_print_update_gate(session, root, "parameters")
+    return(invisible(session))
+  }
+  config <- dina_session_config(session, root, expand_env = FALSE)
+  current_last <- as.integer(config$years$last %||% format(Sys.Date(), "%Y"))
+  suggested_last <- current_last + 1L
+
+  dina_cli_header("Gate: parameters")
+  dina_cli_alert("This gate edits only the active working override. The benchmark config is untouched until finalize promotion.")
+  dina_print_parameter_summary(session, root)
+
+  dina_cli_cat("")
+  dina_cli_cat(sprintf("Choose output last year: 1=%s, 2=keep %s, 3=type another year.", suggested_last, current_last))
+  year_choice <- dina_cli_prompt_value("Selection [1]: ", default = "1", input = input, is_terminal = TRUE)
+  if (identical(year_choice, "2")) {
+    selected_last <- current_last
+  } else if (identical(year_choice, "3")) {
+    selected_last <- suppressWarnings(as.integer(dina_cli_prompt_value("Enter years.last: ", default = as.character(current_last), input = input, is_terminal = TRUE)))
+  } else {
+    selected_last <- suppressWarnings(as.integer(year_choice))
+    if (is.na(selected_last) || selected_last < 1900L) selected_last <- suggested_last
+  }
+  if (is.na(selected_last) || selected_last < 1900L) selected_last <- current_last
+  if (!identical(selected_last, current_last)) {
+    session <- dina_session_config_set(session, root = root, key = "years.last", value = as.character(selected_last))
+    config <- dina_session_config(session, root, expand_env = FALSE)
+  }
+
+  current_countries <- dina_cli_config_value(config$countries %||% character())
+  dina_cli_cat(sprintf("Countries: %s", current_countries))
+  if (dina_prompt_yes_no("Edit country list? [y/N] ", default = FALSE, input = input, is_terminal = TRUE)) {
+    countries <- dina_cli_prompt_value("Countries, comma-separated ISO3: ", default = current_countries, input = input, is_terminal = TRUE)
+    config$countries <- trimws(strsplit(countries, ",", fixed = TRUE)[[1]])
+    config$countries <- config$countries[nzchar(config$countries)]
+    session <- dina_session_config_set(session, root = root, key = "countries", value = paste(config$countries, collapse = ","))
+    config <- dina_session_config(session, root, expand_env = FALSE)
+  }
+
+  dina_cli_cat("")
+  dina_cli_cat("Optional working override edits. Use KEY VALUE, for example `export_validation.last_year 2024`; blank continues.")
+  repeat {
+    edit <- dina_cli_prompt_value("Edit: ", default = "", input = input, is_terminal = TRUE)
+    if (!nzchar(edit)) {
+      break
+    }
+    parts <- strsplit(edit, "\\s+", perl = TRUE)[[1]]
+    if (length(parts) < 2L) {
+      dina_cli_warn("Expected KEY VALUE.")
+      next
+    }
+    key <- parts[[1]]
+    value <- paste(parts[-1], collapse = " ")
+    session <- dina_session_config_set(session, root = root, key = key, value = value)
+    config <- dina_session_config(session, root, expand_env = FALSE)
+  }
+
+  override_path <- dina_session_config_override_path(session$id, root)
+  if (file.exists(override_path)) {
+    dina_cli_ok(sprintf("Updated working override: %s", dina_relative(override_path, root)))
+  } else {
+    dina_cli_ok("No working override created; effective config is the benchmark config.")
+  }
+
+  checks <- c("year-scope", "export-settings", "config-rendered")
+  for (check in checks) {
+    target <- sprintf("parameters/%s", check)
+    if (dina_prompt_yes_no(sprintf("Mark %s done? [Y/n] ", target), default = TRUE, input = input, is_terminal = TRUE)) {
+      dina_update_mark_gate(session, root = root, target = target, status = "done")
+      session <- dina_load_session(root = root)
+    }
+  }
+  dina_cli_ok("Next action: dina update roadmap")
+  invisible(session)
+}
+
+dina_print_repo_status <- function(comparison) {
+  dina_cli_header("Update Repo Status")
+  metadata <- comparison$metadata
+  dina_cli_alert(sprintf("Baseline: %s (%s)", metadata$baseline %||% "", metadata$created_at %||% ""))
+  dina_cli_alert(sprintf("Branch at baseline: %s", metadata$branch %||% "unknown"))
+  dina_cli_alert(sprintf("HEAD at baseline: %s", metadata$head %||% "unknown"))
+  counts <- comparison$counts
+  dina_cli_cat(sprintf(
+    "Current vs baseline: added=%s modified=%s deleted=%s unchanged=%s",
+    counts[["added"]], counts[["modified"]], counts[["deleted"]], counts[["unchanged"]]
+  ))
+  changed <- comparison$rows[comparison$rows$state != "unchanged", , drop = FALSE]
+  if (!nrow(changed)) {
+    dina_cli_ok("No captured repo files differ from the baseline.")
+    return(invisible(comparison))
+  }
+  dina_cli_cat(sprintf("%-10s %s", "state", "path"))
+  for (i in seq_len(nrow(changed))) {
+    dina_cli_cat(sprintf("%-10s %s", changed$state[[i]], changed$path[[i]]))
+  }
+  invisible(comparison)
+}
+
+dina_print_repo_diff <- function(session, root = dina_repo_root(), baseline = "start", stat = TRUE, patch = FALSE, files = FALSE) {
+  comparison <- dina_repo_state_compare(session, root, baseline)
+  if (isTRUE(stat)) {
+    dina_print_repo_status(comparison)
+  }
+  changed <- comparison$rows[comparison$rows$state != "unchanged", , drop = FALSE]
+  if (isTRUE(files)) {
+    dina_cli_cat("")
+    dina_cli_cat("Files:")
+    if (!nrow(changed)) dina_cli_cat("  none")
+    for (i in seq_len(nrow(changed))) {
+      dina_cli_cat(sprintf("  %s %s", changed$state[[i]], changed$path[[i]]))
+    }
+  }
+  if (isTRUE(patch)) {
+    dina_cli_cat("")
+    dina_cli_cat("Patch:")
+    if (!nrow(changed)) {
+      dina_cli_cat("  no patch")
+    }
+    for (i in seq_len(nrow(changed))) {
+      rel <- changed$path[[i]]
+      state <- changed$state[[i]]
+      from <- file.path(dina_repo_state_files_dir(session, root, baseline), rel)
+      to <- file.path(root, rel)
+      dina_cli_cat(sprintf("diff --dina %s (%s)", rel, state))
+      if (identical(state, "added")) {
+        dina_cli_cat(sprintf("  added file not present in baseline: %s", rel))
+      } else {
+        target <- if (identical(state, "deleted")) "/dev/null" else to
+        diff <- suppressWarnings(system2("diff", c("-u", from, target), stdout = TRUE, stderr = TRUE))
+        if (!length(diff)) {
+          dina_cli_cat("  binary or unchanged diff")
+        } else {
+          cat(paste(diff, collapse = "\n"), "\n", sep = "")
+        }
+      }
+    }
+  }
+  invisible(comparison)
+}
+
+dina_print_repo_restore <- function(result) {
+  title <- if (isTRUE(result$dry_run)) "Update Repo Restore Preview" else "Update Repo Restore"
+  dina_cli_header(title)
+  actions <- result$actions
+  if (!length(actions)) {
+    dina_cli_ok("No modified or deleted captured files need restore.")
+  } else {
+    for (action in actions) {
+      dina_cli_cat(sprintf("%-14s %s", action$status %||% "", action$path %||% ""))
+    }
+  }
+  if (length(result$added_not_removed %||% character())) {
+    dina_cli_warn("Added files are reported but not removed automatically:")
+    for (path in result$added_not_removed) {
+      dina_cli_cat(sprintf("  %s", path))
+    }
+  }
+  if (isTRUE(result$dry_run)) {
+    dina_cli_alert("Preview only. Pass --yes to restore captured modified/deleted files.")
+  }
+  invisible(result)
 }
 
 dina_dashboard_action_from_command <- function(command) {
@@ -893,7 +1175,14 @@ dina_print_update_gate <- function(session, root = dina_repo_root(), gate_id = N
   if (nzchar(gate$goal %||% "")) dina_cli_cat(gate$goal)
   dina_print_gate_field("Source families", gate$source_families %||% character())
   dina_print_gate_field("Tasks", gate$tasks %||% character())
-  dina_print_gate_field("Old-reference notes", gate$old_refs %||% character())
+  if (dina_session_show_old_refs(session)) {
+    dina_print_gate_field("Old-reference notes", gate$old_refs %||% character())
+  } else if (length(dina_source_values(gate$old_refs %||% character()))) {
+    dina_cli_alert("Old-reference notes hidden. Run `dina update prefs old-refs on` to show them.")
+  }
+  if (identical(gate$id %||% "", "parameters") && !is.null(session)) {
+    dina_print_parameter_summary(session, root)
+  }
 
   dina_cli_cat("")
   dina_cli_cat("Checks:")
@@ -1060,11 +1349,13 @@ dina_cmd_update <- function(root, args) {
       dina_cli_alert(sprintf("Use `dina update restart %s` instead to rebuild the same update id.", plan$default_id))
     }
     dina_cli_header("Update Start")
+    show_old_refs <- dina_cli_old_refs_choice(flags, current = TRUE)
     session <- dina_update_start(
       year = year,
       id = plan$id,
       root = root,
       source_hash = !isTRUE(flags[["no-source-hash"]]),
+      show_old_refs = show_old_refs,
       progress = dina_cli_progress
     )
     dina_cli_ok(sprintf("Started update session %s", session$id))
@@ -1096,7 +1387,16 @@ dina_cmd_update <- function(root, args) {
   } else if (identical(sub, "gate")) {
     session <- dina_load_session(root = root)
     gate_id <- dina_arg(rest, 1L, NULL)
-    dina_print_update_gate(session, root, gate_id)
+    effective_gate <- gate_id
+    if (is.null(effective_gate) || !nzchar(effective_gate)) {
+      next_gate <- dina_next_gate_status(session, root)
+      effective_gate <- next_gate$id %||% "parameters"
+    }
+    if (identical(effective_gate, "parameters") && !is.null(session) && isatty(stdin())) {
+      dina_update_parameters_wizard(session, root)
+    } else {
+      dina_print_update_gate(session, root, gate_id)
+    }
   } else if (identical(sub, "mark")) {
     session <- dina_load_session(root = root)
     if (is.null(session)) stop("No active update.", call. = FALSE)
@@ -1120,6 +1420,76 @@ dina_cmd_update <- function(root, args) {
     } else {
       dina_cli_warn(sprintf("No record existed for %s/%s", result$gate, result$check))
     }
+  } else if (identical(sub, "prefs")) {
+    session <- dina_load_session(root = root)
+    if (is.null(session)) stop("No active update.", call. = FALSE)
+    topic <- dina_arg(rest, 1L, NULL)
+    value <- dina_arg(rest, 2L, NULL)
+    if (is.null(topic)) {
+      dina_cli_header("Update Preferences")
+      dina_cli_cat(sprintf("%-16s %s", "old-refs", if (dina_session_show_old_refs(session)) "on" else "off"))
+      dina_cli_alert("Change with `dina update prefs old-refs on` or `dina update prefs old-refs off`.")
+    } else if (identical(topic, "old-refs") && value %in% c("on", "off")) {
+      session <- dina_update_set_old_refs(session, root, show = identical(value, "on"))
+      dina_cli_ok(sprintf("Old-reference notes are now %s.", if (dina_session_show_old_refs(session)) "on" else "off"))
+    } else {
+      stop("Usage: dina update prefs\n       dina update prefs old-refs on|off", call. = FALSE)
+    }
+  } else if (identical(sub, "config")) {
+    session <- dina_load_session(root = root)
+    if (is.null(session)) stop("No active update.", call. = FALSE)
+    action <- dina_arg(rest, 1L, "show")
+    if (identical(action, "show")) {
+      dina_need("yaml")
+      override_path <- dina_session_config_override_path(session$id, root)
+      dina_cli_header("Update Config")
+      dina_cli_cat("Benchmark config/dina.yml:")
+      cat(yaml::as.yaml(dina_config(root, expand_env = FALSE)))
+      dina_cli_cat("Working override:")
+      if (file.exists(override_path)) {
+        cat(yaml::as.yaml(dina_config_override(session, root)))
+      } else {
+        dina_cli_alert(sprintf("%s has not been created yet.", dina_relative(override_path, root)))
+      }
+      dina_cli_cat("Effective config:")
+      cat(yaml::as.yaml(dina_session_config(session, root, expand_env = FALSE)))
+    } else if (identical(action, "set")) {
+      key <- dina_arg(rest, 2L, NULL)
+      value <- if (length(rest) >= 3L) paste(rest[-c(1L, 2L)], collapse = " ") else NULL
+      if (is.null(key) || is.null(value)) {
+        stop("Usage: dina update config set KEY VALUE", call. = FALSE)
+      }
+      session <- dina_session_config_set(session, root = root, key = key, value = value)
+      dina_cli_ok(sprintf("Set working override %s", key))
+      dina_cli_alert(sprintf("Override: %s", session$config_override))
+    } else {
+      stop("Usage: dina update config show\n       dina update config set KEY VALUE", call. = FALSE)
+    }
+  } else if (identical(sub, "repo-status")) {
+    session <- dina_load_session(root = root)
+    if (is.null(session)) stop("No active update.", call. = FALSE)
+    flags <- dina_parse_flags(rest)
+    comparison <- dina_repo_state_compare(session, root, baseline = flags$baseline %||% "start")
+    dina_print_repo_status(comparison)
+  } else if (identical(sub, "repo-diff")) {
+    session <- dina_load_session(root = root)
+    if (is.null(session)) stop("No active update.", call. = FALSE)
+    flags <- dina_parse_flags(rest)
+    any_mode <- isTRUE(flags$stat) || isTRUE(flags$patch) || isTRUE(flags$files)
+    dina_print_repo_diff(
+      session,
+      root = root,
+      baseline = flags$baseline %||% "start",
+      stat = isTRUE(flags$stat) || !any_mode,
+      patch = isTRUE(flags$patch),
+      files = isTRUE(flags$files)
+    )
+  } else if (identical(sub, "repo-restore")) {
+    session <- dina_load_session(root = root)
+    if (is.null(session)) stop("No active update.", call. = FALSE)
+    flags <- dina_parse_flags(rest)
+    result <- dina_repo_state_restore(session, root = root, baseline = flags$baseline %||% "start", yes = isTRUE(flags$yes))
+    dina_print_repo_restore(result)
   } else if (identical(sub, "checklist")) {
     stop("Unknown update command: checklist. Use `dina update roadmap`.", call. = FALSE)
   } else if (identical(sub, "list")) {
@@ -1167,13 +1537,25 @@ dina_cmd_update <- function(root, args) {
   } else if (identical(sub, "restart")) {
     flags <- dina_parse_flags(rest)
     if (length(flags$positional) > 1L) {
-      stop("Usage: dina update restart [ID] [--yes]", call. = FALSE)
+      stop("Usage: dina update restart [ID] [--yes] [--replace-repo-baseline]", call. = FALSE)
     }
+    if (isTRUE(flags[["replace-repo-baseline"]]) && isTRUE(flags[["preserve-repo-baseline"]])) {
+      stop("Choose either --replace-repo-baseline or --preserve-repo-baseline, not both.", call. = FALSE)
+    }
+    repo_policy <- if (isTRUE(flags[["replace-repo-baseline"]])) "replace" else "preserve"
+    old_refs_flag <- if (isTRUE(flags[["old-refs"]])) TRUE else if (isTRUE(flags[["no-old-refs"]])) FALSE else NULL
     update_id <- dina_arg(flags$positional, 1L, NULL)
     if (isTRUE(flags$yes)) {
       dina_cli_header("Update Restart")
     }
-    result <- dina_update_restart(update_id, root = root, yes = isTRUE(flags$yes), progress = if (isTRUE(flags$yes)) dina_cli_progress else NULL)
+    result <- dina_update_restart(
+      update_id,
+      root = root,
+      yes = isTRUE(flags$yes),
+      repo_policy = repo_policy,
+      show_old_refs = old_refs_flag,
+      progress = if (isTRUE(flags$yes)) dina_cli_progress else NULL
+    )
     if (isTRUE(result$dry_run)) {
       dina_cli_warn(sprintf("Would reset update %s from scratch.", result$id))
       dina_cli_alert(sprintf("Year: %s", result$year))
@@ -1185,13 +1567,22 @@ dina_cmd_update <- function(root, args) {
         result$log_files,
         result$snapshot_files
       ))
+      if (length(result$repo_baselines %||% character())) {
+        dina_cli_alert(sprintf("Existing repo baselines: %s", paste(result$repo_baselines, collapse = ", ")))
+      } else {
+        dina_cli_alert("Existing repo baselines: none")
+      }
+      dina_cli_alert("Default repo policy: preserve original baseline and add a restart snapshot.")
       dina_cli_alert("Restart reuses the same update id; no suffixed session will be created.")
       if (!dina_confirm_continue()) {
         dina_cli_alert("No changes made. Pass --yes for non-interactive restart.")
         return(invisible(result))
       }
+      preserve <- dina_prompt_yes_no("Preserve original repo baseline? [Y/n] ", default = TRUE)
+      repo_policy <- if (isTRUE(preserve)) "preserve" else "replace"
+      old_refs <- dina_cli_old_refs_choice(flags, current = dina_session_show_old_refs(dina_load_session(result$id, root)))
       dina_cli_header("Update Restart")
-      result <- dina_update_restart(result$id, root = root, yes = TRUE, progress = dina_cli_progress)
+      result <- dina_update_restart(result$id, root = root, yes = TRUE, repo_policy = repo_policy, show_old_refs = old_refs, progress = dina_cli_progress)
       dina_cli_ok(sprintf("Restarted update %s from scratch.", result$id))
     } else {
       dina_cli_ok(sprintf("Restarted update %s from scratch.", result$id))
@@ -1199,9 +1590,22 @@ dina_cmd_update <- function(root, args) {
   } else if (identical(sub, "finalize")) {
     flags <- dina_parse_flags(rest)
     session <- dina_load_session(root = root)
-    result <- dina_finalize_update(session, root, force = isTRUE(flags$force))
+    if (is.null(session)) stop("No active update.", call. = FALSE)
+    blockers <- dina_finalize_blockers(session, root)
+    if (length(blockers) && !isTRUE(flags$force)) {
+      result <- list(ok = FALSE, blockers = lapply(blockers, function(x) x$reasons))
+    } else {
+      promote <- isTRUE(flags$yes)
+      if (!isTRUE(flags$yes)) {
+        dina_cli_alert("Finalize can promote the effective update config back to config/dina.yml.")
+        dina_cli_alert("Use `dina update finalize --yes` in scripts to promote without prompting.")
+        promote <- dina_prompt_yes_no("Promote effective update config to benchmark? [y/N] ", default = FALSE)
+      }
+      result <- dina_finalize_update(session, root, force = isTRUE(flags$force), promote_config = promote)
+    }
     if (isTRUE(result$ok)) {
       dina_cli_ok(sprintf("Finalized update. Snapshot: %s", result$snapshot_dir))
+      dina_cli_alert(sprintf("Config promoted: %s", if (isTRUE(result$config_promoted)) "yes" else "no"))
     } else {
       dina_cli_err("Cannot finalize yet.")
       for (id in names(result$blockers)) {
@@ -1966,10 +2370,18 @@ dina_cmd_config <- function(root, args) {
     config <- dina_set_nested(config, key, value)
     dina_write_yaml(config, dina_config_path(root))
     dina_cli_ok(sprintf("Set %s", key))
+  } else if (identical(sub, "stata")) {
+    flags <- dina_parse_flags(args[-1])
+    path <- flags$output %||% dina_arg(flags$positional, 1L, NULL)
+    if (is.null(path) || !nzchar(path)) {
+      stop("Usage: dina config stata --output PATH", call. = FALSE)
+    }
+    full <- if (grepl("^/", path)) path else file.path(root, path)
+    dina_render_config_do(dina_config(root, expand_env = FALSE), full)
+    dina_cli_ok(sprintf("Wrote explicit Stata runtime config %s", dina_relative(full, root)))
+    dina_cli_alert(sprintf("Use it with: export DINA_CONFIG_DO=\"%s\"", full))
   } else if (identical(sub, "render")) {
-    path <- dina_arg(args, 2L, dina_path("output", "run_logs", "config.do", root = root))
-    dina_render_config_do(dina_config(root), if (grepl("^/", path)) path else file.path(root, path))
-    dina_cli_ok(sprintf("Rendered %s", path))
+    stop("Unknown config command: render. Use `dina config stata --output PATH` for manual Stata export.", call. = FALSE)
   } else if (identical(sub, "edit")) {
     editor <- Sys.getenv("EDITOR", unset = "")
     if (!nzchar(editor)) stop("EDITOR is not set.", call. = FALSE)
