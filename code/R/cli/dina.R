@@ -1197,8 +1197,12 @@ dina_menu_select_raw <- function(title, items, prompt = "Choose an action", defa
       show_help <- TRUE
     } else if (grepl("^[0-9]$", key)) {
       choice <- as.integer(key)
-      if (!is.na(choice) && choice >= 1L && choice <= length(items) && !isTRUE(items[[choice]]$disabled)) {
-        return(dina_menu_action_value(items[[choice]]))
+      visible <- dina_menu_visible_indices(items)
+      if (!is.na(choice) && choice >= 1L && choice <= length(visible)) {
+        item_index <- visible[[choice]]
+        if (!isTRUE(items[[item_index]]$disabled)) {
+          return(dina_menu_action_value(items[[item_index]]))
+        }
       }
     }
   }
@@ -1240,7 +1244,7 @@ dina_menu_confirm <- function(title = "Confirm", prompt = "Continue?", default =
     is_terminal = is_terminal
   )
   if (identical(result, "quit") || is.null(result)) {
-    return(isTRUE(default))
+    return(FALSE)
   }
   isTRUE(result)
 }
@@ -1545,9 +1549,9 @@ dina_print_parameter_row <- function(spec, config, suggestions) {
   value <- dina_parameter_display_value(dina_parameter_value(config, spec$key))
   suggestion <- dina_parameter_suggestion(suggestions, spec$key)
   dina_cli_cat(sprintf("%-42s %s", spec$key, value))
-  dina_cli_cat(sprintf("%-42s # %s", "", spec$note))
+  dina_cli_cat(sprintf("%-42s %s", "", dina_cli_dim(sprintf("# %s", spec$note))))
   if (nzchar(suggestion)) {
-    dina_cli_cat(sprintf("%-42s suggestion: %s", "", suggestion))
+    dina_cli_cat(sprintf("%-42s %s", "", dina_cli_dim(sprintf("suggestion: %s", suggestion))))
   }
 }
 
@@ -1946,9 +1950,11 @@ dina_print_dashboard <- function(root = dina_repo_root()) {
     dina_cli_alert(sprintf("Stale or blocked tasks: %s", stale_label))
   }
   dina_cli_ok(sprintf("Recommended next action: %s", recommendation))
-  cat("\nUseful actions:\n")
-  for (i in seq_along(actions)) {
-    cat(sprintf("  %s. %s - %s\n", i, actions[[i]]$label, actions[[i]]$command %||% paste(c("dina", actions[[i]]$args), collapse = " ")))
+  if (!isatty(stdin())) {
+    cat("\nUseful actions:\n")
+    for (i in seq_along(actions)) {
+      cat(sprintf("  %s. %s - %s\n", i, actions[[i]]$label, actions[[i]]$command %||% paste(c("dina", actions[[i]]$args), collapse = " ")))
+    }
   }
   dina_dashboard_prompt(actions, root)
 }
@@ -2235,11 +2241,6 @@ dina_restart_mode_choice <- function(result = NULL, default = "preserve", input 
   if (!isTRUE(is_terminal)) {
     return(default)
   }
-  prompt_lines <- c(
-    "Choose one restart mode.",
-    if (!is.null(result)) dina_restart_source_inbox_note(result) else character(),
-    "Repo history powers repo-status, repo-diff, and repo-restore."
-  )
   choice <- dina_menu_select(
     title = "Restart Options",
     items = list(
@@ -2272,7 +2273,7 @@ dina_restart_mode_choice <- function(result = NULL, default = "preserve", input 
         help = "Choose this if you want to move or clear source inbox files first."
       )
     ),
-    prompt = paste(prompt_lines, collapse = "\n"),
+    prompt = "Choose one restart mode.",
     default = default,
     allow_quit = TRUE,
     input = input,
@@ -3377,7 +3378,7 @@ dina_print_bucket_uses <- function(rows) {
   invisible(rows)
 }
 
-dina_print_bucket_fetch_results <- function(rows, dry_run = FALSE) {
+dina_print_bucket_fetch_results <- function(rows, dry_run = FALSE, show_skipped = FALSE) {
   dina_cli_header(if (isTRUE(dry_run)) "Bucket Fetch Preview" else "Bucket Fetch")
   if (!nrow(rows)) {
     dina_cli_warn("No bucket fetch rows matched.")
@@ -3386,7 +3387,8 @@ dina_print_bucket_fetch_results <- function(rows, dry_run = FALSE) {
   statuses <- as.character(rows$status)
   fetch_statuses <- c("would_fetch", "fetched", "already_present", "failed")
   fetch_rows <- rows[statuses %in% fetch_statuses, , drop = FALSE]
-  skipped_count <- nrow(rows) - nrow(fetch_rows)
+  skipped_rows <- rows[!(statuses %in% fetch_statuses), , drop = FALSE]
+  skipped_count <- nrow(skipped_rows)
   if (!nrow(fetch_rows)) {
     dina_cli_warn("No automatic fetches matched.")
   }
@@ -3417,7 +3419,16 @@ dina_print_bucket_fetch_results <- function(rows, dry_run = FALSE) {
       dina_cli_cat(sprintf("  %s %s", dina_cli_dim("detail:"), dina_cli_dim(dina_refresh_shorten(detail, 96L))))
     }
   }
-  if (skipped_count > 0L) {
+  if (skipped_count > 0L && (isTRUE(show_skipped) || !nrow(fetch_rows))) {
+    for (i in seq_len(nrow(skipped_rows))) {
+      status <- gsub("_", " ", skipped_rows$status[[i]] %||% "")
+      dina_cli_cat(sprintf("%s %s", dina_cli_name(skipped_rows$source_id[[i]]), dina_cli_dim(status)))
+      detail <- skipped_rows$detail[[i]] %||% ""
+      if (nzchar(detail)) {
+        dina_cli_cat(sprintf("  %s %s", dina_cli_dim("detail:"), dina_cli_dim(dina_refresh_shorten(detail, 96L))))
+      }
+    }
+  } else if (skipped_count > 0L) {
     dina_cli_alert(sprintf(
       "Skipped %s source(s) without automatic fetches. Use `dina buckets detail` for manual bucket instructions.",
       skipped_count
@@ -3476,7 +3487,11 @@ dina_cmd_buckets <- function(root, args) {
       source_id = flags$source %||% NULL,
       dry_run = isTRUE(flags[["dry-run"]])
     )
-    dina_print_bucket_fetch_results(rows, dry_run = isTRUE(flags[["dry-run"]]))
+    dina_print_bucket_fetch_results(
+      rows,
+      dry_run = isTRUE(flags[["dry-run"]]),
+      show_skipped = !is.null(selector) || !is.null(flags$source)
+    )
   } else {
     flags <- dina_parse_flags(args)
     rows <- dina_bucket_rows_for_args(root, flags)
