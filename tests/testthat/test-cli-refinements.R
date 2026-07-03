@@ -28,6 +28,70 @@ fake_executable <- function(dir, name) {
   path
 }
 
+source_cli_for_tests <- function() {
+  old_source_only <- Sys.getenv("DINA_CLI_SOURCE_ONLY", unset = NA_character_)
+  old_source_file <- Sys.getenv("DINA_CLI_SOURCE_FILE", unset = NA_character_)
+  on.exit({
+    if (is.na(old_source_only)) Sys.unsetenv("DINA_CLI_SOURCE_ONLY") else Sys.setenv(DINA_CLI_SOURCE_ONLY = old_source_only)
+    if (is.na(old_source_file)) Sys.unsetenv("DINA_CLI_SOURCE_FILE") else Sys.setenv(DINA_CLI_SOURCE_FILE = old_source_file)
+  }, add = TRUE)
+  cli_path <- file.path(repo_root_for_tests, "code", "R", "cli", "dina.R")
+  Sys.setenv(DINA_CLI_SOURCE_ONLY = "1", DINA_CLI_SOURCE_FILE = cli_path)
+  sys.source(cli_path, envir = parent.frame())
+}
+
+test_that("shared menu helpers support fallback selection, quit, defaults, and disabled actions", {
+  source_cli_for_tests()
+  items <- list(
+    dina_menu_action("a", "Action A", value = "a", help = "Detailed help for A."),
+    dina_menu_action("b", "Action B", value = "b", help = "Detailed help for B."),
+    dina_menu_action("previous", "Previous", value = "previous")
+  )
+
+  con <- textConnection("2\n")
+  capture.output(selected <- dina_menu_select("Menu", items, input = con, is_terminal = TRUE))
+  close(con)
+  expect_equal(selected, "b")
+
+  con <- textConnection("q\n")
+  capture.output(cancelled <- dina_menu_select("Menu", items, input = con, is_terminal = TRUE))
+  close(con)
+  expect_equal(cancelled, "quit")
+
+  con <- textConnection("l\n")
+  capture.output(previous <- dina_menu_select("Menu", items, input = con, is_terminal = TRUE))
+  close(con)
+  expect_equal(previous, "previous")
+
+  disabled_items <- list(
+    dina_menu_action("a", "Action A", value = "a", disabled = TRUE),
+    dina_menu_action("b", "Action B", value = "b")
+  )
+  con <- textConnection(c("1", "2"))
+  capture.output(enabled <- dina_menu_select("Menu", disabled_items, input = con, is_terminal = TRUE))
+  close(con)
+  expect_equal(enabled, "b")
+
+  expect_equal(dina_menu_select("Menu", items, default = "b", is_terminal = FALSE), "b")
+
+  con <- textConnection(c("?", "2"))
+  help_output <- capture.output(helped <- dina_menu_select("Menu", items, input = con, is_terminal = TRUE))
+  close(con)
+  expect_equal(helped, "b")
+  expect_match(paste(help_output, collapse = "\n"), "Detailed help for A")
+  expect_match(paste(help_output, collapse = "\n"), "Detailed help for B")
+
+  con <- textConnection("\n")
+  capture.output(default_yes <- dina_menu_confirm("Confirm", "Continue?", default = TRUE, input = con, is_terminal = TRUE))
+  close(con)
+  expect_true(default_yes)
+
+  con <- textConnection("2\n")
+  capture.output(answer_no <- dina_menu_confirm("Confirm", "Continue?", default = TRUE, input = con, is_terminal = TRUE))
+  close(con)
+  expect_false(answer_no)
+})
+
 test_that("task selector aliases resolve numbered tasks and blocks", {
   root <- mini_repo()
   numbered_pipeline(root)
@@ -200,6 +264,25 @@ test_that("help and default dispatch accept optional global separator", {
   }
 })
 
+test_that("setup command installs a wrapper that points back to this checkout", {
+  root <- mini_repo()
+  home <- tempfile("dina-home-")
+  dir.create(home, recursive = TRUE)
+  result <- run_dina_cli(c("setup", "command"), root = root, env = sprintf("HOME=%s", home))
+  expect_equal(result$status, 0L)
+  wrapper <- file.path(home, ".local", "bin", "dina")
+  expect_true(file.exists(wrapper))
+  text <- readLines(wrapper, warn = FALSE)
+  expect_true(any(grepl(normalizePath(file.path(repo_root_for_tests, "code", "R", "cli", "dina.R"), mustWork = TRUE), text, fixed = TRUE)))
+  expect_false(any(grepl("\\.local/code/R/cli/dina\\.R", text)))
+
+  output <- system2(wrapper, "help", stdout = TRUE, stderr = TRUE, env = sprintf("DINA_REPO_ROOT=%s", root))
+  status <- attr(output, "status")
+  if (is.null(status)) status <- 0L
+  expect_equal(status, 0L)
+  expect_match(paste(output, collapse = "\n"), "DINA-LatAm CLI")
+})
+
 test_that("dashboard offers executable numbered actions without prompting in non-interactive runs", {
   root <- mini_repo()
   result <- run_dina_cli(character(), root = root)
@@ -208,14 +291,14 @@ test_that("dashboard offers executable numbered actions without prompting in non
   expect_match(result$output, "No active update session.")
   expect_match(result$output, sprintf("Recommended next action: Start an update with `dina update start %s`", year))
   expect_match(result$output, "Useful actions:")
-  expect_match(result$output, sprintf("1\\. dina update start %s", year))
+  expect_match(result$output, sprintf("1\\. Start update - dina update start %s", year))
   expect_equal(length(gregexpr(sprintf("dina update start %s", year), result$output, fixed = TRUE)[[1]][gregexpr(sprintf("dina update start %s", year), result$output, fixed = TRUE)[[1]] > 0]), 2L)
-  expect_match(result$output, "2\\. dina doctor")
-  expect_match(result$output, "3\\. dina update roadmap")
-  expect_match(result$output, "4\\. dina update gate")
-  expect_match(result$output, "5\\. dina sources inbox guide")
-  expect_match(result$output, "6\\. dina tasks list")
-  expect_match(result$output, "7\\. dina run --dry-run")
+  expect_match(result$output, "2\\. Run doctor - dina doctor")
+  expect_match(result$output, "3\\. Open roadmap - dina update roadmap")
+  expect_match(result$output, "4\\. Open next gate - dina update gate")
+  expect_match(result$output, "5\\. Show source inbox guide - dina sources inbox guide")
+  expect_match(result$output, "6\\. List tasks - dina tasks list")
+  expect_match(result$output, "7\\. Preview run - dina run --dry-run")
   expect_false(grepl("Choose an action number", result$output, fixed = TRUE))
 })
 
@@ -306,7 +389,8 @@ test_that("sources list and show expose the source registry", {
   listed <- run_dina_cli(c("sources", "list"))
   expect_equal(listed$status, 0L)
   expect_match(listed$output, "Source Registry")
-  expect_match(listed$output, "country-sna-index[[:space:]]+country_sna[[:space:]]+12 countries[[:space:]]+manual[[:space:]]+1[[:space:]]+yes")
+  expect_false(grepl("country-sna-index", listed$output, fixed = TRUE))
+  expect_match(listed$output, "country-sna-bra[[:space:]]+country_sna[[:space:]]+BRA[[:space:]]+manual[[:space:]]+2[[:space:]]+yes")
   expect_match(listed$output, "wid-prices-xrates[[:space:]]+prices[[:space:]]+11 countries[[:space:]]+wid")
   expect_match(listed$output, "wb-xrates[[:space:]]+prices[[:space:]]+11 countries[[:space:]]+manual")
   expect_false(grepl("MULTI", listed$output, fixed = TRUE))
@@ -315,7 +399,8 @@ test_that("sources list and show expose the source registry", {
 
   project_scan <- dina_scan_sources(repo_root_for_tests)
   scan_countries <- vapply(project_scan, function(source) source$country, character(1))
-  expect_equal(project_scan[["country-sna-index"]]$country, "12 countries")
+  expect_false("country-sna-index" %in% names(project_scan))
+  expect_equal(project_scan[["country-sna-bra"]]$country, "BRA")
   expect_false(any(scan_countries == "MULTI"))
 
   scan_root <- mini_repo()
@@ -344,26 +429,26 @@ test_that("sources list and show expose the source registry", {
 
   urls <- run_dina_cli(c("sources", "list", "--urls"))
   expect_equal(urls$status, 0L)
-  expect_match(urls$output, "ARG: https://sitioanterior.indec.gob.ar")
+  expect_match(urls$output, "legacy landing page: https://sitioanterior.indec.gob.ar")
   expect_match(urls$output, "https://wid.world/")
 
   country <- run_dina_cli(c("sources", "list", "--country", "CHL"))
   expect_equal(country$status, 0L)
   expect_match(country$output, "Filter: country CHL, including broad-country sources")
   expect_match(country$output, "country-sna-chl")
-  expect_false(grepl("bra-admin-tax", country$output, fixed = TRUE))
+  expect_false(grepl("bra-pit-total", country$output, fixed = TRUE))
 
   country_friendly <- run_dina_cli(c("sources", "list", "country", "CHL"))
   expect_equal(country_friendly$status, 0L)
   expect_match(country_friendly$output, "Filter: country CHL, including broad-country sources")
   expect_match(country_friendly$output, "country-sna-chl")
-  expect_false(grepl("bra-admin-tax", country_friendly$output, fixed = TRUE))
+  expect_false(grepl("bra-pit-total", country_friendly$output, fixed = TRUE))
 
   country_flag_friendly <- run_dina_cli(c("sources", "list", "country", "--CHL"))
   expect_equal(country_flag_friendly$status, 0L)
   expect_match(country_flag_friendly$output, "Filter: country CHL, including broad-country sources")
   expect_match(country_flag_friendly$output, "country-sna-chl")
-  expect_false(grepl("bra-admin-tax", country_flag_friendly$output, fixed = TRUE))
+  expect_false(grepl("bra-pit-total", country_flag_friendly$output, fixed = TRUE))
 
   family <- run_dina_cli(c("sources", "list", "family", "admin-data"))
   expect_equal(family$status, 0L)
@@ -383,7 +468,7 @@ test_that("sources list and show expose the source registry", {
   method <- run_dina_cli(c("sources", "list", "method", "manual"))
   expect_equal(method$status, 0L)
   expect_match(method$output, "Filter: method manual")
-  expect_match(method$output, "country-sna-index")
+  expect_match(method$output, "country-sna-bra")
   expect_false(grepl("chl-pit-total", method$output, fixed = TRUE))
 
   method_flag_friendly <- run_dina_cli(c("sources", "list", "method", "--manual"))
@@ -406,14 +491,13 @@ test_that("sources list and show expose the source registry", {
   expect_equal(malformed_family$status, 1L)
   expect_match(malformed_family$output, "Unknown source family: not-a-family")
 
-  shown <- run_dina_cli(c("sources", "show", "country-sna-index"))
+  shown <- run_dina_cli(c("sources", "show", "country-sna-bra", "--urls"))
   expect_equal(shown$status, 0L)
-  expect_match(shown$output, "country: 12 countries")
-  expect_match(shown$output, "country coverage:")
-  expect_match(shown$output, "input_data/sna_country_data/_sna-web-site-index\\.ods")
+  expect_match(shown$output, "country: BRA")
+  expect_match(shown$output, "input_data/sna_country_data/BRA/\\*\\.xls")
   expect_match(shown$output, "method: manual - Human-curated/manual input or URL index")
-  expect_match(shown$output, "BRA single-year downloads")
-  expect_match(shown$output, "https://www.inegi.org.mx/datos/\\?t=0190")
+  expect_match(shown$output, "landing page single-year downloads")
+  expect_match(shown$output, "start manual review from the listed landing pages")
 
   missing <- run_dina_cli(c("sources", "show", "does-not-exist"))
   expect_equal(missing$status, 1L)
@@ -421,6 +505,11 @@ test_that("sources list and show expose the source registry", {
 
   help <- run_dina_cli(c("help", "sources"))
   expect_equal(help$status, 0L)
+  expect_match(help$output, "dina buckets \\[--family FAMILY\\]")
+  expect_match(help$output, "dina buckets detail \\[--family FAMILY\\]")
+  expect_match(help$output, "dina buckets urls \\[--family FAMILY\\]")
+  expect_match(help$output, "dina buckets uses \\[--family FAMILY\\] \\[BUCKET\\|SOURCE\\]")
+  expect_match(help$output, "dina buckets fetch \\[--family FAMILY\\] \\[--source ID\\] \\[--dry-run\\]")
   expect_match(help$output, "dina sources list \\[--family FAMILY\\] \\[--country ISO\\] \\[--method METHOD\\] \\[--urls\\]")
   expect_match(help$output, "dina sources list country ISO \\[--urls\\]")
   expect_match(help$output, "dina sources list family FAMILY \\[--urls\\]")
@@ -435,7 +524,15 @@ test_that("sources list and show expose the source registry", {
   expect_match(help$output, "Update progress itself is[[:space:]]+recorded with `dina update mark GATE/CHECK`")
   expect_match(help$output, "url[[:space:]]+Direct URL fetchable")
   expect_match(help$output, "manual[[:space:]]+Human-curated input or URL index")
+  expect_match(help$output, "Inbox buckets are created only for sources with explicit `inbox`")
   expect_false(grepl("sources complete", help$output, fixed = TRUE))
+
+  bucket_help <- run_dina_cli(c("help", "bucket"))
+  expect_equal(bucket_help$status, 0L)
+  expect_match(bucket_help$output, "dina buckets detail")
+  expect_match(bucket_help$output, "dina buckets uses")
+  expect_match(bucket_help$output, "dina buckets fetch")
+  expect_match(bucket_help$output, "Default output shows only bucket path")
 })
 
 test_that("update roadmap and gate records provide the update progress model", {
@@ -452,8 +549,20 @@ test_that("update roadmap and gate records provide the update progress model", {
   expect_match(started$output, "Scanning source registry and hashing source baseline")
   expect_match(started$output, "Source baseline summary")
   expect_match(started$output, "Source baseline hash mode: all")
+  expect_match(started$output, "Source Inbox Buckets")
+  expect_match(started$output, "input_data/_new/fixture")
+  expect_match(started$output, "created")
+  expect_false(grepl("Expected files by bucket", started$output, fixed = TRUE))
+  expect_match(started$output, "More detail: dina buckets detail")
+  expect_match(started$output, "URLs: dina buckets urls")
+  expect_match(started$output, "Drop manual downloads into the matching bucket shown above")
   expect_match(started$output, "Recommended next action: dina update roadmap")
+  session <- dina_load_session(root = root)
   expect_true(file.exists(file.path(root, "output", "updates", dina_current_update(root), "repo_state", "start", "metadata.json")))
+  expect_equal(session$source_inbox$buckets[[1]]$bucket, "input_data/_new/fixture")
+  expect_equal(session$source_inbox$buckets[[1]]$status, "created")
+  expect_equal(session$source_inbox$folders[[1]]$folder, "input_data/_new/fixture")
+  expect_equal(session$source_inbox$folders[[1]]$status, "created")
 
   no_hash_root <- mini_repo()
   no_hash <- run_dina_cli(c("update", "start", "2026", "--no-source-hash"), root = no_hash_root)
@@ -485,7 +594,12 @@ test_that("update roadmap and gate records provide the update progress model", {
   expect_match(gate$output, "Gate: parameters")
   expect_match(gate$output, "Session config")
   expect_match(gate$output, "Working override")
-  expect_match(gate$output, "suggested next years.last")
+  expect_match(gate$output, "Global parameters")
+  expect_match(gate$output, "WID export parameters")
+  expect_match(gate$output, "years.last[[:space:]]+2023")
+  expect_match(gate$output, "# Last observed year")
+  expect_match(gate$output, "suggestion: 2024")
+  expect_false(grepl("suggested next years.last", gate$output, fixed = TRUE))
   expect_match(gate$output, "\\[pending\\] year-scope")
 
   prefs <- run_dina_cli(c("update", "prefs", "old-refs", "off"), root = root)
@@ -541,6 +655,47 @@ test_that("update roadmap and gate records provide the update progress model", {
   removed_sources_complete <- run_dina_cli(c("sources", "complete", "--status", "no-new-data"), root = root)
   expect_equal(removed_sources_complete$status, 1L)
   expect_match(removed_sources_complete$output, "dina update mark GATE/CHECK")
+})
+
+test_that("parameter suggestions use previous-series canonical and inbox files", {
+  root <- mini_repo()
+  source_cli_for_tests()
+  dina_write_yaml(list(sources = list(
+    list(
+      id = "previous-series",
+      family = "validation",
+      country = "MULTI",
+      method = "manual",
+      canonical = c("previous_series/*.dta"),
+      inbox = c("input_data/_new/validation/*.dta"),
+      inbox_examples = c("dina_latam_3Oct2024.dta")
+    )
+  )), file.path(root, "config", "sources.yml"))
+  touch(file.path(root, "previous_series", "dina_latam_3Oct2024.dta"), "2024-10-03")
+  touch(file.path(root, "input_data", "_new", "validation", "dina_latam_5Nov2025.dta"), "2025-11-05")
+
+  suggestions <- dina_parameter_suggestions(dina_config(root, expand_env = FALSE), root)
+  expect_equal(suggestions[["export_validation.previous_update_file"]], "input_data/_new/validation/dina_latam_5Nov2025.dta")
+  expect_equal(suggestions[["export_validation.previous_update_date"]], "5Nov2025")
+
+  unlink(file.path(root, "input_data", "_new", "validation", "dina_latam_5Nov2025.dta"))
+  touch(file.path(root, "previous_series", "dina_latam_latest.dta"), "2026-01-01")
+  suggestions <- dina_parameter_suggestions(dina_config(root, expand_env = FALSE), root)
+  expect_equal(suggestions[["export_validation.previous_update_file"]], "previous_series/dina_latam_latest.dta")
+  expect_equal(suggestions[["export_validation.previous_update_date"]] %||% "", "")
+})
+
+test_that("parameter wizard fallback can quit without marking checks", {
+  root <- mini_repo()
+  source_cli_for_tests()
+  session <- dina_update_start("2026", root = root)
+  con <- textConnection(c("1", "1", "3", "q"))
+  on.exit(close(con), add = TRUE)
+  capture.output(dina_update_parameters_wizard(session, root = root, input = con, is_terminal = TRUE))
+
+  session <- dina_load_session(root = root)
+  expect_equal(dina_session_config(session, root, expand_env = FALSE)$years$last, 2024L)
+  expect_equal(dina_gate_check_record(session, "parameters", "year-scope")$status %||% "pending", "pending")
 })
 
 test_that("tasks list shows task language", {
@@ -686,6 +841,24 @@ test_that("source inbox guide and init use central buckets and safe legacy copyi
       canonical = c("input_data/surveys_CEPAL/*/*.dta"),
       inbox = c("input_data/_new/surveys/*"),
       inbox_examples = c("country survey .dta files", "survey metadata spreadsheets")
+    ),
+    list(
+      id = "country-sna-bra",
+      family = "country_sna",
+      country = "BRA",
+      method = "manual",
+      canonical = c("input_data/sna_country_data/BRA/*.xlsx"),
+      inbox = c("input_data/_new/country_sna/BRA/*.xlsx"),
+      inbox_examples = c("SCN_2024.xlsx"),
+      destination = "input_data/sna_country_data/BRA/{basename}"
+    ),
+    list(
+      id = "reference-only",
+      family = "admin_tax_aux",
+      country = "BRA",
+      method = "manual",
+      urls = list(list(label = "reference", url = "https://example.test/reference")),
+      notes = "URL reference with no incoming file pattern."
     )
   )), file.path(root, "config", "sources.yml"))
   legacy <- file.path(root, "input_data", "admin_data", "CHL", "_new", "PUB_Total_2024.xlsb")
@@ -695,29 +868,63 @@ test_that("source inbox guide and init use central buckets and safe legacy copyi
 
   guide <- run_dina_cli(c("sources", "inbox", "guide"), root = root)
   expect_equal(guide$status, 0L)
-  expect_match(guide$output, "Source Inbox Guide")
+  expect_match(guide$output, "Source Bucket Details")
   expect_match(guide$output, "input_data/_new/admin_tax")
   expect_match(guide$output, "input_data/_new/surveys")
+  expect_match(guide$output, "input_data/_new/country_sna")
+  expect_match(guide$output, "input_data/_new/country_sna/BRA")
+  expect_match(guide$output, "Expected files by bucket")
   expect_match(guide$output, "PUB_Total_2024\\.xlsb")
   expect_match(guide$output, "country survey \\.dta files")
+  expect_false(grepl("reference-only", guide$output, fixed = TRUE))
+  expect_match(guide$output, "Create missing buckets: dina sources inbox init")
+  expect_match(guide$output, "URLs: dina buckets urls")
+  expect_match(guide$output, "Then run `dina sources review`")
+
+  buckets <- run_dina_cli(c("buckets"), root = root)
+  expect_equal(buckets$status, 0L)
+  expect_match(buckets$output, "Source Buckets")
+  expect_match(buckets$output, "input_data/_new/admin_tax")
+  expect_false(grepl("Expected files by bucket", buckets$output, fixed = TRUE))
+  expect_match(buckets$output, "More detail: dina buckets detail")
+
+  bucket_detail <- run_dina_cli(c("buckets", "detail", "--family", "admin_tax"), root = root)
+  expect_equal(bucket_detail$status, 0L)
+  expect_match(bucket_detail$output, "Source Bucket Details")
+  expect_match(bucket_detail$output, "PUB_Total_2024\\.xlsb")
+  expect_false(grepl("surveys-cepal", bucket_detail$output, fixed = TRUE))
 
   urls <- run_dina_cli(c("sources", "inbox", "guide", "--family", "admin_tax", "--urls"), root = root)
   expect_equal(urls$status, 0L)
+  expect_match(urls$output, "Source Bucket URLs")
   expect_match(urls$output, "https://example.test/chl")
   expect_false(grepl("surveys-cepal", urls$output, fixed = TRUE))
+
+  bucket_urls <- run_dina_cli(c("bucket", "url", "--family", "admin_tax"), root = root)
+  expect_equal(bucket_urls$status, 0L)
+  expect_match(bucket_urls$output, "Source Bucket URLs")
+  expect_match(bucket_urls$output, "https://example.test/chl")
 
   dry <- run_dina_cli(c("sources", "inbox", "init", "--dry-run"), root = root)
   expect_equal(dry$status, 0L)
   expect_match(dry$output, "would_create")
   expect_match(dry$output, "would_copy")
+  expect_match(dry$output, "files")
+  expect_false(grepl("input_data/_new/admin_tax_aux", dry$output, fixed = TRUE))
+  expect_match(dry$output, "Create missing buckets: dina sources inbox init")
   expect_false(dir.exists(file.path(root, "input_data", "_new", "admin_tax")))
+  expect_false(dir.exists(file.path(root, "input_data", "_new", "country_sna", "BRA")))
   expect_false(file.exists(central))
 
   initialized <- run_dina_cli(c("sources", "inbox", "init"), root = root)
   expect_equal(initialized$status, 0L)
   expect_match(initialized$output, "created")
   expect_match(initialized$output, "copied")
+  expect_false(grepl("Expected files by bucket", initialized$output, fixed = TRUE))
+  expect_match(initialized$output, "More detail: dina buckets detail")
+  expect_match(initialized$output, "Drop manual downloads into the matching bucket shown above")
   expect_true(dir.exists(file.path(root, "input_data", "_new", "surveys")))
+  expect_true(dir.exists(file.path(root, "input_data", "_new", "country_sna", "BRA")))
   expect_true(file.exists(central))
 
   same <- run_dina_cli(c("sources", "inbox", "init"), root = root)
@@ -729,6 +936,79 @@ test_that("source inbox guide and init use central buckets and safe legacy copyi
   expect_equal(conflict$status, 0L)
   expect_match(conflict$output, "conflict")
   expect_equal(readLines(central), "central changed")
+})
+
+test_that("bucket uses and fetch expose usage and planned inbox targets", {
+  root <- mini_repo()
+  dir.create(file.path(root, "code", "R", "manual-downloaders"), recursive = TRUE, showWarnings = FALSE)
+  writeLines(c(
+    "args <- commandArgs(trailingOnly = TRUE)",
+    "target <- args[which(args == '--target') + 1L]",
+    "dir.create(dirname(target), recursive = TRUE, showWarnings = FALSE)",
+    "writeLines('fetched', target)"
+  ), file.path(root, "code", "R", "manual-downloaders", "fetch_fixture.R"))
+  writeLines("read.csv('input_data/raw/fixture_source.csv')", file.path(root, "code", "R", "clean_fixture.R"))
+  dina_write_yaml(list(tasks = list(
+    list(
+      id = "task1",
+      stage = "one",
+      type = "r",
+      script = "code/R/clean_fixture.R",
+      inputs = c("input_data/raw/fixture_source.csv"),
+      outputs = c("output/fixture.dta")
+    )
+  )), file.path(root, "config", "pipeline.yml"))
+  dina_write_yaml(list(sources = list(
+    list(
+      id = "fixture-source",
+      family = "fixture",
+      country = "AAA",
+      method = "manual",
+      canonical = c("input_data/raw/fixture_source.csv"),
+      inbox = c("input_data/_new/survey_inputs/prices/fixture_source.csv"),
+      inbox_examples = c("fixture_source.csv"),
+      destination = "input_data/raw/{basename}",
+      transformer = "code/R/clean_fixture.R",
+      fetcher = "code/R/manual-downloaders/fetch_fixture.R",
+      fetch_target = "input_data/_new/survey_inputs/prices/fixture_source.csv"
+    ),
+    list(
+      id = "manual-only",
+      family = "fixture",
+      country = "AAA",
+      method = "manual",
+      canonical = c("input_data/manual_only.csv"),
+      inbox = c("input_data/_new/survey_inputs/prices/manual_only.csv"),
+      inbox_examples = c("manual_only.csv"),
+      destination = "input_data/{basename}"
+    )
+  )), file.path(root, "config", "sources.yml"))
+
+  uses <- run_dina_cli(c("buckets", "uses", "fixture-source"), root = root)
+  expect_equal(uses$status, 0L)
+  expect_match(uses$output, "fixture-source")
+  expect_match(uses$output, "folder:.*input_data/_new/survey_inputs/prices")
+  expect_match(uses$output, "expected:.*fixture_source\\.csv")
+  expect_match(uses$output, "transformer: clean_fixture\\.R")
+  expect_match(uses$output, "tasks: task1")
+  expect_match(uses$output, "code: clean_fixture\\.R")
+
+  dry <- run_dina_cli(c("buckets", "fetch", "--dry-run", "--source", "fixture-source"), root = root)
+  expect_equal(dry$status, 0L)
+  expect_match(dry$output, "Bucket Fetch Preview")
+  expect_match(dry$output, "fixture-source")
+  expect_match(dry$output, "would_fetch")
+  expect_match(dry$output, "input_data/_new/survey_inputs/prices/fixture_source\\.csv")
+  expect_match(dry$output, "Next: dina sources review")
+  expect_false(file.exists(file.path(root, "input_data", "_new", "survey_inputs", "prices", "fixture_source.csv")))
+
+  manual <- run_dina_cli(c("buckets", "fetch", "--dry-run", "--source", "manual-only"), root = root)
+  expect_equal(manual$status, 0L)
+  expect_match(manual$output, "manual_only")
+
+  old <- run_dina_cli(c("buckets", "fetch", "--dry-run", "--source", "bra-admin-tax"), root = root)
+  expect_equal(old$status, 1L)
+  expect_match(old$output, "Unknown source id: bra-admin-tax")
 })
 
 test_that("incoming _new source inbox files are reviewed, validated, integrated, and ignored for freshness", {
@@ -759,7 +1039,7 @@ test_that("incoming _new source inbox files are reviewed, validated, integrated,
 
   review <- run_dina_cli(c("sources", "review"), root = root)
   expect_equal(review$status, 0L)
-  expect_match(review$output, "Source Inbox Guide")
+  expect_match(review$output, "Source Bucket Details")
   expect_match(review$output, "input_data/_new/admin_tax")
   expect_match(review$output, "PUB_Total_2024\\.xlsb")
   expect_match(review$output, "Incoming Source Inbox")
@@ -801,8 +1081,44 @@ test_that("update lifecycle commands list, dry-run delete, delete, and restart s
   expect_match(dry_restart$output, "Year: 2026")
   expect_match(dry_restart$output, "Current status: initialized")
   expect_match(dry_restart$output, "Files to clear:")
+  expect_match(dry_restart$output, "Source baseline records will be replaced by a fresh source scan")
+  expect_match(dry_restart$output, "Source inbox buckets under `input_data/_new` are kept by default")
+  expect_match(dry_restart$output, "input_data/_new/fixture")
+  expect_match(dry_restart$output, "Default: keep the start baseline without saving a pre-restart checkpoint")
   expect_match(dry_restart$output, "same update id")
   expect_equal(dina_load_session(root = root)$status, "initialized")
+
+  source_cli_for_tests()
+  restart_plan <- dina_update_restart(root = root)
+  con <- textConnection("")
+  empty_output <- capture.output(keep_empty <- dina_restart_source_inbox_choice(restart_plan, input = con, is_terminal = TRUE))
+  close(con)
+  expect_true(keep_empty)
+  expect_false(grepl("How should restart handle existing source inbox files", paste(empty_output, collapse = "\n"), fixed = TRUE))
+
+  incoming <- file.path(root, "input_data", "_new", "fixture", "manual.csv")
+  writeLines("incoming", incoming)
+  restart_plan <- dina_update_restart(root = root)
+  con <- textConnection("2\n")
+  cancel_output <- capture.output(keep_nonempty <- dina_restart_source_inbox_choice(restart_plan, input = con, is_terminal = TRUE))
+  close(con)
+  expect_false(keep_nonempty)
+  expect_match(paste(cancel_output, collapse = "\n"), "How should restart handle existing source inbox files")
+  expect_true(file.exists(incoming))
+
+  con <- textConnection(c("?", "1"))
+  baseline_output <- capture.output(policy <- dina_restart_repo_policy_choice(input = con, is_terminal = TRUE))
+  close(con)
+  expect_equal(policy, "preserve")
+  expect_match(dina_restart_repo_baseline_help(), "A repo baseline is the comparison point")
+  expect_match(dina_restart_repo_baseline_help(), "not data folders or source inbox files")
+  expect_match(paste(baseline_output, collapse = "\n"), "Keep baseline and save checkpoint")
+  expect_match(paste(baseline_output, collapse = "\n"), "Use current repo as baseline")
+  con <- textConnection("2\n")
+  checkpoint_output <- capture.output(policy <- dina_restart_repo_policy_choice(input = con, is_terminal = TRUE))
+  close(con)
+  expect_equal(policy, "preserve_checkpoint")
+  expect_match(paste(checkpoint_output, collapse = "\n"), "save checkpoint")
 
   writeLines("old staged file", file.path(dina_update_dir(first$id, root), "source_staging", "old.txt"))
   writeLines("old log", file.path(dina_update_dir(first$id, root), "logs", "old.log"))
@@ -818,6 +1134,9 @@ test_that("update lifecycle commands list, dry-run delete, delete, and restart s
   expect_match(restarted$output, "Preparing update session")
   expect_match(restarted$output, "Source baseline summary")
   expect_match(restarted$output, "Writing manifest and active update pointer")
+  expect_match(restarted$output, "Source inbox buckets and incoming files were kept")
+  expect_match(restarted$output, "no pre-restart checkpoint saved")
+  expect_match(restarted$output, "input_data/_new/fixture")
   restarted_id <- dina_current_update(root)
   expect_equal(restarted_id, first$id)
   restarted_session <- dina_load_session(first$id, root)
@@ -827,9 +1146,19 @@ test_that("update lifecycle commands list, dry-run delete, delete, and restart s
   expect_true(is.null(restarted_session$successor_update))
   expect_false(file.exists(file.path(dina_update_dir(first$id, root), "source_staging", "old.txt")))
   expect_false(file.exists(file.path(dina_update_dir(first$id, root), "logs", "old.log")))
+  expect_true(file.exists(incoming))
+  expect_equal(restarted_session$source_inbox$buckets[[1]]$bucket, "input_data/_new/fixture")
+  expect_equal(as.integer(restarted_session$source_inbox$buckets[[1]]$files), 1L)
   expect_true(dir.exists(dina_update_dir(first$id, root)))
   baselines <- dina_repo_state_baselines(first$id, root)
   expect_true("start" %in% baselines)
+  expect_false(any(grepl("^restart-", baselines)))
+
+  checkpointed <- run_dina_cli(c("update", "restart", "--yes", "--save-restart-checkpoint"), root = root)
+  expect_equal(checkpointed$status, 0L)
+  expect_match(checkpointed$output, "Recording restart repo-state snapshot")
+  expect_match(checkpointed$output, "saved a pre-restart checkpoint")
+  baselines <- dina_repo_state_baselines(first$id, root)
   expect_true(any(grepl("^restart-", baselines)))
 
   dry_delete_id <- run_dina_cli(c("update", "delete", first$id), root = root)

@@ -55,6 +55,16 @@ dina_write_json <- function(x, path, pretty = TRUE) {
   jsonlite::write_json(x, path, pretty = pretty, auto_unbox = TRUE, null = "null")
 }
 
+dina_records_from_df <- function(df) {
+  if (!is.data.frame(df) || !nrow(df)) {
+    return(list())
+  }
+  lapply(seq_len(nrow(df)), function(i) {
+    row <- as.list(df[i, , drop = FALSE])
+    lapply(row, function(value) unname(value[[1]]))
+  })
+}
+
 dina_expand_env <- function(x) {
   if (is.list(x)) {
     return(lapply(x, dina_expand_env))
@@ -778,6 +788,7 @@ dina_sources_refresh <- function(session, root = dina_repo_root(), source_ids = 
   }
   registry <- dina_sources(root)$sources
   if (!is.null(source_ids)) {
+    invisible(lapply(source_ids, dina_source_by_id, root = root))
     registry <- registry[vapply(registry, function(x) x$id %in% source_ids, logical(1))]
   }
   staging_root <- dina_source_staging_root(session, root)
@@ -1171,15 +1182,105 @@ dina_inbox_root_rel <- function() {
   "input_data/_new"
 }
 
+dina_source_inbox_bucket_from_patterns <- function(patterns) {
+  patterns <- dina_source_values(patterns)
+  if (!length(patterns)) {
+    return("")
+  }
+  inbox_root <- dina_inbox_root_rel()
+  candidates <- patterns[patterns == inbox_root | startsWith(patterns, paste0(inbox_root, "/"))]
+  if (!length(candidates)) {
+    return("")
+  }
+  rel <- sub(paste0("^", inbox_root, "/?"), "", candidates)
+  first <- vapply(strsplit(rel, "/", fixed = TRUE), function(parts) {
+    parts <- parts[nzchar(parts)]
+    if (length(parts)) parts[[1]] else ""
+  }, character(1))
+  first <- first[nzchar(first)]
+  if (length(first)) file.path(inbox_root, sort(unique(first))[[1]]) else inbox_root
+}
+
+dina_path_has_glob <- function(path) {
+  grepl("[*?]", path) || grepl("\\[", path)
+}
+
+dina_source_inbox_pattern_dir <- function(pattern) {
+  pattern <- trimws(pattern %||% "")
+  if (!nzchar(pattern)) {
+    return("")
+  }
+  inbox_root <- dina_inbox_root_rel()
+  if (!(pattern == inbox_root || startsWith(pattern, paste0(inbox_root, "/")))) {
+    return("")
+  }
+  parts <- strsplit(pattern, "/", fixed = TRUE)[[1]]
+  parts <- parts[nzchar(parts)]
+  if (!length(parts)) {
+    return("")
+  }
+  glob_at <- which(vapply(parts, dina_path_has_glob, logical(1)))
+  if (length(glob_at)) {
+    keep <- seq_len(max(1L, glob_at[[1L]] - 1L))
+    return(paste(parts[keep], collapse = "/"))
+  }
+  last <- parts[[length(parts)]]
+  if (nzchar(tools::file_ext(last)) && length(parts) > 1L) {
+    return(paste(parts[-length(parts)], collapse = "/"))
+  }
+  paste(parts, collapse = "/")
+}
+
+dina_source_inbox_dirs_from_patterns <- function(patterns) {
+  dirs <- vapply(dina_source_values(patterns), dina_source_inbox_pattern_dir, character(1))
+  unique(dirs[nzchar(dirs)])
+}
+
+dina_source_inbox_dirs <- function(source) {
+  dirs <- dina_source_inbox_dirs_from_patterns(dina_source_inbox_patterns(source))
+  if (length(dirs)) {
+    return(dirs)
+  }
+  bucket <- dina_source_inbox_bucket_rel(source)
+  if (nzchar(bucket)) bucket else character()
+}
+
+dina_source_inbox_primary_dir <- function(source) {
+  dirs <- dina_source_inbox_dirs(source)
+  if (length(dirs)) dirs[[1L]] else dina_source_inbox_bucket_rel(source)
+}
+
 dina_source_inbox_bucket_rel <- function(source) {
+  inbox_root <- dina_inbox_root_rel()
+  explicit <- dina_source_values(dina_source_field(source, "inbox_bucket"))
+  if (length(explicit) && nzchar(explicit[[1]])) {
+    bucket <- explicit[[1]]
+    if (!(bucket == inbox_root || startsWith(bucket, paste0(inbox_root, "/")))) {
+      bucket <- file.path(inbox_root, bucket)
+    }
+    return(bucket)
+  }
+  bucket <- dina_source_inbox_bucket_from_patterns(dina_source_inbox_patterns(source))
+  if (nzchar(bucket)) {
+    return(bucket)
+  }
   family <- source$family %||% "misc"
   if (!nzchar(family)) family <- "misc"
-  file.path(dina_inbox_root_rel(), family)
+  file.path(inbox_root, family)
+}
+
+dina_source_inbox_pattern_labels <- function(source) {
+  patterns <- dina_source_inbox_patterns(source)
+  if (!length(patterns)) {
+    return(character())
+  }
+  bucket <- dina_source_inbox_bucket_rel(source)
+  labels <- sub(paste0("^", gsub("([][{}()+*^$|\\\\?.])", "\\\\\\1", bucket), "/?"), "", patterns)
+  labels[nzchar(labels)]
 }
 
 dina_source_is_inbox_relevant <- function(source) {
-  identical(source$method %||% "", "manual") ||
-    length(dina_source_inbox_patterns(source)) > 0L ||
+  length(dina_source_inbox_patterns(source)) > 0L ||
     length(dina_source_legacy_inbox_patterns(source)) > 0L
 }
 
@@ -1190,7 +1291,11 @@ dina_source_inbox_examples <- function(source) {
   }
   patterns <- dina_source_inbox_patterns(source)
   if (length(patterns)) {
-    return(unique(basename(patterns)))
+    return(unique(dina_source_inbox_pattern_labels(source)))
+  }
+  legacy_patterns <- dina_source_legacy_inbox_patterns(source)
+  if (length(legacy_patterns)) {
+    return(unique(basename(legacy_patterns)))
   }
   canonical <- dina_source_values(dina_source_field(source, "canonical"))
   if (length(canonical)) {
@@ -1229,20 +1334,29 @@ dina_sources_inbox_guide_rows <- function(root = dina_repo_root(), family = NULL
     dest <- dina_source_destination_status(source)
     url_entries <- dina_source_url_entries(source)
     bucket <- dina_source_inbox_bucket_rel(source)
+    folders <- dina_source_inbox_dirs(source)
     examples <- dina_source_inbox_examples(source)
+    patterns <- dina_source_inbox_patterns(source)
+    expected <- examples
+    if (!length(expected)) {
+      expected <- unique(basename(patterns))
+    }
     data.frame(
       family = source$family %||% "",
       bucket = bucket,
+      folders = paste(folders, collapse = ", "),
       source_id = source$id %||% "",
       method = source$method %||% "",
       country = dina_source_country_summary(source, root),
       examples = paste(examples, collapse = ", "),
+      expected_files = paste(expected, collapse = ", "),
       destination_status = dest$status,
       destination = dest$destination,
       url_count = nrow(url_entries),
       primary_url = if (nrow(url_entries)) url_entries$url[[1]] else "",
       url_refs = if (nrow(url_entries) == 1L) "1 url" else if (nrow(url_entries) > 1L) sprintf("%s urls", nrow(url_entries)) else "none",
       bucket_exists = dir.exists(file.path(root, bucket)),
+      folder_exists = length(folders) > 0L && all(dir.exists(file.path(root, folders))),
       stringsAsFactors = FALSE
     )
   })
@@ -1250,16 +1364,19 @@ dina_sources_inbox_guide_rows <- function(root = dina_repo_root(), family = NULL
     return(data.frame(
       family = character(),
       bucket = character(),
+      folders = character(),
       source_id = character(),
       method = character(),
       country = character(),
       examples = character(),
+      expected_files = character(),
       destination_status = character(),
       destination = character(),
       url_count = integer(),
       primary_url = character(),
       url_refs = character(),
       bucket_exists = logical(),
+      folder_exists = logical(),
       stringsAsFactors = FALSE
     ))
   }
@@ -1283,6 +1400,8 @@ dina_copy_path_for_inbox <- function(from, to) {
 dina_sources_inbox_init <- function(root = dina_repo_root(), dry_run = FALSE, migrate = TRUE) {
   registry <- dina_sources_inbox_registry(root)
   bucket_rels <- sort(unique(vapply(registry, dina_source_inbox_bucket_rel, character(1))))
+  folder_rels <- sort(unique(unlist(lapply(registry, dina_source_inbox_dirs), use.names = FALSE)))
+  folder_rels <- folder_rels[nzchar(folder_rels)]
   bucket_rows <- lapply(bucket_rels, function(bucket) {
     path <- file.path(root, bucket)
     exists <- dir.exists(path)
@@ -1294,10 +1413,39 @@ dina_sources_inbox_init <- function(root = dina_repo_root(), dry_run = FALSE, mi
       dir.create(path, recursive = TRUE, showWarnings = FALSE)
       "created"
     }
-    data.frame(bucket = bucket, status = status, stringsAsFactors = FALSE)
+    files <- if (dir.exists(path)) dina_count_files(path) else 0L
+    data.frame(bucket = bucket, status = status, files = files, stringsAsFactors = FALSE)
   })
   if (!length(bucket_rows)) {
-    bucket_rows <- list(data.frame(bucket = character(), status = character(), stringsAsFactors = FALSE))
+    bucket_rows <- list(data.frame(bucket = character(), status = character(), files = integer(), stringsAsFactors = FALSE))
+  }
+  bucket_df <- do.call(rbind, bucket_rows)
+  bucket_status <- stats::setNames(bucket_df$status, bucket_df$bucket)
+  folder_rows <- lapply(folder_rels, function(folder) {
+    path <- file.path(root, folder)
+    exists <- dir.exists(path)
+    status <- if (exists) {
+      "exists"
+    } else if (isTRUE(dry_run)) {
+      "would_create"
+    } else {
+      dir.create(path, recursive = TRUE, showWarnings = FALSE)
+      "created"
+    }
+    if (folder %in% names(bucket_status) && bucket_status[[folder]] %in% c("created", "would_create")) {
+      status <- bucket_status[[folder]]
+    }
+    files <- if (dir.exists(path)) dina_count_files(path) else 0L
+    data.frame(
+      folder = folder,
+      bucket = dina_source_inbox_bucket_from_patterns(folder),
+      status = status,
+      files = files,
+      stringsAsFactors = FALSE
+    )
+  })
+  if (!length(folder_rows)) {
+    folder_rows <- list(data.frame(folder = character(), bucket = character(), status = character(), files = integer(), stringsAsFactors = FALSE))
   }
 
   migration_rows <- list()
@@ -1312,9 +1460,9 @@ dina_sources_inbox_init <- function(root = dina_repo_root(), dry_run = FALSE, mi
       if (!length(legacy_paths)) {
         next
       }
-      bucket <- dina_source_inbox_bucket_rel(source)
+      target_dir <- dina_source_inbox_primary_dir(source)
       for (from in legacy_paths) {
-        target <- file.path(root, bucket, basename(from))
+        target <- file.path(root, target_dir, basename(from))
         status <- "would_copy"
         if (file.exists(target)) {
           status <- if (identical(dina_hash_path(from), dina_hash_path(target))) "already_present" else "conflict"
@@ -1337,6 +1485,7 @@ dina_sources_inbox_init <- function(root = dina_repo_root(), dry_run = FALSE, mi
   }
   list(
     buckets = do.call(rbind, bucket_rows),
+    folders = do.call(rbind, folder_rows),
     migrations = do.call(rbind, migration_rows),
     dry_run = isTRUE(dry_run)
   )
@@ -1361,7 +1510,7 @@ dina_source_inbox_validation <- function(source, path, destination = "", root = 
       allowed <- switch(
         source$id %||% "",
         "chl-pit-total" = c("xlsb", "xlsx"),
-        "bra-admin-tax" = "xlsx",
+        "bra-pit-total" = "xlsx",
         c("csv", "dta", "xls", "xlsx", "xlsb", "ods", "zip")
       )
     }
@@ -1373,7 +1522,7 @@ dina_source_inbox_validation <- function(source, path, destination = "", root = 
     warnings <- c(warnings, "destination_exists")
   }
 
-  if (identical(source$id %||% "", "col-admin-income") && dir.exists(path)) {
+  if (identical(source$id %||% "", "col-pit-total") && dir.exists(path)) {
     xlsx <- list.files(path, pattern = "\\.xlsx$", recursive = TRUE, ignore.case = TRUE)
     dta <- list.files(path, pattern = "\\.dta$", recursive = TRUE, ignore.case = TRUE)
     if (!length(xlsx)) {
@@ -1390,7 +1539,7 @@ dina_source_inbox_validation <- function(source, path, destination = "", root = 
     }
   }
 
-  if (identical(source$id %||% "", "bra-admin-tax") && !dir.exists(path)) {
+  if (identical(source$id %||% "", "bra-pit-total") && !dir.exists(path)) {
     if (!grepl("^gn-irpf-ac[0-9]{4}\\.xlsx$", base, ignore.case = TRUE)) {
       warnings <- c(warnings, "unexpected_bra_filename")
     }
@@ -1411,6 +1560,7 @@ dina_source_inbox_validation <- function(source, path, destination = "", root = 
 dina_sources_inbox_rows <- function(root = dina_repo_root(), source_id = NULL) {
   registry <- dina_sources(root)$sources
   if (!is.null(source_id) && nzchar(source_id)) {
+    dina_source_by_id(source_id, root)
     registry <- registry[vapply(registry, function(source) identical(source$id %||% "", source_id), logical(1))]
   }
   rows <- list()
@@ -1456,6 +1606,239 @@ dina_sources_inbox_rows <- function(root = dina_repo_root(), source_id = NULL) {
       validation = character(),
       validation_detail = character(),
       sha256 = character(),
+      stringsAsFactors = FALSE
+    ))
+  }
+  do.call(rbind, rows)
+}
+
+dina_bucket_select_sources <- function(root = dina_repo_root(), family = NULL, selector = NULL, source_id = NULL) {
+  registry <- dina_sources_inbox_registry(root, family = family %||% NULL)
+  if (!is.null(source_id) && nzchar(source_id)) {
+    source <- dina_source_by_id(source_id, root)
+    registry <- registry[vapply(registry, function(item) identical(item$id %||% "", source$id %||% ""), logical(1))]
+  }
+  selector <- selector %||% ""
+  if (!nzchar(selector)) {
+    return(registry)
+  }
+  keep <- vapply(registry, function(source) {
+    bucket <- dina_source_inbox_bucket_rel(source)
+    folders <- dina_source_inbox_dirs(source)
+    any(c(
+      source$id %||% "",
+      source$family %||% "",
+      bucket,
+      basename(bucket),
+      folders,
+      basename(folders)
+    ) == selector)
+  }, logical(1))
+  registry[keep]
+}
+
+dina_source_reference_token <- function(path) {
+  path <- gsub("\\\\", "/", path)
+  base <- basename(path)
+  if (dina_path_has_glob(base)) {
+    token <- sub("[*?\\[].*$", "", base)
+    if (nzchar(token)) {
+      return(token)
+    }
+  }
+  if (nzchar(base) && !dina_path_has_glob(base)) {
+    return(base)
+  }
+  sub("[*?\\[].*$", "", path)
+}
+
+dina_source_reference_tokens <- function(source) {
+  paths <- unique(c(
+    dina_source_values(dina_source_field(source, "canonical")),
+    dina_source_values(dina_source_field(source, "destination"))
+  ))
+  paths <- paths[!grepl("\\{basename\\}", paths, fixed = TRUE)]
+  tokens <- unique(vapply(paths, dina_source_reference_token, character(1)))
+  tokens[nzchar(tokens)]
+}
+
+dina_task_mentions_source <- function(task, source) {
+  tokens <- dina_source_reference_tokens(source)
+  if (!length(tokens)) {
+    return(FALSE)
+  }
+  inputs <- unique(c(task$inputs %||% character(), task$script %||% character()))
+  if (!length(inputs)) {
+    return(FALSE)
+  }
+  any(vapply(tokens, function(token) any(grepl(token, inputs, fixed = TRUE)), logical(1)))
+}
+
+dina_source_pipeline_users <- function(source, root = dina_repo_root()) {
+  tasks <- dina_pipeline(root)$tasks
+  if (!length(tasks)) {
+    return(character())
+  }
+  ids <- vapply(tasks, function(task) task$id %||% "", character(1))
+  users <- ids[vapply(tasks, dina_task_mentions_source, logical(1), source = source)]
+  unique(users[nzchar(users)])
+}
+
+dina_source_code_users <- function(source, root = dina_repo_root()) {
+  tokens <- dina_source_reference_tokens(source)
+  if (!length(tokens)) {
+    return(character())
+  }
+  code_root <- file.path(root, "code")
+  if (!dir.exists(code_root)) {
+    return(character())
+  }
+  files <- list.files(code_root, recursive = TRUE, full.names = TRUE, all.files = FALSE)
+  files <- files[!dir.exists(files)]
+  files <- files[tolower(tools::file_ext(files)) %in% c("r", "do", "ado", "py", "sh", "yml", "yaml")]
+  hits <- character()
+  for (file in files) {
+    lines <- tryCatch(readLines(file, warn = FALSE), error = function(e) character())
+    if (!length(lines)) {
+      next
+    }
+    if (any(vapply(tokens, function(token) any(grepl(token, lines, fixed = TRUE)), logical(1)))) {
+      hits <- c(hits, dina_relative(file, root))
+    }
+  }
+  unique(hits)
+}
+
+dina_source_user_summary <- function(source, root = dina_repo_root()) {
+  transformer <- unique(basename(dina_source_values(dina_source_field(source, "transformer"))))
+  tasks <- dina_source_pipeline_users(source, root)
+  code <- unique(basename(dina_source_code_users(source, root)))
+  parts <- character()
+  if (length(transformer)) parts <- c(parts, sprintf("transformer: %s", paste(transformer, collapse = ", ")))
+  if (length(tasks)) parts <- c(parts, sprintf("tasks: %s", paste(tasks, collapse = ", ")))
+  if (length(code)) parts <- c(parts, sprintf("code: %s", paste(code, collapse = ", ")))
+  if (!length(parts)) "not found in registered tasks/code" else paste(parts, collapse = "; ")
+}
+
+dina_buckets_uses <- function(root = dina_repo_root(), family = NULL, selector = NULL, source_id = NULL) {
+  registry <- dina_bucket_select_sources(root, family = family, selector = selector, source_id = source_id)
+  rows <- lapply(registry, function(source) {
+    dest <- dina_source_destination_status(source)
+    data.frame(
+      source_id = source$id %||% "",
+      family = source$family %||% "",
+      bucket = dina_source_inbox_bucket_rel(source),
+      folders = paste(dina_source_inbox_dirs(source), collapse = ", "),
+      expected_files = paste(dina_source_inbox_examples(source), collapse = ", "),
+      destination = if (identical(dest$status, "ready")) dest$destination else dest$status,
+      users = dina_source_user_summary(source, root),
+      stringsAsFactors = FALSE
+    )
+  })
+  if (!length(rows)) {
+    return(data.frame(
+      source_id = character(),
+      family = character(),
+      bucket = character(),
+      folders = character(),
+      expected_files = character(),
+      destination = character(),
+      users = character(),
+      stringsAsFactors = FALSE
+    ))
+  }
+  do.call(rbind, rows)
+}
+
+dina_source_fetcher_path <- function(source, root = dina_repo_root()) {
+  fetcher <- dina_source_values(dina_source_field(source, "fetcher"))
+  if (!length(fetcher) || !nzchar(fetcher[[1L]])) {
+    return("")
+  }
+  if (grepl("^/", fetcher[[1L]])) fetcher[[1L]] else file.path(root, fetcher[[1L]])
+}
+
+dina_source_fetch_target_rel <- function(source) {
+  target <- dina_source_values(dina_source_field(source, "fetch_target"))
+  if (length(target) && nzchar(target[[1L]])) {
+    return(target[[1L]])
+  }
+  patterns <- dina_source_inbox_patterns(source)
+  non_glob <- patterns[!vapply(patterns, dina_path_has_glob, logical(1))]
+  files <- non_glob[nzchar(tools::file_ext(basename(non_glob)))]
+  if (length(files)) {
+    return(files[[1L]])
+  }
+  examples <- dina_source_inbox_examples(source)
+  folder <- dina_source_inbox_primary_dir(source)
+  if (length(examples) && nzchar(examples[[1L]]) && nzchar(folder)) {
+    return(file.path(folder, basename(examples[[1L]])))
+  }
+  ""
+}
+
+dina_fetch_status_without_fetcher <- function(source) {
+  method <- source$method %||% "manual"
+  if (method %in% c("manual", "wid")) "manual_only" else "no_fetcher"
+}
+
+dina_run_source_fetcher <- function(fetcher, target, root, source_id) {
+  rscript <- file.path(R.home("bin"), "Rscript")
+  args <- c(fetcher, "--source-id", source_id, "--target", target, "--repo-root", root)
+  output <- tryCatch(
+    system2(rscript, args = args, stdout = TRUE, stderr = TRUE),
+    warning = function(w) structure(conditionMessage(w), status = 1L),
+    error = function(e) structure(conditionMessage(e), status = 1L)
+  )
+  status <- attr(output, "status") %||% 0L
+  list(status = as.integer(status), output = paste(output, collapse = "\n"))
+}
+
+dina_buckets_fetch <- function(root = dina_repo_root(), family = NULL, selector = NULL, source_id = NULL, dry_run = FALSE) {
+  registry <- dina_bucket_select_sources(root, family = family, selector = selector, source_id = source_id)
+  rows <- lapply(registry, function(source) {
+    fetcher <- dina_source_fetcher_path(source, root)
+    target_rel <- dina_source_fetch_target_rel(source)
+    target <- if (nzchar(target_rel)) file.path(root, target_rel) else ""
+    base <- list(
+      source_id = source$id %||% "",
+      family = source$family %||% "",
+      bucket = dina_source_inbox_bucket_rel(source),
+      target = target_rel
+    )
+    if (!nzchar(fetcher)) {
+      return(as.data.frame(c(base, list(status = dina_fetch_status_without_fetcher(source), detail = "No bucket fetcher configured.")), stringsAsFactors = FALSE))
+    }
+    if (!file.exists(fetcher)) {
+      return(as.data.frame(c(base, list(status = "failed", detail = sprintf("Fetcher not found: %s", dina_relative(fetcher, root)))), stringsAsFactors = FALSE))
+    }
+    inbox_root <- paste0(dina_inbox_root_rel(), "/")
+    if (!nzchar(target_rel) || !(target_rel == dina_inbox_root_rel() || startsWith(target_rel, inbox_root))) {
+      return(as.data.frame(c(base, list(status = "failed", detail = "Fetch target must be under input_data/_new.")), stringsAsFactors = FALSE))
+    }
+    if (file.exists(target)) {
+      return(as.data.frame(c(base, list(status = "already_present", detail = "Target already exists.")), stringsAsFactors = FALSE))
+    }
+    if (isTRUE(dry_run)) {
+      return(as.data.frame(c(base, list(status = "would_fetch", detail = "Dry-run; no file written.")), stringsAsFactors = FALSE))
+    }
+    dir.create(dirname(target), recursive = TRUE, showWarnings = FALSE)
+    result <- dina_run_source_fetcher(fetcher, target, root, source$id %||% "")
+    if (identical(result$status, 0L) && file.exists(target)) {
+      return(as.data.frame(c(base, list(status = "fetched", detail = dina_hash_path(target))), stringsAsFactors = FALSE))
+    }
+    detail <- result$output
+    if (!nzchar(detail)) detail <- sprintf("Fetcher exited with status %s.", result$status)
+    as.data.frame(c(base, list(status = "failed", detail = detail)), stringsAsFactors = FALSE)
+  })
+  if (!length(rows)) {
+    return(data.frame(
+      source_id = character(),
+      family = character(),
+      bucket = character(),
+      target = character(),
+      status = character(),
+      detail = character(),
       stringsAsFactors = FALSE
     ))
   }
@@ -2114,6 +2497,7 @@ dina_update_start <- function(year = format(Sys.Date(), "%Y"), id = NULL, root =
   if (is.null(id) || !nzchar(id)) {
     id <- dina_next_update_id(year, root)
   }
+  started_at <- dina_now()
   dina_progress(progress, "Preparing update session %s for year %s.", id, year)
   dir <- dina_update_dir(id, root)
   dina_progress(progress, "Creating session scaffold directories.")
@@ -2121,7 +2505,7 @@ dina_update_start <- function(year = format(Sys.Date(), "%Y"), id = NULL, root =
   dir.create(file.path(dir, "logs"), recursive = TRUE, showWarnings = FALSE)
   dir.create(file.path(dir, "snapshots"), recursive = TRUE, showWarnings = FALSE)
   dina_progress(progress, "Preparing central source inbox buckets.")
-  dina_sources_inbox_init(root, dry_run = FALSE, migrate = FALSE)
+  inbox_init <- dina_sources_inbox_init(root, dry_run = FALSE, migrate = FALSE)
 
   config_override <- dina_session_config_override_path(id, root)
   dina_progress(progress, "Using benchmark config with an empty working override.")
@@ -2130,7 +2514,6 @@ dina_update_start <- function(year = format(Sys.Date(), "%Y"), id = NULL, root =
     dina_progress(progress, "Recording recoverable repo-state baseline.")
     repo_state <- dina_repo_state_snapshot(id, root = root, baseline = "start")
   }
-  started_at <- dina_now()
   source_hash_mode <- if (isTRUE(source_hash)) "all" else "none"
   if (identical(source_hash_mode, "all")) {
     dina_progress(progress, "Scanning source registry and hashing source baseline.")
@@ -2162,6 +2545,11 @@ dina_update_start <- function(year = format(Sys.Date(), "%Y"), id = NULL, root =
     source_baseline = list(
       created_at = started_at,
       hash_mode = source_hash_mode
+    ),
+    source_inbox = list(
+      prepared_at = started_at,
+      buckets = dina_records_from_df(inbox_init$buckets),
+      folders = dina_records_from_df(inbox_init$folders)
     ),
     source_scan = source_scan,
     source_refreshes = list(),
@@ -2252,7 +2640,7 @@ dina_update_delete <- function(update_id = NULL, root = dina_repo_root(), yes = 
   result
 }
 
-dina_update_restart <- function(update_id = NULL, root = dina_repo_root(), yes = FALSE, repo_policy = c("preserve", "replace"), show_old_refs = NULL, progress = NULL) {
+dina_update_restart <- function(update_id = NULL, root = dina_repo_root(), yes = FALSE, repo_policy = c("preserve", "preserve_checkpoint", "replace"), show_old_refs = NULL, progress = NULL) {
   repo_policy <- match.arg(repo_policy)
   active <- dina_current_update(root)
   if (is.null(update_id) || !nzchar(update_id)) {
@@ -2266,6 +2654,8 @@ dina_update_restart <- function(update_id = NULL, root = dina_repo_root(), yes =
   if (is.null(session) && !dir.exists(dir)) {
     stop("Unknown update id: ", update_id, call. = FALSE)
   }
+  inbox_state <- dina_sources_inbox_init(root, dry_run = TRUE, migrate = FALSE)
+  inbox_files <- if (nrow(inbox_state$buckets)) sum(as.integer(inbox_state$buckets$files %||% 0L), na.rm = TRUE) else 0L
   result <- list(
     id = update_id,
     dir = dina_relative(dir, root),
@@ -2275,6 +2665,12 @@ dina_update_restart <- function(update_id = NULL, root = dina_repo_root(), yes =
     staged_files = dina_count_files(file.path(dir, "source_staging")),
     log_files = dina_count_files(file.path(dir, "logs")),
     snapshot_files = dina_count_files(file.path(dir, "snapshots")),
+    source_inbox = list(
+      buckets = dina_records_from_df(inbox_state$buckets),
+      folders = dina_records_from_df(inbox_state$folders),
+      files = inbox_files,
+      policy = "preserve"
+    ),
     repo_baselines = dina_repo_state_baselines(update_id, root),
     repo_policy = repo_policy,
     same_id = TRUE,
@@ -2289,10 +2685,13 @@ dina_update_restart <- function(update_id = NULL, root = dina_repo_root(), yes =
   }
   repo_tmp <- NULL
   restart_snapshot <- NULL
-  if (identical(repo_policy, "preserve")) {
+  preserve_repo_state <- repo_policy %in% c("preserve", "preserve_checkpoint")
+  if (identical(repo_policy, "preserve_checkpoint")) {
     restart_label <- paste0("restart-", format(Sys.time(), "%Y%m%d-%H%M%S"))
     dina_progress(progress, "Recording restart repo-state snapshot %s.", restart_label)
     restart_snapshot <- dina_repo_state_snapshot(update_id, root = root, baseline = restart_label)
+  }
+  if (isTRUE(preserve_repo_state)) {
     repo_root <- file.path(dir, "repo_state")
     if (dir.exists(repo_root)) {
       repo_tmp <- tempfile("dina-repo-state-")
@@ -2309,7 +2708,7 @@ dina_update_restart <- function(update_id = NULL, root = dina_repo_root(), yes =
     repo_snapshot = identical(repo_policy, "replace"),
     progress = progress
   )
-  if (identical(repo_policy, "preserve") && !is.null(repo_tmp) && dir.exists(repo_tmp)) {
+  if (isTRUE(preserve_repo_state) && !is.null(repo_tmp) && dir.exists(repo_tmp)) {
     unlink(file.path(dir, "repo_state"), recursive = TRUE)
     dina_copy_tree(repo_tmp, file.path(dir, "repo_state"))
   }
@@ -2317,12 +2716,15 @@ dina_update_restart <- function(update_id = NULL, root = dina_repo_root(), yes =
   new_session$repo_state <- list(
     baselines = baselines,
     restart_policy = repo_policy,
+    restart_checkpoint_saved = identical(repo_policy, "preserve_checkpoint"),
     start = dina_repo_state_summary(dina_repo_state_metadata(update_id, root, "start")),
     restart = dina_repo_state_summary(restart_snapshot)
   )
   dina_save_session(new_session, root)
   result$dry_run <- FALSE
   result$restarted <- TRUE
+  result$source_inbox <- new_session$source_inbox
+  result$source_inbox$policy <- "preserve"
   result$new_session <- new_session
   result
 }

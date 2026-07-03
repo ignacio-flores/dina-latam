@@ -17,19 +17,65 @@ Use the parameters gate first:
 dina update gate parameters
 ```
 
-In an interactive terminal this guides the year, country list, export-validation
-settings, and optional `KEY VALUE` edits. In scripts, edit the working override
-explicitly:
+In an interactive terminal this walks through two sections:
+
+- Global parameters: countries, years, run units, and run steps.
+- WID export parameters: export unit, export steps, extrapolation last year,
+  previous update date, and previous update file.
+
+Each parameter shows a short reminder plus any inferred suggestion. Interactive
+DINA menus use the same controls throughout the CLI: Up/Down moves through
+actions, Left/Right moves to previous/next when available, Enter selects, `?`
+shows help, and `q` quits. Quitting stops before check-mark prompts; edits
+already accepted in the same run remain in the working override. If your
+terminal cannot provide arrow keys, menus fall back to numbered choices with the
+same actions.
+
+Inspection pages such as `dina update roadmap`, `dina sources review`, and
+`dina tasks list` stay readable and script-friendly. When an interactive choice
+is needed, DINA shows a separate action menu instead of making every table
+interactive.
+
+The previous WID-format series can be placed directly in `previous_series/` or
+dropped into `input_data/_new/validation/` for the gate to suggest the newest
+`.dta` file and infer date labels like `3Oct2024` from the filename. Suggestions
+are shown only; they are written only when explicitly accepted.
+
+In scripts, edit the working override explicitly:
 
 ```bash
 dina update config set years.last 2024
 dina update config set export_validation.previous_update_date 3Oct2024
+dina update config set export_validation.previous_update_file previous_series/dina_latam_3Oct2024.dta
 dina update config show
 ```
 
 No session `config.do` is kept. `dina run` creates a temporary Stata globals file
 only while a Stata task is running, points `DINA_CONFIG_DO` to it, and removes it
 afterward. R helpers read the same YAML benchmark plus override.
+
+## Source Inbox Buckets
+
+`dina update start` prepares central manual-download buckets under
+`input_data/_new/<bucket>` and prints each bucket path with its status and file
+count. Buckets are created only for sources with explicit `inbox` or
+`legacy_inbox` patterns; URLs alone do not create buckets.
+
+```bash
+dina buckets
+dina buckets detail
+dina buckets urls
+dina sources inbox guide
+dina sources inbox init
+dina sources review
+dina sources integrate --incoming
+```
+
+Use `dina buckets detail` for expected files and destinations, and `dina buckets
+urls` for source URLs. If any bucket is missing, `dina sources inbox init`
+recreates it and can copy old colocated `_new` files into the central bucket
+layout. Pipeline scripts do not read `_new` directly; approved files are copied
+into canonical `input_data/` paths with `dina sources integrate --incoming`.
 
 ## Manual Stata Runs
 
@@ -54,9 +100,9 @@ dina update prefs old-refs off
 
 ## Repo Baselines
 
-The start baseline captures small code/config/document files outside the big
-data roots. It intentionally excludes `input_data`, `intermediary_data`,
-`output`, and `previous_series`.
+The start baseline is the comparison point for repo-status, repo-diff, and
+repo-restore. It tracks small code/config/document files, not data roots:
+`input_data`, `intermediary_data`, `output`, or `previous_series`.
 
 ```bash
 dina update repo-status
@@ -71,8 +117,12 @@ roots.
 ## Restart And Finalize
 
 `dina update restart` resets the same update id from scratch. By default it
-preserves the original `start` repo baseline and records an additional
-`restart-<timestamp>` snapshot before resetting.
+keeps the original `start` baseline as the comparison point and saves the
+current repo state as a pre-restart checkpoint. It clears session staging, logs,
+snapshots, and source baseline records, then creates a fresh session baseline.
+It keeps `input_data/_new` buckets and incoming files by default; if those
+buckets contain files, interactive restart asks whether to keep them or cancel
+before changing anything.
 
 `dina update finalize` freezes final records after task checks pass. With
 `--yes`, it promotes the effective config back to `config/dina.yml`; it does not

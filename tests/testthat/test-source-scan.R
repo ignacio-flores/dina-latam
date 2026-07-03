@@ -91,15 +91,17 @@ test_that("project source registry is a complete readable catalog", {
   expect_equal(missing_locators, character())
 
   expect_true(all(c(
-    "country-sna-index",
-    "col-admin-income",
+    "col-pit-total",
     "col-admin-wealth",
     "chl-uta",
     "bra-admin-thresholds",
+    "bra-pit-total",
     "wid-prices-xrates",
     "wb-xrates",
     "wb-inflation"
   ) %in% ids))
+  expect_false(any(c("bra-admin-tax", "col-admin-income") %in% ids))
+  expect_false("country-sna-index" %in% ids)
   methods <- unique(vapply(registry, function(source) source$method, character(1)))
   expect_true(all(methods %in% c("url", "zip", "script", "manual", "wid")))
   expect_false(any(methods %in% c("legacy_script", "static_url", "zip_archive", "manual_index", "stata_wid")))
@@ -110,14 +112,19 @@ test_that("project source registry is a complete readable catalog", {
   expect_true(all(na.omit(top_level_url_methods) %in% c("url", "zip")))
 
   registry_by_id <- stats::setNames(registry, ids)
-  expect_match(paste(dina_source_urls(registry_by_id[["col-admin-income"]]), collapse = "\n"), "TributosDIAN")
+  expect_match(paste(dina_source_urls(registry_by_id[["col-pit-total"]]), collapse = "\n"), "TributosDIAN")
   expect_match(paste(dina_source_urls(registry_by_id[["col-admin-wealth"]]), collapse = "\n"), "TributosDIAN")
   expect_match(paste(dina_source_urls(registry_by_id[["chl-uta"]]), collapse = "\n"), "utm\\{year\\}\\.htm")
-  expect_match(paste(dina_source_urls(registry_by_id[["bra-admin-tax"]]), collapse = "\n"), "gn-irpf-ac-\\{year\\}\\.xlsx")
+  bra_urls <- paste(dina_source_urls(registry_by_id[["bra-pit-total"]]), collapse = "\n")
+  expect_match(bra_urls, "dados-abertos")
+  expect_false(grepl("legacy direct file|gn-irpf-ac-\\{year\\}", bra_urls))
   expect_match(paste(dina_source_urls(registry_by_id[["bra-minwage"]]), collapse = "\n"), "salario_minimo")
   expect_match(paste(dina_source_urls(registry_by_id[["country-sna-col"]]), collapse = "\n"), "cuentas-economicas-integradas-2019provisional")
   expect_match(paste(dina_source_urls(registry_by_id[["country-sna-ecu"]]), collapse = "\n"), "CEI2007-2019p")
   expect_match(paste(dina_source_values(dina_source_field(registry_by_id[["surveys-cepal"]], "notes")), collapse = "\n"), "private/server")
+
+  inbox_ids <- vapply(dina_sources_inbox_registry(repo_root_for_tests), function(source) source$id, character(1))
+  expect_false("col-admin-wealth" %in% inbox_ids)
 
   moved_downloaders <- c(
     "code/R/manual-downloaders/download-raw-un-sna.R",

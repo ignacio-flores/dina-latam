@@ -64,7 +64,18 @@ mini_repo <- function() {
   )), file.path(root, "config", "pipeline.yml"))
 
   dina_write_yaml(list(sources = list(
-    list(id = "source-a", family = "fixture", country = "AAA", method = "manual", canonical = c("input_data/source_*.xlsx"), staging_name = "AAA/source_{date}.xlsx", destination = "input_data/{basename}", checks = c("file_exists", "years_detected")),
+    list(
+      id = "source-a",
+      family = "fixture",
+      country = "AAA",
+      method = "manual",
+      canonical = c("input_data/source_*.xlsx"),
+      inbox = c("input_data/_new/fixture/source_*.xlsx"),
+      inbox_examples = c("source_2024.xlsx"),
+      staging_name = "AAA/source_{date}.xlsx",
+      destination = "input_data/{basename}",
+      checks = c("file_exists", "years_detected")
+    ),
     list(id = "source-missing", family = "fixture", country = "BBB", method = "manual", canonical = c("input_data/missing_*.csv"), staging_name = "BBB/missing_{date}.csv", checks = c("file_exists"))
   )), file.path(root, "config", "sources.yml"))
 
