@@ -30,3 +30,4 @@ intermediary_data/
 previous_series/*.dta
 output/latest_wid_series
 config/pushover.local.R
+input_data/_new/

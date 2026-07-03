@@ -45,7 +45,8 @@ test_that("shared menu helpers support fallback selection, quit, defaults, and d
   items <- list(
     dina_menu_action("a", "Action A", value = "a", help = "Detailed help for A."),
     dina_menu_action("b", "Action B", value = "b", help = "Detailed help for B."),
-    dina_menu_action("previous", "Previous", value = "previous")
+    dina_menu_action("back", "Back", value = "back"),
+    dina_menu_action("next", "Next", value = "next")
   )
 
   con <- textConnection("2\n")
@@ -61,12 +62,33 @@ test_that("shared menu helpers support fallback selection, quit, defaults, and d
   con <- textConnection("l\n")
   capture.output(previous <- dina_menu_select("Menu", items, input = con, is_terminal = TRUE))
   close(con)
-  expect_equal(previous, "previous")
+  expect_equal(previous, "back")
+
+  con <- textConnection("right\n")
+  capture.output(next_choice <- dina_menu_select("Menu", items, input = con, is_terminal = TRUE))
+  close(con)
+  expect_equal(next_choice, "next")
+
+  expect_match(dina_menu_control_help(items), "Left/Right back/next")
+
+  compact_items <- list(
+    dina_menu_action("keep", "Keep", value = "keep"),
+    dina_menu_action("edit", "Edit", value = "edit"),
+    dina_menu_action("previous", "Previous", value = "previous", hidden = TRUE),
+    dina_menu_action("next", "Next", value = "next", hidden = TRUE)
+  )
+  compact_lines <- dina_menu_lines("Compact Menu", compact_items)
+  expect_true(any(grepl("Keep", compact_lines, fixed = TRUE)))
+  expect_true(any(grepl("Edit", compact_lines, fixed = TRUE)))
+  expect_false(any(grepl("Previous", compact_lines, fixed = TRUE)))
+  expect_false(any(grepl("Next", compact_lines, fixed = TRUE)))
+  expect_match(dina_menu_control_help(dina_menu_normalize(compact_items)), "Left/Right back/next")
 
   disabled_items <- list(
     dina_menu_action("a", "Action A", value = "a", disabled = TRUE),
     dina_menu_action("b", "Action B", value = "b")
   )
+  expect_false(grepl("Left", dina_menu_control_help(disabled_items), fixed = TRUE))
   con <- textConnection(c("1", "2"))
   capture.output(enabled <- dina_menu_select("Menu", disabled_items, input = con, is_terminal = TRUE))
   close(con)
@@ -80,6 +102,15 @@ test_that("shared menu helpers support fallback selection, quit, defaults, and d
   expect_equal(helped, "b")
   expect_match(paste(help_output, collapse = "\n"), "Detailed help for A")
   expect_match(paste(help_output, collapse = "\n"), "Detailed help for B")
+
+  dimmed <- dina_menu_lines(
+    "Styled Menu",
+    list(dina_menu_action("a", "Action A", value = "a", description = "Secondary detail.")),
+    prompt = "Prompt detail."
+  )
+  expect_true(dina_cli_dim("  Prompt detail.") %in% dimmed)
+  expect_true(dina_cli_dim("      Secondary detail.") %in% dimmed)
+  expect_true(any(grepl("^\\s+1\\. Action A", dimmed)))
 
   con <- textConnection("\n")
   capture.output(default_yes <- dina_menu_confirm("Confirm", "Continue?", default = TRUE, input = con, is_terminal = TRUE))
@@ -675,12 +706,14 @@ test_that("parameter suggestions use previous-series canonical and inbox files",
   touch(file.path(root, "input_data", "_new", "validation", "dina_latam_5Nov2025.dta"), "2025-11-05")
 
   suggestions <- dina_parameter_suggestions(dina_config(root, expand_env = FALSE), root)
+  expect_equal(suggestions[["export_validation.last_year"]], "2025")
   expect_equal(suggestions[["export_validation.previous_update_file"]], "input_data/_new/validation/dina_latam_5Nov2025.dta")
   expect_equal(suggestions[["export_validation.previous_update_date"]], "5Nov2025")
 
   unlink(file.path(root, "input_data", "_new", "validation", "dina_latam_5Nov2025.dta"))
   touch(file.path(root, "previous_series", "dina_latam_latest.dta"), "2026-01-01")
   suggestions <- dina_parameter_suggestions(dina_config(root, expand_env = FALSE), root)
+  expect_equal(suggestions[["export_validation.last_year"]], "2025")
   expect_equal(suggestions[["export_validation.previous_update_file"]], "previous_series/dina_latam_latest.dta")
   expect_equal(suggestions[["export_validation.previous_update_date"]] %||% "", "")
 })
@@ -689,13 +722,36 @@ test_that("parameter wizard fallback can quit without marking checks", {
   root <- mini_repo()
   source_cli_for_tests()
   session <- dina_update_start("2026", root = root)
-  con <- textConnection(c("1", "1", "3", "q"))
+  con <- textConnection(c("1", "1", "1", "q"))
   on.exit(close(con), add = TRUE)
-  capture.output(dina_update_parameters_wizard(session, root = root, input = con, is_terminal = TRUE))
+  output <- capture.output(dina_update_parameters_wizard(session, root = root, input = con, is_terminal = TRUE))
 
   session <- dina_load_session(root = root)
+  expect_match(paste(output, collapse = "\n"), "1\\. Accept suggestion")
+  expect_false(grepl("Optional working override edits", paste(output, collapse = "\n"), fixed = TRUE))
   expect_equal(dina_session_config(session, root, expand_env = FALSE)$years$last, 2024L)
   expect_equal(dina_gate_check_record(session, "parameters", "year-scope")$status %||% "pending", "pending")
+})
+
+test_that("parameter wizard edit fallback saves or cancels current values", {
+  root <- mini_repo()
+  source_cli_for_tests()
+  session <- dina_update_start("2026", root = root)
+  con <- textConnection(c("2", "ARG,BRA", "q"))
+  on.exit(close(con), add = TRUE)
+  edit_output <- capture.output(dina_update_parameters_wizard(session, root = root, input = con, is_terminal = TRUE))
+  expect_match(paste(edit_output, collapse = "\n"), "Type a replacement value")
+  session <- dina_load_session(root = root)
+  expect_equal(dina_session_config(session, root, expand_env = FALSE)$countries, c("ARG", "BRA"))
+
+  root_cancel <- mini_repo()
+  session_cancel <- dina_update_start("2026", root = root_cancel)
+  con_cancel <- textConnection(c("2", ".", "q"))
+  on.exit(close(con_cancel), add = TRUE)
+  cancel_output <- capture.output(dina_update_parameters_wizard(session_cancel, root = root_cancel, input = con_cancel, is_terminal = TRUE))
+  expect_match(paste(cancel_output, collapse = "\n"), "`.` cancels this edit")
+  session_cancel <- dina_load_session(root = root_cancel)
+  expect_equal(dina_session_config(session_cancel, root_cancel, expand_env = FALSE)$countries, c("COL", "ARG"))
 })
 
 test_that("tasks list shows task language", {
@@ -997,14 +1053,23 @@ test_that("bucket uses and fetch expose usage and planned inbox targets", {
   expect_equal(dry$status, 0L)
   expect_match(dry$output, "Bucket Fetch Preview")
   expect_match(dry$output, "fixture-source")
-  expect_match(dry$output, "would_fetch")
+  expect_match(dry$output, "would fetch")
   expect_match(dry$output, "input_data/_new/survey_inputs/prices/fixture_source\\.csv")
   expect_match(dry$output, "Next: dina sources review")
   expect_false(file.exists(file.path(root, "input_data", "_new", "survey_inputs", "prices", "fixture_source.csv")))
 
+  all_fetches <- run_dina_cli(c("buckets", "fetch", "--dry-run"), root = root)
+  expect_equal(all_fetches$status, 0L)
+  expect_match(all_fetches$output, "fixture-source")
+  expect_match(all_fetches$output, "would fetch")
+  expect_match(all_fetches$output, "Skipped 1 source\\(s\\) without automatic fetches")
+  expect_false(grepl("manual_only", all_fetches$output, fixed = TRUE))
+
   manual <- run_dina_cli(c("buckets", "fetch", "--dry-run", "--source", "manual-only"), root = root)
   expect_equal(manual$status, 0L)
-  expect_match(manual$output, "manual_only")
+  expect_match(manual$output, "No automatic fetches matched")
+  expect_match(manual$output, "Skipped 1 source\\(s\\) without automatic fetches")
+  expect_false(grepl("manual_only", manual$output, fixed = TRUE))
 
   old <- run_dina_cli(c("buckets", "fetch", "--dry-run", "--source", "bra-admin-tax"), root = root)
   expect_equal(old$status, 1L)
@@ -1081,48 +1146,41 @@ test_that("update lifecycle commands list, dry-run delete, delete, and restart s
   expect_match(dry_restart$output, "Year: 2026")
   expect_match(dry_restart$output, "Current status: initialized")
   expect_match(dry_restart$output, "Files to clear:")
-  expect_match(dry_restart$output, "Source baseline records will be replaced by a fresh source scan")
-  expect_match(dry_restart$output, "Source inbox buckets under `input_data/_new` are kept by default")
-  expect_match(dry_restart$output, "input_data/_new/fixture")
-  expect_match(dry_restart$output, "Default: keep the start baseline without saving a pre-restart checkpoint")
+  expect_match(dry_restart$output, "Source records will be replaced by a fresh source scan")
+  expect_match(dry_restart$output, "Source inbox: empty")
+  expect_match(dry_restart$output, "Repo history powers repo-status")
+  expect_match(dry_restart$output, "Default: restart normally, keep repo history, and save no checkpoint")
   expect_match(dry_restart$output, "same update id")
   expect_equal(dina_load_session(root = root)$status, "initialized")
 
   source_cli_for_tests()
-  restart_plan <- dina_update_restart(root = root)
-  con <- textConnection("")
-  empty_output <- capture.output(keep_empty <- dina_restart_source_inbox_choice(restart_plan, input = con, is_terminal = TRUE))
-  close(con)
-  expect_true(keep_empty)
-  expect_false(grepl("How should restart handle existing source inbox files", paste(empty_output, collapse = "\n"), fixed = TRUE))
-
   incoming <- file.path(root, "input_data", "_new", "fixture", "manual.csv")
   writeLines("incoming", incoming)
   restart_plan <- dina_update_restart(root = root)
-  con <- textConnection("2\n")
-  cancel_output <- capture.output(keep_nonempty <- dina_restart_source_inbox_choice(restart_plan, input = con, is_terminal = TRUE))
-  close(con)
-  expect_false(keep_nonempty)
-  expect_match(paste(cancel_output, collapse = "\n"), "How should restart handle existing source inbox files")
-  expect_true(file.exists(incoming))
-
-  con <- textConnection(c("?", "1"))
-  baseline_output <- capture.output(policy <- dina_restart_repo_policy_choice(input = con, is_terminal = TRUE))
-  close(con)
-  expect_equal(policy, "preserve")
-  expect_match(dina_restart_repo_baseline_help(), "A repo baseline is the comparison point")
-  expect_match(dina_restart_repo_baseline_help(), "not data folders or source inbox files")
-  expect_match(paste(baseline_output, collapse = "\n"), "Keep baseline and save checkpoint")
-  expect_match(paste(baseline_output, collapse = "\n"), "Use current repo as baseline")
-  con <- textConnection("2\n")
-  checkpoint_output <- capture.output(policy <- dina_restart_repo_policy_choice(input = con, is_terminal = TRUE))
+  con <- textConnection(c("?", "1", "2", "2", "1"))
+  restart_choice_output <- capture.output(policy <- dina_restart_interactive_choice(restart_plan, input = con, is_terminal = TRUE))
   close(con)
   expect_equal(policy, "preserve_checkpoint")
-  expect_match(paste(checkpoint_output, collapse = "\n"), "save checkpoint")
+  restart_choice_text <- paste(restart_choice_output, collapse = "\n")
+  expect_match(restart_choice_text, "Restart Options")
+  expect_match(restart_choice_text, "Restart normally")
+  expect_match(restart_choice_text, "Restart and save checkpoint")
+  expect_match(restart_choice_text, "Confirm Restart")
+  expect_match(restart_choice_text, "Back")
+  expect_match(restart_choice_text, "Source inbox: 1 incoming file\\(s\\).*will be kept")
+  expect_match(restart_choice_text, "Repo history powers repo-status")
+  expect_false(grepl("How should restart handle existing source inbox files", restart_choice_text, fixed = TRUE))
+  expect_false(grepl("Old-reference notes", restart_choice_text, fixed = TRUE))
+  expect_true(file.exists(incoming))
+
+  conflict_flags <- run_dina_cli(c("update", "restart", "--yes", "--replace-repo-baseline", "--save-restart-checkpoint"), root = root)
+  expect_equal(conflict_flags$status, 1L)
+  expect_match(conflict_flags$output, "Choose either --replace-repo-baseline or --save-restart-checkpoint")
 
   writeLines("old staged file", file.path(dina_update_dir(first$id, root), "source_staging", "old.txt"))
   writeLines("old log", file.path(dina_update_dir(first$id, root), "logs", "old.log"))
   session <- dina_load_session(root = root)
+  session$preferences$show_old_refs <- FALSE
   session$source_refreshes <- list(old = list(status = "done"))
   session$task_runs <- list(old = list(status = "done"))
   dina_save_session(session, root)
@@ -1134,13 +1192,13 @@ test_that("update lifecycle commands list, dry-run delete, delete, and restart s
   expect_match(restarted$output, "Preparing update session")
   expect_match(restarted$output, "Source baseline summary")
   expect_match(restarted$output, "Writing manifest and active update pointer")
-  expect_match(restarted$output, "Source inbox buckets and incoming files were kept")
+  expect_match(restarted$output, "Source inbox: 1 incoming file\\(s\\).*will be kept")
   expect_match(restarted$output, "no pre-restart checkpoint saved")
-  expect_match(restarted$output, "input_data/_new/fixture")
   restarted_id <- dina_current_update(root)
   expect_equal(restarted_id, first$id)
   restarted_session <- dina_load_session(first$id, root)
   expect_equal(restarted_session$status, "initialized")
+  expect_false(dina_session_show_old_refs(restarted_session))
   expect_equal(length(restarted_session$source_refreshes), 0L)
   expect_equal(length(restarted_session$task_runs), 0L)
   expect_true(is.null(restarted_session$successor_update))
@@ -1160,6 +1218,15 @@ test_that("update lifecycle commands list, dry-run delete, delete, and restart s
   expect_match(checkpointed$output, "saved a pre-restart checkpoint")
   baselines <- dina_repo_state_baselines(first$id, root)
   expect_true(any(grepl("^restart-", baselines)))
+  expect_false(dina_session_show_old_refs(dina_load_session(first$id, root)))
+
+  old_refs_override <- run_dina_cli(c("update", "restart", "--yes", "--old-refs"), root = root)
+  expect_equal(old_refs_override$status, 0L)
+  expect_true(dina_session_show_old_refs(dina_load_session(first$id, root)))
+
+  no_old_refs_override <- run_dina_cli(c("update", "restart", "--yes", "--no-old-refs"), root = root)
+  expect_equal(no_old_refs_override$status, 0L)
+  expect_false(dina_session_show_old_refs(dina_load_session(first$id, root)))
 
   dry_delete_id <- run_dina_cli(c("update", "delete", first$id), root = root)
   expect_equal(dry_delete_id$status, 0L)

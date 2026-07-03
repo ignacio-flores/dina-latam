@@ -888,7 +888,7 @@ dina_cli_prompt_value <- function(prompt, default = "", input = "stdin", is_term
   if (nzchar(answer)) answer else default
 }
 
-dina_menu_action <- function(key, label, value = key, description = "", group = "", disabled = FALSE, help = "") {
+dina_menu_action <- function(key, label, value = key, description = "", group = "", disabled = FALSE, help = "", hidden = FALSE) {
   list(
     key = key,
     label = label,
@@ -896,7 +896,8 @@ dina_menu_action <- function(key, label, value = key, description = "", group = 
     description = description,
     group = group,
     disabled = isTRUE(disabled),
-    help = help
+    help = help,
+    hidden = isTRUE(hidden)
   )
 }
 
@@ -919,6 +920,7 @@ dina_menu_normalize <- function(items) {
     item$description <- item$description %||% ""
     item$group <- item$group %||% ""
     item$disabled <- isTRUE(item$disabled)
+    item$hidden <- isTRUE(item$hidden)
     item$help <- item$help %||% item$details %||% ""
     item
   })
@@ -929,7 +931,14 @@ dina_menu_action_value <- function(action) {
 }
 
 dina_menu_enabled_indices <- function(items) {
-  which(!vapply(items, function(item) isTRUE(item$disabled), logical(1)))
+  which(
+    !vapply(items, function(item) isTRUE(item$disabled), logical(1)) &
+      !vapply(items, function(item) isTRUE(item$hidden), logical(1))
+  )
+}
+
+dina_menu_visible_indices <- function(items) {
+  which(!vapply(items, function(item) isTRUE(item$hidden), logical(1)))
 }
 
 dina_menu_first_enabled <- function(items) {
@@ -947,6 +956,24 @@ dina_menu_index_for_value <- function(items, value) {
   }, character(1))
   idx <- which(values == as.character(value) & !vapply(items, function(item) isTRUE(item$disabled), logical(1)))
   if (length(idx)) idx[[1]] else NA_integer_
+}
+
+dina_menu_index_for_values <- function(items, values) {
+  for (value in values) {
+    idx <- dina_menu_index_for_value(items, value)
+    if (!is.na(idx)) {
+      return(idx)
+    }
+  }
+  NA_integer_
+}
+
+dina_menu_back_index <- function(items) {
+  dina_menu_index_for_values(items, c("back", "previous"))
+}
+
+dina_menu_next_index <- function(items) {
+  dina_menu_index_for_value(items, "next")
 }
 
 dina_menu_terminal_available <- function(input = "stdin", is_terminal = isatty(stdin())) {
@@ -969,6 +996,10 @@ dina_menu_set_raw <- function() {
   invisible(system("stty -echo -icanon min 1 time 0 < /dev/tty", ignore.stdout = TRUE, ignore.stderr = TRUE))
 }
 
+dina_menu_set_raw_poll <- function() {
+  invisible(system("stty -echo -icanon min 0 time 1 < /dev/tty", ignore.stdout = TRUE, ignore.stderr = TRUE))
+}
+
 dina_menu_restore_tty <- function(state) {
   if (length(state) && nzchar(state[[1]])) {
     invisible(system(sprintf("stty %s < /dev/tty", state[[1]]), ignore.stdout = TRUE, ignore.stderr = TRUE))
@@ -984,12 +1015,27 @@ dina_menu_read_key <- function(con) {
   key
 }
 
-dina_menu_control_help <- function() {
-  "Up/Down move - Enter select - Left/Right previous/next when available - number selects - q quits - ? help"
+dina_menu_control_help <- function(items = NULL) {
+  parts <- c("Up/Down move", "Enter select")
+  if (!is.null(items)) {
+    has_back <- !is.na(dina_menu_back_index(items))
+    has_next <- !is.na(dina_menu_next_index(items))
+    if (has_back && has_next) {
+      parts <- c(parts, "Left/Right back/next")
+    } else if (has_back) {
+      parts <- c(parts, "Left back")
+    } else if (has_next) {
+      parts <- c(parts, "Right next")
+    }
+  } else {
+    parts <- c(parts, "Left/Right back/next when available")
+  }
+  paste(c(parts, "number selects", "q quits", "? help"), collapse = " - ")
 }
 
 dina_menu_help_lines <- function(items, selected = NULL) {
-  indices <- if (is.null(selected)) seq_along(items) else selected
+  indices <- if (is.null(selected)) dina_menu_visible_indices(items) else selected
+  indices <- indices[!vapply(items[indices], function(item) isTRUE(item$hidden), logical(1))]
   lines <- character()
   for (i in indices) {
     item <- items[[i]]
@@ -1003,12 +1049,12 @@ dina_menu_help_lines <- function(items, selected = NULL) {
     lines <- c(lines, sprintf("  %s:", item$label))
     for (line in strsplit(text, "\n", fixed = TRUE)[[1]]) {
       if (nzchar(line)) {
-        lines <- c(lines, sprintf("    %s", line))
+        lines <- c(lines, dina_cli_dim(sprintf("    %s", line)))
       }
     }
   }
   if (!length(lines)) {
-    lines <- "  No extra help is available for this choice."
+    lines <- dina_cli_dim("  No extra help is available for this choice.")
   }
   lines
 }
@@ -1016,36 +1062,43 @@ dina_menu_help_lines <- function(items, selected = NULL) {
 dina_menu_lines <- function(title, items, selected = NULL, prompt = "Choose an action", help = FALSE) {
   lines <- c("", title)
   if (nzchar(prompt %||% "")) {
-    lines <- c(lines, sprintf("  %s", prompt))
+    prompt_lines <- strsplit(prompt, "\n", fixed = TRUE)[[1]]
+    lines <- c(lines, vapply(prompt_lines, function(line) dina_cli_dim(sprintf("  %s", line)), character(1)))
   }
   current_group <- NULL
-  for (i in seq_along(items)) {
+  visible <- dina_menu_visible_indices(items)
+  for (display_i in seq_along(visible)) {
+    i <- visible[[display_i]]
     item <- items[[i]]
     group <- item$group %||% ""
     if (nzchar(group) && !identical(group, current_group)) {
-      lines <- c(lines, "", sprintf("  %s", group))
+      lines <- c(lines, "", dina_cli_dim(sprintf("  %s", group)))
       current_group <- group
     }
     marker <- if (!is.null(selected) && identical(i, selected)) ">" else " "
-    disabled <- if (isTRUE(item$disabled)) " (unavailable)" else ""
-    line <- sprintf("%s %2s. %s%s", marker, i, item$label, disabled)
+    disabled <- if (isTRUE(item$disabled)) dina_cli_dim(" (unavailable)") else ""
+    line <- sprintf("%s %2s. %s%s", marker, display_i, item$label, disabled)
     lines <- c(lines, line)
     if (nzchar(item$description %||% "")) {
-      lines <- c(lines, sprintf("      %s", item$description))
+      lines <- c(lines, dina_cli_dim(sprintf("      %s", item$description)))
     }
   }
-  lines <- c(lines, "", sprintf("  Keys: %s", dina_menu_control_help()))
+  lines <- c(lines, "", dina_cli_dim(sprintf("  Keys: %s", dina_menu_control_help(items))))
   if (isTRUE(help)) {
-    lines <- c(lines, "", "  Help:", dina_menu_help_lines(items, selected))
+    lines <- c(lines, "", dina_cli_dim("  Help:"), dina_menu_help_lines(items, selected))
     if (is.null(selected)) {
-      lines <- c(lines, "  Press q to leave this menu without choosing a new action.")
+      lines <- c(lines, dina_cli_dim("  Press q to leave this menu without choosing a new action."))
     }
   }
   lines
 }
 
 dina_menu_select_numbered <- function(title, items, prompt = "Choose an action", default = NULL, allow_quit = TRUE, input = "stdin", is_terminal = isatty(stdin())) {
+  visible <- dina_menu_visible_indices(items)
   selected_default <- dina_menu_index_for_value(items, default)
+  if (!is.na(selected_default) && isTRUE(items[[selected_default]]$hidden)) {
+    selected_default <- NA_integer_
+  }
   if (is.na(selected_default)) {
     selected_default <- dina_menu_first_enabled(items)
   }
@@ -1053,10 +1106,11 @@ dina_menu_select_numbered <- function(title, items, prompt = "Choose an action",
     for (line in dina_menu_lines(title, items, selected = NULL, prompt = prompt)) {
       dina_cli_cat(line)
     }
-    default_label <- if (!is.na(selected_default)) as.character(selected_default) else if (isTRUE(allow_quit)) "q" else ""
+    default_visible <- match(selected_default, visible)
+    default_label <- if (!is.na(default_visible)) as.character(default_visible) else if (isTRUE(allow_quit)) "q" else ""
     answer <- tolower(trimws(dina_cli_prompt_value(sprintf("Selection [%s]: ", default_label), default = default_label, input = input, is_terminal = is_terminal)))
     if (answer %in% c("?", "help")) {
-      dina_cli_cat(dina_menu_control_help())
+      dina_cli_cat(dina_menu_control_help(items))
       for (line in dina_menu_help_lines(items, selected = NULL)) {
         dina_cli_cat(line)
       }
@@ -1065,24 +1119,31 @@ dina_menu_select_numbered <- function(title, items, prompt = "Choose an action",
     if (isTRUE(allow_quit) && answer %in% c("q", "quit", "exit")) {
       return("quit")
     }
-    if (answer %in% c("p", "prev", "previous", "left", "l")) {
-      idx <- dina_menu_index_for_value(items, "previous")
-      if (!is.na(idx)) return(dina_menu_action_value(items[[idx]]))
+    if (answer %in% c("p", "prev", "previous", "left", "l", "back")) {
+      idx <- dina_menu_back_index(items)
+      if (!is.na(idx)) {
+        return(dina_menu_action_value(items[[idx]]))
+      }
+      next
     }
     if (answer %in% c("n", "next", "right", "r", "skip")) {
-      idx <- dina_menu_index_for_value(items, "next")
-      if (!is.na(idx)) return(dina_menu_action_value(items[[idx]]))
+      idx <- dina_menu_next_index(items)
+      if (!is.na(idx)) {
+        return(dina_menu_action_value(items[[idx]]))
+      }
+      next
     }
     choice <- suppressWarnings(as.integer(answer))
-    if (is.na(choice) || choice < 1L || choice > length(items)) {
+    if (is.na(choice) || choice < 1L || choice > length(visible)) {
       dina_cli_warn(sprintf("Unknown selection `%s`.", answer))
       next
     }
-    if (isTRUE(items[[choice]]$disabled)) {
-      dina_cli_warn(sprintf("Unavailable action: %s", items[[choice]]$label))
+    item_index <- visible[[choice]]
+    if (isTRUE(items[[item_index]]$disabled)) {
+      dina_cli_warn(sprintf("Unavailable action: %s", items[[item_index]]$label))
       next
     }
-    return(dina_menu_action_value(items[[choice]]))
+    return(dina_menu_action_value(items[[item_index]]))
   }
 }
 
@@ -1123,10 +1184,10 @@ dina_menu_select_raw <- function(title, items, prompt = "Choose an action", defa
       current <- match(selected, enabled)
       selected <- enabled[[if (current >= length(enabled)) 1L else current + 1L]]
     } else if (identical(key, "\033[D")) {
-      idx <- dina_menu_index_for_value(items, "previous")
+      idx <- dina_menu_back_index(items)
       if (!is.na(idx)) return(dina_menu_action_value(items[[idx]]))
     } else if (identical(key, "\033[C")) {
-      idx <- dina_menu_index_for_value(items, "next")
+      idx <- dina_menu_next_index(items)
       if (!is.na(idx)) return(dina_menu_action_value(items[[idx]]))
     } else if (identical(key, "\r") || identical(key, "\n")) {
       return(dina_menu_action_value(items[[selected]]))
@@ -1196,6 +1257,143 @@ dina_menu_text <- function(title = "Input", prompt, default = "", input = "stdin
     return(list(value = default, quit = TRUE))
   }
   list(value = if (nzchar(answer)) answer else default, quit = FALSE)
+}
+
+dina_edit_read_key <- function(con) {
+  repeat {
+    key <- readChar(con, nchars = 1L, useBytes = TRUE)
+    if (nzchar(key)) {
+      break
+    }
+  }
+  if (identical(key, "\033")) {
+    rest <- paste0(
+      readChar(con, nchars = 1L, useBytes = TRUE),
+      readChar(con, nchars = 1L, useBytes = TRUE)
+    )
+    if (!nzchar(rest)) {
+      return("\033")
+    }
+    return(paste0(key, rest))
+  }
+  key
+}
+
+dina_edit_render <- function(prompt, buffer, cursor) {
+  text <- paste(buffer, collapse = "")
+  cat("\r\033[2K", prompt, text, sep = "")
+  tail <- length(buffer) - cursor
+  if (tail > 0L) {
+    cat(sprintf("\033[%sD", tail))
+  }
+  flush.console()
+}
+
+dina_menu_edit_text_raw <- function(title, prompt, current = "") {
+  state <- dina_menu_tty_state()
+  if (!length(state)) {
+    return(NULL)
+  }
+  con <- file("/dev/tty", open = "rb")
+  on.exit(close(con), add = TRUE)
+  dina_menu_set_raw_poll()
+  on.exit(dina_menu_restore_tty(state), add = TRUE)
+
+  dina_cli_cat("")
+  dina_cli_cat(title)
+  dina_cli_cat(dina_cli_dim("Enter saves the shown value. Esc cancels this edit without changes."))
+  buffer <- strsplit(current %||% "", "", fixed = TRUE)[[1]]
+  if (length(buffer) == 1L && !nzchar(buffer)) {
+    buffer <- character()
+  }
+  cursor <- length(buffer)
+  full_prompt <- sprintf("%s: ", prompt)
+  repeat {
+    dina_edit_render(full_prompt, buffer, cursor)
+    key <- dina_edit_read_key(con)
+    if (identical(key, "\033")) {
+      cat("\n")
+      return(list(value = current, quit = FALSE, cancel = TRUE, changed = FALSE))
+    }
+    if (identical(key, "\r") || identical(key, "\n")) {
+      cat("\n")
+      value <- paste(buffer, collapse = "")
+      return(list(value = value, quit = FALSE, cancel = FALSE, changed = !identical(value, current %||% "")))
+    }
+    if (identical(key, "\033[D")) {
+      cursor <- max(0L, cursor - 1L)
+      next
+    }
+    if (identical(key, "\033[C")) {
+      cursor <- min(length(buffer), cursor + 1L)
+      next
+    }
+    if (identical(key, "\001")) {
+      cursor <- 0L
+      next
+    }
+    if (identical(key, "\005")) {
+      cursor <- length(buffer)
+      next
+    }
+    if (identical(key, "\025")) {
+      buffer <- character()
+      cursor <- 0L
+      next
+    }
+    if (key %in% c("\177", "\b")) {
+      if (cursor > 0L) {
+        buffer <- buffer[-cursor]
+        cursor <- cursor - 1L
+      }
+      next
+    }
+    if (identical(key, "\033[3")) {
+      invisible(readChar(con, nchars = 1L, useBytes = TRUE))
+      if (cursor < length(buffer)) {
+        buffer <- buffer[-(cursor + 1L)]
+      }
+      next
+    }
+    if (nchar(key, type = "bytes") == 1L && grepl("^[[:print:]]$", key)) {
+      if (cursor == 0L) {
+        buffer <- c(key, buffer)
+      } else if (cursor >= length(buffer)) {
+        buffer <- c(buffer, key)
+      } else {
+        buffer <- c(buffer[seq_len(cursor)], key, buffer[(cursor + 1L):length(buffer)])
+      }
+      cursor <- cursor + 1L
+    }
+  }
+}
+
+dina_menu_edit_text <- function(title = "Edit", prompt, current = "", input = "stdin", is_terminal = isatty(stdin()), allow_quit = TRUE) {
+  current <- current %||% ""
+  if (!isTRUE(is_terminal)) {
+    return(list(value = current, quit = FALSE, cancel = FALSE, changed = FALSE))
+  }
+  if (dina_menu_terminal_available(input, is_terminal)) {
+    raw <- dina_menu_edit_text_raw(title = title, prompt = prompt, current = current)
+    if (!is.null(raw)) {
+      return(raw)
+    }
+  }
+  dina_cli_cat("")
+  dina_cli_cat(title)
+  dina_cli_cat(dina_cli_dim("Type a replacement value. Enter keeps current. `.` cancels this edit. `q` exits the gate."))
+  dina_cli_cat(sprintf("%s %s", dina_cli_dim("Current:"), current))
+  answer <- trimws(dina_read_prompt(sprintf("%s: ", prompt), input = input))
+  if (isTRUE(allow_quit) && tolower(answer) %in% c("q", "quit", "exit")) {
+    return(list(value = current, quit = TRUE, cancel = FALSE, changed = FALSE))
+  }
+  if (tolower(answer) %in% c(".", "cancel")) {
+    return(list(value = current, quit = FALSE, cancel = TRUE, changed = FALSE))
+  }
+  if (!nzchar(answer)) {
+    return(list(value = current, quit = FALSE, cancel = FALSE, changed = FALSE))
+  }
+  list(value = answer, quit = FALSE, cancel = FALSE, changed = !identical(answer, current))
 }
 
 dina_cli_config_value <- function(x) {
@@ -1321,8 +1519,8 @@ dina_parameter_suggestions <- function(config, root = dina_repo_root()) {
     suggestions[["years.last"]] <- as.character(current_last + 1L)
   }
   export_last <- suppressWarnings(as.integer(dina_parameter_value(config, "export_validation.last_year") %||% NA_integer_))
-  if (!is.na(current_last) && !is.na(export_last) && export_last < current_last) {
-    suggestions[["export_validation.last_year"]] <- as.character(current_last)
+  if (!is.na(export_last)) {
+    suggestions[["export_validation.last_year"]] <- as.character(export_last + 1L)
   }
   previous <- dina_previous_update_candidates(root)
   if (nrow(previous)) {
@@ -1400,16 +1598,14 @@ dina_parameter_move <- function(position, direction) {
 }
 
 dina_parameter_actions <- function(has_suggestion = FALSE) {
-  actions <- list(
-    dina_menu_action("keep", "Keep", value = "keep", description = "Leave this value unchanged."),
-    dina_menu_action("edit", "Edit", value = "edit", description = "Type a replacement value.")
-  )
+  actions <- list()
   if (isTRUE(has_suggestion)) {
     actions[[length(actions) + 1L]] <- dina_menu_action("accept", "Accept suggestion", value = "accept", description = "Write the suggested value to the working override.")
   }
-  actions[[length(actions) + 1L]] <- dina_menu_action("previous", "Previous", value = "previous", description = "Go back to the previous parameter.")
-  actions[[length(actions) + 1L]] <- dina_menu_action("next", "Next", value = "next", description = "Skip to the next parameter.")
-  actions[[length(actions) + 1L]] <- dina_menu_action("quit", "Quit", value = "quit", description = "Exit this gate without marking checks.")
+  actions[[length(actions) + 1L]] <- dina_menu_action("keep", "Keep", value = "keep", description = "Leave this value unchanged.")
+  actions[[length(actions) + 1L]] <- dina_menu_action("edit", "Edit", value = "edit", description = "Edit the current value, then save or cancel.")
+  actions[[length(actions) + 1L]] <- dina_menu_action("previous", "Previous", value = "previous", hidden = TRUE)
+  actions[[length(actions) + 1L]] <- dina_menu_action("next", "Next", value = "next", hidden = TRUE)
   actions
 }
 
@@ -1424,7 +1620,7 @@ dina_parameter_choose_action <- function(section_title, spec, current, suggestio
     title = "Parameter Action",
     items = dina_parameter_actions(nzchar(suggestion)),
     prompt = prompt,
-    default = "keep",
+    default = if (nzchar(suggestion)) "accept" else "keep",
     allow_quit = TRUE,
     input = input,
     is_terminal = is_terminal
@@ -1433,36 +1629,6 @@ dina_parameter_choose_action <- function(section_title, spec, current, suggestio
     return("keep")
   }
   result
-}
-
-dina_update_parameters_optional_edits <- function(session, root = dina_repo_root(), input = "stdin", is_terminal = isatty(stdin())) {
-  dina_cli_cat("")
-  dina_cli_cat("Optional working override edits. Use KEY VALUE; blank continues; q quits.")
-  repeat {
-    edit_result <- dina_menu_text(
-      title = "Optional Override Edit",
-      prompt = "Edit",
-      default = "",
-      input = input,
-      is_terminal = is_terminal,
-      allow_quit = TRUE
-    )
-    edit <- edit_result$value
-    if (!nzchar(edit)) {
-      return(list(session = session, quit = FALSE))
-    }
-    if (isTRUE(edit_result$quit)) {
-      return(list(session = session, quit = TRUE))
-    }
-    parts <- strsplit(edit, "\\s+", perl = TRUE)[[1]]
-    if (length(parts) < 2L) {
-      dina_cli_warn("Expected KEY VALUE.")
-      next
-    }
-    key <- parts[[1]]
-    value <- paste(parts[-1], collapse = " ")
-    session <- dina_session_config_set(session, root = root, key = key, value = value)
-  }
 }
 
 dina_update_parameters_print_override_status <- function(session, root = dina_repo_root()) {
@@ -1518,10 +1684,10 @@ dina_update_parameters_wizard <- function(session, root = dina_repo_root(), inpu
       next
     }
     if (identical(action, "edit")) {
-      value_result <- dina_menu_text(
+      value_result <- dina_menu_edit_text(
         title = "Edit Parameter",
-        prompt = sprintf("Enter %s (%s; blank keeps)", spec$key, spec$input),
-        default = "",
+        prompt = sprintf("Enter %s (%s)", spec$key, spec$input),
+        current = current,
         input = input,
         is_terminal = is_terminal,
         allow_quit = TRUE
@@ -1531,7 +1697,10 @@ dina_update_parameters_wizard <- function(session, root = dina_repo_root(), inpu
         quit <- TRUE
         break
       }
-      if (nzchar(value)) {
+      if (isTRUE(value_result$cancel)) {
+        next
+      }
+      if (isTRUE(value_result$changed)) {
         session <- dina_session_config_set(session, root = root, key = spec$key, value = value)
       }
       position <- dina_parameter_move(position, "next")
@@ -1544,13 +1713,6 @@ dina_update_parameters_wizard <- function(session, root = dina_repo_root(), inpu
     return(invisible(session))
   }
 
-  optional <- dina_update_parameters_optional_edits(session, root = root, input = input, is_terminal = is_terminal)
-  session <- optional$session
-  if (isTRUE(optional$quit)) {
-    dina_update_parameters_print_override_status(session, root)
-    dina_cli_warn("Exited parameters gate before marking checks.")
-    return(invisible(session))
-  }
   dina_update_parameters_print_override_status(session, root)
 
   checks <- c("year-scope", "export-settings", "config-rendered")
@@ -2022,13 +2184,6 @@ dina_cmd_install <- function(root, args) {
   invisible(missing)
 }
 
-dina_restart_repo_baseline_help <- function() {
-  paste(c(
-    "A repo baseline is the comparison point for repo-status, repo-diff, and repo-restore.",
-    "It tracks small code/config/doc files, not data folders or source inbox files."
-  ), collapse = "\n")
-}
-
 dina_print_restart_preview <- function(result, root = dina_repo_root()) {
   dina_cli_warn(sprintf("Would reset update %s from scratch.", result$id))
   dina_cli_alert("Restart preview: no changes have been made yet.")
@@ -2041,96 +2196,83 @@ dina_print_restart_preview <- function(result, root = dina_repo_root()) {
     result$log_files,
     result$snapshot_files
   ))
-  dina_cli_alert("Source baseline records will be replaced by a fresh source scan.")
-  dina_cli_alert("Source inbox buckets under `input_data/_new` are kept by default.")
-  dina_print_source_inbox_bucket_summary(result$source_inbox$buckets, folders = result$source_inbox$folders, title = "Source Inbox Buckets", guidance = FALSE, root = root)
+  dina_cli_alert("Source records will be replaced by a fresh source scan.")
+  dina_cli_alert(dina_restart_source_inbox_note(result))
+  dina_cli_alert("Repo history powers repo-status, repo-diff, and repo-restore.")
   if (length(result$repo_baselines %||% character())) {
-    dina_cli_alert(sprintf("Saved repo checkpoints: %s", paste(result$repo_baselines, collapse = ", ")))
+    dina_cli_alert(sprintf("Saved repo history points: %s", paste(result$repo_baselines, collapse = ", ")))
   } else {
-    dina_cli_alert("Saved repo checkpoints: none")
+    dina_cli_alert("Saved repo history points: none")
   }
-  dina_cli_alert("Default: keep the start baseline without saving a pre-restart checkpoint.")
+  dina_cli_alert("Default: restart normally, keep repo history, and save no checkpoint.")
   dina_cli_alert("Restart reuses the same update id; no suffixed session will be created.")
 }
 
-dina_restart_source_inbox_choice <- function(result, input = "stdin", is_terminal = isatty(stdin())) {
+dina_restart_source_inbox_file_count <- function(result) {
   files <- as.integer(result$source_inbox$files %||% dina_source_inbox_bucket_file_count(result$source_inbox$buckets))
-  if (is.na(files)) files <- 0L
-  if (files <= 0L) {
-    dina_cli_alert("Source inbox buckets are empty; restart will keep/recreate the bucket folders.")
-    return(TRUE)
-  }
-  dina_cli_alert(sprintf("Source inbox buckets contain %s incoming file(s). Restart keeps them by default.", files))
-  if (!isTRUE(is_terminal)) {
-    return(TRUE)
-  }
-  choice <- dina_menu_select(
-    title = "Restart Source Inbox",
-    items = list(
-      dina_menu_action(
-        "keep",
-        "Keep source inbox buckets and files",
-        value = "keep",
-        description = "Keep files already dropped into input_data/_new.",
-        help = "Default. Restart resets the session but keeps manual downloads."
-      ),
-      dina_menu_action(
-        "cancel",
-        "Cancel restart",
-        value = "cancel",
-        description = "Stop before changing anything.",
-        help = "Use this to inspect or move inbox files first."
-      )
-    ),
-    prompt = "How should restart handle existing source inbox files?",
-    default = "keep",
-    allow_quit = TRUE,
-    input = input,
-    is_terminal = TRUE
-  )
-  identical(choice, "keep")
+  if (is.na(files)) 0L else files
 }
 
-dina_restart_repo_policy_choice <- function(default = "preserve", input = "stdin", is_terminal = isatty(stdin())) {
-  for (line in strsplit(dina_restart_repo_baseline_help(), "\n", fixed = TRUE)[[1]]) {
-    dina_cli_alert(line)
+dina_restart_source_inbox_note <- function(result) {
+  files <- dina_restart_source_inbox_file_count(result)
+  if (files > 0L) {
+    sprintf("Source inbox: %s incoming file(s) under input_data/_new will be kept.", files)
+  } else {
+    "Source inbox: empty; bucket folders will be kept or recreated."
   }
+}
+
+dina_restart_policy_label <- function(policy) {
+  switch(
+    policy %||% "preserve",
+    preserve_checkpoint = "restart and save checkpoint",
+    replace = "restart with current repo history",
+    "restart normally"
+  )
+}
+
+dina_restart_mode_choice <- function(result = NULL, default = "preserve", input = "stdin", is_terminal = isatty(stdin())) {
   if (!isTRUE(is_terminal)) {
     return(default)
   }
+  prompt_lines <- c(
+    "Choose one restart mode.",
+    if (!is.null(result)) dina_restart_source_inbox_note(result) else character(),
+    "Repo history powers repo-status, repo-diff, and repo-restore."
+  )
   choice <- dina_menu_select(
-    title = "Restart Repo History",
+    title = "Restart Options",
     items = list(
       dina_menu_action(
         "preserve",
-        "Keep start baseline",
+        "Restart normally",
         value = "preserve",
-        description = "Keep the original comparison point; do not save a new checkpoint.",
-        help = "Default. Smaller restart records."
+        description = "Keep source inbox files and repo history; save no checkpoint.",
+        help = "Keeps the existing start baseline used by repo-status, repo-diff, and repo-restore."
       ),
       dina_menu_action(
         "preserve_checkpoint",
-        "Keep baseline and save checkpoint",
+        "Restart and save checkpoint",
         value = "preserve_checkpoint",
-        description = "Keep the start baseline and save current code/config/docs first.",
-        help = "Useful only if you may need to inspect or restore today's pre-restart state."
+        description = "Save current code/config/docs first, then restart.",
+        help = "Use this only when you may need to inspect or restore today's pre-restart repo state."
       ),
       dina_menu_action(
         "replace",
-        "Use current repo as baseline",
+        "Restart with current repo history",
         value = "replace",
         description = "Make the current repo state the new comparison point.",
-        help = "Use only if current code/config/docs should be the new clean start."
+        help = "Replaces the start baseline. Source inbox files are still kept."
       ),
       dina_menu_action(
         "cancel",
         "Cancel restart",
         value = "cancel",
         description = "Leave the update session unchanged.",
-        help = "No files are changed."
+        help = "Choose this if you want to move or clear source inbox files first."
       )
     ),
-    prompt = "Choose how restart handles repo history.",
+    prompt = paste(prompt_lines, collapse = "\n"),
     default = default,
     allow_quit = TRUE,
     input = input,
@@ -2142,9 +2284,68 @@ dina_restart_repo_policy_choice <- function(default = "preserve", input = "stdin
   choice
 }
 
+dina_restart_confirm_choice <- function(policy, input = "stdin", is_terminal = isatty(stdin())) {
+  if (!isTRUE(is_terminal)) {
+    return(NULL)
+  }
+  choice <- dina_menu_select(
+    title = "Confirm Restart",
+    items = list(
+      dina_menu_action(
+        "restart",
+        "Restart now",
+        value = "restart",
+        description = sprintf("Apply: %s.", dina_restart_policy_label(policy))
+      ),
+      dina_menu_action(
+        "back",
+        "Back",
+        value = "back",
+        description = "Return to restart options."
+      ),
+      dina_menu_action(
+        "cancel",
+        "Cancel restart",
+        value = "cancel",
+        description = "Leave the update session unchanged."
+      )
+    ),
+    prompt = "No files are changed until you confirm here.",
+    default = "restart",
+    allow_quit = TRUE,
+    input = input,
+    is_terminal = TRUE
+  )
+  if (identical(choice, "quit") || is.null(choice)) {
+    return("cancel")
+  }
+  choice
+}
+
+dina_restart_interactive_choice <- function(result, default = "preserve", input = "stdin", is_terminal = isatty(stdin())) {
+  if (!isTRUE(is_terminal)) {
+    return(NULL)
+  }
+  repeat {
+    policy <- dina_restart_mode_choice(result, default = default, input = input, is_terminal = TRUE)
+    if (is.null(policy)) {
+      return(NULL)
+    }
+    confirm <- dina_restart_confirm_choice(policy, input = input, is_terminal = TRUE)
+    if (identical(confirm, "back")) {
+      default <- policy
+      next
+    }
+    if (identical(confirm, "restart")) {
+      return(policy)
+    }
+    return(NULL)
+  }
+}
+
 dina_print_restart_completion <- function(result, root = dina_repo_root()) {
   dina_cli_ok(sprintf("Restarted update %s from scratch.", result$id))
-  dina_cli_alert("Source inbox buckets and incoming files were kept.")
+  dina_cli_alert(dina_restart_source_inbox_note(result))
   if (identical(result$repo_policy %||% "", "preserve_checkpoint")) {
     dina_cli_alert("Repo history: kept start baseline and saved a pre-restart checkpoint.")
   } else if (identical(result$repo_policy %||% "", "replace")) {
@@ -2152,7 +2353,6 @@ dina_print_restart_completion <- function(result, root = dina_repo_root()) {
   } else {
     dina_cli_alert("Repo history: kept start baseline; no pre-restart checkpoint saved.")
   }
-  dina_print_source_inbox_bucket_summary(result$source_inbox$buckets, folders = result$source_inbox$folders, title = "Source Inbox Buckets", root = root)
 }
 
 dina_cmd_update <- function(root, args) {
@@ -2404,22 +2604,17 @@ dina_cmd_update <- function(root, args) {
     )
     if (isTRUE(result$dry_run)) {
       dina_print_restart_preview(result, root = root)
-      if (!dina_menu_confirm("Restart Update", "Reset this update session from scratch?", default = FALSE)) {
+      if (!isatty(stdin())) {
         dina_cli_alert("No changes made. Pass --yes for non-interactive restart.")
         return(invisible(result))
       }
-      if (!dina_restart_source_inbox_choice(result)) {
-        dina_cli_alert("No changes made. Move or clear source inbox files manually, then rerun restart.")
-        return(invisible(result))
-      }
-      repo_policy <- dina_restart_repo_policy_choice(default = repo_policy)
+      repo_policy <- dina_restart_interactive_choice(result, default = repo_policy)
       if (is.null(repo_policy)) {
-        dina_cli_alert("No changes made. Restart cancelled before applying options.")
+        dina_cli_alert("No changes made. Restart cancelled before confirmation.")
         return(invisible(result))
       }
-      old_refs <- dina_cli_old_refs_choice(flags, current = dina_session_show_old_refs(dina_load_session(result$id, root)))
       dina_cli_header("Update Restart")
-      result <- dina_update_restart(result$id, root = root, yes = TRUE, repo_policy = repo_policy, show_old_refs = old_refs, progress = dina_cli_progress)
+      result <- dina_update_restart(result$id, root = root, yes = TRUE, repo_policy = repo_policy, show_old_refs = old_refs_flag, progress = dina_cli_progress)
       dina_print_restart_completion(result, root = root)
     } else {
       dina_print_restart_completion(result, root = root)
@@ -3188,20 +3383,50 @@ dina_print_bucket_fetch_results <- function(rows, dry_run = FALSE) {
     dina_cli_warn("No bucket fetch rows matched.")
     return(invisible(rows))
   }
-  dina_cli_cat(sprintf("%-24s %-14s %-64s %s", "source", "status", "target", "detail"))
-  for (i in seq_len(nrow(rows))) {
-    dina_cli_cat(sprintf(
-      "%-24s %-14s %-64s %s",
-      dina_cli_name(rows$source_id[[i]]),
-      dina_cli_dim(rows$status[[i]]),
-      dina_cli_dim(rows$target[[i]]),
-      dina_cli_dim(dina_refresh_shorten(rows$detail[[i]], 80L))
+  statuses <- as.character(rows$status)
+  fetch_statuses <- c("would_fetch", "fetched", "already_present", "failed")
+  fetch_rows <- rows[statuses %in% fetch_statuses, , drop = FALSE]
+  skipped_count <- nrow(rows) - nrow(fetch_rows)
+  if (!nrow(fetch_rows)) {
+    dina_cli_warn("No automatic fetches matched.")
+  }
+  for (i in seq_len(nrow(fetch_rows))) {
+    status <- fetch_rows$status[[i]]
+    label <- switch(
+      status,
+      would_fetch = "would fetch",
+      already_present = "already present",
+      fetched = "fetched",
+      failed = "failed",
+      status
+    )
+    line <- sprintf("%s %s", dina_cli_name(fetch_rows$source_id[[i]]), dina_cli_dim(label))
+    if (identical(status, "failed")) {
+      dina_cli_warn(line)
+    } else if (identical(status, "fetched")) {
+      dina_cli_ok(line)
+    } else {
+      dina_cli_cat(line)
+    }
+    if (nzchar(fetch_rows$target[[i]] %||% "")) {
+      dina_cli_cat(sprintf("  %s %s", dina_cli_dim("target:"), dina_cli_dim(fetch_rows$target[[i]])))
+    }
+    detail <- fetch_rows$detail[[i]] %||% ""
+    show_detail <- identical(status, "failed") || identical(status, "fetched")
+    if (isTRUE(show_detail) && nzchar(detail)) {
+      dina_cli_cat(sprintf("  %s %s", dina_cli_dim("detail:"), dina_cli_dim(dina_refresh_shorten(detail, 96L))))
+    }
+  }
+  if (skipped_count > 0L) {
+    dina_cli_alert(sprintf(
+      "Skipped %s source(s) without automatic fetches. Use `dina buckets detail` for manual bucket instructions.",
+      skipped_count
     ))
   }
   if (isTRUE(dry_run)) {
     dina_cli_ok("Dry-run only: no files were written.")
   }
-  if (any(rows$status %in% c("fetched", "already_present", "would_fetch"))) {
+  if (any(fetch_rows$status %in% c("fetched", "already_present", "would_fetch"))) {
     dina_cli_alert("Next: dina sources review")
     dina_cli_alert("Then: dina sources integrate --incoming")
   }
