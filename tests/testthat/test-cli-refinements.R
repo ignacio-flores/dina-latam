@@ -71,6 +71,15 @@ test_that("shared menu helpers support fallback selection, quit, defaults, and d
 
   expect_match(dina_menu_control_help(items), "Left/Right back/next")
 
+  open_items <- list(
+    dina_menu_action("topic", "Topic", value = "topic", right = "open-topic")
+  )
+  expect_match(dina_menu_control_help(dina_menu_normalize(open_items)), "Right open")
+  con <- textConnection("right\n")
+  capture.output(opened <- dina_menu_select("Menu", open_items, input = con, is_terminal = TRUE))
+  close(con)
+  expect_equal(opened, "open-topic")
+
   compact_items <- list(
     dina_menu_action("keep", "Keep", value = "keep"),
     dina_menu_action("edit", "Edit", value = "edit"),
@@ -105,11 +114,13 @@ test_that("shared menu helpers support fallback selection, quit, defaults, and d
 
   dimmed <- dina_menu_lines(
     "Styled Menu",
-    list(dina_menu_action("a", "Action A", value = "a", description = "Secondary detail.")),
+    list(dina_menu_action("a", "Action A", value = "a", description = "Secondary detail.", command = "dina buckets detail")),
     prompt = "Prompt detail."
   )
   expect_true(dina_cli_dim("  Prompt detail.") %in% dimmed)
   expect_true(dina_cli_dim("      Secondary detail.") %in% dimmed)
+  expect_true(any(grepl(" -- ", dimmed, fixed = TRUE)))
+  expect_true(any(grepl("$ dina buckets detail", dimmed, fixed = TRUE)))
   expect_true(any(grepl("^\\s+1\\. Action A", dimmed)))
 
   con <- textConnection("\n")
@@ -125,6 +136,135 @@ test_that("shared menu helpers support fallback selection, quit, defaults, and d
   capture.output(answer_no <- dina_menu_confirm("Confirm", "Continue?", default = TRUE, input = con, is_terminal = TRUE))
   close(con)
   expect_false(answer_no)
+})
+
+test_that("raw menu open failures fall back quietly", {
+  source_cli_for_tests()
+  old_state <- dina_menu_tty_state
+  old_open <- dina_menu_open_tty_binary
+  on.exit({
+    assign("dina_menu_tty_state", old_state, envir = environment(dina_menu_select_raw))
+    assign("dina_menu_open_tty_binary", old_open, envir = environment(dina_menu_select_raw))
+  }, add = TRUE)
+  assign("dina_menu_tty_state", function() "state", envir = environment(dina_menu_select_raw))
+  assign("dina_menu_open_tty_binary", function() NULL, envir = environment(dina_menu_select_raw))
+
+  items <- list(dina_menu_action("a", "Action A", value = "a"))
+  warnings <- character()
+  capture.output(result <- withCallingHandlers(
+    dina_menu_select_raw("Menu", items),
+    warning = function(w) {
+      warnings <<- c(warnings, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    }
+  ))
+  expect_equal(warnings, character())
+  expect_true(is.null(result))
+})
+
+test_that("parameter edit uses line input for save, keep, cancel, and quit", {
+  source_cli_for_tests()
+  old_raw <- dina_menu_edit_text_raw
+  on.exit(assign("dina_menu_edit_text_raw", old_raw, envir = environment(dina_menu_edit_text)), add = TRUE)
+  assign(
+    "dina_menu_edit_text_raw",
+    function(...) stop("raw edit should not be called", call. = FALSE),
+    envir = environment(dina_menu_edit_text)
+  )
+
+  con <- textConnection("ARG,BRA\n")
+  save_output <- capture.output(saved <- dina_menu_edit_text("Edit Parameter", "Enter countries", current = "COL,ARG", input = con, is_terminal = TRUE))
+  close(con)
+  expect_equal(saved$value, "ARG,BRA")
+  expect_true(saved$changed)
+  expect_match(paste(save_output, collapse = "\n"), "Current:.*COL,ARG")
+
+  con <- textConnection("\n")
+  capture.output(kept <- dina_menu_edit_text("Edit Parameter", "Enter countries", current = "COL,ARG", input = con, is_terminal = TRUE))
+  close(con)
+  expect_equal(kept$value, "COL,ARG")
+  expect_false(kept$changed)
+
+  con <- textConnection(".\n")
+  capture.output(cancelled <- dina_menu_edit_text("Edit Parameter", "Enter countries", current = "COL,ARG", input = con, is_terminal = TRUE))
+  close(con)
+  expect_true(cancelled$cancel)
+  expect_equal(cancelled$value, "COL,ARG")
+
+  con <- textConnection("q\n")
+  capture.output(quit <- dina_menu_edit_text("Edit Parameter", "Enter countries", current = "COL,ARG", input = con, is_terminal = TRUE))
+  close(con)
+  expect_true(quit$quit)
+  expect_equal(quit$value, "COL,ARG")
+})
+
+test_that("command catalog exposes help themes and prompted commands", {
+  source_cli_for_tests()
+  catalog <- dina_command_catalog(year = "2026")
+  expect_equal(
+    vapply(catalog, function(entry) entry$label, character(1)),
+    c("Annual update", "Source data", "Pipeline", "Setup and config", "Maintenance")
+  )
+  keys <- vapply(dina_command_flatten(catalog), function(entry) entry$key, character(1))
+  expect_true(all(c("update-start", "update-parameters", "sources-show", "tasks-why", "doctor", "audit-paths") %in% keys))
+  source_index <- which(vapply(catalog, function(entry) identical(entry$key, "source-data"), logical(1)))[[1]]
+  source_entries <- catalog[[source_index]]$children
+  expect_equal(
+    vapply(source_entries[seq_len(5)], function(entry) entry$key, character(1)),
+    c("buckets", "buckets-detail", "buckets-urls", "buckets-uses", "buckets-fetch-dry-run")
+  )
+  expect_false("inbox-guide" %in% vapply(source_entries, function(entry) entry$key, character(1)))
+
+  start <- dina_command_find_by_command("dina update start 2026", catalog)
+  expect_equal(start$key, "update-start")
+  expect_equal(dina_command_template(start), "dina update start 2026")
+
+  proposal <- list(command = "dina update start 2026", comment = "Create the active annual update session.", next_step = "Then run `dina update roadmap`.")
+  browser_entries <- dina_command_browser_entries(proposal, catalog)
+  expect_equal(browser_entries[[1]]$key, "recommended-action")
+  expect_equal(browser_entries[[1]]$label, "Recommended action")
+  expect_equal(dina_command_template(browser_entries[[1]]), "dina update start 2026")
+
+  unknown <- dina_command_browser_entries(list(command = "dina custom command", comment = "Custom.", next_step = "Review."), catalog)[[1]]
+  expect_true(unknown$confirm)
+})
+
+test_that("command prompts fill missing values and preview completed command", {
+  source_cli_for_tests()
+  catalog <- dina_command_catalog(year = "2026")
+  task_entry <- Filter(function(entry) identical(entry$key, "tasks-why"), dina_command_flatten(catalog))[[1]]
+
+  con <- textConnection("07d\n")
+  prompt_output <- capture.output(resolved <- dina_command_collect_args(task_entry, input = con, is_terminal = TRUE))
+  close(con)
+  expect_equal(resolved$args, c("tasks", "why", "07d"))
+  expect_equal(resolved$command, "dina tasks why 07d")
+  expect_true(resolved$prompted)
+  expect_match(paste(prompt_output, collapse = "\n"), "Task selector")
+  expect_match(paste(prompt_output, collapse = "\n"), "`q` quit")
+
+  con <- textConnection("q\n")
+  capture.output(quit <- dina_command_collect_args(task_entry, input = con, is_terminal = TRUE))
+  close(con)
+  expect_equal(quit$status, "quit")
+
+  con <- textConnection(".\n")
+  capture.output(back <- dina_command_collect_args(task_entry, input = con, is_terminal = TRUE))
+  close(con)
+  expect_equal(back$status, "back")
+
+  bucket_entry <- Filter(function(entry) identical(entry$key, "buckets-fetch-source"), dina_command_flatten(catalog))[[1]]
+  con <- textConnection("chl-pit-total\n")
+  capture.output(bucket_resolved <- dina_command_collect_args(bucket_entry, input = con, is_terminal = TRUE))
+  close(con)
+  expect_equal(bucket_resolved$command, "dina buckets fetch --source chl-pit-total --dry-run")
+
+  con <- textConnection("\n")
+  preview_output <- capture.output(confirmed <- dina_command_confirm_run(task_entry, resolved, input = con, is_terminal = TRUE))
+  close(con)
+  expect_true(confirmed)
+  expect_match(paste(preview_output, collapse = "\n"), "Proposed command:")
+  expect_match(paste(preview_output, collapse = "\n"), "dina tasks why 07d")
 })
 
 test_that("task selector aliases resolve numbered tasks and blocks", {
@@ -318,23 +458,49 @@ test_that("setup command installs a wrapper that points back to this checkout", 
   expect_match(paste(output, collapse = "\n"), "DINA-LatAm CLI")
 })
 
-test_that("dashboard offers executable numbered actions without prompting in non-interactive runs", {
+test_that("dashboard prints project status, recommendation, and compact choices", {
   root <- mini_repo()
   result <- run_dina_cli(character(), root = root)
   expect_equal(result$status, 0L)
   year <- format(Sys.Date(), "%Y")
-  expect_match(result$output, "No active update session.")
-  expect_match(result$output, sprintf("Recommended next action: Start an update with `dina update start %s`", year))
-  expect_match(result$output, "Useful actions:")
-  expect_match(result$output, sprintf("1\\. Start update - dina update start %s", year))
-  expect_equal(length(gregexpr(sprintf("dina update start %s", year), result$output, fixed = TRUE)[[1]][gregexpr(sprintf("dina update start %s", year), result$output, fixed = TRUE)[[1]] > 0]), 2L)
-  expect_match(result$output, "2\\. Run doctor - dina doctor")
-  expect_match(result$output, "3\\. Open roadmap - dina update roadmap")
-  expect_match(result$output, "4\\. Open next gate - dina update gate")
-  expect_match(result$output, "5\\. Show source inbox guide - dina sources inbox guide")
-  expect_match(result$output, "6\\. List tasks - dina tasks list")
-  expect_match(result$output, "7\\. Preview run - dina run --dry-run")
-  expect_false(grepl("Choose an action number", result$output, fixed = TRUE))
+  expect_match(result$output, "DINA-LatAm CLI")
+  expect_match(result$output, "Project status:")
+  expect_match(result$output, "Project: mini")
+  expect_match(result$output, "Git: not a Git checkout")
+  expect_match(result$output, "Active update: none")
+  expect_match(result$output, "Status: no active update")
+  expect_match(result$output, "Next recommended action:")
+  expect_match(result$output, sprintf("dina update start %s", year))
+  expect_match(result$output, "Common commands:")
+  expect_match(result$output, "dina doctor")
+  expect_match(result$output, "dina update roadmap")
+  expect_match(result$output, "dina tasks list")
+  expect_match(result$output, "Interactive options:")
+  expect_match(result$output, "\\[n\\] Navigate available commands")
+  expect_match(result$output, "\\[m\\] Open main menu")
+  expect_false(grepl("Command themes:", result$output, fixed = TRUE))
+  expect_false(grepl("Browse command groups", result$output, fixed = TRUE))
+})
+
+test_that("command navigator is available through explicit top-level commands", {
+  root <- mini_repo()
+  commands <- run_dina_cli(c("commands"), root = root)
+  expect_equal(commands$status, 0L)
+  expect_match(commands$output, "DINA Command Navigator")
+  expect_match(commands$output, "Recommended action:")
+  expect_match(commands$output, "Command themes:")
+  expect_match(commands$output, "Annual update:")
+  expect_match(commands$output, "Source data:")
+  expect_match(commands$output, "Why task")
+  expect_match(commands$output, "\\$ dina tasks why <TASK>")
+
+  navigate <- run_dina_cli(c("navigate"), root = root)
+  expect_equal(navigate$status, 0L)
+  expect_match(navigate$output, "DINA Command Navigator")
+
+  menu_commands <- run_dina_cli(c("menu", "commands"), root = root)
+  expect_equal(menu_commands$status, 0L)
+  expect_match(menu_commands$output, "DINA Command Navigator")
 })
 
 test_that("main and config help explain detailed topics and subtleties", {
@@ -342,6 +508,7 @@ test_that("main and config help explain detailed topics and subtleties", {
   expect_equal(main$status, 0L)
   expect_match(main$output, "DINA-LatAm CLI")
   expect_match(main$output, "Use `dina help COMMAND`")
+  expect_match(main$output, "dina commands")
   expect_match(main$output, "\\[read-only\\]")
   expect_match(main$output, "\\[writes session\\]")
   expect_match(main$output, "\\[writes files\\]")
@@ -662,6 +829,28 @@ test_that("update roadmap and gate records provide the update progress model", {
   repo_diff <- run_dina_cli(c("update", "repo-diff", "--stat", "--files"), root = root)
   expect_equal(repo_diff$status, 0L)
   expect_match(repo_diff$output, "Files:")
+
+  missing_repo_root <- mini_repo()
+  missing_session <- list(
+    id = "2026-update-no-repo",
+    year = "2026",
+    status = "initialized",
+    created_at = "2026-01-01T00:00:00+0000",
+    updated_at = "2026-01-01T00:00:00+0000",
+    repo_state = list(baselines = character())
+  )
+  dina_save_session(missing_session, missing_repo_root)
+  dir.create(dirname(dina_active_update_file(missing_repo_root)), recursive = TRUE, showWarnings = FALSE)
+  writeLines(missing_session$id, dina_active_update_file(missing_repo_root))
+  missing_status <- run_dina_cli(c("update", "repo-status"), root = missing_repo_root)
+  expect_equal(missing_status$status, 0L)
+  expect_match(missing_status$output, "No captured repo baseline named `start`")
+  expect_match(missing_status$output, "Available repo baselines: none")
+  missing_diff <- run_dina_cli(c("update", "repo-diff", "--files"), root = missing_repo_root)
+  expect_equal(missing_diff$status, 0L)
+  expect_match(missing_diff$output, "Update Repo Diff")
+  expect_match(missing_diff$output, "No captured repo baseline named `start`")
+
   restore_preview <- run_dina_cli(c("update", "repo-restore", "--dry-run"), root = root)
   expect_equal(restore_preview$status, 0L)
   expect_match(restore_preview$output, "would_restore[[:space:]]+code/Stata/01a.do")
@@ -722,40 +911,40 @@ test_that("parameter suggestions use previous-series canonical and inbox files",
   expect_equal(suggestions[["export_validation.previous_update_date"]] %||% "", "")
 })
 
-test_that("parameter wizard fallback can quit without marking checks", {
+test_that("parameters gate opens the update yaml without marking checks", {
   root <- mini_repo()
   source_cli_for_tests()
   session <- dina_update_start("2026", root = root)
-  con <- textConnection(c("1", "1", "1", "q"))
-  on.exit(close(con), add = TRUE)
-  output <- capture.output(dina_update_parameters_wizard(session, root = root, input = con, is_terminal = TRUE))
+  old_editor <- Sys.getenv("EDITOR", unset = NA_character_)
+  on.exit({
+    if (is.na(old_editor)) Sys.unsetenv("EDITOR") else Sys.setenv(EDITOR = old_editor)
+  }, add = TRUE)
+  Sys.setenv(EDITOR = "true")
+
+  output <- capture.output(dina_update_parameters_wizard(session, root = root, is_terminal = TRUE), type = "message")
 
   session <- dina_load_session(root = root)
-  expect_match(paste(output, collapse = "\n"), "1\\. Accept suggestion")
-  expect_false(grepl("Optional working override edits", paste(output, collapse = "\n"), fixed = TRUE))
-  expect_equal(dina_session_config(session, root, expand_env = FALSE)$years$last, 2024L)
+  text <- paste(output, collapse = "\n")
+  expect_match(text, "Opening the active update YAML")
+  expect_match(text, "Update Config Edit")
+  expect_match(text, "config.override.yml")
+  expect_true(file.exists(dina_session_config_override_path(session$id, root)))
+  expect_equal(dina_session_config(session, root, expand_env = FALSE)$years$last, 2023L)
   expect_equal(dina_gate_check_record(session, "parameters", "year-scope")$status %||% "pending", "pending")
 })
 
-test_that("parameter wizard edit fallback saves or cancels current values", {
+test_that("update config edit prepares a directly editable yaml override", {
   root <- mini_repo()
-  source_cli_for_tests()
   session <- dina_update_start("2026", root = root)
-  con <- textConnection(c("2", "ARG,BRA", "q"))
-  on.exit(close(con), add = TRUE)
-  edit_output <- capture.output(dina_update_parameters_wizard(session, root = root, input = con, is_terminal = TRUE))
-  expect_match(paste(edit_output, collapse = "\n"), "Type a replacement value")
-  session <- dina_load_session(root = root)
-  expect_equal(dina_session_config(session, root, expand_env = FALSE)$countries, c("ARG", "BRA"))
+  result <- run_dina_cli(c("update", "config", "edit"), root = root, env = "EDITOR=true")
+  expect_equal(result$status, 0L)
+  expect_match(result$output, "Update Config Edit")
+  expect_match(result$output, "Created from the active effective config")
 
-  root_cancel <- mini_repo()
-  session_cancel <- dina_update_start("2026", root = root_cancel)
-  con_cancel <- textConnection(c("2", ".", "q"))
-  on.exit(close(con_cancel), add = TRUE)
-  cancel_output <- capture.output(dina_update_parameters_wizard(session_cancel, root = root_cancel, input = con_cancel, is_terminal = TRUE))
-  expect_match(paste(cancel_output, collapse = "\n"), "`.` cancels this edit")
-  session_cancel <- dina_load_session(root = root_cancel)
-  expect_equal(dina_session_config(session_cancel, root_cancel, expand_env = FALSE)$countries, c("COL", "ARG"))
+  session <- dina_load_session(root = root)
+  override <- dina_config_override(session, root)
+  expect_equal(override$countries, c("COL", "ARG"))
+  expect_equal(override$years$last, 2023L)
 })
 
 test_that("tasks list shows task language", {

@@ -33,6 +33,11 @@ dina_cli_dim <- function(text) {
   if (dina_cli_has("cli")) cli::col_grey(text) else text
 }
 
+dina_cli_command <- function(text) {
+  text <- as.character(text)
+  if (dina_cli_has("cli")) cli::col_cyan(text) else text
+}
+
 dina_cli_cat <- function(...) {
   cat(paste0(...), "\n", sep = "")
 }
@@ -83,9 +88,13 @@ dina_help_text <- function(topic = NULL) {
 Usage:
   dina
   dina help [TOPIC]
+  dina commands
+  dina navigate
+  dina menu commands
   dina COMMAND [SUBCOMMAND] [OPTIONS]
 
 Plain `dina` opens the guided dashboard and recommends the next action.
+Use `dina commands` or `dina navigate` to browse available commands.
 Use `dina help workflow` for the annual update recipe.
 Use `dina help COMMAND` for command details.
 After `dina setup command`, `dina` and `./bin/dina` are equivalent.
@@ -106,18 +115,23 @@ Annual update:
   `update finalize [--force] [--yes]` [writes session/config] freeze records
 
 Source data:
-  `sources status|scan|diff|review`   [read-only] inspect source coverage
-  `sources list|show ID`              [read-only] inspect source registry
   `buckets [detail|urls|uses|fetch]`   [read-only/writes inbox] source buckets
-  `sources inbox guide|init`          [read-only/writes dirs] manual inboxes
-  `sources refresh [--dry-run]`       [read-only/writes session] fetch URL/ZIP
+  `sources review`                    [read-only] inspect staged/_new files
   `sources integrate --incoming`      [writes files] accept _new inbox files
+  `sources list|show ID`              [read-only] inspect source registry
+  `sources status|scan|diff`          [read-only] inspect source coverage
+  `sources refresh [--dry-run]`       [read-only/writes session] fetch URL/ZIP
+  `sources inbox guide|init`          [read-only/writes dirs] compatibility
   `sources integrate`                 [writes files] copy approved inputs
 
 Pipeline:
   `tasks list|why TASK`               [read-only] inspect task freshness
   `run ... --dry-run`                 [read-only] preview selected scripts
   `run ... --execute`                 [writes files] run selected scripts
+
+Navigation:
+  `commands|navigate`                 [interactive] browse available commands
+  `menu commands`                     [interactive] open command navigator
 
 Setup and config:
   `doctor`                            [read-only] check local readiness
@@ -158,6 +172,8 @@ Notes:
   never required. For example, `dina help` and `dina -- help` both work.
 
 Examples:
+  dina
+  dina commands
   dina help workflow
   dina update start YEAR
   dina update roadmap
@@ -253,8 +269,45 @@ Task selectors:
       `config/dina.yml`.
 
 More help:
-  dina help update     dina help sources     dina help run
-  dina help tasks      dina help config      dina help data
+  dina help workflow   dina help commands   dina help update
+  dina help sources    dina help run        dina help tasks
+  dina help config     dina help data
+",
+    commands = "Usage:
+  dina commands
+  dina navigate
+  dina menu commands
+
+What it does:
+  Opens the command navigator deliberately. The navigator groups documented
+  CLI commands by workflow area, prompts for required placeholders, previews
+  completed commands when needed, and can run the selected command.
+
+What it changes:
+  The navigator itself changes nothing. A selected command may be read-only or
+  mutating; mutating commands still use their normal command behavior.
+
+Non-interactive use:
+  In scripts, these commands print the command themes and templates instead of
+  opening an interactive menu.
+
+Examples:
+  dina commands
+  dina navigate
+  dina menu commands
+",
+    navigate = dina_help_text("commands"),
+    menu = "Usage:
+  dina menu
+  dina menu commands
+
+What it does:
+  `dina menu` opens the compact dashboard menu. `dina menu commands` opens the
+  full command navigator.
+
+Examples:
+  dina menu
+  dina menu commands
 ",
     doctor = "Usage:
   dina doctor
@@ -303,7 +356,7 @@ Examples:
   dina update mark GATE/CHECK --status STATUS [--note TEXT]
   dina update unmark GATE/CHECK
   dina update prefs [old-refs on|off]
-  dina update config show|set
+  dina update config show|set|edit
   dina update repo-status [--baseline NAME]
   dina update repo-diff [--stat] [--patch] [--files] [--baseline NAME]
   dina update repo-restore [--dry-run] [--yes] [--baseline NAME]
@@ -338,17 +391,17 @@ Subcommands:
   gate [GATE]                     Prints detailed checks, source families,
                                   inbox files, task ids, and suggested commands
                                   for one gate. With no GATE, shows the next
-                                  unfinished gate. `gate parameters` is guided
-                                  in an interactive terminal and read-only in
-                                  scripts.
+                                  unfinished gate. `gate parameters` opens the
+                                  active update YAML in an interactive terminal
+                                  and is read-only in scripts.
   mark GATE/CHECK                 Records a gate check as done, deferred, or
                                   needs-code.
   unmark GATE/CHECK               Clears a previously recorded gate check.
   prefs                           Shows session preferences.
   prefs old-refs on|off           Shows or hides old-reference notes on gate
                                   pages.
-  config show|set                 Inspects effective config or writes only the
-                                  active session override. Benchmark config
+  config show|set|edit            Inspects, edits, or writes only the active
+                                  session YAML override. Benchmark config
                                   changes only through finalize promotion.
   repo-status                     Compares current repo files with a captured
                                   session baseline.
@@ -381,7 +434,8 @@ Subcommands:
 What it changes:
   `start`, source commands during a session, `restart`, `delete`, and `finalize`
   write session records or remove session files. `mark` and `unmark` write gate
-  records. `update config set` writes only the working override. `repo-restore --yes`
+  records. `update config set` and `update config edit` write only the working
+  override. `repo-restore --yes`
   restores captured code/config/docs outside excluded data roots. `resume`,
   `status`, `roadmap`, `gate`, `repo-status`, `repo-diff`, and `list` inspect.
 
@@ -410,6 +464,7 @@ Examples:
   dina update mark tax-admin/raw-accepted --status done
   dina update unmark tax-admin/raw-accepted
   dina update prefs old-refs off
+  dina update config edit
   dina update config set years.last YEAR
   dina update repo-status
   dina update repo-diff --stat --files
@@ -451,8 +506,8 @@ What it manages:
   Source catalog inspection, URL/ZIP fetching, staged-file review, and copying
   approved inputs into canonical `input_data/` paths. Update progress itself is
   recorded with `dina update mark GATE/CHECK`.
-  Use `dina buckets` for central `input_data/_new` buckets, expected files,
-  source URLs, code usage, and supported public fetchers.
+  Preferred path: use `dina buckets` for central `input_data/_new` buckets,
+  expected files, source URLs, code usage, and supported public fetchers.
 
   Subcommands:
   list                            Shows compact registry rows: id, family,
@@ -462,7 +517,8 @@ What it manages:
                                   including URLs, canonical paths, scripts,
                                   checks, and notes.
   methods                         Explains source acquisition method labels.
-  inbox guide                     Compatibility view for `dina buckets detail`.
+  inbox guide                     Compatibility view for `dina buckets detail`;
+                                  prefer bucket commands in guided workflows.
   inbox init                      Creates missing central inbox buckets and can
                                   copy old colocated `_new` files into them.
   status                          Compares current canonical source files with
@@ -536,18 +592,20 @@ Methods:
   wid                             Data currently acquired through Stata/WID calls.
 
 Examples:
-  dina sources list --urls
-  dina sources list --country CHL --urls
-  dina sources list country CHL
-  dina sources list family admin-data
-  dina sources list method manual
-  dina sources methods
   dina buckets
   dina buckets detail
   dina buckets urls
   dina buckets uses
   dina buckets fetch --dry-run
   dina buckets detail --family admin-data
+  dina sources review
+  dina sources integrate --incoming --source chl-pit-total
+  dina sources list --urls
+  dina sources list --country CHL --urls
+  dina sources list country CHL
+  dina sources list family admin-data
+  dina sources list method manual
+  dina sources methods
   dina sources show country-sna-bra --urls
   dina sources show col-pit-total --urls
   dina sources show surveys-cepal --urls
@@ -558,8 +616,6 @@ Examples:
   dina sources refresh --dry-run --urls
   dina sources refresh --source chl-pit-total
   dina sources list method manual --urls
-  dina sources review
-  dina sources integrate --incoming --source chl-pit-total
   dina sources integrate --source chl-pit-total
   dina sources integrate --all --yes
   dina sources scan --deep
@@ -888,7 +944,7 @@ dina_cli_prompt_value <- function(prompt, default = "", input = "stdin", is_term
   if (nzchar(answer)) answer else default
 }
 
-dina_menu_action <- function(key, label, value = key, description = "", group = "", disabled = FALSE, help = "", hidden = FALSE) {
+dina_menu_action <- function(key, label, value = key, description = "", group = "", disabled = FALSE, help = "", hidden = FALSE, right = NULL, command = "") {
   list(
     key = key,
     label = label,
@@ -897,7 +953,9 @@ dina_menu_action <- function(key, label, value = key, description = "", group = 
     group = group,
     disabled = isTRUE(disabled),
     help = help,
-    hidden = isTRUE(hidden)
+    hidden = isTRUE(hidden),
+    right = right,
+    command = command
   )
 }
 
@@ -922,6 +980,8 @@ dina_menu_normalize <- function(items) {
     item$disabled <- isTRUE(item$disabled)
     item$hidden <- isTRUE(item$hidden)
     item$help <- item$help %||% item$details %||% ""
+    item$right <- item$right %||% NULL
+    item$command <- item$command %||% ""
     item
   })
 }
@@ -985,6 +1045,13 @@ dina_menu_terminal_available <- function(input = "stdin", is_terminal = isatty(s
     file.exists("/dev/tty")
 }
 
+dina_menu_open_tty_binary <- function() {
+  suppressWarnings(tryCatch(
+    file("/dev/tty", open = "rb", raw = TRUE),
+    error = function(e) NULL
+  ))
+}
+
 dina_menu_tty_state <- function() {
   suppressWarnings(tryCatch(
     system("stty -g < /dev/tty", intern = TRUE, ignore.stderr = TRUE),
@@ -1020,7 +1087,12 @@ dina_menu_control_help <- function(items = NULL) {
   if (!is.null(items)) {
     has_back <- !is.na(dina_menu_back_index(items))
     has_next <- !is.na(dina_menu_next_index(items))
-    if (has_back && has_next) {
+    has_right <- any(!vapply(items, function(item) is.null(item$right), logical(1)))
+    if (has_right && has_back) {
+      parts <- c(parts, "Left back", "Right open")
+    } else if (has_right) {
+      parts <- c(parts, "Right open")
+    } else if (has_back && has_next) {
       parts <- c(parts, "Left/Right back/next")
     } else if (has_back) {
       parts <- c(parts, "Left back")
@@ -1078,6 +1150,9 @@ dina_menu_lines <- function(title, items, selected = NULL, prompt = "Choose an a
     marker <- if (!is.null(selected) && identical(i, selected)) ">" else " "
     disabled <- if (isTRUE(item$disabled)) dina_cli_dim(" (unavailable)") else ""
     line <- sprintf("%s %2s. %s%s", marker, display_i, item$label, disabled)
+    if (nzchar(item$command %||% "")) {
+      line <- sprintf("%s -- %s", line, dina_cli_command(sprintf("$ %s", item$command)))
+    }
     lines <- c(lines, line)
     if (nzchar(item$description %||% "")) {
       lines <- c(lines, dina_cli_dim(sprintf("      %s", item$description)))
@@ -1127,6 +1202,9 @@ dina_menu_select_numbered <- function(title, items, prompt = "Choose an action",
       next
     }
     if (answer %in% c("n", "next", "right", "r", "skip")) {
+      if (!is.na(selected_default) && !is.null(items[[selected_default]]$right)) {
+        return(items[[selected_default]]$right)
+      }
       idx <- dina_menu_next_index(items)
       if (!is.na(idx)) {
         return(dina_menu_action_value(items[[idx]]))
@@ -1152,7 +1230,10 @@ dina_menu_select_raw <- function(title, items, prompt = "Choose an action", defa
   if (!length(state)) {
     return(NULL)
   }
-  con <- file("/dev/tty", open = "rb")
+  con <- dina_menu_open_tty_binary()
+  if (is.null(con)) {
+    return(NULL)
+  }
   on.exit(close(con), add = TRUE)
   dina_menu_set_raw()
   on.exit({
@@ -1187,6 +1268,7 @@ dina_menu_select_raw <- function(title, items, prompt = "Choose an action", defa
       idx <- dina_menu_back_index(items)
       if (!is.na(idx)) return(dina_menu_action_value(items[[idx]]))
     } else if (identical(key, "\033[C")) {
+      if (!is.null(items[[selected]]$right)) return(items[[selected]]$right)
       idx <- dina_menu_next_index(items)
       if (!is.na(idx)) return(dina_menu_action_value(items[[idx]]))
     } else if (identical(key, "\r") || identical(key, "\n")) {
@@ -1298,7 +1380,10 @@ dina_menu_edit_text_raw <- function(title, prompt, current = "") {
   if (!length(state)) {
     return(NULL)
   }
-  con <- file("/dev/tty", open = "rb")
+  con <- dina_menu_open_tty_binary()
+  if (is.null(con)) {
+    return(NULL)
+  }
   on.exit(close(con), add = TRUE)
   dina_menu_set_raw_poll()
   on.exit(dina_menu_restore_tty(state), add = TRUE)
@@ -1376,12 +1461,6 @@ dina_menu_edit_text <- function(title = "Edit", prompt, current = "", input = "s
   current <- current %||% ""
   if (!isTRUE(is_terminal)) {
     return(list(value = current, quit = FALSE, cancel = FALSE, changed = FALSE))
-  }
-  if (dina_menu_terminal_available(input, is_terminal)) {
-    raw <- dina_menu_edit_text_raw(title = title, prompt = prompt, current = current)
-    if (!is.null(raw)) {
-      return(raw)
-    }
   }
   dina_cli_cat("")
   dina_cli_cat(title)
@@ -1644,96 +1723,79 @@ dina_update_parameters_print_override_status <- function(session, root = dina_re
   }
 }
 
+dina_open_editor <- function(path, editor = Sys.getenv("EDITOR", unset = "vi")) {
+  editor <- trimws(editor %||% "")
+  if (!nzchar(editor)) {
+    editor <- "vi"
+  }
+  parts <- strsplit(editor, "[[:space:]]+")[[1]]
+  command <- parts[[1]]
+  args <- c(parts[-1], path)
+  status <- system2(command, args)
+  if (is.null(status)) {
+    status <- 0L
+  }
+  as.integer(status)
+}
+
+dina_prepare_session_config_yaml <- function(session, root = dina_repo_root()) {
+  if (is.null(session)) {
+    stop("No active update.", call. = FALSE)
+  }
+  override_path <- dina_session_config_override_path(session$id, root)
+  created <- !file.exists(override_path)
+  if (isTRUE(created)) {
+    session <- dina_save_session_config_override(
+      session,
+      dina_session_config(session, root, expand_env = FALSE),
+      root
+    )
+  }
+  list(session = session, path = override_path, created = created)
+}
+
+dina_update_config_edit <- function(
+    session,
+    root = dina_repo_root(),
+    editor = Sys.getenv("EDITOR", unset = "vi"),
+    open_editor = isatty(stdin()) || nzchar(Sys.getenv("EDITOR", unset = ""))) {
+  prepared <- dina_prepare_session_config_yaml(session, root)
+  session <- prepared$session
+  path <- prepared$path
+  dina_cli_header("Update Config Edit")
+  dina_cli_alert(sprintf("Update YAML: %s", dina_relative(path, root)))
+  if (isTRUE(prepared$created)) {
+    dina_cli_alert("Created from the active effective config so the file can be edited directly.")
+  }
+  if (isTRUE(open_editor)) {
+    status <- dina_open_editor(path, editor = editor)
+    if (!identical(status, 0L)) {
+      dina_cli_warn(sprintf("Editor exited with status %s.", status))
+    }
+  } else {
+    dina_cli_alert("Run from an interactive terminal or set EDITOR to open the file automatically.")
+  }
+  session$config_override <- dina_relative(path, root)
+  session$config_override_hash <- dina_hash_file(path)
+  session$updated_at <- dina_now()
+  dina_save_session(session, root)
+  dina_update_parameters_print_override_status(session, root)
+  dina_cli_alert("Review with `dina update config show`.")
+  invisible(dina_load_session(root = root))
+}
+
 dina_update_parameters_wizard <- function(session, root = dina_repo_root(), input = "stdin", is_terminal = isatty(stdin())) {
   if (!isTRUE(is_terminal)) {
     dina_print_update_gate(session, root, "parameters")
+    dina_cli_alert("To edit parameters interactively, run `dina update config edit`.")
     return(invisible(session))
   }
 
   dina_cli_header("Gate: parameters")
-  dina_cli_alert("This gate edits only the active working override. The benchmark config is untouched until finalize promotion.")
+  dina_cli_alert("Opening the active update YAML. The benchmark config is untouched until finalize promotion.")
   dina_print_parameter_summary(session, root)
-
-  sections <- dina_parameter_sections()
-  total <- length(dina_all_parameter_specs())
-  position <- list(section = 1L, param = 1L, done = FALSE)
-  quit <- FALSE
-  repeat {
-    if (isTRUE(position$done) || position$section > length(sections)) {
-      break
-    }
-    config <- dina_session_config(session, root, expand_env = FALSE)
-    suggestions <- dina_parameter_suggestions(config, root)
-    section <- sections[[position$section]]
-    spec <- section$params[[position$param]]
-    index <- sum(vapply(sections[seq_len(position$section - 1L)], function(x) length(x$params), integer(1))) + position$param
-    current <- dina_parameter_display_value(dina_parameter_value(config, spec$key))
-    suggestion <- dina_parameter_suggestion(suggestions, spec$key)
-    action <- dina_parameter_choose_action(section$title, spec, current, suggestion, index, total, input = input, is_terminal = is_terminal)
-    if (identical(action, "quit")) {
-      quit <- TRUE
-      break
-    }
-    if (identical(action, "previous")) {
-      position <- dina_parameter_move(position, "previous")
-      next
-    }
-    if (identical(action, "next") || identical(action, "keep")) {
-      position <- dina_parameter_move(position, "next")
-      next
-    }
-    if (identical(action, "accept") && nzchar(suggestion)) {
-      session <- dina_session_config_set(session, root = root, key = spec$key, value = suggestion)
-      position <- dina_parameter_move(position, "next")
-      next
-    }
-    if (identical(action, "edit")) {
-      value_result <- dina_menu_edit_text(
-        title = "Edit Parameter",
-        prompt = sprintf("Enter %s (%s)", spec$key, spec$input),
-        current = current,
-        input = input,
-        is_terminal = is_terminal,
-        allow_quit = TRUE
-      )
-      value <- value_result$value
-      if (isTRUE(value_result$quit)) {
-        quit <- TRUE
-        break
-      }
-      if (isTRUE(value_result$cancel)) {
-        next
-      }
-      if (isTRUE(value_result$changed)) {
-        session <- dina_session_config_set(session, root = root, key = spec$key, value = value)
-      }
-      position <- dina_parameter_move(position, "next")
-    }
-  }
-
-  if (isTRUE(quit)) {
-    dina_update_parameters_print_override_status(session, root)
-    dina_cli_warn("Exited parameters gate before marking checks.")
-    return(invisible(session))
-  }
-
-  dina_update_parameters_print_override_status(session, root)
-
-  checks <- c("year-scope", "export-settings", "config-rendered")
-  for (check in checks) {
-    target <- sprintf("parameters/%s", check)
-    if (dina_menu_confirm(
-      title = "Gate Check",
-      prompt = sprintf("Mark %s done?", target),
-      default = TRUE,
-      input = input,
-      is_terminal = TRUE
-    )) {
-      dina_update_mark_gate(session, root = root, target = target, status = "done")
-      session <- dina_load_session(root = root)
-    }
-  }
-  dina_cli_ok("Next action: dina update roadmap")
+  session <- dina_update_config_edit(session, root = root)
+  dina_cli_ok("Next action: review the YAML, then mark parameters checks with `dina update mark parameters/CHECK --status done`.")
   invisible(session)
 }
 
@@ -1760,8 +1822,30 @@ dina_print_repo_status <- function(comparison) {
   invisible(comparison)
 }
 
-dina_print_repo_diff <- function(session, root = dina_repo_root(), baseline = "start", stat = TRUE, patch = FALSE, files = FALSE) {
-  comparison <- dina_repo_state_compare(session, root, baseline)
+dina_repo_state_missing_result <- function(session, root = dina_repo_root(), baseline = "start", title = "Update Repo Status") {
+  baselines <- dina_repo_state_baselines(session, root)
+  dina_cli_header(title)
+  dina_cli_warn(sprintf("No captured repo baseline named `%s` for update %s.", baseline, session$id %||% ""))
+  if (length(baselines)) {
+    dina_cli_alert(sprintf("Available repo baselines: %s", paste(baselines, collapse = ", ")))
+    dina_cli_alert(sprintf("Try `dina update repo-status --baseline %s` or `dina update repo-diff --baseline %s`.", baselines[[1]], baselines[[1]]))
+  } else {
+    dina_cli_alert("Available repo baselines: none.")
+    dina_cli_alert("Repo status and repo diff need a repo-state baseline captured by update start or restart.")
+    dina_cli_alert("To create one for this session, review whether `dina update restart --replace-repo-baseline` is appropriate.")
+  }
+  invisible(list(missing = TRUE, baseline = baseline, baselines = baselines))
+}
+
+dina_repo_state_compare_for_cli <- function(session, root = dina_repo_root(), baseline = "start", title = "Update Repo Status") {
+  if (is.null(dina_repo_state_metadata(session, root, baseline))) {
+    return(dina_repo_state_missing_result(session, root = root, baseline = baseline, title = title))
+  }
+  dina_repo_state_compare(session, root, baseline)
+}
+
+dina_print_repo_diff <- function(session, root = dina_repo_root(), baseline = "start", stat = TRUE, patch = FALSE, files = FALSE, comparison = NULL) {
+  comparison <- comparison %||% dina_repo_state_compare(session, root, baseline)
   if (isTRUE(stat)) {
     dina_print_repo_status(comparison)
   }
@@ -1825,39 +1909,378 @@ dina_print_repo_restore <- function(result) {
   invisible(result)
 }
 
-dina_dashboard_action_from_command <- function(command) {
-  command <- trimws(command %||% "")
-  command <- gsub(
-    "dina update start YEAR",
-    sprintf("dina update start %s", format(Sys.Date(), "%Y")),
-    command,
-    fixed = TRUE
+dina_command_entry <- function(
+    key,
+    label,
+    description = "",
+    args = NULL,
+    children = list(),
+    prompts = list(),
+    defaults = list(),
+    mutating = FALSE,
+    confirm = FALSE,
+    help = "",
+    next_step = "") {
+  list(
+    key = key,
+    label = label,
+    description = description,
+    args = args,
+    children = children,
+    prompts = prompts,
+    defaults = defaults,
+    mutating = isTRUE(mutating),
+    confirm = isTRUE(confirm),
+    help = help,
+    next_step = next_step
   )
-  if (!grepl("^dina(\\s|$)", command)) {
-    return(NULL)
-  }
-  args <- strsplit(sub("^dina\\s*", "", command), "\\s+")[[1]]
-  args <- args[nzchar(args)]
-  label <- switch(
-    command,
-    "dina doctor" = "Run doctor",
-    "dina update roadmap" = "Open roadmap",
-    "dina update gate" = "Open next gate",
-    "dina sources inbox guide" = "Show source inbox guide",
-    "dina tasks list" = "List tasks",
-    "dina run --dry-run" = "Preview run",
-    if (grepl("^dina update start ", command)) {
-      "Start update"
-    } else if (grepl("^dina update gate parameters$", command)) {
-      "Review parameters"
-    } else {
-      command
-    }
-  )
-  list(label = label, command = command, args = args)
 }
 
-dina_dashboard_recommended_action <- function(recommendation) {
+dina_command_catalog <- function(year = format(Sys.Date(), "%Y")) {
+  list(
+    dina_command_entry(
+      "annual-update",
+      "Annual update",
+      "Start, inspect, mark, restart, and finalize update sessions.",
+      children = list(
+        dina_command_entry("workflow", "Annual update recipe", "Read the update workflow guide.", args = c("help", "workflow"), next_step = "Use the roadmap to work gate by gate."),
+        dina_command_entry("update-start", "Start update", "Create the active annual update session.", args = c("update", "start", "{YEAR}"), defaults = list(YEAR = year), mutating = TRUE, help = "Creates output/updates/<update_id>, source baselines, inbox buckets, and the active pointer.", next_step = "Then run `dina update roadmap`."),
+        dina_command_entry("update-roadmap", "Open roadmap", "Inspect ordered gates and the next unfinished check.", args = c("update", "roadmap"), next_step = "Open the next gate when ready."),
+        dina_command_entry("update-gate", "Open next gate", "Open the next unfinished gate, opening the update YAML when parameters are next.", args = c("update", "gate"), next_step = "Complete the checks shown on the gate page."),
+        dina_command_entry("update-parameters", "Review parameters", "Open the active update YAML for parameter review.", args = c("update", "gate", "parameters"), next_step = "Edit the YAML, then mark parameters checks explicitly."),
+        dina_command_entry("update-status", "Update status", "Inspect the active update state and recommendation.", args = c("update", "status"), next_step = "Run the recommended command or browse this menu."),
+        dina_command_entry("update-list", "List updates", "List update sessions and the active pointer.", args = c("update", "list")),
+        dina_command_entry("repo-status", "Repo status", "Compare current code/config/docs with the update baseline.", args = c("update", "repo-status")),
+        dina_command_entry("repo-diff", "Repo diff", "Show changed files against the update baseline.", args = c("update", "repo-diff", "--stat", "--files")),
+        dina_command_entry("finalize", "Finalize update", "Freeze final records after checks pass.", args = c("update", "finalize"), mutating = TRUE, help = "Use --yes in a typed command when you also want to promote the effective config.")
+      )
+    ),
+    dina_command_entry(
+      "source-data",
+      "Source data",
+      "Inspect, fetch, review, and integrate source data.",
+      children = list(
+        dina_command_entry("buckets", "Buckets", "Show central _new bucket status.", args = c("buckets")),
+        dina_command_entry("buckets-detail", "Bucket detail", "Show expected files and destinations.", args = c("buckets", "detail")),
+        dina_command_entry("buckets-urls", "Bucket URLs", "Show bucket URLs for manual downloads.", args = c("buckets", "urls")),
+        dina_command_entry("buckets-uses", "Bucket uses", "Show code/tasks that use expected files.", args = c("buckets", "uses")),
+        dina_command_entry("buckets-fetch-dry-run", "Preview bucket fetch", "Preview supported public bucket fetches.", args = c("buckets", "fetch", "--dry-run")),
+        dina_command_entry("buckets-fetch-source", "Preview bucket source fetch", "Preview one supported public bucket fetch.", args = c("buckets", "fetch", "--source", "{ID}", "--dry-run"), prompts = list(ID = list(label = "Source id", example = "chl-pit-total"))),
+        dina_command_entry("sources-review", "Source review", "Show staged files and _new inbox candidates.", args = c("sources", "review")),
+        dina_command_entry("integrate-incoming", "Integrate incoming source", "Preview or accept one _new inbox source.", args = c("sources", "integrate", "--incoming", "--source", "{ID}"), prompts = list(ID = list(label = "Source id", example = "chl-pit-total")), mutating = TRUE, help = "The typed command can add --yes after reviewing the preview."),
+        dina_command_entry(
+          "source-registry-diagnostics",
+          "Source registry diagnostics",
+          "Inspect registry rows, methods, scans, status, diffs, and URL/ZIP refresh previews.",
+          children = list(
+            dina_command_entry("sources-list", "Source registry", "List source registry rows.", args = c("sources", "list")),
+            dina_command_entry("sources-show", "Show source", "Inspect one source registry entry.", args = c("sources", "show", "{ID}"), prompts = list(ID = list(label = "Source id", example = "chl-pit-total")), help = "Use `dina sources list` first if you do not know the id."),
+            dina_command_entry("sources-methods", "Source methods", "Explain acquisition method labels.", args = c("sources", "methods")),
+            dina_command_entry("sources-status", "Source status", "Compare sources with the active update baseline.", args = c("sources", "status")),
+            dina_command_entry("sources-scan", "Source scan", "Detect local source coverage from the registry.", args = c("sources", "scan")),
+            dina_command_entry("sources-diff", "Source diff", "Compare current source scan with the active session baseline.", args = c("sources", "diff")),
+            dina_command_entry("refresh-dry-run", "Preview refresh", "Preview URL/ZIP fetches without writing.", args = c("sources", "refresh", "--dry-run", "--urls"))
+          )
+        ),
+        dina_command_entry(
+          "source-inbox-compat",
+          "Advanced compatibility",
+          "Older source-inbox commands; bucket commands are preferred for routine _new work.",
+          children = list(
+            dina_command_entry("inbox-guide", "Inbox guide", "Compatibility view for bucket detail.", args = c("sources", "inbox", "guide"), help = "`dina buckets detail` is the preferred guided command."),
+            dina_command_entry("inbox-init", "Preview inbox init", "Preview missing inbox buckets without writing.", args = c("sources", "inbox", "init", "--dry-run"), help = "`dina buckets` and `dina buckets detail` are the preferred first checks.")
+          )
+        )
+      )
+    ),
+    dina_command_entry(
+      "pipeline",
+      "Pipeline",
+      "Inspect task freshness and run pipeline tasks.",
+      children = list(
+        dina_command_entry("tasks-list", "List tasks", "Inspect task aliases, stages, language, and status.", args = c("tasks", "list")),
+        dina_command_entry("tasks-why", "Why task", "Explain why one task is current, stale, blocked, or failed.", args = c("tasks", "why", "{TASK}"), prompts = list(TASK = list(label = "Task selector", example = "07d")), help = "Selectors include short ids like 07d and full task ids."),
+        dina_command_entry("run-dry", "Preview run", "Preview selected scripts without executing.", args = c("run", "{TASK}", "--dry-run"), prompts = list(TASK = list(label = "Task selector", example = "01a"))),
+        dina_command_entry("run-execute", "Execute run", "Run selected scripts and write run logs.", args = c("run", "{TASK}", "--execute"), prompts = list(TASK = list(label = "Task selector", example = "01a")), mutating = TRUE, help = "This can update data/output files.")
+      )
+    ),
+    dina_command_entry(
+      "setup-config",
+      "Setup and config",
+      "Check readiness, inspect config, and manage local setup.",
+      children = list(
+        dina_command_entry("doctor", "Run doctor", "Check local readiness without changing files.", args = c("doctor")),
+        dina_command_entry("install-dry", "Preview package install", "Report missing R packages without installing.", args = c("install", "--dry-run")),
+        dina_command_entry("config-show", "Show config", "Print config/dina.yml.", args = c("config", "show")),
+        dina_command_entry("config-set", "Set config value", "Modify config/dina.yml.", args = c("config", "set", "{KEY}", "{VALUE}"), prompts = list(KEY = list(label = "Config key", example = "years.last"), VALUE = list(label = "Value", example = "2026")), mutating = TRUE),
+        dina_command_entry("config-stata", "Export Stata config", "Write an explicit manual Stata runtime config.", args = c("config", "stata", "--output", "{PATH}"), prompts = list(PATH = list(label = "Output path", example = "/tmp/dina-config.do")), mutating = TRUE),
+        dina_command_entry("data-check", "Data check", "Report whether configured primary paths exist.", args = c("data", "check")),
+        dina_command_entry("notify-init", "Initialize notifications", "Create local Pushover placeholder config.", args = c("notify", "init"), mutating = TRUE),
+        dina_command_entry("notify-test", "Test notification", "Send a Pushover test message.", args = c("notify", "test"), mutating = TRUE),
+        dina_command_entry("setup-command", "Install command wrapper", "Install the user-level dina wrapper.", args = c("setup", "command"), mutating = TRUE)
+      )
+    ),
+    dina_command_entry(
+      "maintenance",
+      "Maintenance",
+      "Audit paths and export task graph helpers.",
+      children = list(
+        dina_command_entry("audit-paths", "Audit paths", "Report likely hardcoded paths.", args = c("audit", "paths")),
+        dina_command_entry("make-export", "Export Makefile", "Write a Makefile view of the task graph.", args = c("make", "export", "{PATH}"), prompts = list(PATH = list(label = "Makefile path", example = "Makefile.dina")), mutating = TRUE)
+      )
+    )
+  )
+}
+
+dina_command_flatten <- function(entries) {
+  out <- list()
+  for (entry in entries) {
+    out[[length(out) + 1L]] <- entry
+    children <- entry$children %||% list()
+    if (length(children)) {
+      out <- c(out, dina_command_flatten(children))
+    }
+  }
+  out
+}
+
+dina_command_placeholder <- function(arg) {
+  if (grepl("^\\{[A-Za-z0-9_]+\\}$", arg)) {
+    return(sub("^\\{(.+)\\}$", "\\1", arg))
+  }
+  NULL
+}
+
+dina_command_quote_arg <- function(arg) {
+  arg <- as.character(arg)
+  if (grepl("[[:space:]]", arg)) shQuote(arg) else arg
+}
+
+dina_command_format <- function(args) {
+  paste(c("dina", vapply(args, dina_command_quote_arg, character(1))), collapse = " ")
+}
+
+dina_command_template_args <- function(entry) {
+  args <- entry$args %||% character()
+  vapply(args, function(arg) {
+    name <- dina_command_placeholder(arg)
+    if (is.null(name)) {
+      return(arg)
+    }
+    default <- entry$defaults[[name]] %||% ""
+    if (nzchar(default)) default else sprintf("<%s>", name)
+  }, character(1))
+}
+
+dina_command_template <- function(entry) {
+  dina_command_format(dina_command_template_args(entry))
+}
+
+dina_command_find_by_command <- function(command, catalog = dina_command_catalog()) {
+  command <- trimws(command %||% "")
+  for (entry in dina_command_flatten(catalog)) {
+    if (!length(entry$args %||% character())) {
+      next
+    }
+    if (identical(dina_command_template(entry), command)) {
+      return(entry)
+    }
+  }
+  NULL
+}
+
+dina_command_prompt_for <- function(entry, name) {
+  prompt <- entry$prompts[[name]] %||% list()
+  label <- prompt$label %||% tolower(name)
+  example <- prompt$example %||% ""
+  if (nzchar(example)) {
+    sprintf("%s (example: %s)", label, example)
+  } else {
+    label
+  }
+}
+
+dina_command_collect_args <- function(entry, input = "stdin", is_terminal = isatty(stdin())) {
+  args <- character()
+  prompted <- FALSE
+  for (arg in entry$args %||% character()) {
+    name <- dina_command_placeholder(arg)
+    if (is.null(name)) {
+      args <- c(args, arg)
+      next
+    }
+    default <- entry$defaults[[name]] %||% entry$prompts[[name]]$default %||% ""
+    if (nzchar(default)) {
+      args <- c(args, default)
+      next
+    }
+    result <- dina_menu_text(
+      title = "Complete Command",
+      prompt = sprintf("%s (`.` back, `q` quit)", dina_command_prompt_for(entry, name)),
+      default = default,
+      input = input,
+      is_terminal = is_terminal,
+      allow_quit = TRUE
+    )
+    if (isTRUE(result$quit)) {
+      return(list(status = "quit"))
+    }
+    value <- trimws(result$value %||% "")
+    if (tolower(value) %in% c(".", "cancel")) {
+      return(list(status = "back"))
+    }
+    if (!nzchar(value)) {
+      dina_cli_warn(sprintf("Missing value for %s.", name))
+      return(list(status = "back"))
+    }
+    prompted <- TRUE
+    args <- c(args, value)
+  }
+  list(status = "ok", args = args, command = dina_command_format(args), prompted = prompted)
+}
+
+dina_command_confirm_run <- function(entry, resolved, input = "stdin", is_terminal = isatty(stdin())) {
+  needs_confirmation <- isTRUE(entry$mutating) || isTRUE(entry$confirm) || isTRUE(resolved$prompted)
+  if (!needs_confirmation) {
+    return(TRUE)
+  }
+  dina_cli_cat("")
+  dina_cli_cat("Proposed command:")
+  dina_cli_cat(sprintf("  %s", resolved$command))
+  if (nzchar(entry$description %||% "")) {
+    dina_cli_alert(sprintf("What it does: %s", entry$description))
+  }
+  if (nzchar(entry$next_step %||% "")) {
+    dina_cli_alert(sprintf("Next step: %s", entry$next_step))
+  }
+  dina_menu_confirm(
+    title = "Run Command",
+    prompt = "Run this command?",
+    default = !isTRUE(entry$mutating),
+    input = input,
+    is_terminal = is_terminal
+  )
+}
+
+dina_command_run_entry <- function(entry, root = dina_repo_root(), input = "stdin", is_terminal = isatty(stdin())) {
+  resolved <- dina_command_collect_args(entry, input = input, is_terminal = is_terminal)
+  if (is.null(resolved) || !identical(resolved$status, "ok")) {
+    if (identical(resolved$status, "quit")) {
+      dina_cli_alert("Command completion quit. No command run.")
+      return(invisible(list(status = "quit")))
+    }
+    dina_cli_alert("No command run.")
+    return(invisible(list(status = "back")))
+  }
+  if (!dina_command_confirm_run(entry, resolved, input = input, is_terminal = is_terminal)) {
+    dina_cli_alert("No command run.")
+    return(invisible(list(status = "back")))
+  }
+  dina_cli_alert(sprintf("Running `%s`", resolved$command))
+  result <- dina_main(resolved$args, root = root)
+  invisible(list(status = "ran", result = result))
+}
+
+dina_command_entry_from_proposal <- function(proposal, catalog = dina_command_catalog()) {
+  command <- trimws(proposal$command %||% "")
+  entry <- dina_command_find_by_command(command, catalog)
+  if (is.null(entry)) {
+    parts <- strsplit(command, "[[:space:]]+")[[1]]
+    if (length(parts) && identical(parts[[1]], "dina")) {
+      parts <- parts[-1]
+    }
+    entry <- dina_command_entry(
+      "recommended-action",
+      "Recommended action",
+      proposal$comment %||% "Run the recommended DINA command.",
+      args = parts,
+      confirm = TRUE,
+      help = "This command came from the active update recommendation. Review the preview before running.",
+      next_step = proposal$next_step %||% ""
+    )
+  } else {
+    entry$key <- "recommended-action"
+    entry$label <- "Recommended action"
+    entry$description <- proposal$comment %||% entry$description %||% ""
+    entry$help <- entry$help %||% proposal$comment %||% ""
+    entry$next_step <- proposal$next_step %||% entry$next_step %||% ""
+  }
+  entry
+}
+
+dina_command_browser_entries <- function(proposal = NULL, catalog = dina_command_catalog()) {
+  entries <- catalog
+  if (!is.null(proposal)) {
+    entries <- c(list(dina_command_entry_from_proposal(proposal, catalog)), entries)
+  }
+  entries
+}
+
+dina_command_browser <- function(root = dina_repo_root(), proposal = NULL, input = "stdin", is_terminal = isatty(stdin())) {
+  if (!isTRUE(is_terminal)) {
+    return(invisible(NULL))
+  }
+  stack <- list(list(title = "DINA Commands", entries = dina_command_browser_entries(proposal)))
+  repeat {
+    frame <- stack[[length(stack)]]
+    entries <- frame$entries
+    actions <- lapply(seq_along(entries), function(i) {
+      entry <- entries[[i]]
+      value <- list(type = "entry", entry = entry)
+      open_value <- list(type = "open", entry = entry)
+      children <- entry$children %||% list()
+      has_children <- length(children) > 0L
+      has_command <- length(entry$args %||% character()) > 0L
+      dina_menu_action(
+        key = entry$key %||% sprintf("entry-%s", i),
+        label = entry$label,
+        value = value,
+        description = if (has_children) {
+          sprintf("%s >", entry$description %||% "")
+        } else {
+          entry$description %||% ""
+        },
+        command = if (has_command) dina_command_template(entry) else "",
+        help = entry$help %||% entry$description %||% "",
+        right = if (has_children) open_value else NULL
+      )
+    })
+    if (length(stack) > 1L) {
+      actions[[length(actions) + 1L]] <- dina_menu_action("back", "Back", value = "back", description = "Return to the previous menu.")
+    }
+    selected <- dina_menu_select(
+      title = frame$title,
+      items = actions,
+      prompt = "Browse command groups, press Enter to open or run, and ? for more detail.",
+      default = NULL,
+      allow_quit = TRUE,
+      input = input,
+      is_terminal = is_terminal
+    )
+    if (is.null(selected) || identical(selected, "quit")) {
+      return(invisible(NULL))
+    }
+    if (identical(selected, "back")) {
+      if (length(stack) > 1L) {
+        stack <- stack[-length(stack)]
+      }
+      next
+    }
+    entry <- selected$entry
+    selected_type <- selected$type %||% "entry"
+    if (identical(selected_type, "open") || (!length(entry$args %||% character()) && length(entry$children %||% list()))) {
+      stack[[length(stack) + 1L]] <- list(title = entry$label, entries = entry$children)
+      next
+    }
+    result <- dina_command_run_entry(entry, root = root, input = input, is_terminal = is_terminal)
+    if (is.list(result) && identical(result$status, "back")) {
+      next
+    }
+    return(invisible(result))
+  }
+}
+
+dina_dashboard_recommended_command <- function(recommendation) {
   recommendation <- recommendation %||% ""
   matches <- gregexpr("`[^`]+`", recommendation, perl = TRUE)[[1]]
   candidates <- character()
@@ -1872,66 +2295,308 @@ dina_dashboard_recommended_action <- function(recommendation) {
   if (!length(commands)) {
     return(NULL)
   }
-  dina_dashboard_action_from_command(commands[[1]])
-}
-
-dina_dashboard_actions <- function(recommendation = NULL) {
-  year <- format(Sys.Date(), "%Y")
-  actions <- list()
-  recommended <- dina_dashboard_recommended_action(recommendation)
-  if (!is.null(recommended)) {
-    recommended$group <- "Recommended"
-    actions[[length(actions) + 1L]] <- recommended
-  }
-  standard <- list(
-    c("dina doctor", "Setup"),
-    c(sprintf("dina update start %s", year), "Update"),
-    c("dina update roadmap", "Update"),
-    c("dina update gate", "Update"),
-    c("dina sources inbox guide", "Sources"),
-    c("dina tasks list", "Pipeline"),
-    c("dina run --dry-run", "Pipeline")
+  command <- commands[[1]]
+  gsub(
+    "dina update start YEAR",
+    sprintf("dina update start %s", format(Sys.Date(), "%Y")),
+    command,
+    fixed = TRUE
   )
-  for (entry in standard) {
-    action <- dina_dashboard_action_from_command(entry[[1]])
-    action$group <- entry[[2]]
-    actions[[length(actions) + 1L]] <- action
-  }
-  commands <- vapply(actions, function(action) action$command %||% action$label, character(1))
-  actions[!duplicated(commands)]
 }
 
-dina_dashboard_prompt <- function(actions, root) {
-  if (!isatty(stdin())) {
-    return(invisible(NULL))
+dina_dashboard_proposal <- function(recommendation) {
+  command <- dina_dashboard_recommended_command(recommendation)
+  if (is.null(command)) {
+    command <- "dina help workflow"
   }
-  menu_actions <- lapply(seq_along(actions), function(i) {
-    action <- actions[[i]]
-    dina_menu_action(
-      key = sprintf("action-%s", i),
-      label = action$label,
-      value = action$args,
-      description = action$command %||% "",
-      group = action$group %||% ""
+  entry <- dina_command_find_by_command(command)
+  list(
+    command = command,
+    comment = entry$description %||% "Open the guided workflow for the next update step.",
+    next_step = entry$next_step %||% "Use `dina commands` to choose a related command."
+  )
+}
+
+dina_command_catalog_entry_lines <- function(entries, indent = 4L) {
+  lines <- character()
+  prefix <- strrep(" ", indent)
+  for (entry in entries) {
+    children <- entry$children %||% list()
+    has_command <- length(entry$args %||% character()) > 0L
+    if (has_command) {
+      lines <- c(lines, sprintf("%s- %s", prefix, entry$label))
+      lines <- c(lines, sprintf("%s  $ %s", prefix, dina_command_template(entry)))
+    } else {
+      lines <- c(lines, sprintf("%s- %s:", prefix, entry$label))
+    }
+    if (length(children)) {
+      lines <- c(lines, dina_command_catalog_entry_lines(children, indent = indent + 2L))
+    }
+  }
+  lines
+}
+
+dina_command_catalog_lines <- function(catalog = dina_command_catalog(), proposal = NULL) {
+  lines <- character()
+  if (!is.null(proposal)) {
+    lines <- c(lines, "", "Recommended action:")
+    lines <- c(lines, sprintf("  $ %s", proposal$command))
+    if (nzchar(proposal$comment %||% "")) {
+      lines <- c(lines, sprintf("  %s", proposal$comment))
+    }
+    if (nzchar(proposal$next_step %||% "")) {
+      lines <- c(lines, sprintf("  Next: %s", proposal$next_step))
+    }
+  }
+  lines <- c(lines, "", "Command themes:")
+  for (theme in catalog) {
+    lines <- c(lines, sprintf("  %s:", theme$label))
+    lines <- c(lines, dina_command_catalog_entry_lines(theme$children %||% list(), indent = 4L))
+  }
+  lines
+}
+
+dina_dashboard_git_status <- function(root = dina_repo_root()) {
+  branch <- dina_git_capture(c("rev-parse", "--abbrev-ref", "HEAD"), root)
+  status <- dina_git_capture(c("status", "--short"), root)
+  if (!identical(branch$status, 0L) || !identical(status$status, 0L)) {
+    return("not a Git checkout")
+  }
+  status_lines <- if (nzchar(status$output)) strsplit(status$output, "\n", fixed = TRUE)[[1]] else character()
+  changed <- sum(nzchar(status_lines))
+  if (changed > 0L) {
+    sprintf("%s, %s changed file%s", trimws(branch$output), changed, if (changed == 1L) "" else "s")
+  } else {
+    sprintf("%s, clean", trimws(branch$output))
+  }
+}
+
+dina_dashboard_project_name <- function(root = dina_repo_root()) {
+  config <- tryCatch(dina_config(root), error = function(e) list())
+  config$project$name %||% basename(normalizePath(root, mustWork = FALSE))
+}
+
+dina_dashboard_status_label <- function(state) {
+  raw <- state$state %||% ""
+  switch(
+    raw,
+    no_active_update = "no active update",
+    failed = "task failed",
+    sources_pending = "waiting for source review",
+    gate_pending = "waiting for roadmap gate",
+    `gate_in-progress` = "working through roadmap gate",
+    `gate_needs-code` = "roadmap gate needs code",
+    build_ready = "pipeline work pending",
+    review_ready = "ready for final review",
+    gsub("_", " ", raw, fixed = TRUE)
+  )
+}
+
+dina_dashboard_common_commands <- function(session, proposal = NULL) {
+  proposed <- trimws(proposal$command %||% "")
+  commands <- if (is.null(session)) {
+    c(
+      proposed,
+      "dina doctor",
+      "dina update roadmap",
+      "dina update list",
+      "dina buckets",
+      "dina tasks list"
     )
-  })
-  selected_args <- dina_menu_select(
-    title = "Next Action",
-    items = menu_actions,
-    prompt = "Choose what to do next.",
-    default = NULL,
-    allow_quit = TRUE
-  )
-  if (is.null(selected_args) || identical(selected_args, "quit")) {
-    return(invisible(NULL))
+  } else {
+    c(
+      proposed,
+      "dina doctor",
+      "dina update status",
+      "dina update roadmap",
+      "dina sources review",
+      "dina tasks list"
+    )
   }
-  selected <- actions[[which(vapply(actions, function(action) identical(action$args, selected_args), logical(1)))[[1]]]]
-  dina_cli_alert(sprintf("Running `%s`", selected$label))
-  dina_main(selected$args, root = root)
+  commands <- commands[nzchar(commands)]
+  commands[!duplicated(commands)][seq_len(min(5L, length(commands)))]
 }
 
-dina_print_dashboard <- function(root = dina_repo_root()) {
-  dina_cli_header("DINA-LatAm")
+dina_dashboard_print_summary <- function(root = dina_repo_root(), session = dina_load_session(root = root), state = dina_session_state(session, root), proposal = NULL) {
+  proposal <- proposal %||% dina_dashboard_proposal(state$recommendation)
+  dina_cli_header("DINA-LatAm CLI")
+  dina_cli_cat("")
+  dina_cli_cat("Project status:")
+  dina_cli_cat(sprintf("  Project: %s", dina_dashboard_project_name(root)))
+  dina_cli_cat(sprintf("  Root: %s", normalizePath(root, mustWork = FALSE)))
+  dina_cli_cat(sprintf("  Git: %s", dina_dashboard_git_status(root)))
+
+  active <- dina_current_update(root)
+  if (is.null(session)) {
+    if (is.null(active)) {
+      dina_cli_cat("")
+      dina_cli_cat("Active update: none")
+      dina_cli_cat(sprintf("Status: %s", dina_dashboard_status_label(state)))
+    } else {
+      dina_cli_cat("")
+      dina_cli_cat(sprintf("Active update: %s", active))
+      dina_cli_cat("Status: active pointer exists, but manifest.json is missing")
+    }
+  } else {
+    year <- session$year %||% dina_update_year_from_id(session$id)
+    dina_cli_cat("")
+    dina_cli_cat(sprintf("Active update: %s (%s)", year, session$id))
+    dina_cli_cat(sprintf("Status: %s", dina_dashboard_status_label(state)))
+    if (nzchar(session$status %||% "")) {
+      dina_cli_cat(sprintf("Session status: %s", session$status))
+    }
+  }
+
+  dina_cli_cat("")
+  dina_cli_cat("Next recommended action:")
+  dina_cli_cat(sprintf("  %s", proposal$command))
+  if (nzchar(proposal$comment %||% "")) {
+    dina_cli_cat(sprintf("  %s", proposal$comment))
+  }
+  if (nzchar(proposal$next_step %||% "")) {
+    dina_cli_cat(sprintf("  Next: %s", proposal$next_step))
+  }
+
+  dina_cli_cat("")
+  dina_cli_cat("Common commands:")
+  for (command in dina_dashboard_common_commands(session, proposal)) {
+    dina_cli_cat(sprintf("  %s", command))
+  }
+
+  dina_cli_cat("")
+  dina_cli_cat("Interactive options:")
+  dina_cli_cat("  [Enter] Run the recommended action")
+  dina_cli_cat("  [n] Navigate available commands")
+  dina_cli_cat("  [m] Open main menu")
+  dina_cli_cat("  [h] Help")
+  dina_cli_cat("  [q] Quit")
+  invisible(proposal)
+}
+
+dina_dashboard_command_args <- function(command, catalog = dina_command_catalog()) {
+  entry <- dina_command_find_by_command(command, catalog)
+  if (!is.null(entry)) {
+    return(dina_command_template_args(entry))
+  }
+  parts <- strsplit(trimws(command %||% ""), "[[:space:]]+")[[1]]
+  if (length(parts) && identical(parts[[1]], "dina")) {
+    parts <- parts[-1]
+  }
+  parts[nzchar(parts)]
+}
+
+dina_dashboard_run_command <- function(command, root = dina_repo_root()) {
+  args <- dina_dashboard_command_args(command)
+  if (!length(args)) {
+    dina_cli_warn("No command available to run.")
+    return(invisible(NULL))
+  }
+  dina_cli_alert(sprintf("Running `%s`", dina_command_format(args)))
+  dina_main(args, root = root)
+}
+
+dina_dashboard_run_proposal <- function(proposal, root = dina_repo_root()) {
+  dina_dashboard_run_command(proposal$command %||% "", root = root)
+}
+
+dina_dashboard_main_menu <- function(root = dina_repo_root(), proposal = NULL, input = "stdin", is_terminal = isatty(stdin())) {
+  session <- dina_load_session(root = root)
+  state <- dina_session_state(session, root)
+  proposal <- proposal %||% dina_dashboard_proposal(state$recommendation)
+  commands <- dina_dashboard_common_commands(session, proposal)
+  actions <- list(
+    dina_menu_action(
+      "recommended",
+      "Run recommended action",
+      value = list(type = "command", command = proposal$command),
+      description = proposal$command,
+      command = proposal$command
+    )
+  )
+  for (i in seq_along(commands)) {
+    command <- commands[[i]]
+    if (identical(command, proposal$command)) {
+      next
+    }
+    actions[[length(actions) + 1L]] <- dina_menu_action(
+      sprintf("common-%s", i),
+      command,
+      value = list(type = "command", command = command),
+      command = command
+    )
+  }
+  actions[[length(actions) + 1L]] <- dina_menu_action(
+    "commands",
+    "Navigate available commands",
+    value = list(type = "navigator"),
+    description = "Open the full command navigator."
+  )
+  actions[[length(actions) + 1L]] <- dina_menu_action(
+    "help",
+    "Help",
+    value = list(type = "command", command = "dina help"),
+    command = "dina help"
+  )
+  selected <- dina_menu_select(
+    "DINA Main Menu",
+    actions,
+    prompt = "Choose a workflow action.",
+    default = NULL,
+    allow_quit = TRUE,
+    input = input,
+    is_terminal = is_terminal
+  )
+  if (is.null(selected) || identical(selected, "quit")) {
+    return(invisible(NULL))
+  }
+  if (identical(selected$type %||% "", "navigator")) {
+    return(dina_command_browser(root, proposal = proposal, input = input, is_terminal = is_terminal))
+  }
+  dina_dashboard_run_command(selected$command %||% "", root = root)
+}
+
+dina_dashboard_prompt <- function(root = dina_repo_root(), proposal = NULL, input = "stdin", is_terminal = isatty(stdin())) {
+  if (!isTRUE(is_terminal)) {
+    return(invisible(NULL))
+  }
+  answer <- tolower(trimws(dina_read_prompt("Choose [Enter/n/m/h/q]: ", input = input)))
+  if (!nzchar(answer)) {
+    return(dina_dashboard_run_proposal(proposal, root = root))
+  }
+  if (answer %in% c("n", "navigate", "commands")) {
+    return(dina_command_browser(root, proposal = proposal, input = input, is_terminal = is_terminal))
+  }
+  if (answer %in% c("m", "menu")) {
+    return(dina_dashboard_main_menu(root, proposal = proposal, input = input, is_terminal = is_terminal))
+  }
+  if (answer %in% c("h", "help", "?")) {
+    return(dina_usage())
+  }
+  if (answer %in% c("q", "quit", "exit")) {
+    dina_cli_alert("No command run.")
+    return(invisible(NULL))
+  }
+  dina_cli_warn(sprintf("Unknown option: %s", answer))
+  invisible(NULL)
+}
+
+dina_print_command_navigator <- function(root = dina_repo_root(), proposal = NULL, input = "stdin", is_terminal = isatty(stdin())) {
+  if (is.null(proposal)) {
+    session <- dina_load_session(root = root)
+    state <- dina_session_state(session, root)
+    proposal <- dina_dashboard_proposal(state$recommendation)
+  }
+  if (!isTRUE(is_terminal)) {
+    dina_cli_header("DINA Command Navigator")
+    for (line in dina_command_catalog_lines(proposal = proposal)) {
+      cat(line, "\n", sep = "")
+    }
+    return(invisible(NULL))
+  }
+  dina_command_browser(root, proposal = proposal, input = input, is_terminal = is_terminal)
+}
+
+dina_print_dashboard <- function(root = dina_repo_root(), input = "stdin", is_terminal = isatty(stdin())) {
   session <- dina_load_session(root = root)
   state <- dina_session_state(session, root)
   recommendation <- gsub(
@@ -1940,23 +2605,9 @@ dina_print_dashboard <- function(root = dina_repo_root()) {
     state$recommendation,
     fixed = TRUE
   )
-  actions <- dina_dashboard_actions(recommendation)
-  if (is.null(session)) {
-    dina_cli_alert("No active update session.")
-  } else {
-    dina_cli_alert(sprintf("Active update: %s", session$id))
-    dina_cli_alert(sprintf("State: %s", state$state))
-    stale_label <- if (is.na(state$stale_tasks %||% NA_integer_)) "not checked before gates complete" else as.character(state$stale_tasks %||% 0)
-    dina_cli_alert(sprintf("Stale or blocked tasks: %s", stale_label))
-  }
-  dina_cli_ok(sprintf("Recommended next action: %s", recommendation))
-  if (!isatty(stdin())) {
-    cat("\nUseful actions:\n")
-    for (i in seq_along(actions)) {
-      cat(sprintf("  %s. %s - %s\n", i, actions[[i]]$label, actions[[i]]$command %||% paste(c("dina", actions[[i]]$args), collapse = " ")))
-    }
-  }
-  dina_dashboard_prompt(actions, root)
+  proposal <- dina_dashboard_proposal(recommendation)
+  dina_dashboard_print_summary(root, session = session, state = state, proposal = proposal)
+  dina_dashboard_prompt(root, proposal = proposal, input = input, is_terminal = is_terminal)
 }
 
 dina_source_counts_line <- function(counts) {
@@ -2500,27 +3151,37 @@ dina_cmd_update <- function(root, args) {
       session <- dina_session_config_set(session, root = root, key = key, value = value)
       dina_cli_ok(sprintf("Set working override %s", key))
       dina_cli_alert(sprintf("Override: %s", session$config_override))
+    } else if (identical(action, "edit")) {
+      dina_update_config_edit(session, root = root)
     } else {
-      stop("Usage: dina update config show\n       dina update config set KEY VALUE", call. = FALSE)
+      stop("Usage: dina update config show\n       dina update config set KEY VALUE\n       dina update config edit", call. = FALSE)
     }
   } else if (identical(sub, "repo-status")) {
     session <- dina_load_session(root = root)
     if (is.null(session)) stop("No active update.", call. = FALSE)
     flags <- dina_parse_flags(rest)
-    comparison <- dina_repo_state_compare(session, root, baseline = flags$baseline %||% "start")
+    comparison <- dina_repo_state_compare_for_cli(session, root, baseline = flags$baseline %||% "start", title = "Update Repo Status")
+    if (isTRUE(comparison$missing)) {
+      return(invisible(comparison))
+    }
     dina_print_repo_status(comparison)
   } else if (identical(sub, "repo-diff")) {
     session <- dina_load_session(root = root)
     if (is.null(session)) stop("No active update.", call. = FALSE)
     flags <- dina_parse_flags(rest)
     any_mode <- isTRUE(flags$stat) || isTRUE(flags$patch) || isTRUE(flags$files)
+    comparison <- dina_repo_state_compare_for_cli(session, root, baseline = flags$baseline %||% "start", title = "Update Repo Diff")
+    if (isTRUE(comparison$missing)) {
+      return(invisible(comparison))
+    }
     dina_print_repo_diff(
       session,
       root = root,
       baseline = flags$baseline %||% "start",
       stat = isTRUE(flags$stat) || !any_mode,
       patch = isTRUE(flags$patch),
-      files = isTRUE(flags$files)
+      files = isTRUE(flags$files),
+      comparison = comparison
     )
   } else if (identical(sub, "repo-restore")) {
     session <- dina_load_session(root = root)
@@ -3839,6 +4500,33 @@ dina_cmd_setup <- function(root, args) {
   dina_cli_ok(sprintf("Installed command wrapper at %s", target))
 }
 
+dina_cmd_commands <- function(root, args) {
+  args <- dina_drop_leading_separator(args)
+  if (length(args)) {
+    stop("Usage: dina commands\n       dina navigate", call. = FALSE)
+  }
+  dina_print_command_navigator(root)
+}
+
+dina_cmd_menu <- function(root, args) {
+  args <- dina_drop_leading_separator(args)
+  sub <- dina_arg(args, 1L, "main")
+  if (identical(sub, "main")) {
+    session <- dina_load_session(root = root)
+    state <- dina_session_state(session, root)
+    proposal <- dina_dashboard_proposal(state$recommendation)
+    if (!isatty(stdin())) {
+      dina_dashboard_print_summary(root, session = session, state = state, proposal = proposal)
+      return(invisible(NULL))
+    }
+    return(dina_dashboard_main_menu(root, proposal = proposal))
+  }
+  if (sub %in% c("commands", "navigate")) {
+    return(dina_print_command_navigator(root))
+  }
+  stop("Usage: dina menu\n       dina menu commands", call. = FALSE)
+}
+
 dina_main <- function(args = commandArgs(trailingOnly = TRUE), root = dina_repo_root()) {
   args <- dina_drop_leading_separator(args)
   if (!length(args)) {
@@ -3861,6 +4549,9 @@ dina_main <- function(args = commandArgs(trailingOnly = TRUE), root = dina_repo_
     run = dina_cmd_run(root, rest),
     config = dina_cmd_config(root, rest),
     data = dina_cmd_data(root, rest),
+    commands = dina_cmd_commands(root, rest),
+    navigate = dina_cmd_commands(root, rest),
+    menu = dina_cmd_menu(root, rest),
     audit = dina_cmd_audit(root, rest),
     make = dina_cmd_make(root, rest),
     notify = dina_cmd_notify(root, rest),
