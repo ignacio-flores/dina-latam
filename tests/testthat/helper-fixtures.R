@@ -106,8 +106,7 @@ mini_repo <- function() {
       inbox_examples = c("source_2024.xlsx"),
       destination = "input_data/{basename}",
       transformer = "code/Stata/01a.do",
-      notes = "Fixture source used for source list and inbox review tests.",
-      checks = c("file_exists", "years_detected")
+      notes = "Fixture source used for source list and inbox tests."
     ),
     list(
       id = "source-missing",
@@ -116,14 +115,12 @@ mini_repo <- function() {
       method = "manual",
       canonical = c("input_data/missing_*.csv"),
       integration = "none",
-      notes = "Reference-only missing-source fixture.",
-      checks = c("file_exists")
+      notes = "Reference-only missing-source fixture."
     )
   )), file.path(root, "config", "sources.yml"))
 
   dina_write_yaml(list(items = list(
     list(id = "review-config", label = "Review update configuration."),
-    list(id = "review-sources", label = "Review incoming source files."),
     list(id = "run-pipeline", label = "Run stale or selected pipeline tasks.")
   )), file.path(root, "config", "todo.yml"))
 

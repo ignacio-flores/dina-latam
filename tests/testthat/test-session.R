@@ -26,26 +26,84 @@ test_that("dashboard state is no_active_update without session", {
   expect_equal(state$state, "no_active_update")
 })
 
-test_that("session state recommends sources, runs, todos, then close", {
+test_that("plain dashboard prints status and recommendation without common commands", {
+  source_cli_for_tests()
+  root <- mini_repo()
+  dina_update_start("2026", root = root)
+
+  output <- capture.output(dina_print_dashboard(root, is_terminal = FALSE))
+  text <- paste(output, collapse = "\n")
+  expect_match(text, "DINA-LatAm CLI")
+  expect_match(text, "Project status:")
+  expect_match(text, "Recommended:")
+  expect_false(grepl("Common commands", text, fixed = TRUE))
+  expect_false(grepl("DINA Actions", text, fixed = TRUE))
+})
+
+test_that("plain dashboard does not scan task freshness before rendering", {
+  source_cli_for_tests()
+  root <- mini_repo()
+  dina_update_start("2026", root = root)
+
+  env <- environment(dina_print_dashboard)
+  original <- get("dina_all_task_status", envir = env)
+  on.exit(assign("dina_all_task_status", original, envir = env), add = TRUE)
+  assign("dina_all_task_status", function(...) stop("dashboard should not scan task freshness", call. = FALSE), envir = env)
+
+  con <- textConnection("q\n")
+  output <- capture.output(dina_print_dashboard(root, input = con, is_terminal = TRUE))
+  close(con)
+
+  text <- paste(output, collapse = "\n")
+  expect_match(text, "pipeline status not checked")
+  expect_match(text, "DINA Actions")
+  expect_match(text, "dina run stale --dry-run")
+})
+
+test_that("interactive dashboard combines status, recommendation, and actions", {
+  source_cli_for_tests()
+  root <- mini_repo()
+  dina_update_start("2026", root = root)
+
+  con <- textConnection("q\n")
+  output <- capture.output(dina_print_dashboard(root, input = con, is_terminal = TRUE))
+  close(con)
+
+  text <- paste(output, collapse = "\n")
+  expect_match(text, "Project status:")
+  expect_match(text, "Recommended:")
+  expect_match(text, "DINA Actions")
+  expect_match(text, "Run recommended action")
+  expect_match(text, "Commands menu")
+  expect_false(grepl("Common commands", text, fixed = TRUE))
+})
+
+test_that("interactive dashboard recommended action runs the proposal", {
+  source_cli_for_tests()
+  root <- mini_repo()
+  dina_update_start("2026", root = root)
+
+  con <- textConnection("1\n")
+  output <- capture.output(dina_print_dashboard(root, input = con, is_terminal = TRUE))
+  close(con)
+
+  text <- paste(output, collapse = "\n")
+  expect_match(text, "dina run stale --dry-run")
+  expect_match(text, "task1: dry_run")
+})
+
+test_that("session state ignores retired source workflow and recommends runs, todos, then close", {
   root <- mini_repo()
   session <- dina_update_start("2026", root = root)
   dir.create(file.path(root, "input_data", "_new", "fixture"), recursive = TRUE, showWarnings = FALSE)
   writeLines("new", file.path(root, "input_data", "_new", "fixture", "source_2025.xlsx"))
 
   state <- dina_session_state(session, root = root)
-  expect_equal(state$state, "sources_pending")
-  expect_match(state$recommendation, "dina sources review")
-  expect_equal(state$proposal$command, "dina sources review")
-  expect_equal(state$proposal$todo_id, "review-sources")
-  expect_match(state$proposal$why, "input_data/_new")
-  expect_equal(state$proposal$next_command, "dina sources integrate SOURCE")
-
-  unlink(file.path(root, "input_data", "_new", "fixture", "source_2025.xlsx"))
-  state <- dina_session_state(session, root = root)
   expect_equal(state$state, "build_ready")
   expect_match(state$recommendation, "dina run stale --dry-run")
   expect_equal(state$proposal$command, "dina run stale --dry-run")
   expect_equal(state$proposal$next_command, "dina run stale")
+  expect_false(grepl("dina sources review", state$recommendation, fixed = TRUE))
 
   dir.create(file.path(root, "output"), recursive = TRUE)
   writeLines("a", file.path(root, "output", "a.txt"))
@@ -82,5 +140,9 @@ test_that("update status prints structured recommendation details", {
   expect_match(status$output, "Todo:")
   expect_match(status$output, "Expected action:")
   expect_match(status$output, "Next likely command:")
-  expect_match(status$output, "dina sources integrate SOURCE")
+  expect_match(status$output, "Incoming source files: 1")
+  expect_match(status$output, "no source validation/preparation workflow is implemented yet")
+  expect_match(status$output, "dina run stale --dry-run")
+  expect_false(grepl("dina sources review", status$output, fixed = TRUE))
+  expect_false(grepl("dina sources integrate", status$output, fixed = TRUE))
 })

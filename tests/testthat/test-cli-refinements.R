@@ -2,6 +2,7 @@ test_that("help describes the new workflow and omits retired command families", 
   main <- run_dina_cli(c("help"))
   expect_equal(main$status, 0L)
   expect_match(main$output, "`sources list \\[--view VIEW\\]`")
+  expect_match(main$output, "`sources compare`")
   expect_match(main$output, "`run list\\|why TASK`")
   expect_match(main$output, "`todo \\[check\\|uncheck\\|reset\\]`")
   expect_match(main$output, "`maintain repo-status\\|repo-diff`")
@@ -11,6 +12,8 @@ test_that("help describes the new workflow and omits retired command families", 
   expect_false(grepl("update gate", main$output, fixed = TRUE))
   expect_false(grepl("update mark", main$output, fixed = TRUE))
   expect_false(grepl("sources refresh", main$output, fixed = TRUE))
+  expect_false(grepl("`sources review`", main$output, fixed = TRUE))
+  expect_false(grepl("`sources integrate", main$output, fixed = TRUE))
   expect_false(grepl("update finalize", main$output, fixed = TRUE))
 
   workflow <- run_dina_cli(c("help", "workflow"))
@@ -20,7 +23,9 @@ test_that("help describes the new workflow and omits retired command families", 
   expect_match(workflow$output, "3\\. Run the pipeline")
   expect_match(workflow$output, "4\\. Keep a loose todo list")
   expect_match(workflow$output, "5\\. Close with a report")
-  expect_match(workflow$output, "--view detail")
+  expect_match(workflow$output, "dina sources compare")
+  expect_false(grepl("dina sources review", workflow$output, fixed = TRUE))
+  expect_false(grepl("dina sources integrate", workflow$output, fixed = TRUE))
   expect_false(grepl("dina update gate", workflow$output, fixed = TRUE))
 
   commands <- run_dina_cli(c("commands"), root = mini_repo())
@@ -32,7 +37,10 @@ test_that("help describes the new workflow and omits retired command families", 
   expect_equal(sources$status, 0L)
   expect_match(sources$output, "dina sources list \\[FILTERS\\] \\[--view compact\\|workflow\\|paths\\|all\\]")
   expect_match(sources$output, "dina sources fetch \\[ID\\|--family FAMILY\\|--all\\] \\[--dry-run\\]")
-  expect_match(sources$output, "Source registry, incoming `_new` buckets, fetchers, review, and integration")
+  expect_match(sources$output, "dina sources compare \\[--metadata-only\\] \\[--hash-all\\] \\[--deep\\]")
+  expect_match(sources$output, "Source registry, incoming `_new` buckets, fetchers, and baseline comparison")
+  expect_false(grepl("dina sources review", sources$output, fixed = TRUE))
+  expect_false(grepl("dina sources integrate", sources$output, fixed = TRUE))
 })
 
 test_that("sources list is compact by default and exposes richer views", {
@@ -96,7 +104,7 @@ test_that("source list follow-up menu is dismissible and routes views", {
   expect_match(paste(detail_output, collapse = "\n"), "transformer:")
 })
 
-test_that("source show, guide, fields, review, fetch, and integrate use the new source model", {
+test_that("source show, guide, fields, compare, and retired commands use the source model", {
   root <- mini_repo()
   show <- run_dina_cli(c("sources", "show", "source-a", "--view", "all", "--urls"), root = root)
   expect_equal(show$status, 0L)
@@ -104,6 +112,7 @@ test_that("source show, guide, fields, review, fetch, and integrate use the new 
   expect_match(show$output, "destination:")
   expect_match(show$output, "transformer:")
   expect_match(show$output, "notes:")
+  expect_false(grepl("checks:", show$output, fixed = TRUE))
   expect_match(show$output, "https://example.test/source-a")
 
   guide <- run_dina_cli(c("sources", "guide", "source-a", "--urls"), root = root)
@@ -123,66 +132,27 @@ test_that("source show, guide, fields, review, fetch, and integrate use the new 
   writeLines("new", file.path(root, "input_data", "_new", "fixture", "source_2025.xlsx"))
 
   review <- run_dina_cli(c("sources", "review"), root = root)
-  expect_equal(review$status, 0L)
-  expect_match(review$output, "Incoming Source Review")
-  expect_match(review$output, "Workflow: review-sources -> integrate-sources")
-  expect_match(review$output, "Ready to integrate")
-  expect_match(review$output, "Next likely command: dina sources integrate SOURCE")
-  expect_match(review$output, "destination")
-  expect_match(review$output, "transformer")
-  expect_false(grepl("sha256", review$output, fixed = TRUE))
-
-  detail <- run_dina_cli(c("sources", "review", "--view", "detail"), root = root)
-  expect_equal(detail$status, 0L)
-  expect_match(detail$output, "Incoming Source Detail")
-  expect_match(detail$output, "source_2025.xlsx")
-  expect_match(detail$output, "sha256")
+  expect_true(review$status != 0L)
+  expect_match(review$output, "retired")
+  expect_match(review$output, "No replacement data validation/preparation process is implemented yet")
+  expect_false(grepl("Incoming Source Review", review$output, fixed = TRUE))
 
   preview <- run_dina_cli(c("sources", "integrate", "source-a"), root = root)
-  expect_equal(preview$status, 0L)
-  expect_match(preview$output, "Would integrate incoming")
+  expect_true(preview$status != 0L)
+  expect_match(preview$output, "retired")
   expect_false(file.exists(file.path(root, "input_data", "source_2025.xlsx")))
 
-  integrated <- run_dina_cli(c("sources", "integrate", "source-a", "--yes"), root = root)
-  expect_equal(integrated$status, 0L)
-  expect_match(integrated$output, "Integrated incoming")
-  expect_true(file.exists(file.path(root, "input_data", "source_2025.xlsx")))
-  expect_equal(length(dina_load_session(root = root)$source_decisions), 1L)
-})
+  compare <- run_dina_cli(c("sources", "compare"), root = root)
+  expect_equal(compare$status, 0L)
+  expect_match(compare$output, "Source Compare")
+  expect_match(compare$output, "Compares configured source files against the update baseline")
+  expect_false(grepl("Source Status", compare$output, fixed = TRUE))
 
-test_that("sources review compact view prioritizes attention before ready rows", {
-  root <- mini_repo()
-  source_config <- dina_read_yaml(file.path(root, "config", "sources.yml"))
-  source_config$sources[[length(source_config$sources) + 1L]] <- list(
-    id = "source-b",
-    family = "fixture",
-    country = "AAA",
-    method = "manual",
-    canonical = c("input_data/ready_*.xlsx"),
-    inbox = c("input_data/_new/fixture/ready_*.xlsx"),
-    destination = "input_data/{basename}",
-    transformer = "code/Stata/02a.do",
-    notes = "Ready fixture source."
-  )
-  dina_write_yaml(source_config, file.path(root, "config", "sources.yml"))
-  dina_update_start("2026", root = root)
-  dir.create(file.path(root, "input_data", "_new", "fixture"), recursive = TRUE, showWarnings = FALSE)
-  writeLines("incoming", file.path(root, "input_data", "_new", "fixture", "source_2025.xlsx"))
-  writeLines("existing", file.path(root, "input_data", "source_2025.xlsx"))
-  writeLines("ready", file.path(root, "input_data", "_new", "fixture", "ready_2025.xlsx"))
-
-  review <- run_dina_cli(c("sources", "review"), root = root)
-  expect_equal(review$status, 0L)
-  expect_match(review$output, "Needs attention:")
-  expect_match(review$output, "Ready to integrate:")
-  source_a_pos <- regexpr("source-a", review$output, fixed = TRUE)[[1]]
-  ready_section_pos <- regexpr("Ready to integrate:", review$output, fixed = TRUE)[[1]]
-  source_b_pos <- regexpr("source-b", review$output, fixed = TRUE)[[1]]
-  expect_true(source_a_pos > 0L)
-  expect_true(ready_section_pos > 0L)
-  expect_true(source_b_pos > 0L)
-  expect_lt(source_a_pos, ready_section_pos)
-  expect_gt(source_b_pos, ready_section_pos)
+  status <- run_dina_cli(c("sources", "status"), root = root)
+  expect_equal(status$status, 0L)
+  expect_match(status$output, "deprecated")
+  expect_match(status$output, "dina sources compare")
+  expect_match(status$output, "Source Compare")
 })
 
 test_that("sources fetch previews direct URL targets under _new", {

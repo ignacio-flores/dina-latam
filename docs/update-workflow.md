@@ -25,8 +25,8 @@ runs, unchecked todos, config override presence, and repo changes.
 
 ## Sources
 
-Use `dina sources` as the home for the source registry, buckets, fetchers,
-review, and integration.
+Use `dina sources` as the home for the source registry, buckets, fetchers, and
+baseline comparison.
 
 ```bash
 dina sources list
@@ -34,17 +34,15 @@ dina sources list --view workflow
 dina sources show SOURCE --view all --urls
 dina sources guide SOURCE --urls
 dina sources fetch SOURCE --dry-run
-dina sources review
-dina sources integrate SOURCE
-dina sources integrate SOURCE --yes
+dina sources compare
 ```
 
 `dina sources list` is compact by default. In an interactive terminal it can
 offer a dismissible follow-up menu for details, workflow view, paths, or URLs.
 Use `--no-menu` in scripts.
 
-Fetches write directly to `input_data/_new/<bucket>`. Human review still happens
-before accepted files are copied into canonical `input_data/` destinations.
+Fetches write directly to `input_data/_new/<bucket>`. No source
+validation/preparation workflow is implemented yet.
 
 ## Run
 
@@ -69,12 +67,12 @@ the active workspace manifest.
 
 ```bash
 dina todo
-dina todo check review-sources
-dina todo uncheck review-sources
+dina todo check review-config
+dina todo uncheck review-config
 dina todo reset
 ```
 
-Todos never block source integration, runs, config checks, or closure.
+Todos never block runs, config checks, or closure.
 
 ## Config
 
@@ -117,6 +115,6 @@ dina update close
 `dina update restart` resets the same workspace id from scratch, keeps
 `input_data/_new` buckets and incoming files, and refreshes source/run state.
 
-`dina update close` generates closure notes: changed sources, incoming and
-integrated files, run summary, output freshness, config diff, and repo diff. It
+`dina update close` generates closure notes: changed sources, incoming source
+files, run summary, output freshness, config diff, and repo diff. It
 marks the workspace closed only after the report is generated.

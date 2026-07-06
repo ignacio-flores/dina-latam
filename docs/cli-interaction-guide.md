@@ -46,5 +46,6 @@ should follow this contract directly.
 entrypoints. `dina menu` and `dina menu commands` remain compatibility aliases
 for the navigator, but should not introduce a separate menu layer.
 
-There is no separate "main menu" layer. Plain `dina` shows the dashboard and its
-immediate `DINA Actions`; browsing commands opens the navigator directly.
+There is no separate "main menu" layer. Plain `dina` shows status, the current
+recommendation, and immediate `DINA Actions` in one screen; browsing commands
+opens the navigator directly.

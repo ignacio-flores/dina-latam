@@ -434,13 +434,13 @@ dina_source_registry_warnings <- function(registry, root = dina_repo_root()) {
       add(source, "notes", "Missing notes.")
     }
     if (dina_source_needs_destination(source) && !dina_source_has_destination(source)) {
-      add(source, "destination", "Missing destination; use integration: none for reference-only sources.")
+      add(source, "destination", "Missing destination metadata for a source that has incoming or fetch targets.")
     }
     if (!dina_source_needs_destination(source) && !dina_source_has_destination(source) && !dina_source_integration_none(source)) {
-      add(source, "integration", "Reference-only source should declare integration: none.")
+      add(source, "reference", "Reference-only source has no destination metadata.")
     }
     if (dina_source_has_destination(source) && !length(dina_source_values(dina_source_field(source, "transformer")))) {
-      add(source, "transformer", "Missing transformer for an integrated source.")
+      add(source, "transformer", "Missing transformer for a source with configured destinations.")
     }
     method <- source$method %||% ""
     if (!dina_source_integration_none(source) && identical(method, "script") && !length(dina_source_fetcher_values(source))) {
@@ -777,24 +777,6 @@ dina_template_value <- function(x, values = list()) {
   value
 }
 
-dina_source_staging_root <- function(session, root = dina_repo_root()) {
-  file.path(dina_update_dir(session$id, root), "source_staging")
-}
-
-dina_source_staging_rel <- function(source, values = list()) {
-  dina_template_value(source$staging_name %||% source$id, values = c(list(source = source$id %||% "source"), values))
-}
-
-dina_source_method_status <- function(method) {
-  switch(
-    method,
-    manual = "manual_needed",
-    script = "script_needed",
-    wid = "wid_pipeline",
-    "skipped"
-  )
-}
-
 dina_hash_path <- function(path) {
   if (!file.exists(path)) {
     return(NA_character_)
@@ -828,200 +810,6 @@ dina_path_size <- function(path) {
   sum(file.info(files)$size, na.rm = TRUE)
 }
 
-dina_source_canonical_state <- function(source, root = dina_repo_root()) {
-  patterns <- dina_source_values(dina_source_field(source, "canonical"))
-  paths <- dina_expand_paths(patterns, root = root)
-  exists <- file.exists(paths)
-  latest <- "none"
-  if (any(exists)) {
-    mtimes <- file.info(paths[exists])$mtime
-    mtimes <- mtimes[!is.na(mtimes)]
-    if (length(mtimes)) {
-      latest <- format(max(mtimes), "%Y-%m-%d")
-    }
-  }
-  list(
-    patterns = length(patterns),
-    found = sum(exists),
-    latest = latest
-  )
-}
-
-dina_sources_refresh <- function(session, root = dina_repo_root(), source_ids = NULL, dry_run = FALSE) {
-  if (is.null(session)) {
-    stop("No active update session.", call. = FALSE)
-  }
-  registry <- dina_sources(root)$sources
-  if (!is.null(source_ids)) {
-    invisible(lapply(source_ids, dina_source_by_id, root = root))
-    registry <- registry[vapply(registry, function(x) x$id %in% source_ids, logical(1))]
-  }
-  staging_root <- dina_source_staging_root(session, root)
-  results <- list()
-  for (source in registry) {
-    method <- source$method %||% "manual"
-    url <- dina_source_values(dina_source_field(source, "url"))
-    url <- if (length(url)) url[[1]] else ""
-    urls <- dina_source_urls(source)
-    canonical <- dina_source_canonical_state(source, root)
-    target_rel <- dina_source_staging_rel(source)
-    target <- file.path(staging_root, target_rel)
-    supported <- method %in% c("url", "zip")
-    base_result <- list(
-      id = source$id,
-      family = source$family %||% "",
-      country = dina_source_country_summary(source, root),
-      method = method,
-      url = if (nzchar(url)) url else NULL,
-      urls = urls,
-      url_count = length(urls),
-      target = dina_relative(target, root),
-      target_rel = target_rel,
-      canonical_found = canonical$found,
-      canonical_patterns = canonical$patterns,
-      canonical_latest = canonical$latest,
-      downloader = dina_source_values(dina_source_field(source, "downloader")),
-      transformer = dina_source_values(dina_source_field(source, "transformer"))
-    )
-    if (!supported || !nzchar(url)) {
-      results[[source$id]] <- c(base_result, list(
-        status = dina_source_method_status(method)
-      ))
-      next
-    }
-    if (file.exists(target)) {
-      results[[source$id]] <- c(base_result, list(status = "already_staged"))
-      next
-    }
-    if (dry_run) {
-      results[[source$id]] <- c(base_result, list(status = "will_fetch"))
-      next
-    }
-    dir.create(dirname(target), recursive = TRUE, showWarnings = FALSE)
-    ok <- tryCatch({
-      utils::download.file(url, target, mode = "wb", quiet = TRUE)
-      TRUE
-    }, error = function(e) {
-      results[[source$id]] <<- c(base_result, list(status = "failed", error = conditionMessage(e)))
-      FALSE
-    })
-    if (ok) {
-      results[[source$id]] <- c(base_result, list(status = "staged", sha256 = dina_hash_file(target)))
-    }
-  }
-  attempted <- results[vapply(results, function(result) result$status %in% c("staged", "failed"), logical(1))]
-  if (!isTRUE(dry_run) && length(attempted)) {
-    session$source_refreshes[[dina_now()]] <- attempted
-    session$updated_at <- dina_now()
-    dina_save_session(session, root)
-  }
-  results
-}
-
-dina_stage_target <- function(source, input_path, is_dir, session, root = dina_repo_root()) {
-  staging_rel <- dina_source_staging_rel(source, values = list(basename = basename(input_path)))
-  target <- file.path(dina_source_staging_root(session, root), staging_rel)
-  if (!is_dir && !nzchar(tools::file_ext(basename(target)))) {
-    target <- file.path(target, basename(input_path))
-  }
-  target
-}
-
-dina_sources_stage_path <- function(session, source_id, input_path, root = dina_repo_root(), overwrite = FALSE) {
-  if (is.null(session)) {
-    stop("No active update session.", call. = FALSE)
-  }
-  source <- dina_source_by_id(source_id, root)
-  input_path <- normalizePath(input_path, mustWork = FALSE)
-  if (!file.exists(input_path)) {
-    stop("Manual source path does not exist: ", input_path, call. = FALSE)
-  }
-  is_dir <- dir.exists(input_path)
-  target <- dina_stage_target(source, input_path, is_dir, session, root)
-  if (file.exists(target) && !isTRUE(overwrite)) {
-    stop("Staged path already exists; pass --yes to overwrite: ", dina_relative(target, root), call. = FALSE)
-  }
-  if (file.exists(target) && isTRUE(overwrite)) {
-    unlink(target, recursive = TRUE)
-  }
-  dir.create(dirname(target), recursive = TRUE, showWarnings = FALSE)
-  if (is_dir) {
-    dir.create(target, recursive = TRUE, showWarnings = FALSE)
-    items <- list.files(input_path, all.files = TRUE, no.. = TRUE, full.names = TRUE)
-    if (length(items)) {
-      file.copy(items, target, recursive = TRUE, copy.date = TRUE)
-    }
-  } else {
-    file.copy(input_path, target, overwrite = TRUE, copy.date = TRUE)
-  }
-  record <- list(
-    source_id = source_id,
-    method = source$method %||% "manual",
-    original = dina_relative(input_path, root),
-    staged = dina_relative(target, root),
-    staged_rel = dina_relative(target, dina_source_staging_root(session, root)),
-    kind = if (is_dir) "dir" else "file",
-    size = dina_path_size(target),
-    mtime = format(file.info(target)$mtime, "%Y-%m-%dT%H:%M:%OS%z"),
-    sha256 = dina_hash_path(target),
-    staged_at = dina_now()
-  )
-  records <- session$source_stage_records %||% list()
-  records[[length(records) + 1L]] <- record
-  session$source_stage_records <- records
-  session$updated_at <- dina_now()
-  dina_save_session(session, root)
-  record
-}
-
-dina_sources_integrate_file <- function(session, staged_rel, dest_rel, source_id = NULL, root = dina_repo_root(), overwrite = FALSE) {
-  if (is.null(session)) {
-    stop("No active update session.", call. = FALSE)
-  }
-  staging_root <- file.path(dina_update_dir(session$id, root), "source_staging")
-  staged <- normalizePath(file.path(staging_root, staged_rel), mustWork = FALSE)
-  staging_norm <- normalizePath(staging_root, mustWork = FALSE)
-  if (!startsWith(staged, staging_norm)) {
-    stop("Staged file must live under the active update source_staging directory.", call. = FALSE)
-  }
-  if (!file.exists(staged)) {
-    stop("Staged file does not exist: ", staged_rel, call. = FALSE)
-  }
-  dest <- if (grepl("^/", dest_rel)) dest_rel else file.path(root, dest_rel)
-  if (file.exists(dest) && !overwrite) {
-    stop("Destination exists; pass --yes to overwrite: ", dest_rel, call. = FALSE)
-  }
-  dir.create(dirname(dest), recursive = TRUE, showWarnings = FALSE)
-  if (dir.exists(staged)) {
-    if (file.exists(dest) && overwrite) {
-      unlink(dest, recursive = TRUE)
-    }
-    dir.create(dest, recursive = TRUE, showWarnings = FALSE)
-    items <- list.files(staged, all.files = TRUE, no.. = TRUE, full.names = TRUE)
-    if (length(items)) {
-      file.copy(items, dest, recursive = TRUE, copy.date = TRUE)
-    }
-  } else {
-    file.copy(staged, dest, overwrite = overwrite, copy.date = TRUE)
-  }
-  decision <- list(
-    source_id = source_id %||% NA_character_,
-    staged = dina_relative(staged, root),
-    destination = dina_relative(dest, root),
-    sha256 = dina_hash_path(dest),
-    integrated_at = dina_now()
-  )
-  session$source_decisions[[length(session$source_decisions) + 1L]] <- decision
-  session$updated_at <- dina_now()
-  dina_save_session(session, root)
-  decision
-}
-
-dina_staged_rel_from_root_relative <- function(path, session, root = dina_repo_root()) {
-  staging_root_rel <- dina_relative(dina_source_staging_root(session, root), root)
-  sub(paste0("^", gsub("([][{}()+*^$|\\\\?.])", "\\\\\\1", staging_root_rel), "/?"), "", path)
-}
-
 dina_source_destinations <- function(source) {
   unique(c(
     dina_source_values(dina_source_field(source, "destination")),
@@ -1029,7 +817,7 @@ dina_source_destinations <- function(source) {
   ))
 }
 
-dina_source_destination_for_staged <- function(source, staged_rel) {
+dina_source_destination_for_incoming <- function(source, incoming_name) {
   destinations <- dina_source_destinations(source)
   if (!length(destinations)) {
     return(list(status = "missing_destination", destination = ""))
@@ -1043,190 +831,11 @@ dina_source_destination_for_staged <- function(source, staged_rel) {
       destinations[[1]],
       values = list(
         source = source$id %||% "",
-        basename = basename(staged_rel),
-        staged = staged_rel
+        basename = basename(incoming_name),
+        incoming = incoming_name
       )
     )
   )
-}
-
-dina_source_record_entries <- function(session, root = dina_repo_root()) {
-  entries <- list()
-  add_entry <- function(entry) {
-    entries[[length(entries) + 1L]] <<- entry
-  }
-  refreshes <- session$source_refreshes %||% list()
-  for (stamp in names(refreshes)) {
-    for (result in refreshes[[stamp]]) {
-      target <- result$target %||% ""
-      status <- result$status %||% ""
-      if (!nzchar(target) || !status %in% c("staged", "already_staged")) {
-        next
-      }
-      if (!file.exists(file.path(root, target))) {
-        next
-      }
-      add_entry(list(
-        source_id = result$id %||% "",
-        method = result$method %||% "",
-        staged = target,
-        staged_rel = dina_staged_rel_from_root_relative(target, session, root),
-        sha256 = result$sha256 %||% dina_hash_path(file.path(root, target)),
-        recorded_at = stamp,
-        origin = "refresh"
-      ))
-    }
-  }
-  for (record in session$source_stage_records %||% list()) {
-    add_entry(list(
-      source_id = record$source_id %||% "",
-      method = record$method %||% "",
-      staged = record$staged %||% "",
-      staged_rel = record$staged_rel %||% dina_staged_rel_from_root_relative(record$staged %||% "", session, root),
-      sha256 = record$sha256 %||% NA_character_,
-      recorded_at = record$staged_at %||% "",
-      origin = "manual_stage"
-    ))
-  }
-  if (length(entries)) {
-    key <- vapply(entries, function(entry) {
-      paste(
-        entry$source_id %||% "",
-        entry$staged_rel %||% entry$staged %||% "",
-        sep = "\r"
-      )
-    }, character(1))
-    entries <- entries[!duplicated(key)]
-  }
-  entries
-}
-
-dina_sources_review_rows <- function(session, root = dina_repo_root()) {
-  if (is.null(session)) {
-    stop("No active update session.", call. = FALSE)
-  }
-  staging_root <- dina_source_staging_root(session, root)
-  entries <- dina_source_record_entries(session, root)
-  recorded_staged <- vapply(entries, function(entry) entry$staged %||% "", character(1))
-  recorded_full <- normalizePath(file.path(root, recorded_staged[nzchar(recorded_staged)]), mustWork = FALSE)
-  staged_files <- if (dir.exists(staging_root)) {
-    list.files(staging_root, recursive = TRUE, all.files = TRUE, no.. = TRUE, full.names = TRUE)
-  } else {
-    character()
-  }
-  staged_files <- normalizePath(staged_files, mustWork = FALSE)
-  staged_files <- staged_files[file.exists(staged_files) & !dir.exists(staged_files)]
-  recorded_dirs <- recorded_full[dir.exists(recorded_full)]
-  unrecorded <- staged_files[!vapply(staged_files, function(path) {
-    any(path == recorded_full) ||
-      any(vapply(recorded_dirs, function(dir) startsWith(path, paste0(dir, "/")), logical(1)))
-  }, logical(1))]
-  for (path in unrecorded) {
-    entries[[length(entries) + 1L]] <- list(
-      source_id = "",
-      method = "",
-      staged = dina_relative(path, root),
-      staged_rel = dina_relative(path, staging_root),
-      sha256 = dina_hash_path(path),
-      recorded_at = "",
-      origin = "unrecorded"
-    )
-  }
-  if (!length(entries)) {
-    return(data.frame(
-      source_id = character(),
-      method = character(),
-      staged = character(),
-      staged_rel = character(),
-      destination = character(),
-      destination_status = character(),
-      sha256 = character(),
-      origin = character(),
-      action = character(),
-      stringsAsFactors = FALSE
-    ))
-  }
-  rows <- lapply(entries, function(entry) {
-    source <- if (nzchar(entry$source_id %||% "")) tryCatch(dina_source_by_id(entry$source_id, root), error = function(e) NULL) else NULL
-    method <- entry$method %||% ""
-    if (!nzchar(method) && !is.null(source)) {
-      method <- source$method %||% ""
-    }
-    destination <- if (is.null(source)) {
-      list(status = "unknown_source", destination = "")
-    } else {
-      dina_source_destination_for_staged(source, entry$staged_rel %||% "")
-    }
-    action <- switch(
-      destination$status,
-      ready = "bulk_integrate",
-      missing_destination = "integrate_with_to",
-      ambiguous_destination = "integrate_with_to",
-      unknown_source = "integrate_with_source_and_to",
-      "review"
-    )
-    data.frame(
-      source_id = entry$source_id %||% "",
-      method = method,
-      staged = entry$staged %||% "",
-      staged_rel = entry$staged_rel %||% "",
-      destination = destination$destination,
-      destination_status = destination$status,
-      sha256 = entry$sha256 %||% "",
-      origin = entry$origin %||% "",
-      action = action,
-      stringsAsFactors = FALSE
-    )
-  })
-  do.call(rbind, rows)
-}
-
-dina_sources_integrate_bulk <- function(session, root = dina_repo_root(), source_id = NULL, all = FALSE, overwrite = FALSE) {
-  rows <- dina_sources_review_rows(session, root)
-  if (!isTRUE(all)) {
-    source_id <- source_id %||% ""
-    if (!nzchar(source_id)) {
-      stop("Pass --source ID, --all, or --staged RELPATH --to DESTINATION.", call. = FALSE)
-    }
-    rows <- rows[rows$source_id == source_id, , drop = FALSE]
-  }
-  if (!nrow(rows)) {
-    return(list())
-  }
-  out <- list()
-  for (i in seq_len(nrow(rows))) {
-    row <- rows[i, , drop = FALSE]
-    if (!identical(row$destination_status[[1]], "ready")) {
-      out[[length(out) + 1L]] <- list(
-        source_id = row$source_id[[1]],
-        staged = row$staged_rel[[1]],
-        status = "skipped",
-        reason = row$destination_status[[1]],
-        action = row$action[[1]]
-      )
-      next
-    }
-    if (!isTRUE(overwrite)) {
-      out[[length(out) + 1L]] <- list(
-        source_id = row$source_id[[1]],
-        staged = row$staged_rel[[1]],
-        destination = row$destination[[1]],
-        status = "would_integrate"
-      )
-      next
-    }
-    current <- dina_load_session(session$id, root = root)
-    decision <- dina_sources_integrate_file(
-      current,
-      staged_rel = row$staged_rel[[1]],
-      dest_rel = row$destination[[1]],
-      source_id = row$source_id[[1]],
-      root = root,
-      overwrite = TRUE
-    )
-    out[[length(out) + 1L]] <- c(decision, list(status = "integrated"))
-  }
-  out
 }
 
 dina_source_inbox_patterns <- function(source) {
@@ -1556,72 +1165,6 @@ dina_sources_inbox_init <- function(root = dina_repo_root(), dry_run = FALSE, mi
   )
 }
 
-dina_source_inbox_validation <- function(source, path, destination = "", root = dina_repo_root()) {
-  rel <- dina_relative(path, root)
-  base <- basename(path)
-  ext <- tolower(tools::file_ext(base))
-  issues <- character()
-  warnings <- character()
-
-  if (identical(base, ".DS_Store") || grepl("\\.tmp$", base, ignore.case = TRUE)) {
-    issues <- c(issues, "hidden_or_temp")
-  }
-  if (!file.exists(path)) {
-    issues <- c(issues, "missing")
-  }
-  if (!dir.exists(path)) {
-    allowed <- dina_source_values(dina_source_field(source, "extensions"))
-    if (!length(allowed)) {
-      allowed <- switch(
-        source$id %||% "",
-        "chl-pit-total" = c("xlsb", "xlsx"),
-        "bra-pit-total" = "xlsx",
-        c("csv", "dta", "xls", "xlsx", "xlsb", "ods", "zip")
-      )
-    }
-    if (nzchar(ext) && !ext %in% tolower(allowed)) {
-      issues <- c(issues, sprintf("unexpected_extension:%s", ext))
-    }
-  }
-  if (nzchar(destination) && file.exists(file.path(root, destination))) {
-    warnings <- c(warnings, "destination_exists")
-  }
-
-  if (identical(source$id %||% "", "col-pit-total") && dir.exists(path)) {
-    xlsx <- list.files(path, pattern = "\\.xlsx$", recursive = TRUE, ignore.case = TRUE)
-    dta <- list.files(path, pattern = "\\.dta$", recursive = TRUE, ignore.case = TRUE)
-    if (!length(xlsx)) {
-      issues <- c(issues, "no_xlsx_files")
-    }
-    if (length(dta)) {
-      warnings <- c(warnings, "generated_dta_present")
-    }
-  }
-
-  if (identical(source$id %||% "", "chl-pit-total") && !dir.exists(path)) {
-    if (!ext %in% c("xlsb", "xlsx")) {
-      issues <- c(issues, "expected_xlsb_or_xlsx")
-    }
-  }
-
-  if (identical(source$id %||% "", "bra-pit-total") && !dir.exists(path)) {
-    if (!grepl("^gn-irpf-ac[0-9]{4}\\.xlsx$", base, ignore.case = TRUE)) {
-      warnings <- c(warnings, "unexpected_bra_filename")
-    }
-    sheets <- dina_excel_sheets_safe(path)
-    if (length(sheets) && !"Tab8" %in% sheets) {
-      issues <- c(issues, "missing_Tab8")
-    }
-  }
-
-  status <- if (length(issues)) "failed" else if (length(warnings)) "warning" else "ok"
-  detail <- paste(c(issues, warnings), collapse = ",")
-  if (!nzchar(detail)) {
-    detail <- "ok"
-  }
-  list(status = status, detail = detail, path = rel)
-}
-
 dina_sources_inbox_rows <- function(root = dina_repo_root(), source_id = NULL) {
   registry <- dina_sources(root)$sources
   if (!is.null(source_id) && nzchar(source_id)) {
@@ -1640,8 +1183,7 @@ dina_sources_inbox_rows <- function(root = dina_repo_root(), source_id = NULL) {
       next
     }
     for (path in paths) {
-      dest <- dina_source_destination_for_staged(source, basename(path))
-      validation <- dina_source_inbox_validation(source, path, destination = dest$destination %||% "", root = root)
+      dest <- dina_source_destination_for_incoming(source, basename(path))
       rows[[length(rows) + 1L]] <- data.frame(
         source_id = source$id %||% "",
         family = source$family %||% "",
@@ -1653,9 +1195,6 @@ dina_sources_inbox_rows <- function(root = dina_repo_root(), source_id = NULL) {
         destination_status = dest$status %||% "",
         transformer = paste(dina_source_values(dina_source_field(source, "transformer")), collapse = ", "),
         notes = paste(dina_source_values(dina_source_field(source, "notes")), collapse = " "),
-        validation = validation$status,
-        validation_detail = validation$detail,
-        sha256 = dina_hash_path(path),
         stringsAsFactors = FALSE
       )
     }
@@ -1672,9 +1211,6 @@ dina_sources_inbox_rows <- function(root = dina_repo_root(), source_id = NULL) {
       destination_status = character(),
       transformer = character(),
       notes = character(),
-      validation = character(),
-      validation_detail = character(),
-      sha256 = character(),
       stringsAsFactors = FALSE
     ))
   }
@@ -1946,78 +1482,6 @@ dina_buckets_fetch <- function(root = dina_repo_root(), family = NULL, selector 
     ))
   }
   do.call(rbind, rows)
-}
-
-dina_sources_integrate_incoming <- function(session, root = dina_repo_root(), source_id = NULL, all = FALSE, overwrite = FALSE) {
-  if (is.null(session)) {
-    stop("No active update session.", call. = FALSE)
-  }
-  rows <- dina_sources_inbox_rows(root, source_id = source_id)
-  if (!isTRUE(all)) {
-    source_id <- source_id %||% ""
-    if (!nzchar(source_id)) {
-      stop("Pass --source ID or --all with --incoming.", call. = FALSE)
-    }
-    rows <- rows[rows$source_id == source_id, , drop = FALSE]
-  }
-  if (!nrow(rows)) {
-    return(list())
-  }
-  out <- list()
-  for (i in seq_len(nrow(rows))) {
-    row <- rows[i, , drop = FALSE]
-    if (!identical(row$destination_status[[1]], "ready")) {
-      out[[length(out) + 1L]] <- list(source_id = row$source_id[[1]], incoming = row$inbox[[1]], status = "skipped", reason = row$destination_status[[1]])
-      next
-    }
-    if (identical(row$validation[[1]], "failed")) {
-      out[[length(out) + 1L]] <- list(source_id = row$source_id[[1]], incoming = row$inbox[[1]], status = "skipped", reason = row$validation_detail[[1]])
-      next
-    }
-    replaces_existing <- nzchar(row$destination[[1]]) && file.exists(file.path(root, row$destination[[1]]))
-    if (!isTRUE(overwrite)) {
-      out[[length(out) + 1L]] <- list(
-        source_id = row$source_id[[1]],
-        incoming = row$inbox[[1]],
-        destination = row$destination[[1]],
-        validation = row$validation[[1]],
-        replaces_existing = replaces_existing,
-        status = "would_integrate"
-      )
-      next
-    }
-    incoming <- file.path(root, row$inbox[[1]])
-    destination <- file.path(root, row$destination[[1]])
-    if (file.exists(destination)) {
-      unlink(destination, recursive = TRUE)
-    }
-    dir.create(dirname(destination), recursive = TRUE, showWarnings = FALSE)
-    if (dir.exists(incoming)) {
-      dir.create(destination, recursive = TRUE, showWarnings = FALSE)
-      items <- list.files(incoming, all.files = TRUE, no.. = TRUE, full.names = TRUE)
-      if (length(items)) {
-        file.copy(items, destination, recursive = TRUE, copy.date = TRUE)
-      }
-    } else {
-      file.copy(incoming, destination, overwrite = TRUE, copy.date = TRUE)
-    }
-    decision <- list(
-      source_id = row$source_id[[1]],
-      incoming = row$inbox[[1]],
-      destination = row$destination[[1]],
-      sha256 = dina_hash_path(destination),
-      validation = row$validation[[1]],
-      replaces_existing = replaces_existing,
-      integrated_at = dina_now(),
-      origin = "incoming"
-    )
-    current <- dina_load_session(session$id, root = root)
-    current$source_decisions[[length(current$source_decisions) + 1L]] <- decision
-    current$updated_at <- dina_now()
-    dina_save_session(current, root)
-    out[[length(out) + 1L]] <- c(decision, list(status = "integrated"))
-  }
-  out
 }
 
 dina_scan_sources <- function(root = dina_repo_root(), include_missing = TRUE, deep = FALSE, hash = deep, previous = NULL, progress = NULL) {
@@ -2695,8 +2159,6 @@ dina_update_start <- function(year = format(Sys.Date(), "%Y"), id = NULL, root =
       folders = dina_records_from_df(inbox_init$folders)
     ),
     source_scan = source_scan,
-    source_refreshes = list(),
-    source_decisions = list(),
     task_runs = list(),
     todo = list(checked = character())
   )
@@ -2913,27 +2375,6 @@ dina_now <- function() {
   format(Sys.time(), "%Y-%m-%dT%H:%M:%OS%z")
 }
 
-dina_latest_source_refresh_time <- function(session) {
-  refreshes <- session$source_refreshes %||% list()
-  if (!length(refreshes)) {
-    return(NA_character_)
-  }
-  names(refreshes)[[length(refreshes)]]
-}
-
-dina_latest_source_decision_time <- function(session) {
-  decisions <- session$source_decisions %||% list()
-  if (!length(decisions)) {
-    return(NA_character_)
-  }
-  times <- vapply(decisions, function(x) x$integrated_at %||% NA_character_, character(1))
-  times <- times[!is.na(times) & nzchar(times)]
-  if (!length(times)) {
-    return(NA_character_)
-  }
-  sort(times)[[length(times)]]
-}
-
 dina_source_diff_counts <- function(diff) {
   counts <- dina_empty_source_status_counts()
   if (!length(diff)) {
@@ -2946,7 +2387,7 @@ dina_source_diff_counts <- function(diff) {
   counts
 }
 
-dina_sources_status <- function(session, root = dina_repo_root(), hash = "changed", deep = FALSE) {
+dina_sources_compare <- function(session, root = dina_repo_root(), hash = "changed", deep = FALSE) {
   if (is.null(session)) {
     stop("No active update.", call. = FALSE)
   }
@@ -2959,12 +2400,14 @@ dina_sources_status <- function(session, root = dina_repo_root(), hash = "change
     scan_hash_mode = dina_hash_mode(hash),
     scanned_at = dina_now(),
     last_recorded_scan_at = session$latest_source_scan_at %||% NA_character_,
-    last_refresh_at = dina_latest_source_refresh_time(session),
-    last_integration_at = dina_latest_source_decision_time(session),
     review = NULL,
     counts = dina_source_diff_counts(diff),
     diff = diff
   )
+}
+
+dina_sources_status <- function(session, root = dina_repo_root(), hash = "changed", deep = FALSE) {
+  dina_sources_compare(session, root = root, hash = hash, deep = deep)
 }
 
 dina_todo_label <- function(root = dina_repo_root(), id = "") {
@@ -3034,8 +2477,6 @@ dina_session_state <- function(session, root = dina_repo_root()) {
     ))
   }
   failed <- names(session$task_runs)[vapply(session$task_runs, function(x) identical(x$status, "failed"), logical(1))]
-  incoming <- tryCatch(dina_sources_inbox_rows(root), error = function(e) data.frame())
-
   if (length(failed)) {
     task <- failed[[length(failed)]]
     return(dina_session_result(
@@ -3049,22 +2490,6 @@ dina_session_state <- function(session, root = dina_repo_root()) {
         next_command = sprintf("dina run %s --dry-run", task),
         next_note = "If the preview looks right, rerun without --dry-run.",
         recommendation = sprintf("Inspect failed task with `dina run why %s`, then retry deliberately.", task)
-      )
-    ))
-  }
-  if (is.data.frame(incoming) && nrow(incoming)) {
-    count <- nrow(incoming)
-    return(dina_session_result(
-      "sources_pending",
-      dina_recommendation(
-        command = "dina sources review",
-        why = sprintf("%s incoming source file%s %s waiting in input_data/_new.", count, if (count == 1L) "" else "s", if (count == 1L) "is" else "are"),
-        todo_id = "review-sources",
-        todo_label = dina_todo_label(root, "review-sources"),
-        expected_action = "Inspect warnings first, then preview accepted source integrations.",
-        next_command = "dina sources integrate SOURCE",
-        next_note = "Use --yes only after the integration preview looks right.",
-        recommendation = "Review incoming files with `dina sources review`."
       )
     ))
   }
@@ -3112,7 +2537,7 @@ dina_session_state <- function(session, root = dina_repo_root()) {
     "review_ready",
     dina_recommendation(
       command = "dina update close --dry-run",
-      why = "No failed tasks, incoming source files, stale tasks, or unchecked todo items were found.",
+      why = "No failed tasks, stale tasks, or unchecked todo items were found.",
       expected_action = "Preview closure notes before writing the final close report.",
       next_command = "dina update close",
       next_note = "Run the final close command after the dry-run report looks right.",

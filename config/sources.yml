@@ -22,10 +22,6 @@ sources:
     destination: input_data/admin_data/CHL/{basename}
     downloader: code/R/02c_clean_admin_chl.R
     transformer: code/R/02c_clean_admin_chl.R
-    checks:
-      - file_exists
-      - excel_readable
-      - years_detected
     notes: Chile PIT source. The cleaner is a pipeline transform; its update-mode download hook is not the preferred source workflow.
 
   - id: bra-pit-total
@@ -47,9 +43,6 @@ sources:
     destination: input_data/admin_data/BRA/{basename}
     downloader: code/R/manual-downloaders/bra_admin_downloader.R
     transformer: code/R/02c_clean_admin_bra.R
-    checks:
-      - file_exists
-      - years_detected
     notes: Old acquisition helper downloads selected Receita Excel files. Legacy direct files are not renewal targets; start current updates from the landing page.
 
   - id: bra-minwage
@@ -74,9 +67,6 @@ sources:
     fetcher: code/R/manual-downloaders/fetch_bra_minwage.R
     fetch_target: input_data/_new/admin_tax/wiki_minwage.csv
     transformer: code/R/02c_clean_admin_bra.R
-    checks:
-      - file_exists
-      - years_detected
     notes: Scrapes the minimum wage table used by the Brazil admin cleaner.
 
   - id: bra-admin-thresholds
@@ -118,9 +108,6 @@ sources:
       - input_data/admin_data/DOM
       - input_data/admin_data/PER
       - input_data/admin_data/SLV
-    checks:
-      - file_exists
-      - years_detected
     integration: none
     notes: Manually curated tax/admin inputs consumed by static and updated admin-data pipeline tasks.
 
@@ -144,10 +131,6 @@ sources:
       - 1_Cuantiles_Ingreso_Bruto_Naturales_2014-2023
     destination: input_data/admin_data/COL/{basename}
     transformer: code/Stata/tax-data/COL-diverse.do
-    checks:
-      - file_exists
-      - excel_readable
-      - years_detected
     notes: Colombia DIAN income quantile files. Local methodology PDF points to the DIAN Tributos page.
 
   - id: col-admin-wealth
@@ -162,10 +145,6 @@ sources:
     canonical:
       - input_data/admin_data/COL/2_Cuantiles_Patrimonio_Bruto_Naturales_2014-*
       - input_data/admin_data/COL/Nota-Metodologica-Cuantiles-Personas-Naturales.pdf
-    checks:
-      - file_exists
-      - excel_readable
-      - years_detected
     integration: none
     notes: Colombia DIAN wealth quantile files. Kept for historical reference; not an active renewal target.
 
@@ -184,9 +163,6 @@ sources:
     downloader: code/R/manual-downloaders/download-raw-un-sna.R
     transformer: code/R/01a_import-un-sna-data.R
     integration: none
-    checks:
-      - file_exists
-      - years_detected
     notes: The legacy downloader builds UN SNA table URLs from table codes and years. The pipeline consumes the cleaned local DTA files.
 
   - id: country-sna-arg
@@ -224,10 +200,6 @@ sources:
     destination: input_data/sna_country_data/BRA/{basename}
     downloader: code/R/manual-downloaders/download-country-sna.R
     transformer: code/Stata/01b-add-country-sna.do
-    checks:
-      - file_exists
-      - excel_readable
-      - years_detected
     notes: Brazil SNA website has multiple download modes; start manual review from the listed landing pages.
 
   - id: country-sna-chl
@@ -248,11 +220,7 @@ sources:
     destination: input_data/sna_country_data/CHL/{basename}
     downloader: code/R/manual-downloaders/download-country-sna.R
     transformer: code/Stata/01b-add-country-sna.do
-    checks:
-      - file_exists
-      - excel_readable
-      - years_detected
-    notes: Old downloader has a hard-coded historical URL; current source review should start from the website/index.
+    notes: Old downloader has a hard-coded historical URL; current manual refresh should start from the website/index.
 
   - id: country-sna-col
     family: country_sna
@@ -272,10 +240,6 @@ sources:
     destination: input_data/sna_country_data/COL/{basename}
     downloader: code/R/manual-downloaders/download-country-sna.R
     transformer: code/Stata/01b-add-country-sna.do
-    checks:
-      - file_exists
-      - excel_readable
-      - years_detected
     notes: Colombia SNA website and legacy workbook links used for manual country-SNA refreshes.
 
   - id: country-sna-cri
@@ -298,10 +262,6 @@ sources:
     destination: input_data/sna_country_data/CRI/{basename}
     downloader: code/R/manual-downloaders/download-country-sna.R
     transformer: code/Stata/01b-add-country-sna.do
-    checks:
-      - file_exists
-      - excel_readable
-      - years_detected
     notes: Costa Rica SNA links used for manual country-SNA refreshes.
 
   - id: country-sna-dom
@@ -319,10 +279,6 @@ sources:
       - input_data/_new/country_sna/DOM/*.xlsx
     destination: input_data/sna_country_data/DOM/{basename}
     transformer: code/Stata/01b-add-country-sna.do
-    checks:
-      - file_exists
-      - excel_readable
-      - years_detected
     notes: Dominican Republic SNA landing page used for manual country-SNA refreshes.
 
   - id: country-sna-ecu
@@ -345,10 +301,6 @@ sources:
     destination: input_data/sna_country_data/ECU/{basename}
     downloader: code/R/manual-downloaders/download-country-sna.R
     transformer: code/Stata/01b-add-country-sna.do
-    checks:
-      - file_exists
-      - excel_readable
-      - years_detected
     notes: Ecuador SNA website and legacy workbook links used for manual country-SNA refreshes.
 
   - id: country-sna-mex
@@ -368,13 +320,9 @@ sources:
       - tabulados_si.zip
     downloader: code/R/manual-downloaders/download-country-sna.R
     transformer: code/Stata/01b-add-country-sna.do
-    checks:
-      - file_exists
-      - excel_readable
-      - years_detected
     fetch_target: input_data/_new/country_sna/MEX/tabulados_si.zip
     integration: none
-    notes: Fetches the ZIP into the country-SNA _new bucket; review and integration are still manual.
+    notes: Fetches the ZIP into the country-SNA _new bucket; no automated source validation/preparation workflow is implemented yet.
 
   - id: country-sna-per
     family: country_sna
@@ -391,10 +339,6 @@ sources:
       - input_data/_new/country_sna/PER/*.xlsx
     destination: input_data/sna_country_data/PER/{basename}
     transformer: code/Stata/01b-add-country-sna.do
-    checks:
-      - file_exists
-      - excel_readable
-      - years_detected
     notes: Peru national accounts landing page used for manual country-SNA refreshes.
 
   - id: country-sna-ury
@@ -412,10 +356,6 @@ sources:
       - input_data/_new/country_sna/URY/*.xlsx
     destination: input_data/sna_country_data/URY/{basename}
     transformer: code/Stata/01b-add-country-sna.do
-    checks:
-      - file_exists
-      - excel_readable
-      - years_detected
     notes: Uruguay institutional accounts page used for manual country-SNA refreshes.
 
   - id: country-sna-ven
@@ -442,9 +382,6 @@ sources:
       - intermediary_data/national_accounts/UNDATA-WID-OECD-Merged.dta
     transformer: code/Stata/01a-clean-macro-data.do
     integration: none
-    checks:
-      - file_exists
-      - years_detected
     notes: Stata `wid` calls in 01a fetch WID macro indicators used in national accounts construction.
 
   - id: wid-public-spending
@@ -458,9 +395,6 @@ sources:
       - input_data/sna-WID/gov_expenditure_*.dta
     transformer: code/Stata/01g-add-public-spending-data.do
     integration: none
-    checks:
-      - file_exists
-      - years_detected
     notes: 01g fetches WID public-spending indicators and merges them with local expenditure inputs.
 
   - id: wid-export-checks
@@ -474,8 +408,6 @@ sources:
       - output/latest_wid_series
     transformer: code/Stata/07d-export-results-to-wid.do
     integration: none
-    checks:
-      - file_exists
     notes: 07d calls WID for final export comparisons. This is an online pipeline dependency to make visible before moving it out.
 
   - id: wid-population-survey-adjustment
@@ -503,10 +435,6 @@ sources:
       - code/Stata/06c-graph-ineqstats-by-step.do
       - code/Stata/07a-export-synthetic-microfiles.do
     integration: none
-    checks:
-      - file_exists
-      - excel_readable
-      - years_detected
     notes: Several reporting/export tasks refresh this file through Stata `wid`; cataloged here as a side-effecting online dependency.
 
   - id: wb-xrates
@@ -533,10 +461,6 @@ sources:
     fetcher: code/R/manual-downloaders/fetch_wb_xrates.R
     fetch_target: input_data/_new/survey_inputs/prices/wb-xrates.xls
     transformer: code/Stata/05b-rescale-and-impute.do
-    checks:
-      - file_exists
-      - excel_readable
-      - years_detected
     notes: World Bank official exchange rates. Used for Ecuador old-currency harmonization.
 
   - id: wb-inflation
@@ -562,9 +486,6 @@ sources:
     transformer:
       - code/Stata/06b-graph-ineqstats-countries-variables.do
       - code/Stata/06c-graph-ineqstats-by-step.do
-    checks:
-      - file_exists
-      - years_detected
     notes: World Bank CPI inflation input, fetched into survey input buckets before price harmonization.
 
   - id: cepal-prices
@@ -579,10 +500,6 @@ sources:
       - input_data/_new/prices/*.xlsx
     destination: input_data/prices_CEPAL/{basename}
     transformer: code/Stata/05b-rescale-and-impute.do
-    checks:
-      - file_exists
-      - excel_readable
-      - years_detected
     notes: Local CEPAL price inputs.
 
   - id: population
@@ -605,9 +522,6 @@ sources:
     fetcher: code/R/manual-downloaders/fetch_population_wpp.R
     fetch_target: input_data/_new/survey_inputs/population/PopulationLatAm.dta
     transformer: code/Stata/02a-get-survey-populations.do
-    checks:
-      - file_exists
-      - years_detected
     notes: UN WPP population input used by survey population preparation.
 
   - id: balance-sheet-imf
@@ -625,10 +539,6 @@ sources:
       - input_data/_new/balance_sheet/Balance_Sheet_Stock_GG.xlsx
     destination: input_data/balance_sheet/IMF/{basename}
     transformer: code/Stata/01a-clean-macro-data.do
-    checks:
-      - file_exists
-      - excel_readable
-      - years_detected
     notes: IMF government balance sheet input used by macro cleaning.
 
   - id: balance-sheet-oecd
@@ -643,10 +553,6 @@ sources:
       - input_data/_new/balance_sheet/balancesheets-br-col-mex.xls
     destination: input_data/balance_sheet/OECD/{basename}
     transformer: code/Stata/01a-clean-macro-data.do
-    checks:
-      - file_exists
-      - excel_readable
-      - years_detected
     notes: OECD balance sheet input for Brazil, Colombia, and Mexico.
 
   - id: tax-composition-oecd-ciat-cepal
@@ -661,9 +567,6 @@ sources:
       - input_data/_new/tax_composition/*.csv
     destination: input_data/OECD-CIAT-CEPAL/{basename}
     transformer: code/Stata/01c-import-tax-composition.do
-    checks:
-      - file_exists
-      - years_detected
     notes: OECD-CIAT-CEPAL tax composition input used by tax composition import.
 
   - id: social-security-oecd
@@ -678,10 +581,6 @@ sources:
       - input_data/_new/social_security/ssc-LatAm.xls
     destination: input_data/social_security_oecd/{basename}
     transformer: code/Stata/01a-clean-macro-data.do
-    checks:
-      - file_exists
-      - excel_readable
-      - years_detected
     notes: OECD social-security contribution input used by macro cleaning.
 
   - id: ceq
@@ -698,9 +597,6 @@ sources:
       - CEQ source files or folders
     destination: input_data/CEQ/{basename}
     transformer: code/Stata/01d-import_ceq_data.do
-    checks:
-      - file_exists
-      - years_detected
     notes: CEQ fiscal redistribution inputs used by CEQ import.
 
   - id: public-spending-local
@@ -717,9 +613,6 @@ sources:
       - public spending source files or folders
     destination: input_data/expenditure_durrer_gethin_fisherpost/{basename}
     transformer: code/Stata/01g-add-public-spending-data.do
-    checks:
-      - file_exists
-      - years_detected
     notes: Local public-spending inputs used by the public-spending merge.
 
   - id: surveys-cepal
@@ -742,9 +635,6 @@ sources:
       - code/Stata/01e-clean-survey-data.do
       - code/Stata/02a-get-survey-populations.do
     integration: none
-    checks:
-      - file_exists
-      - years_detected
     notes: Manual survey inputs downloaded from a private/server location. Credentials and machine-specific paths are not stored in the source registry.
 
   - id: previous-series
@@ -759,6 +649,4 @@ sources:
       - dina_latam_3Oct2024.dta
     destination: previous_series/{basename}
     transformer: code/Stata/07d-export-results-to-wid.do
-    checks:
-      - file_exists
     notes: Prior WID-format series used during final validation and export comparison.

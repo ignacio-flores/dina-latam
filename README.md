@@ -68,7 +68,7 @@ This repository also includes an experimental R-based project CLI:
 ./bin/dina update start 2026
 ./bin/dina sources list
 ./bin/dina sources fetch --dry-run
-./bin/dina sources review
+./bin/dina sources compare
 ./bin/dina run list
 ./bin/dina run 01a
 ./bin/dina update close --dry-run
