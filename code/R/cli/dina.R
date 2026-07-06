@@ -38,6 +38,32 @@ dina_cli_command <- function(text) {
   if (dina_cli_has("cli")) cli::col_cyan(text) else text
 }
 
+dina_cli_cell <- function(value, width = NULL, dim = FALSE, align = "left") {
+  text <- as.character(value %||% "")
+  if (!is.null(width)) {
+    fmt <- if (identical(align, "right")) sprintf("%%%ss", width) else sprintf("%%-%ss", width)
+    text <- sprintf(fmt, text)
+  }
+  if (isTRUE(dim)) dina_cli_dim(text) else text
+}
+
+dina_cli_row <- function(values, widths = NULL, dim = FALSE, align = NULL, sep = " ") {
+  n <- length(values)
+  widths <- widths %||% rep(NA_integer_, n)
+  dim <- rep(dim, length.out = n)
+  align <- align %||% rep("left", n)
+  cells <- vapply(seq_len(n), function(i) {
+    width <- widths[[i]]
+    if (is.na(width)) width <- NULL
+    dina_cli_cell(values[[i]], width = width, dim = dim[[i]], align = align[[i]])
+  }, character(1))
+  paste(cells, collapse = sep)
+}
+
+dina_cli_key_value <- function(label, value, dim_value = TRUE) {
+  sprintf("%s %s", label, if (isTRUE(dim_value)) dina_cli_dim(value) else value)
+}
+
 dina_cli_cat <- function(...) {
   cat(paste0(...), "\n", sep = "")
 }
@@ -90,7 +116,6 @@ Usage:
   dina help [TOPIC]
   dina commands
   dina navigate
-  dina menu commands
   dina COMMAND [SUBCOMMAND] [OPTIONS]
 
 Plain `dina` opens the guided dashboard and recommends the next action.
@@ -131,7 +156,6 @@ Pipeline:
 
 Navigation:
   `commands|navigate`                 [interactive] browse available commands
-  `menu commands`                     [interactive] open command navigator
 
 Setup and config:
   `doctor`                            [read-only] check local readiness
@@ -276,7 +300,6 @@ More help:
     commands = "Usage:
   dina commands
   dina navigate
-  dina menu commands
 
 What it does:
   Opens the command navigator deliberately. The navigator groups documented
@@ -294,7 +317,6 @@ Non-interactive use:
 Examples:
   dina commands
   dina navigate
-  dina menu commands
 ",
     navigate = dina_help_text("commands"),
     menu = "Usage:
@@ -302,12 +324,12 @@ Examples:
   dina menu commands
 
 What it does:
-  `dina menu` opens the compact dashboard menu. `dina menu commands` opens the
-  full command navigator.
+  Compatibility aliases for the command navigator. Prefer `dina commands` or
+  `dina navigate` in docs and scripts.
 
 Examples:
-  dina menu
-  dina menu commands
+  dina commands
+  dina navigate
 ",
     doctor = "Usage:
   dina doctor
@@ -856,8 +878,76 @@ Options:
   )
 }
 
+dina_help_heading_line <- function(line) {
+  trimmed <- trimws(line)
+  if (!nzchar(trimmed)) {
+    return(FALSE)
+  }
+  if (identical(trimmed, "DINA-LatAm CLI")) {
+    return(TRUE)
+  }
+  if (grepl("^[0-9]+\\.\\s", trimmed)) {
+    return(TRUE)
+  }
+  if (grepl("^[A-Za-z][A-Za-z0-9 /&_-]*:$", trimmed)) {
+    return(TRUE)
+  }
+  trimmed %in% c("Command map", "Pipeline selectors", "Critical defaults")
+}
+
+dina_help_command_line <- function(line) {
+  body <- sub("^\\s+", "", line)
+  grepl("^(dina|\\./bin/dina)(\\s|$)", body)
+}
+
+dina_help_dim_aligned_suffix <- function(line) {
+  lead <- regmatches(line, regexpr("^\\s*", line))
+  body <- substring(line, nchar(lead) + 1L)
+  if (!nzchar(body) || grepl("^(dina|\\./bin/dina)(\\s|$)", body)) {
+    return(line)
+  }
+  if (startsWith(body, "`") && nchar(lead) <= 2L) {
+    close <- regexpr("`", substring(body, 2L), fixed = TRUE)[[1]]
+    if (close > 0L) {
+      close <- close + 1L
+      prefix <- paste0(lead, substr(body, 1L, close))
+      suffix <- substr(body, close + 1L, nchar(body))
+      if (nzchar(trimws(suffix))) {
+        return(paste0(prefix, dina_cli_dim(suffix)))
+      }
+      return(line)
+    }
+  }
+  split <- regexpr("[[:space:]]{2,}", body)
+  if (split[[1]] < 0L) {
+    return(NULL)
+  }
+  split_start <- split[[1]]
+  split_width <- attr(split, "match.length")
+  prefix <- paste0(lead, substr(body, 1L, split_start + split_width - 1L))
+  suffix <- substr(body, split_start + split_width, nchar(body))
+  if (!nzchar(trimws(suffix))) {
+    return(line)
+  }
+  paste0(prefix, dina_cli_dim(suffix))
+}
+
+dina_help_style_line <- function(line) {
+  if (!nzchar(line) || dina_help_heading_line(line) || dina_help_command_line(line)) {
+    return(line)
+  }
+  aligned <- dina_help_dim_aligned_suffix(line)
+  if (!is.null(aligned)) {
+    return(aligned)
+  }
+  dina_cli_dim(line)
+}
+
 dina_usage <- function(topic = NULL) {
-  cat(dina_help_text(topic), sep = "")
+  lines <- strsplit(dina_help_text(topic), "\n", fixed = TRUE)[[1]]
+  for (line in lines) {
+    cat(dina_help_style_line(line), "\n", sep = "")
+  }
 }
 
 dina_parse_flags <- function(args) {
@@ -1083,26 +1173,26 @@ dina_menu_read_key <- function(con) {
 }
 
 dina_menu_control_help <- function(items = NULL) {
-  parts <- c("Up/Down move", "Enter select")
+  parts <- c("Up/Down move", "Enter select", "type number + Enter to select")
   if (!is.null(items)) {
     has_back <- !is.na(dina_menu_back_index(items))
     has_next <- !is.na(dina_menu_next_index(items))
     has_right <- any(!vapply(items, function(item) is.null(item$right), logical(1)))
     if (has_right && has_back) {
-      parts <- c(parts, "Left back", "Right open")
+      parts <- c(parts, "Left back", "Right open", "p/n + Enter fallback")
     } else if (has_right) {
-      parts <- c(parts, "Right open")
+      parts <- c(parts, "Right open", "n + Enter fallback")
     } else if (has_back && has_next) {
-      parts <- c(parts, "Left/Right back/next")
+      parts <- c(parts, "Left/Right back/next", "p/n + Enter fallback")
     } else if (has_back) {
-      parts <- c(parts, "Left back")
+      parts <- c(parts, "Left back", "p + Enter fallback")
     } else if (has_next) {
-      parts <- c(parts, "Right next")
+      parts <- c(parts, "Right next", "n + Enter fallback")
     }
   } else {
-    parts <- c(parts, "Left/Right back/next when available")
+    parts <- c(parts, "Left/Right back/next when available", "p/n + Enter fallback")
   }
-  paste(c(parts, "number selects", "q quits", "? help"), collapse = " - ")
+  paste(c(parts, "q quits", "? help"), collapse = " - ")
 }
 
 dina_menu_help_lines <- function(items, selected = NULL) {
@@ -1168,13 +1258,20 @@ dina_menu_lines <- function(title, items, selected = NULL, prompt = "Choose an a
   lines
 }
 
+dina_menu_default_is_quit <- function(default = NULL, allow_quit = TRUE) {
+  isTRUE(allow_quit) &&
+    length(default %||% character()) == 1L &&
+    tolower(as.character(default)) %in% c("q", "quit")
+}
+
 dina_menu_select_numbered <- function(title, items, prompt = "Choose an action", default = NULL, allow_quit = TRUE, input = "stdin", is_terminal = isatty(stdin())) {
   visible <- dina_menu_visible_indices(items)
+  default_is_quit <- dina_menu_default_is_quit(default, allow_quit)
   selected_default <- dina_menu_index_for_value(items, default)
   if (!is.na(selected_default) && isTRUE(items[[selected_default]]$hidden)) {
     selected_default <- NA_integer_
   }
-  if (is.na(selected_default)) {
+  if (is.na(selected_default) && !default_is_quit) {
     selected_default <- dina_menu_first_enabled(items)
   }
   repeat {
@@ -1182,7 +1279,7 @@ dina_menu_select_numbered <- function(title, items, prompt = "Choose an action",
       dina_cli_cat(line)
     }
     default_visible <- match(selected_default, visible)
-    default_label <- if (!is.na(default_visible)) as.character(default_visible) else if (isTRUE(allow_quit)) "q" else ""
+    default_label <- if (!is.na(default_visible)) as.character(default_visible) else if (default_is_quit || isTRUE(allow_quit)) "q" else ""
     answer <- tolower(trimws(dina_cli_prompt_value(sprintf("Selection [%s]: ", default_label), default = default_label, input = input, is_terminal = is_terminal)))
     if (answer %in% c("?", "help")) {
       dina_cli_cat(dina_menu_control_help(items))
@@ -1240,18 +1337,19 @@ dina_menu_select_raw <- function(title, items, prompt = "Choose an action", defa
     dina_menu_restore_tty(state)
     cat("\n")
   }, add = TRUE)
-  selected <- dina_menu_index_for_value(items, default)
-  if (is.na(selected)) {
-    selected <- dina_menu_first_enabled(items)
-  }
-  if (is.na(selected)) {
+  default_is_quit <- dina_menu_default_is_quit(default, allow_quit)
+  selected <- if (isTRUE(default_is_quit)) NA_integer_ else dina_menu_index_for_value(items, default)
+  enabled <- dina_menu_enabled_indices(items)
+  if (!length(enabled)) {
     return(if (isTRUE(allow_quit)) "quit" else NULL)
   }
+  if (is.na(selected)) {
+    selected <- if (isTRUE(default_is_quit)) NA_integer_ else enabled[[1]]
+  }
   show_help <- FALSE
-  enabled <- dina_menu_enabled_indices(items)
   repeat {
     screen <- paste(
-      dina_menu_lines(title, items, selected = selected, prompt = prompt, help = show_help),
+      dina_menu_lines(title, items, selected = if (is.na(selected)) NULL else selected, prompt = prompt, help = show_help),
       collapse = "\r\n"
     )
     cat("\033[2J\033[H", screen, "\r\n", sep = "")
@@ -1259,19 +1357,31 @@ dina_menu_select_raw <- function(title, items, prompt = "Choose an action", defa
     key <- dina_menu_read_key(con)
     show_help <- FALSE
     if (identical(key, "\033[A")) {
-      current <- match(selected, enabled)
-      selected <- enabled[[if (current <= 1L) length(enabled) else current - 1L]]
+      if (is.na(selected)) {
+        selected <- enabled[[length(enabled)]]
+      } else {
+        current <- match(selected, enabled)
+        selected <- enabled[[if (current <= 1L) length(enabled) else current - 1L]]
+      }
     } else if (identical(key, "\033[B")) {
-      current <- match(selected, enabled)
-      selected <- enabled[[if (current >= length(enabled)) 1L else current + 1L]]
+      if (is.na(selected)) {
+        selected <- enabled[[1]]
+      } else {
+        current <- match(selected, enabled)
+        selected <- enabled[[if (current >= length(enabled)) 1L else current + 1L]]
+      }
     } else if (identical(key, "\033[D")) {
       idx <- dina_menu_back_index(items)
       if (!is.na(idx)) return(dina_menu_action_value(items[[idx]]))
     } else if (identical(key, "\033[C")) {
-      if (!is.null(items[[selected]]$right)) return(items[[selected]]$right)
+      if (!is.na(selected) && !is.null(items[[selected]]$right)) return(items[[selected]]$right)
       idx <- dina_menu_next_index(items)
       if (!is.na(idx)) return(dina_menu_action_value(items[[idx]]))
     } else if (identical(key, "\r") || identical(key, "\n")) {
+      if (is.na(selected)) {
+        if (isTRUE(default_is_quit) && isTRUE(allow_quit)) return("quit")
+        next
+      }
       return(dina_menu_action_value(items[[selected]]))
     } else if (isTRUE(allow_quit) && tolower(key) %in% c("q")) {
       return("quit")
@@ -1806,9 +1916,12 @@ dina_print_repo_status <- function(comparison) {
   dina_cli_alert(sprintf("Branch at baseline: %s", metadata$branch %||% "unknown"))
   dina_cli_alert(sprintf("HEAD at baseline: %s", metadata$head %||% "unknown"))
   counts <- comparison$counts
-  dina_cli_cat(sprintf(
-    "Current vs baseline: added=%s modified=%s deleted=%s unchanged=%s",
-    counts[["added"]], counts[["modified"]], counts[["deleted"]], counts[["unchanged"]]
+  dina_cli_cat(dina_cli_key_value(
+    "Current vs baseline:",
+    sprintf(
+      "added=%s modified=%s deleted=%s unchanged=%s",
+      counts[["added"]], counts[["modified"]], counts[["deleted"]], counts[["unchanged"]]
+    )
   ))
   changed <- comparison$rows[comparison$rows$state != "unchanged", , drop = FALSE]
   if (!nrow(changed)) {
@@ -1817,7 +1930,11 @@ dina_print_repo_status <- function(comparison) {
   }
   dina_cli_cat(sprintf("%-10s %s", "state", "path"))
   for (i in seq_len(nrow(changed))) {
-    dina_cli_cat(sprintf("%-10s %s", changed$state[[i]], changed$path[[i]]))
+    dina_cli_cat(dina_cli_row(
+      list(changed$state[[i]], changed$path[[i]]),
+      widths = c(10L, NA),
+      dim = c(TRUE, FALSE)
+    ))
   }
   invisible(comparison)
 }
@@ -1855,7 +1972,11 @@ dina_print_repo_diff <- function(session, root = dina_repo_root(), baseline = "s
     dina_cli_cat("Files:")
     if (!nrow(changed)) dina_cli_cat("  none")
     for (i in seq_len(nrow(changed))) {
-      dina_cli_cat(sprintf("  %s %s", changed$state[[i]], changed$path[[i]]))
+      dina_cli_cat(sprintf(
+        "  %s %s",
+        dina_cli_dim(changed$state[[i]]),
+        changed$path[[i]]
+      ))
     }
   }
   if (isTRUE(patch)) {
@@ -2251,7 +2372,7 @@ dina_command_browser <- function(root = dina_repo_root(), proposal = NULL, input
     selected <- dina_menu_select(
       title = frame$title,
       items = actions,
-      prompt = "Browse command groups, press Enter to open or run, and ? for more detail.",
+      prompt = "Browse command groups. Type a number, then press Enter to open or run. Type ? for more detail.",
       default = NULL,
       allow_quit = TRUE,
       input = input,
@@ -2325,7 +2446,7 @@ dina_command_catalog_entry_lines <- function(entries, indent = 4L) {
     has_command <- length(entry$args %||% character()) > 0L
     if (has_command) {
       lines <- c(lines, sprintf("%s- %s", prefix, entry$label))
-      lines <- c(lines, sprintf("%s  $ %s", prefix, dina_command_template(entry)))
+      lines <- c(lines, sprintf("%s  %s", prefix, dina_cli_command(sprintf("$ %s", dina_command_template(entry)))))
     } else {
       lines <- c(lines, sprintf("%s- %s:", prefix, entry$label))
     }
@@ -2340,12 +2461,12 @@ dina_command_catalog_lines <- function(catalog = dina_command_catalog(), proposa
   lines <- character()
   if (!is.null(proposal)) {
     lines <- c(lines, "", "Recommended action:")
-    lines <- c(lines, sprintf("  $ %s", proposal$command))
+    lines <- c(lines, sprintf("  %s", dina_cli_command(sprintf("$ %s", proposal$command))))
     if (nzchar(proposal$comment %||% "")) {
-      lines <- c(lines, sprintf("  %s", proposal$comment))
+      lines <- c(lines, dina_cli_dim(sprintf("  %s", proposal$comment)))
     }
     if (nzchar(proposal$next_step %||% "")) {
-      lines <- c(lines, sprintf("  Next: %s", proposal$next_step))
+      lines <- c(lines, dina_cli_dim(sprintf("  Next: %s", proposal$next_step)))
     }
   }
   lines <- c(lines, "", "Command themes:")
@@ -2422,54 +2543,47 @@ dina_dashboard_print_summary <- function(root = dina_repo_root(), session = dina
   dina_cli_header("DINA-LatAm CLI")
   dina_cli_cat("")
   dina_cli_cat("Project status:")
-  dina_cli_cat(sprintf("  Project: %s", dina_dashboard_project_name(root)))
-  dina_cli_cat(sprintf("  Root: %s", normalizePath(root, mustWork = FALSE)))
-  dina_cli_cat(sprintf("  Git: %s", dina_dashboard_git_status(root)))
+  dina_cli_cat(dina_cli_key_value("  Project:", dina_dashboard_project_name(root)))
+  dina_cli_cat(dina_cli_key_value("  Root:", normalizePath(root, mustWork = FALSE)))
+  dina_cli_cat(dina_cli_key_value("  Git:", dina_dashboard_git_status(root)))
 
   active <- dina_current_update(root)
   if (is.null(session)) {
     if (is.null(active)) {
       dina_cli_cat("")
-      dina_cli_cat("Active update: none")
-      dina_cli_cat(sprintf("Status: %s", dina_dashboard_status_label(state)))
+      dina_cli_cat(dina_cli_key_value("Active update:", "none"))
+      dina_cli_cat(dina_cli_key_value("Status:", dina_dashboard_status_label(state)))
     } else {
       dina_cli_cat("")
-      dina_cli_cat(sprintf("Active update: %s", active))
-      dina_cli_cat("Status: active pointer exists, but manifest.json is missing")
+      dina_cli_cat(dina_cli_key_value("Active update:", active))
+      dina_cli_cat(dina_cli_key_value("Status:", "active pointer exists, but manifest.json is missing"))
     }
   } else {
     year <- session$year %||% dina_update_year_from_id(session$id)
     dina_cli_cat("")
-    dina_cli_cat(sprintf("Active update: %s (%s)", year, session$id))
-    dina_cli_cat(sprintf("Status: %s", dina_dashboard_status_label(state)))
+    dina_cli_cat(dina_cli_key_value("Active update:", sprintf("%s (%s)", year, session$id)))
+    dina_cli_cat(dina_cli_key_value("Status:", dina_dashboard_status_label(state)))
     if (nzchar(session$status %||% "")) {
-      dina_cli_cat(sprintf("Session status: %s", session$status))
+      dina_cli_cat(dina_cli_key_value("Session status:", session$status))
     }
   }
 
   dina_cli_cat("")
   dina_cli_cat("Next recommended action:")
-  dina_cli_cat(sprintf("  %s", proposal$command))
+  dina_cli_cat(sprintf("  %s", dina_cli_command(proposal$command)))
   if (nzchar(proposal$comment %||% "")) {
-    dina_cli_cat(sprintf("  %s", proposal$comment))
+    dina_cli_cat(dina_cli_dim(sprintf("  %s", proposal$comment)))
   }
   if (nzchar(proposal$next_step %||% "")) {
-    dina_cli_cat(sprintf("  Next: %s", proposal$next_step))
+    dina_cli_cat(dina_cli_dim(sprintf("  Next: %s", proposal$next_step)))
   }
 
   dina_cli_cat("")
   dina_cli_cat("Common commands:")
   for (command in dina_dashboard_common_commands(session, proposal)) {
-    dina_cli_cat(sprintf("  %s", command))
+    dina_cli_cat(sprintf("  %s", dina_cli_command(command)))
   }
 
-  dina_cli_cat("")
-  dina_cli_cat("Interactive options:")
-  dina_cli_cat("  [Enter] Run the recommended action")
-  dina_cli_cat("  [n] Navigate available commands")
-  dina_cli_cat("  [m] Open main menu")
-  dina_cli_cat("  [h] Help")
-  dina_cli_cat("  [q] Quit")
   invisible(proposal)
 }
 
@@ -2499,85 +2613,62 @@ dina_dashboard_run_proposal <- function(proposal, root = dina_repo_root()) {
   dina_dashboard_run_command(proposal$command %||% "", root = root)
 }
 
-dina_dashboard_main_menu <- function(root = dina_repo_root(), proposal = NULL, input = "stdin", is_terminal = isatty(stdin())) {
+dina_dashboard_action_menu <- function(root = dina_repo_root(), proposal = NULL, input = "stdin", is_terminal = isatty(stdin())) {
+  if (!isTRUE(is_terminal)) {
+    return(invisible(NULL))
+  }
   session <- dina_load_session(root = root)
   state <- dina_session_state(session, root)
   proposal <- proposal %||% dina_dashboard_proposal(state$recommendation)
-  commands <- dina_dashboard_common_commands(session, proposal)
+  proposal_comment <- proposal$comment %||% ""
   actions <- list(
     dina_menu_action(
       "recommended",
       "Run recommended action",
-      value = list(type = "command", command = proposal$command),
-      description = proposal$command,
+      value = list(type = "recommended"),
+      description = proposal_comment,
       command = proposal$command
+    ),
+    dina_menu_action(
+      "commands",
+      "Browse commands",
+      value = list(type = "navigator"),
+      description = "Open the full command navigator."
+    ),
+    dina_menu_action(
+      "help",
+      "Help",
+      value = list(type = "help"),
+      command = "dina help"
     )
-  )
-  for (i in seq_along(commands)) {
-    command <- commands[[i]]
-    if (identical(command, proposal$command)) {
-      next
-    }
-    actions[[length(actions) + 1L]] <- dina_menu_action(
-      sprintf("common-%s", i),
-      command,
-      value = list(type = "command", command = command),
-      command = command
-    )
-  }
-  actions[[length(actions) + 1L]] <- dina_menu_action(
-    "commands",
-    "Navigate available commands",
-    value = list(type = "navigator"),
-    description = "Open the full command navigator."
-  )
-  actions[[length(actions) + 1L]] <- dina_menu_action(
-    "help",
-    "Help",
-    value = list(type = "command", command = "dina help"),
-    command = "dina help"
   )
   selected <- dina_menu_select(
-    "DINA Main Menu",
+    "DINA Actions",
     actions,
-    prompt = "Choose a workflow action.",
-    default = NULL,
+    prompt = "Choose an action.",
+    default = "quit",
     allow_quit = TRUE,
     input = input,
     is_terminal = is_terminal
   )
   if (is.null(selected) || identical(selected, "quit")) {
+    dina_cli_alert("No command run.")
     return(invisible(NULL))
+  }
+  if (identical(selected$type %||% "", "recommended")) {
+    return(dina_dashboard_run_proposal(proposal, root = root))
   }
   if (identical(selected$type %||% "", "navigator")) {
     return(dina_command_browser(root, proposal = proposal, input = input, is_terminal = is_terminal))
   }
-  dina_dashboard_run_command(selected$command %||% "", root = root)
+  if (identical(selected$type %||% "", "help")) {
+    return(dina_usage())
+  }
+  invisible(NULL)
 }
 
 dina_dashboard_prompt <- function(root = dina_repo_root(), proposal = NULL, input = "stdin", is_terminal = isatty(stdin())) {
-  if (!isTRUE(is_terminal)) {
-    return(invisible(NULL))
-  }
-  answer <- tolower(trimws(dina_read_prompt("Choose [Enter/n/m/h/q]: ", input = input)))
-  if (!nzchar(answer)) {
-    return(dina_dashboard_run_proposal(proposal, root = root))
-  }
-  if (answer %in% c("n", "navigate", "commands")) {
-    return(dina_command_browser(root, proposal = proposal, input = input, is_terminal = is_terminal))
-  }
-  if (answer %in% c("m", "menu")) {
-    return(dina_dashboard_main_menu(root, proposal = proposal, input = input, is_terminal = is_terminal))
-  }
-  if (answer %in% c("h", "help", "?")) {
-    return(dina_usage())
-  }
-  if (answer %in% c("q", "quit", "exit")) {
-    dina_cli_alert("No command run.")
-    return(invisible(NULL))
-  }
-  dina_cli_warn(sprintf("Unknown option: %s", answer))
-  invisible(NULL)
+  dina_dashboard_action_menu(root, proposal = proposal, input = input, is_terminal = is_terminal)
 }
 
 dina_print_command_navigator <- function(root = dina_repo_root(), proposal = NULL, input = "stdin", is_terminal = isatty(stdin())) {
@@ -2655,13 +2746,10 @@ dina_print_update_roadmap <- function(session, root = dina_repo_root()) {
     gate <- status$gate
     tasks <- paste(dina_source_values(gate$tasks %||% character()), collapse = ",")
     next_check <- status$next_check %||% ""
-    dina_cli_cat(sprintf(
-      "%-3s %-18s %-13s %-28s %s",
-      i,
-      status$id,
-      status$status,
-      next_check,
-      tasks
+    dina_cli_cat(dina_cli_row(
+      list(i, status$id, status$status, next_check, tasks),
+      widths = c(3L, 18L, 13L, 28L, NA),
+      dim = c(TRUE, FALSE, TRUE, TRUE, TRUE)
     ))
   }
   next_gate <- dina_next_gate_status(session, root)
@@ -2680,7 +2768,14 @@ dina_print_gate_field <- function(label, values) {
   }
   dina_cli_cat(sprintf("%s:", label))
   for (value in values) {
-    dina_cli_cat(sprintf("  - %s", value))
+    styled <- if (identical(label, "Suggested commands")) {
+      dina_cli_command(value)
+    } else if (identical(label, "Old-reference notes")) {
+      dina_cli_dim(value)
+    } else {
+      value
+    }
+    dina_cli_cat(sprintf("  - %s", styled))
   }
 }
 
@@ -2694,7 +2789,7 @@ dina_print_update_gate <- function(session, root = dina_repo_root(), gate_id = N
   dina_cli_header(sprintf("Gate: %s", gate$id))
   dina_cli_alert(sprintf("Status: %s", status))
   if (nzchar(gate$label %||% "")) dina_cli_alert(gate$label)
-  if (nzchar(gate$goal %||% "")) dina_cli_cat(gate$goal)
+  if (nzchar(gate$goal %||% "")) dina_cli_cat(dina_cli_dim(gate$goal))
   dina_print_gate_field("Source families", gate$source_families %||% character())
   dina_print_gate_field("Tasks", gate$tasks %||% character())
   if (dina_session_show_old_refs(session)) {
@@ -2711,10 +2806,15 @@ dina_print_update_gate <- function(session, root = dina_repo_root(), gate_id = N
   for (check in gate$checks %||% list()) {
     record <- dina_gate_check_record(session, gate$id %||% "", check$id %||% "")
     check_status <- record$status %||% "pending"
-    line <- sprintf("  [%s] %s - %s", check_status, check$id %||% "", check$label %||% "")
+    line <- sprintf(
+      "  %s %s %s",
+      dina_cli_dim(sprintf("[%s]", check_status)),
+      check$id %||% "",
+      dina_cli_dim(sprintf("- %s", check$label %||% ""))
+    )
     dina_cli_cat(line)
     if (nzchar(record$note %||% "")) {
-      dina_cli_cat(sprintf("      note: %s", record$note))
+      dina_cli_cat(dina_cli_dim(sprintf("      note: %s", record$note)))
     }
   }
 
@@ -2752,14 +2852,14 @@ dina_print_source_status <- function(status) {
     dina_cli_alert(sprintf("Last integration: %s", status$last_integration_at))
   }
   dina_cli_alert("Source status is diagnostic; update progress is recorded with `dina update mark GATE/CHECK`.")
-  dina_cli_cat(sprintf("File status counts: %s", dina_source_counts_line(status$counts)))
+  dina_cli_cat(dina_cli_key_value("File status counts:", dina_source_counts_line(status$counts)))
   changed <- Filter(function(x) !identical(x$classes, "unchanged"), status$diff)
   if (!length(changed)) {
     dina_cli_ok("No source file changes detected against the baseline.")
   } else {
     dina_cli_cat("Changed sources:")
     for (item in changed) {
-      dina_cli_cat(sprintf("  %s: %s", item$id, paste(item$classes, collapse = ",")))
+      dina_cli_cat(sprintf("  %s: %s", item$id, dina_cli_dim(paste(item$classes, collapse = ","))))
     }
   }
 }
@@ -2781,13 +2881,13 @@ dina_cmd_doctor <- function(root) {
       dina_cli_warn(sprintf("Configured via %s but not runnable: %s", result$stata$source, result$stata$command))
       if (isTRUE(result$stata$discovered)) {
         dina_cli_alert(sprintf("Discovered Stata via %s: %s", result$stata$discovered_source, result$stata$discovered_command))
-        dina_cli_cat(sprintf("  %s", result$stata$suggestion))
+        dina_cli_cat(sprintf("  %s", dina_cli_command(result$stata$suggestion)))
       }
     }
   } else if (isTRUE(result$stata$discovered)) {
     dina_cli_warn("Installed but not configured for DINA.")
     dina_cli_alert(sprintf("Discovered Stata via %s: %s", result$stata$discovered_source, result$stata$discovered_command))
-    dina_cli_cat(sprintf("  %s", result$stata$suggestion))
+    dina_cli_cat(sprintf("  %s", dina_cli_command(result$stata$suggestion)))
   } else {
     dina_cli_warn("Not configured and no Stata executable was discovered. Set DINA_STATA_CMD or config/dina.yml stata.command.")
   }
@@ -3351,19 +3451,23 @@ dina_print_source_list <- function(root, flags) {
   ))
   for (source in registry) {
     urls <- dina_source_urls(source)
-    dina_cli_cat(sprintf(
-      "%-36s %-18s %-12s %-14s %5s %-4s %-10s %-11s",
-      source$id %||% "",
-      source$family %||% "",
-      dina_source_country_summary(source, root),
-      source$method %||% "",
-      length(dina_source_values(dina_source_field(source, "canonical"))),
-      if (length(urls)) "yes" else "no",
-      if (dina_source_has_value(dina_source_field(source, "downloader"))) "yes" else "no",
-      if (dina_source_has_value(dina_source_field(source, "transformer"))) "yes" else "no"
+    dina_cli_cat(dina_cli_row(
+      list(
+        source$id %||% "",
+        source$family %||% "",
+        dina_source_country_summary(source, root),
+        source$method %||% "",
+        length(dina_source_values(dina_source_field(source, "canonical"))),
+        if (length(urls)) "yes" else "no",
+        if (dina_source_has_value(dina_source_field(source, "downloader"))) "yes" else "no",
+        if (dina_source_has_value(dina_source_field(source, "transformer"))) "yes" else "no"
+      ),
+      widths = c(36L, 18L, 12L, 14L, 5L, 4L, 10L, 11L),
+      align = c("left", "left", "left", "left", "right", "left", "left", "left"),
+      dim = c(FALSE, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE)
     ))
     if (isTRUE(flags$urls) && length(urls)) {
-      for (url in urls) dina_cli_cat(sprintf("  url: %s", url))
+      for (url in urls) dina_cli_cat(sprintf("  %s %s", dina_cli_dim("url:"), url))
     }
   }
   invisible(registry)
@@ -3435,7 +3539,11 @@ dina_print_source_methods <- function() {
   dina_cli_header("Source Methods")
   dina_cli_cat(sprintf("%-8s %-7s %s", "method", "refresh", "meaning"))
   for (i in seq_len(nrow(methods))) {
-    dina_cli_cat(sprintf("%-8s %-7s %s", methods$method[[i]], methods$refresh[[i]], methods$description[[i]]))
+    dina_cli_cat(dina_cli_row(
+      list(methods$method[[i]], methods$refresh[[i]], methods$description[[i]]),
+      widths = c(8L, 7L, NA),
+      dim = c(FALSE, TRUE, TRUE)
+    ))
   }
   invisible(methods)
 }
@@ -3443,8 +3551,8 @@ dina_print_source_methods <- function() {
 dina_print_source_show <- function(root, id, include_urls = FALSE) {
   source <- dina_source_by_id(id, root)
   dina_cli_header(sprintf("Source %s", source$id))
-  dina_cli_cat(sprintf("family: %s", source$family %||% ""))
-  dina_cli_cat(sprintf("country: %s", dina_source_country_summary(source, root)))
+  dina_cli_cat(dina_cli_key_value("family:", source$family %||% ""))
+  dina_cli_cat(dina_cli_key_value("country:", dina_source_country_summary(source, root)))
   coverage <- dina_source_country_values(source, root)
   if (length(coverage) > 1L) {
     dina_print_source_field("country coverage", coverage)
@@ -3452,9 +3560,9 @@ dina_print_source_show <- function(root, id, include_urls = FALSE) {
   method <- source$method %||% ""
   method_description <- dina_source_method_description(method)
   if (nzchar(method_description)) {
-    dina_cli_cat(sprintf("method: %s - %s", method, method_description))
+    dina_cli_cat(sprintf("method: %s %s", method, dina_cli_dim(sprintf("- %s", method_description))))
   } else {
-    dina_cli_cat(sprintf("method: %s", method))
+    dina_cli_cat(dina_cli_key_value("method:", method))
   }
   urls <- dina_source_urls(source)
   if (length(urls)) {
@@ -3541,14 +3649,17 @@ dina_print_refresh_group <- function(title, results, statuses, detail_label, det
   ))
   for (result in group) {
     detail <- detail_fn(result)
-    dina_cli_cat(sprintf(
-      "%-34s %-15s %-24s %-20s %-13s %s",
-      dina_refresh_shorten(result$id, 34L),
-      result$status %||% "",
-      dina_refresh_shorten(detail, 24L),
-      dina_refresh_shorten(dina_refresh_canonical_label(result), 20L),
-      dina_refresh_url_label(result),
-      dina_refresh_shorten(dina_refresh_action(result), 46L)
+    dina_cli_cat(dina_cli_row(
+      list(
+        dina_refresh_shorten(result$id, 34L),
+        result$status %||% "",
+        dina_refresh_shorten(detail, 24L),
+        dina_refresh_shorten(dina_refresh_canonical_label(result), 20L),
+        dina_refresh_url_label(result),
+        dina_refresh_shorten(dina_refresh_action(result), 46L)
+      ),
+      widths = c(34L, 15L, 24L, 20L, 13L, NA),
+      dim = c(FALSE, TRUE, FALSE, FALSE, TRUE, TRUE)
     ))
     if (!is.null(result$error)) {
       dina_cli_warn(sprintf("%s: %s", result$id, result$error))
@@ -3568,11 +3679,11 @@ dina_print_source_refresh_url_appendix <- function(results, include_urls = FALSE
     urls <- result$urls %||% character()
     shown <- if (isTRUE(include_urls)) urls else urls[[1]]
     for (url in shown) {
-      dina_cli_cat(sprintf("  [%s] %s: %s", index, result$id, url))
+      dina_cli_cat(sprintf("  %s %s: %s", dina_cli_dim(sprintf("[%s]", index)), result$id, url))
       index <- index + 1L
     }
     if (!isTRUE(include_urls) && length(urls) > 1L) {
-      dina_cli_cat(sprintf("      %s more URL(s): dina sources show %s --urls", length(urls) - 1L, result$id))
+      dina_cli_cat(dina_cli_dim(sprintf("      %s more URL(s): dina sources show %s --urls", length(urls) - 1L, result$id)))
     }
   }
 }
@@ -3644,19 +3755,22 @@ dina_print_source_review_rows <- function(rows) {
     dina_cli_cat(sprintf("%s:", title))
     dina_cli_cat(sprintf("%-28s %-8s %-38s %-20s %s", "source", "method", "staged", "destination_status", "action"))
     for (i in seq_len(nrow(data))) {
-      dina_cli_cat(sprintf(
-        "%-28s %-8s %-38s %-20s %s",
-        data$source_id[[i]],
-        data$method[[i]],
-        data$staged_rel[[i]],
-        data$destination_status[[i]],
-        data$action[[i]]
+      dina_cli_cat(dina_cli_row(
+        list(
+          data$source_id[[i]],
+          data$method[[i]],
+          data$staged_rel[[i]],
+          data$destination_status[[i]],
+          data$action[[i]]
+        ),
+        widths = c(28L, 8L, 38L, 20L, NA),
+        dim = c(FALSE, TRUE, FALSE, TRUE, TRUE)
       ))
       if (!is.na(data$destination[[i]]) && nzchar(data$destination[[i]])) {
-        dina_cli_cat(sprintf("  destination: %s", data$destination[[i]]))
+        dina_cli_cat(sprintf("  %s %s", dina_cli_dim("destination:"), data$destination[[i]]))
       }
       if (!is.na(data$sha256[[i]]) && nzchar(data$sha256[[i]])) {
-        dina_cli_cat(sprintf("  sha256: %s", data$sha256[[i]]))
+        dina_cli_cat(sprintf("  %s %s", dina_cli_dim("sha256:"), dina_cli_dim(data$sha256[[i]])))
       }
     }
   }
@@ -3957,19 +4071,22 @@ dina_print_source_inbox_rows <- function(rows) {
   }
   dina_cli_cat(sprintf("%-24s %-8s %-11s %-52s %s", "source", "kind", "validation", "inbox", "destination"))
   for (i in seq_len(nrow(rows))) {
-    dina_cli_cat(sprintf(
-      "%-24s %-8s %-11s %-52s %s",
-      rows$source_id[[i]],
-      rows$kind[[i]],
-      rows$validation[[i]],
-      dina_refresh_shorten(rows$inbox[[i]], 52L),
-      rows$destination[[i]]
+    dina_cli_cat(dina_cli_row(
+      list(
+        rows$source_id[[i]],
+        rows$kind[[i]],
+        rows$validation[[i]],
+        dina_refresh_shorten(rows$inbox[[i]], 52L),
+        rows$destination[[i]]
+      ),
+      widths = c(24L, 8L, 11L, 52L, NA),
+      dim = c(FALSE, TRUE, TRUE, FALSE, FALSE)
     ))
     if (!identical(rows$validation_detail[[i]], "ok")) {
-      dina_cli_cat(sprintf("  validation detail: %s", rows$validation_detail[[i]]))
+      dina_cli_cat(dina_cli_dim(sprintf("  validation detail: %s", rows$validation_detail[[i]])))
     }
     if (!is.na(rows$sha256[[i]]) && nzchar(rows$sha256[[i]])) {
-      dina_cli_cat(sprintf("  sha256: %s", rows$sha256[[i]]))
+      dina_cli_cat(dina_cli_dim(sprintf("  sha256: %s", rows$sha256[[i]])))
     }
   }
   invisible(rows)
@@ -4322,7 +4439,11 @@ dina_cmd_tasks <- function(root, args) {
     dina_cli_header("Tasks")
     dina_cli_cat(sprintf("%-6s %-38s %-14s %-8s %s", "alias", "id", "stage", "language", "status"))
     for (x in statuses) {
-      dina_cli_cat(sprintf("%-6s %-38s %-14s %-8s %s", dina_task_short_id(x$id), x$id, x$stage, x$language, x$status))
+      dina_cli_cat(dina_cli_row(
+        list(dina_task_short_id(x$id), x$id, x$stage, x$language, x$status),
+        widths = c(6L, 38L, 14L, 8L, NA),
+        dim = c(FALSE, FALSE, TRUE, TRUE, TRUE)
+      ))
     }
   } else if (identical(sub, "why")) {
     tasks <- dina_task_map(root)
@@ -4373,8 +4494,8 @@ dina_cmd_run <- function(root, args) {
   for (task in tasks) {
     result <- dina_run_task(task, root, dry_run = dry_run, force = isTRUE(flags$force))
     results[[task$id]] <- result
-    dina_cli_cat(sprintf("%s: %s", result$task, result$status))
-    if (!is.null(result$command)) dina_cli_cat(sprintf("  %s", paste(result$command, collapse = " ")))
+    dina_cli_cat(sprintf("%s: %s", result$task, dina_cli_dim(result$status)))
+    if (!is.null(result$command)) dina_cli_cat(sprintf("  %s", dina_cli_command(paste(result$command, collapse = " "))))
   }
   completed <- TRUE
 }
@@ -4401,7 +4522,7 @@ dina_cmd_config <- function(root, args) {
     full <- if (grepl("^/", path)) path else file.path(root, path)
     dina_render_config_do(dina_config(root, expand_env = FALSE), full)
     dina_cli_ok(sprintf("Wrote explicit Stata runtime config %s", dina_relative(full, root)))
-    dina_cli_alert(sprintf("Use it with: export DINA_CONFIG_DO=\"%s\"", full))
+    dina_cli_alert(sprintf("Use it with: %s", dina_cli_command(sprintf("export DINA_CONFIG_DO=\"%s\"", full))))
   } else if (identical(sub, "render")) {
     stop("Unknown config command: render. Use `dina config stata --output PATH` for manual Stata export.", call. = FALSE)
   } else if (identical(sub, "edit")) {
@@ -4511,17 +4632,7 @@ dina_cmd_commands <- function(root, args) {
 dina_cmd_menu <- function(root, args) {
   args <- dina_drop_leading_separator(args)
   sub <- dina_arg(args, 1L, "main")
-  if (identical(sub, "main")) {
-    session <- dina_load_session(root = root)
-    state <- dina_session_state(session, root)
-    proposal <- dina_dashboard_proposal(state$recommendation)
-    if (!isatty(stdin())) {
-      dina_dashboard_print_summary(root, session = session, state = state, proposal = proposal)
-      return(invisible(NULL))
-    }
-    return(dina_dashboard_main_menu(root, proposal = proposal))
-  }
-  if (sub %in% c("commands", "navigate")) {
+  if (sub %in% c("main", "commands", "navigate")) {
     return(dina_print_command_navigator(root))
   }
   stop("Usage: dina menu\n       dina menu commands", call. = FALSE)

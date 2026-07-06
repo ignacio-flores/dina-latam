@@ -70,15 +70,22 @@ test_that("shared menu helpers support fallback selection, quit, defaults, and d
   expect_equal(next_choice, "next")
 
   expect_match(dina_menu_control_help(items), "Left/Right back/next")
+  expect_match(dina_menu_control_help(items), "p/n \\+ Enter fallback")
 
   open_items <- list(
     dina_menu_action("topic", "Topic", value = "topic", right = "open-topic")
   )
   expect_match(dina_menu_control_help(dina_menu_normalize(open_items)), "Right open")
+  expect_match(dina_menu_control_help(dina_menu_normalize(open_items)), "n \\+ Enter fallback")
   con <- textConnection("right\n")
   capture.output(opened <- dina_menu_select("Menu", open_items, input = con, is_terminal = TRUE))
   close(con)
   expect_equal(opened, "open-topic")
+
+  con <- textConnection("\n")
+  capture.output(no_action <- dina_menu_select("Menu", items, default = "quit", input = con, is_terminal = TRUE))
+  close(con)
+  expect_equal(no_action, "quit")
 
   compact_items <- list(
     dina_menu_action("keep", "Keep", value = "keep"),
@@ -92,6 +99,7 @@ test_that("shared menu helpers support fallback selection, quit, defaults, and d
   expect_false(any(grepl("Previous", compact_lines, fixed = TRUE)))
   expect_false(any(grepl("Next", compact_lines, fixed = TRUE)))
   expect_match(dina_menu_control_help(dina_menu_normalize(compact_items)), "Left/Right back/next")
+  expect_match(dina_menu_control_help(dina_menu_normalize(compact_items)), "p/n \\+ Enter fallback")
 
   disabled_items <- list(
     dina_menu_action("a", "Action A", value = "a", disabled = TRUE),
@@ -160,6 +168,34 @@ test_that("raw menu open failures fall back quietly", {
   ))
   expect_equal(warnings, character())
   expect_true(is.null(result))
+})
+
+test_that("menu selection uses raw arrow mode when available and numbered fallback otherwise", {
+  source_cli_for_tests()
+  old_terminal <- dina_menu_terminal_available
+  old_raw <- dina_menu_select_raw
+  on.exit({
+    assign("dina_menu_terminal_available", old_terminal, envir = environment(dina_menu_select))
+    assign("dina_menu_select_raw", old_raw, envir = environment(dina_menu_select))
+  }, add = TRUE)
+  assign("dina_menu_terminal_available", function(...) TRUE, envir = environment(dina_menu_select))
+  assign(
+    "dina_menu_select_raw",
+    function(...) "raw-choice",
+    envir = environment(dina_menu_select)
+  )
+
+  expect_equal(dina_menu_select("Menu", list(dina_menu_action("a", "Action A", value = "a")), input = "stdin", is_terminal = TRUE), "raw-choice")
+
+  assign("dina_menu_terminal_available", function(...) FALSE, envir = environment(dina_menu_select))
+  items <- list(
+    dina_menu_action("a", "Action A", value = "a"),
+    dina_menu_action("b", "Action B", value = "b")
+  )
+  con <- textConnection("2\n")
+  capture.output(selected <- dina_menu_select("Menu", items, input = con, is_terminal = TRUE))
+  close(con)
+  expect_equal(selected, "b")
 })
 
 test_that("parameter edit uses line input for save, keep, cancel, and quit", {
@@ -458,7 +494,7 @@ test_that("setup command installs a wrapper that points back to this checkout", 
   expect_match(paste(output, collapse = "\n"), "DINA-LatAm CLI")
 })
 
-test_that("dashboard prints project status, recommendation, and compact choices", {
+test_that("dashboard prints project status, recommendation, and common commands", {
   root <- mini_repo()
   result <- run_dina_cli(character(), root = root)
   expect_equal(result$status, 0L)
@@ -475,11 +511,59 @@ test_that("dashboard prints project status, recommendation, and compact choices"
   expect_match(result$output, "dina doctor")
   expect_match(result$output, "dina update roadmap")
   expect_match(result$output, "dina tasks list")
-  expect_match(result$output, "Interactive options:")
-  expect_match(result$output, "\\[n\\] Navigate available commands")
-  expect_match(result$output, "\\[m\\] Open main menu")
+  expect_false(grepl("Interactive options:", result$output, fixed = TRUE))
+  expect_false(grepl("[r]", result$output, fixed = TRUE))
+  expect_false(grepl("[n]", result$output, fixed = TRUE))
+  expect_false(grepl("[m]", result$output, fixed = TRUE))
+  expect_false(grepl("Open main menu", result$output, fixed = TRUE))
+  expect_false(grepl("DINA Main Menu", result$output, fixed = TRUE))
+  expect_false(grepl("Choose [r/n/m/h/q]", result$output, fixed = TRUE))
+  expect_false(grepl("[Enter] Run the recommended action", result$output, fixed = TRUE))
   expect_false(grepl("Command themes:", result$output, fixed = TRUE))
   expect_false(grepl("Browse command groups", result$output, fixed = TRUE))
+})
+
+test_that("dashboard action menu uses shared numbered choices", {
+  root <- mini_repo()
+  source_cli_for_tests()
+  proposal <- list(command = "dina help", comment = "Open help.", next_step = "")
+
+  con <- textConnection("\n")
+  blank_messages <- NULL
+  blank_output <- capture.output(
+    blank_messages <- capture.output(dina_dashboard_prompt(root, proposal = proposal, input = con, is_terminal = TRUE), type = "message")
+  )
+  close(con)
+  expect_match(paste(blank_output, collapse = "\n"), "DINA Actions")
+  expect_match(paste(blank_output, collapse = "\n"), "1\\. Run recommended action")
+  expect_match(paste(blank_output, collapse = "\n"), "2\\. Browse commands")
+  expect_match(paste(blank_output, collapse = "\n"), "3\\. Help")
+  expect_match(paste(blank_output, collapse = "\n"), "Selection \\[q\\]")
+  expect_false(grepl("Choose [r/n/m/h/q]", paste(blank_output, collapse = "\n"), fixed = TRUE))
+  expect_match(paste(c(blank_output, blank_messages), collapse = "\n"), "No command run")
+
+  con <- textConnection("1\n")
+  run_output <- capture.output(dina_dashboard_prompt(root, proposal = proposal, input = con, is_terminal = TRUE))
+  close(con)
+  expect_match(paste(run_output, collapse = "\n"), "DINA-LatAm CLI")
+
+  con <- textConnection("2\nq\n")
+  browse_output <- capture.output(dina_dashboard_prompt(root, proposal = proposal, input = con, is_terminal = TRUE))
+  close(con)
+  expect_match(paste(browse_output, collapse = "\n"), "DINA Commands")
+
+  con <- textConnection("3\n")
+  help_output <- capture.output(dina_dashboard_prompt(root, proposal = proposal, input = con, is_terminal = TRUE))
+  close(con)
+  expect_match(paste(help_output, collapse = "\n"), "DINA-LatAm CLI")
+
+  con <- textConnection("q\n")
+  quit_messages <- NULL
+  quit_output <- capture.output(
+    quit_messages <- capture.output(dina_dashboard_prompt(root, proposal = proposal, input = con, is_terminal = TRUE), type = "message")
+  )
+  close(con)
+  expect_match(paste(c(quit_output, quit_messages), collapse = "\n"), "No command run")
 })
 
 test_that("command navigator is available through explicit top-level commands", {
@@ -501,6 +585,86 @@ test_that("command navigator is available through explicit top-level commands", 
   menu_commands <- run_dina_cli(c("menu", "commands"), root = root)
   expect_equal(menu_commands$status, 0L)
   expect_match(menu_commands$output, "DINA Command Navigator")
+
+  menu <- run_dina_cli(c("menu"), root = root)
+  expect_equal(menu$status, 0L)
+  expect_match(menu$output, "DINA Command Navigator")
+  expect_false(grepl("DINA Main Menu", menu$output, fixed = TRUE))
+  expect_false(grepl("Open main menu", menu$output, fixed = TRUE))
+
+  menu_help <- run_dina_cli(c("help", "menu"), root = root)
+  expect_equal(menu_help$status, 0L)
+  expect_match(menu_help$output, "Compatibility aliases")
+  expect_false(grepl("compact dashboard menu", menu_help$output, fixed = TRUE))
+  expect_false(grepl("main menu", menu_help$output, fixed = TRUE))
+})
+
+test_that("help renderer dims prose while keeping commands readable", {
+  source_cli_for_tests()
+  old_colors <- getOption("cli.num_colors")
+  on.exit(options(cli.num_colors = old_colors), add = TRUE)
+  options(cli.num_colors = 256)
+
+  prose <- dina_help_style_line("  The annual update guide.")
+  command <- dina_help_style_line("  dina doctor")
+  aligned <- dina_help_style_line("  `help workflow`                     [read-only] annual update recipe")
+  ansi_grey <- paste0("\033", "[90m")
+
+  expect_true(grepl(ansi_grey, prose, fixed = TRUE))
+  expect_false(grepl(ansi_grey, command, fixed = TRUE))
+  expect_true(grepl("`help workflow`", aligned, fixed = TRUE))
+  expect_true(grepl(paste0(ansi_grey, "                     [read-only]"), aligned, fixed = TRUE))
+})
+
+test_that("forced-color CLI surfaces dim secondary metadata consistently", {
+  root <- mini_repo()
+  color_env <- "R_CLI_NUM_COLORS=256"
+  ansi_grey <- paste0("\033", "[90m")
+  ansi_cyan <- paste0("\033", "[36m")
+
+  dashboard <- run_dina_cli(character(), root = root, env = color_env)
+  expect_equal(dashboard$status, 0L)
+  expect_true(grepl(paste0("Project: ", ansi_grey, "mini"), dashboard$output, fixed = TRUE))
+  expect_true(grepl(paste0(ansi_cyan, "dina update start"), dashboard$output, fixed = TRUE))
+  expect_true(grepl(paste0(ansi_grey, "Open the guided workflow for the next update step."), dashboard$output, fixed = TRUE))
+  expect_false(grepl("[r]", dashboard$output, fixed = TRUE))
+
+  commands <- run_dina_cli(c("commands"), root = root, env = color_env)
+  expect_equal(commands$status, 0L)
+  expect_true(grepl(paste0(ansi_cyan, "$ dina update start"), commands$output, fixed = TRUE))
+  expect_true(grepl(paste0(ansi_grey, "  Create the active annual update session."), commands$output, fixed = TRUE))
+
+  started <- run_dina_cli(c("update", "start", "2026"), root = root)
+  expect_equal(started$status, 0L)
+
+  roadmap <- run_dina_cli(c("update", "roadmap"), root = root, env = color_env)
+  expect_equal(roadmap$status, 0L)
+  expect_true(grepl("parameters", roadmap$output, fixed = TRUE))
+  expect_true(grepl(paste0(ansi_grey, "pending"), roadmap$output, fixed = TRUE))
+
+  sources <- run_dina_cli(c("sources", "list"), root = root, env = color_env)
+  expect_equal(sources$status, 0L)
+  expect_true(grepl("source-a", sources$output, fixed = TRUE))
+  expect_true(grepl(paste0(ansi_grey, "fixture"), sources$output, fixed = TRUE))
+
+  buckets <- run_dina_cli(c("buckets"), root = root, env = color_env)
+  expect_equal(buckets$status, 0L)
+  expect_true(grepl("input_data/_new/fixture", buckets$output, fixed = TRUE))
+  expect_true(grepl(paste0(ansi_grey, "exists"), buckets$output, fixed = TRUE))
+
+  tasks <- run_dina_cli(c("tasks", "list"), root = root, env = color_env)
+  expect_equal(tasks$status, 0L)
+  expect_true(grepl("task1", tasks$output, fixed = TRUE))
+  expect_true(grepl(paste0(ansi_grey, "one"), tasks$output, fixed = TRUE))
+
+  doctor <- run_dina_cli(c("doctor"), root = root, env = color_env)
+  expect_equal(doctor$status, 0L)
+  expect_true(grepl(paste0(ansi_grey, "Repo root:"), doctor$output, fixed = TRUE))
+
+  raw_config <- run_dina_cli(c("config", "show"), root = root, env = color_env)
+  expect_equal(raw_config$status, 0L)
+  expect_false(grepl(ansi_grey, raw_config$output, fixed = TRUE))
+  expect_false(grepl(ansi_cyan, raw_config$output, fixed = TRUE))
 })
 
 test_that("main and config help explain detailed topics and subtleties", {
@@ -509,6 +673,7 @@ test_that("main and config help explain detailed topics and subtleties", {
   expect_match(main$output, "DINA-LatAm CLI")
   expect_match(main$output, "Use `dina help COMMAND`")
   expect_match(main$output, "dina commands")
+  expect_false(grepl("menu commands", main$output, fixed = TRUE))
   expect_match(main$output, "\\[read-only\\]")
   expect_match(main$output, "\\[writes session\\]")
   expect_match(main$output, "\\[writes files\\]")

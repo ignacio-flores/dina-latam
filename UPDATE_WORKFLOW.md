@@ -24,12 +24,12 @@ In an interactive terminal this walks through two sections:
   previous update date, and previous update file.
 
 Each parameter shows a short reminder plus any inferred suggestion. Interactive
-DINA menus use the same controls throughout the CLI: Up/Down moves through
-actions, Left/Right moves to previous/next when available, Enter selects, `?`
-shows help, and `q` quits. Quitting stops before check-mark prompts; edits
-already accepted in the same run remain in the working override. If your
-terminal cannot provide arrow keys, menus fall back to numbered choices with the
-same actions.
+DINA menus support arrow navigation in a terminal: Up/Down moves, Left/Right
+moves backward or forward when available, Enter selects, `?` shows help, and `q`
+quits. Numbered choices remain available as the fallback: type a number and
+press Enter. Quitting stops before check-mark prompts; edits already accepted in
+the same run remain in the working override. The shared CLI interaction rules
+live in `CLI_INTERACTION_GUIDE.md`.
 
 Inspection pages such as `dina update roadmap`, `dina sources review`, and
 `dina tasks list` stay readable and script-friendly. When an interactive choice
