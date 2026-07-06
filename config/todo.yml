@@ -1,0 +1,13 @@
+items:
+  - id: review-config
+    label: Review update configuration and previous-series comparison inputs.
+  - id: refresh-sources
+    label: Fetch or place new source files in input_data/_new buckets.
+  - id: review-sources
+    label: Review incoming sources, destinations, transformers, and notes.
+  - id: integrate-sources
+    label: Integrate approved source files into canonical input_data paths.
+  - id: run-pipeline
+    label: Run stale or selected pipeline tasks.
+  - id: review-outputs
+    label: Review output reports, differences, and final exports.

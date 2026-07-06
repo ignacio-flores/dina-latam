@@ -102,8 +102,8 @@ dina_sources_path <- function(root = dina_repo_root()) {
   dina_path("config", "sources.yml", root = root)
 }
 
-dina_update_roadmap_path <- function(root = dina_repo_root()) {
-  dina_path("config", "update_roadmap.yml", root = root)
+dina_todo_path <- function(root = dina_repo_root()) {
+  dina_path("config", "todo.yml", root = root)
 }
 
 dina_pushover_local_path <- function(root = dina_repo_root()) {
@@ -157,10 +157,10 @@ dina_sources <- function(root = dina_repo_root()) {
   x
 }
 
-dina_update_roadmap <- function(root = dina_repo_root()) {
-  x <- dina_read_yaml(dina_update_roadmap_path(root), default = list(gates = list()))
-  if (is.null(x$gates)) {
-    x$gates <- list()
+dina_todo_config <- function(root = dina_repo_root()) {
+  x <- dina_read_yaml(dina_todo_path(root), default = list(items = list()))
+  if (is.null(x$items)) {
+    x$items <- list()
   }
   x
 }
@@ -255,8 +255,8 @@ dina_source_method_glossary <- function() {
   data.frame(
     method = c("url", "zip", "script", "manual", "wid"),
     description = c(
-      "Direct URL that dina sources refresh can fetch into staging.",
-      "Direct archive URL that dina sources refresh can fetch into staging.",
+      "Direct URL that dina sources fetch can copy into input_data/_new.",
+      "Direct archive URL that dina sources fetch can copy into input_data/_new.",
       "Custom acquisition script exists; not a simple direct URL fetch.",
       "Human-curated/manual input or URL index.",
       "Currently acquired through Stata/WID calls in pipeline scripts."
@@ -389,6 +389,71 @@ dina_source_registry <- function(root = dina_repo_root(), family = NULL, country
     registry <- registry[vapply(registry, function(source) dina_source_field(source, "method", "") %in% method, logical(1))]
   }
   registry
+}
+
+dina_source_integration_none <- function(source) {
+  identical(tolower(trimws(source$integration %||% "")), "none")
+}
+
+dina_source_has_destination <- function(source) {
+  length(dina_source_destinations(source)) > 0L
+}
+
+dina_source_needs_destination <- function(source) {
+  if (dina_source_integration_none(source)) {
+    return(FALSE)
+  }
+  length(dina_source_inbox_patterns(source)) > 0L ||
+    length(dina_source_values(dina_source_field(source, "fetch_target"))) > 0L ||
+    (source$method %||% "") %in% c("url", "zip")
+}
+
+dina_source_fetcher_values <- function(source) {
+  unique(c(
+    dina_source_values(dina_source_field(source, "fetcher")),
+    dina_source_values(dina_source_field(source, "downloader"))
+  ))
+}
+
+dina_source_registry_warnings <- function(registry, root = dina_repo_root()) {
+  rows <- list()
+  add <- function(source, field, message) {
+    rows[[length(rows) + 1L]] <<- data.frame(
+      source_id = source$id %||% "",
+      family = source$family %||% "",
+      field = field,
+      warning = message,
+      stringsAsFactors = FALSE
+    )
+  }
+  for (source in registry) {
+    if (!nzchar(source$family %||% "")) {
+      add(source, "family", "Missing family.")
+    }
+    if (!length(dina_source_values(dina_source_field(source, "notes")))) {
+      add(source, "notes", "Missing notes.")
+    }
+    if (dina_source_needs_destination(source) && !dina_source_has_destination(source)) {
+      add(source, "destination", "Missing destination; use integration: none for reference-only sources.")
+    }
+    if (!dina_source_needs_destination(source) && !dina_source_has_destination(source) && !dina_source_integration_none(source)) {
+      add(source, "integration", "Reference-only source should declare integration: none.")
+    }
+    if (dina_source_has_destination(source) && !length(dina_source_values(dina_source_field(source, "transformer")))) {
+      add(source, "transformer", "Missing transformer for an integrated source.")
+    }
+    method <- source$method %||% ""
+    if (!dina_source_integration_none(source) && identical(method, "script") && !length(dina_source_fetcher_values(source))) {
+      add(source, "fetcher", "Script source has no fetcher/downloader.")
+    }
+    if (!dina_source_integration_none(source) && method %in% c("url", "zip") && !nzchar(dina_source_direct_fetch_url(source)) && !length(dina_source_fetcher_values(source))) {
+      add(source, "fetcher", "Direct source has no URL or fetcher/downloader.")
+    }
+  }
+  if (!length(rows)) {
+    return(data.frame(source_id = character(), family = character(), field = character(), warning = character(), stringsAsFactors = FALSE))
+  }
+  do.call(rbind, rows)
 }
 
 dina_source_by_id <- function(id, root = dina_repo_root()) {
@@ -1586,6 +1651,8 @@ dina_sources_inbox_rows <- function(root = dina_repo_root(), source_id = NULL) {
         kind = if (dir.exists(path)) "dir" else "file",
         destination = dest$destination %||% "",
         destination_status = dest$status %||% "",
+        transformer = paste(dina_source_values(dina_source_field(source, "transformer")), collapse = ", "),
+        notes = paste(dina_source_values(dina_source_field(source, "notes")), collapse = " "),
         validation = validation$status,
         validation_detail = validation$detail,
         sha256 = dina_hash_path(path),
@@ -1603,6 +1670,8 @@ dina_sources_inbox_rows <- function(root = dina_repo_root(), source_id = NULL) {
       kind = character(),
       destination = character(),
       destination_status = character(),
+      transformer = character(),
+      notes = character(),
       validation = character(),
       validation_detail = character(),
       sha256 = character(),
@@ -1758,10 +1827,18 @@ dina_source_fetcher_path <- function(source, root = dina_repo_root()) {
   if (grepl("^/", fetcher[[1L]])) fetcher[[1L]] else file.path(root, fetcher[[1L]])
 }
 
-dina_source_fetch_target_rel <- function(source) {
+dina_source_fetch_target_rel <- function(source, direct_url = "", for_direct = FALSE) {
   target <- dina_source_values(dina_source_field(source, "fetch_target"))
   if (length(target) && nzchar(target[[1L]])) {
     return(target[[1L]])
+  }
+  if (isTRUE(for_direct)) {
+    bucket <- dina_source_inbox_primary_dir(source)
+    url_base <- basename(strsplit(direct_url %||% "", "[?#]")[[1]][[1]] %||% "")
+    if (nzchar(bucket) && nzchar(url_base) && !identical(url_base, "/") && !grepl("[/\\\\]", url_base)) {
+      return(file.path(bucket, url_base))
+    }
+    return("")
   }
   patterns <- dina_source_inbox_patterns(source)
   non_glob <- patterns[!vapply(patterns, dina_path_has_glob, logical(1))]
@@ -1794,11 +1871,32 @@ dina_run_source_fetcher <- function(fetcher, target, root, source_id) {
   list(status = as.integer(status), output = paste(output, collapse = "\n"))
 }
 
+dina_source_direct_fetch_url <- function(source) {
+  direct <- dina_source_values(dina_source_field(source, "url"))
+  if (length(direct) && nzchar(direct[[1L]])) {
+    return(direct[[1L]])
+  }
+  entries <- dina_source_url_entries(source)
+  if (nrow(entries)) entries$url[[1L]] else ""
+}
+
+dina_download_direct_source <- function(url, target) {
+  output <- tryCatch(
+    utils::download.file(url, target, mode = "wb", quiet = TRUE),
+    warning = function(w) structure(conditionMessage(w), status = 1L),
+    error = function(e) structure(conditionMessage(e), status = 1L)
+  )
+  status <- attr(output, "status") %||% 0L
+  list(status = as.integer(status), output = paste(output, collapse = "\n"))
+}
+
 dina_buckets_fetch <- function(root = dina_repo_root(), family = NULL, selector = NULL, source_id = NULL, dry_run = FALSE) {
   registry <- dina_bucket_select_sources(root, family = family, selector = selector, source_id = source_id)
   rows <- lapply(registry, function(source) {
     fetcher <- dina_source_fetcher_path(source, root)
-    target_rel <- dina_source_fetch_target_rel(source)
+    method <- source$method %||% "manual"
+    direct_url <- dina_source_direct_fetch_url(source)
+    target_rel <- dina_source_fetch_target_rel(source, direct_url = direct_url, for_direct = method %in% c("url", "zip") && !nzchar(fetcher))
     target <- if (nzchar(target_rel)) file.path(root, target_rel) else ""
     base <- list(
       source_id = source$id %||% "",
@@ -1806,12 +1904,6 @@ dina_buckets_fetch <- function(root = dina_repo_root(), family = NULL, selector 
       bucket = dina_source_inbox_bucket_rel(source),
       target = target_rel
     )
-    if (!nzchar(fetcher)) {
-      return(as.data.frame(c(base, list(status = dina_fetch_status_without_fetcher(source), detail = "No bucket fetcher configured.")), stringsAsFactors = FALSE))
-    }
-    if (!file.exists(fetcher)) {
-      return(as.data.frame(c(base, list(status = "failed", detail = sprintf("Fetcher not found: %s", dina_relative(fetcher, root)))), stringsAsFactors = FALSE))
-    }
     inbox_root <- paste0(dina_inbox_root_rel(), "/")
     if (!nzchar(target_rel) || !(target_rel == dina_inbox_root_rel() || startsWith(target_rel, inbox_root))) {
       return(as.data.frame(c(base, list(status = "failed", detail = "Fetch target must be under input_data/_new.")), stringsAsFactors = FALSE))
@@ -1819,11 +1911,22 @@ dina_buckets_fetch <- function(root = dina_repo_root(), family = NULL, selector 
     if (file.exists(target)) {
       return(as.data.frame(c(base, list(status = "already_present", detail = "Target already exists.")), stringsAsFactors = FALSE))
     }
+    fetchable <- nzchar(fetcher) || (method %in% c("url", "zip") && nzchar(direct_url))
+    if (!isTRUE(fetchable)) {
+      return(as.data.frame(c(base, list(status = dina_fetch_status_without_fetcher(source), detail = "No direct URL or fetcher configured.")), stringsAsFactors = FALSE))
+    }
     if (isTRUE(dry_run)) {
       return(as.data.frame(c(base, list(status = "would_fetch", detail = "Dry-run; no file written.")), stringsAsFactors = FALSE))
     }
     dir.create(dirname(target), recursive = TRUE, showWarnings = FALSE)
-    result <- dina_run_source_fetcher(fetcher, target, root, source$id %||% "")
+    if (nzchar(fetcher)) {
+      if (!file.exists(fetcher)) {
+        return(as.data.frame(c(base, list(status = "failed", detail = sprintf("Fetcher not found: %s", dina_relative(fetcher, root)))), stringsAsFactors = FALSE))
+      }
+      result <- dina_run_source_fetcher(fetcher, target, root, source$id %||% "")
+    } else if (method %in% c("url", "zip") && nzchar(direct_url)) {
+      result <- dina_download_direct_source(direct_url, target)
+    }
     if (identical(result$status, 0L) && file.exists(target)) {
       return(as.data.frame(c(base, list(status = "fetched", detail = dina_hash_path(target))), stringsAsFactors = FALSE))
     }
@@ -2229,20 +2332,61 @@ dina_session_config_set <- function(session, root = dina_repo_root(), key, value
   dina_save_session_config_override(session, override, root)
 }
 
-dina_session_show_old_refs <- function(session) {
-  if (is.null(session)) {
-    return(TRUE)
-  }
-  isTRUE(session$preferences$show_old_refs %||% TRUE)
+dina_todo_items <- function(root = dina_repo_root()) {
+  items <- dina_todo_config(root)$items %||% list()
+  ids <- vapply(items, function(item) item$id %||% "", character(1))
+  items[nzchar(ids)]
 }
 
-dina_update_set_old_refs <- function(session, root = dina_repo_root(), show = TRUE) {
+dina_todo_state <- function(session = NULL) {
+  checked <- session$todo$checked %||% character()
+  checked[!is.na(checked) & nzchar(checked)]
+}
+
+dina_todo_rows <- function(session = NULL, root = dina_repo_root()) {
+  items <- dina_todo_items(root)
+  checked <- dina_todo_state(session)
+  if (!length(items)) {
+    return(data.frame(id = character(), label = character(), checked = logical(), stringsAsFactors = FALSE))
+  }
+  rows <- lapply(items, function(item) {
+    data.frame(
+      id = item$id %||% "",
+      label = item$label %||% item$note %||% "",
+      checked = (item$id %||% "") %in% checked,
+      stringsAsFactors = FALSE
+    )
+  })
+  do.call(rbind, rows)
+}
+
+dina_todo_known_ids <- function(root = dina_repo_root()) {
+  rows <- dina_todo_rows(NULL, root)
+  rows$id
+}
+
+dina_update_todo_state <- function(session, root = dina_repo_root(), id = NULL, checked = TRUE, reset = FALSE) {
   if (is.null(session)) {
     stop("No active update.", call. = FALSE)
   }
-  prefs <- session$preferences %||% list()
-  prefs$show_old_refs <- isTRUE(show)
-  session$preferences <- prefs
+  known <- dina_todo_known_ids(root)
+  if (isTRUE(reset)) {
+    session$todo <- list(checked = character(), updated_at = dina_now())
+    session$updated_at <- dina_now()
+    dina_save_session(session, root)
+    return(session)
+  }
+  id <- trimws(id %||% "")
+  if (!nzchar(id) || !id %in% known) {
+    stop("Unknown todo id: ", id, "\nAvailable todos: ", paste(known, collapse = ", "), call. = FALSE)
+  }
+  current <- dina_todo_state(session)
+  if (isTRUE(checked)) {
+    current <- unique(c(current, id))
+  } else {
+    current <- setdiff(current, id)
+  }
+  session$todo <- list(checked = current, updated_at = dina_now())
   session$updated_at <- dina_now()
   dina_save_session(session, root)
   session
@@ -2269,7 +2413,7 @@ dina_update_start_plan <- function(year = format(Sys.Date(), "%Y"), root = dina_
   exists <- dir.exists(dina_update_dir(default_id, root))
   manifest_exists <- file.exists(dina_session_manifest_path(default_id, root))
   incomplete <- exists && !manifest_exists
-  finalized <- !is.null(existing) && identical(existing$status, "finalized")
+  finalized <- !is.null(existing) && existing$status %in% c("closed", "finalized")
   list(
     year = as.character(year),
     default_id = default_id,
@@ -2493,7 +2637,7 @@ dina_repo_state_restore <- function(session_or_id, root = dina_repo_root(), base
   list(actions = actions, added_not_removed = added, dry_run = !isTRUE(yes), baseline = baseline)
 }
 
-dina_update_start <- function(year = format(Sys.Date(), "%Y"), id = NULL, root = dina_repo_root(), source_hash = TRUE, show_old_refs = TRUE, repo_snapshot = TRUE, progress = NULL) {
+dina_update_start <- function(year = format(Sys.Date(), "%Y"), id = NULL, root = dina_repo_root(), source_hash = TRUE, repo_snapshot = TRUE, progress = NULL) {
   if (is.null(id) || !nzchar(id)) {
     id <- dina_next_update_id(year, root)
   }
@@ -2501,7 +2645,6 @@ dina_update_start <- function(year = format(Sys.Date(), "%Y"), id = NULL, root =
   dina_progress(progress, "Preparing update session %s for year %s.", id, year)
   dir <- dina_update_dir(id, root)
   dina_progress(progress, "Creating session scaffold directories.")
-  dir.create(file.path(dir, "source_staging"), recursive = TRUE, showWarnings = FALSE)
   dir.create(file.path(dir, "logs"), recursive = TRUE, showWarnings = FALSE)
   dir.create(file.path(dir, "snapshots"), recursive = TRUE, showWarnings = FALSE)
   dina_progress(progress, "Preparing central source inbox buckets.")
@@ -2536,7 +2679,7 @@ dina_update_start <- function(year = format(Sys.Date(), "%Y"), id = NULL, root =
     status = "initialized",
     created_at = started_at,
     updated_at = started_at,
-    preferences = list(show_old_refs = isTRUE(show_old_refs)),
+    preferences = list(),
     config_override = dina_relative(config_override, root),
     repo_state = list(
       baselines = if (isTRUE(repo_snapshot)) "start" else character(),
@@ -2553,10 +2696,9 @@ dina_update_start <- function(year = format(Sys.Date(), "%Y"), id = NULL, root =
     ),
     source_scan = source_scan,
     source_refreshes = list(),
-    source_stage_records = list(),
     source_decisions = list(),
     task_runs = list(),
-    gate_records = list()
+    todo = list(checked = character())
   )
   dina_progress(progress, "Writing manifest and active update pointer.")
   dina_save_session(session, root)
@@ -2640,7 +2782,7 @@ dina_update_delete <- function(update_id = NULL, root = dina_repo_root(), yes = 
   result
 }
 
-dina_update_restart <- function(update_id = NULL, root = dina_repo_root(), yes = FALSE, repo_policy = c("preserve", "preserve_checkpoint", "replace"), show_old_refs = NULL, progress = NULL) {
+dina_update_restart <- function(update_id = NULL, root = dina_repo_root(), yes = FALSE, repo_policy = c("preserve", "preserve_checkpoint", "replace"), progress = NULL) {
   repo_policy <- match.arg(repo_policy)
   active <- dina_current_update(root)
   if (is.null(update_id) || !nzchar(update_id)) {
@@ -2662,7 +2804,6 @@ dina_update_restart <- function(update_id = NULL, root = dina_repo_root(), yes =
     active = identical(update_id, active),
     year = if (is.null(session)) dina_update_year_from_id(update_id) else as.character(session$year %||% format(Sys.Date(), "%Y")),
     current_status = if (is.null(session)) "missing_manifest" else as.character(session$status %||% ""),
-    staged_files = dina_count_files(file.path(dir, "source_staging")),
     log_files = dina_count_files(file.path(dir, "logs")),
     snapshot_files = dina_count_files(file.path(dir, "snapshots")),
     source_inbox = list(
@@ -2679,9 +2820,6 @@ dina_update_restart <- function(update_id = NULL, root = dina_repo_root(), yes =
   )
   if (!isTRUE(yes)) {
     return(result)
-  }
-  if (is.null(show_old_refs)) {
-    show_old_refs <- if (is.null(session)) TRUE else session$preferences$show_old_refs %||% TRUE
   }
   repo_tmp <- NULL
   restart_snapshot <- NULL
@@ -2704,7 +2842,6 @@ dina_update_restart <- function(update_id = NULL, root = dina_repo_root(), yes =
     year = result$year,
     id = update_id,
     root = root,
-    show_old_refs = show_old_refs,
     repo_snapshot = identical(repo_policy, "replace"),
     progress = progress
   )
@@ -2797,157 +2934,6 @@ dina_latest_source_decision_time <- function(session) {
   sort(times)[[length(times)]]
 }
 
-dina_gate_record_key <- function(gate_id, check_id) {
-  sprintf("%s/%s", gate_id, check_id)
-}
-
-dina_find_gate <- function(gate_id, root = dina_repo_root()) {
-  gates <- dina_update_roadmap(root)$gates
-  matches <- gates[vapply(gates, function(gate) identical(gate$id %||% "", gate_id), logical(1))]
-  if (!length(matches)) {
-    available <- vapply(gates, function(gate) gate$id %||% "", character(1))
-    stop("Unknown update gate: ", gate_id, "\nAvailable gates: ", paste(available, collapse = ", "), call. = FALSE)
-  }
-  matches[[1]]
-}
-
-dina_gate_check_ids <- function(gate) {
-  vapply(gate$checks %||% list(), function(check) check$id %||% "", character(1))
-}
-
-dina_parse_gate_check <- function(value, root = dina_repo_root()) {
-  value <- trimws(value %||% "")
-  parts <- strsplit(value, "/", fixed = TRUE)[[1]]
-  if (length(parts) != 2L || !nzchar(parts[[1]]) || !nzchar(parts[[2]])) {
-    stop("Expected GATE/CHECK, for example tax-admin/raw-accepted.", call. = FALSE)
-  }
-  gate <- dina_find_gate(parts[[1]], root)
-  checks <- dina_gate_check_ids(gate)
-  if (!parts[[2]] %in% checks) {
-    stop("Unknown check for gate ", parts[[1]], ": ", parts[[2]], "\nAvailable checks: ", paste(checks, collapse = ", "), call. = FALSE)
-  }
-  list(gate = parts[[1]], check = parts[[2]])
-}
-
-dina_gate_records <- function(session) {
-  session$gate_records %||% list()
-}
-
-dina_gate_check_record <- function(session, gate_id, check_id) {
-  records <- dina_gate_records(session)
-  records[[dina_gate_record_key(gate_id, check_id)]] %||% NULL
-}
-
-dina_gate_check_status <- function(session, gate_id, check_id) {
-  record <- dina_gate_check_record(session, gate_id, check_id)
-  record$status %||% "pending"
-}
-
-dina_gate_status <- function(gate, session = NULL) {
-  checks <- dina_gate_check_ids(gate)
-  if (!length(checks)) {
-    return("done")
-  }
-  statuses <- vapply(checks, function(check) dina_gate_check_status(session, gate$id %||% "", check), character(1))
-  if (any(statuses == "needs-code")) {
-    return("needs-code")
-  }
-  if (all(statuses %in% c("done", "deferred"))) {
-    if (any(statuses == "deferred")) {
-      return("deferred")
-    }
-    return("done")
-  }
-  if (any(statuses != "pending")) {
-    return("in-progress")
-  }
-  "pending"
-}
-
-dina_gate_next_check <- function(gate, session = NULL) {
-  checks <- gate$checks %||% list()
-  for (check in checks) {
-    status <- dina_gate_check_status(session, gate$id %||% "", check$id %||% "")
-    if (!status %in% c("done", "deferred")) {
-      return(check)
-    }
-  }
-  NULL
-}
-
-dina_roadmap_status <- function(session = NULL, root = dina_repo_root()) {
-  gates <- dina_update_roadmap(root)$gates
-  lapply(gates, function(gate) {
-    status <- dina_gate_status(gate, session)
-    next_check <- dina_gate_next_check(gate, session)
-    list(
-      id = gate$id %||% "",
-      label = gate$label %||% gate$id %||% "",
-      status = status,
-      next_check = next_check$id %||% "",
-      next_check_label = next_check$label %||% "",
-      gate = gate
-    )
-  })
-}
-
-dina_next_gate_status <- function(session = NULL, root = dina_repo_root()) {
-  statuses <- dina_roadmap_status(session, root)
-  for (status in statuses) {
-    if (!status$status %in% c("done", "deferred")) {
-      return(status)
-    }
-  }
-  NULL
-}
-
-dina_gate_record_statuses <- function() {
-  c("done", "deferred", "needs-code")
-}
-
-dina_update_mark_gate <- function(session, root = dina_repo_root(), target, status, note = "") {
-  if (is.null(session)) {
-    stop("No active update.", call. = FALSE)
-  }
-  parsed <- dina_parse_gate_check(target, root)
-  status <- tolower(trimws(status %||% ""))
-  if (!status %in% dina_gate_record_statuses()) {
-    stop("Unknown gate status: ", status, ". Use one of: ", paste(dina_gate_record_statuses(), collapse = ", "), call. = FALSE)
-  }
-  note <- trimws(note %||% "")
-  if (status %in% c("deferred", "needs-code") && !nzchar(note)) {
-    stop("Status ", status, " requires --note so the reason is explicit.", call. = FALSE)
-  }
-  key <- dina_gate_record_key(parsed$gate, parsed$check)
-  records <- dina_gate_records(session)
-  records[[key]] <- list(
-    gate = parsed$gate,
-    check = parsed$check,
-    status = status,
-    note = note,
-    marked_at = dina_now()
-  )
-  session$gate_records <- records
-  session$updated_at <- dina_now()
-  dina_save_session(session, root)
-  records[[key]]
-}
-
-dina_update_unmark_gate <- function(session, root = dina_repo_root(), target) {
-  if (is.null(session)) {
-    stop("No active update.", call. = FALSE)
-  }
-  parsed <- dina_parse_gate_check(target, root)
-  key <- dina_gate_record_key(parsed$gate, parsed$check)
-  records <- dina_gate_records(session)
-  removed <- !is.null(records[[key]])
-  records[[key]] <- NULL
-  session$gate_records <- records
-  session$updated_at <- dina_now()
-  dina_save_session(session, root)
-  list(gate = parsed$gate, check = parsed$check, removed = removed)
-}
-
 dina_source_diff_counts <- function(diff) {
   counts <- dina_empty_source_status_counts()
   if (!length(diff)) {
@@ -2981,35 +2967,160 @@ dina_sources_status <- function(session, root = dina_repo_root(), hash = "change
   )
 }
 
+dina_todo_label <- function(root = dina_repo_root(), id = "") {
+  id <- trimws(id %||% "")
+  if (!nzchar(id)) {
+    return("")
+  }
+  items <- dina_todo_config(root)$items %||% list()
+  matches <- vapply(items, function(item) identical(item$id %||% "", id), logical(1))
+  if (!any(matches)) {
+    return("")
+  }
+  item <- items[[which(matches)[[1L]]]]
+  item$label %||% item$note %||% ""
+}
+
+dina_recommendation <- function(command,
+                                why = "",
+                                todo_id = "",
+                                todo_label = "",
+                                expected_action = "",
+                                next_command = "",
+                                next_note = "",
+                                recommendation = NULL) {
+  recommendation <- recommendation %||% if (nzchar(command)) {
+    sprintf("Run `%s`.", command)
+  } else {
+    ""
+  }
+  list(
+    command = command,
+    why = why,
+    todo_id = todo_id,
+    todo_label = todo_label,
+    expected_action = expected_action,
+    next_command = next_command,
+    next_note = next_note,
+    recommendation = recommendation
+  )
+}
+
+dina_session_result <- function(state, proposal, stale_tasks = NA_integer_, open_todos = NULL) {
+  out <- list(
+    state = state,
+    recommendation = proposal$recommendation %||% "",
+    proposal = proposal,
+    stale_tasks = stale_tasks
+  )
+  if (!is.null(open_todos)) {
+    out$open_todos <- open_todos
+  }
+  out
+}
+
 dina_session_state <- function(session, root = dina_repo_root()) {
   if (is.null(session)) {
-    return(list(state = "no_active_update", recommendation = "Start an update with `dina update start YEAR`."))
+    return(dina_session_result(
+      "no_active_update",
+      dina_recommendation(
+        command = "dina update start YEAR",
+        why = "No active update workspace is available.",
+        expected_action = "Create an active update workspace, source baseline, todo state, and inbox buckets.",
+        next_command = "dina update status",
+        next_note = "Inspect the new workspace and follow the concrete recommendation.",
+        recommendation = "Start an update with `dina update start YEAR`."
+      )
+    ))
   }
   failed <- names(session$task_runs)[vapply(session$task_runs, function(x) identical(x$status, "failed"), logical(1))]
-  staged <- list.files(file.path(dina_update_dir(session$id, root), "source_staging"), recursive = TRUE, all.files = FALSE)
+  incoming <- tryCatch(dina_sources_inbox_rows(root), error = function(e) data.frame())
 
   if (length(failed)) {
-    return(list(state = "failed", recommendation = sprintf("Inspect failed task with `dina tasks why %s`, then retry deliberately.", failed[[length(failed)]]), stale_tasks = NA_integer_))
+    task <- failed[[length(failed)]]
+    return(dina_session_result(
+      "failed",
+      dina_recommendation(
+        command = sprintf("dina run why %s", task),
+        why = sprintf("Task %s failed in this update session.", task),
+        todo_id = "run-pipeline",
+        todo_label = dina_todo_label(root, "run-pipeline"),
+        expected_action = "Read the failure reason, then preview or rerun the task deliberately.",
+        next_command = sprintf("dina run %s --dry-run", task),
+        next_note = "If the preview looks right, rerun without --dry-run.",
+        recommendation = sprintf("Inspect failed task with `dina run why %s`, then retry deliberately.", task)
+      )
+    ))
   }
-  if (length(staged)) {
-    return(list(state = "sources_pending", recommendation = "Review staged downloads with `dina sources review`.", stale_tasks = NA_integer_))
-  }
-  next_gate <- dina_next_gate_status(session, root)
-  if (!is.null(next_gate)) {
-    return(list(
-      state = sprintf("gate_%s", next_gate$status),
-      recommendation = sprintf("Review `%s` with `dina update gate %s`.", next_gate$label, next_gate$id),
-      stale_tasks = NA_integer_,
-      next_gate = next_gate$id,
-      next_check = next_gate$next_check
+  if (is.data.frame(incoming) && nrow(incoming)) {
+    count <- nrow(incoming)
+    return(dina_session_result(
+      "sources_pending",
+      dina_recommendation(
+        command = "dina sources review",
+        why = sprintf("%s incoming source file%s %s waiting in input_data/_new.", count, if (count == 1L) "" else "s", if (count == 1L) "is" else "are"),
+        todo_id = "review-sources",
+        todo_label = dina_todo_label(root, "review-sources"),
+        expected_action = "Inspect warnings first, then preview accepted source integrations.",
+        next_command = "dina sources integrate SOURCE",
+        next_note = "Use --yes only after the integration preview looks right.",
+        recommendation = "Review incoming files with `dina sources review`."
+      )
     ))
   }
   task_status <- dina_all_task_status(root = root, session = session)
   stale <- sum(vapply(task_status, function(x) x$status %in% c("missing_outputs", "stale", "upstream_stale", "missing_inputs"), logical(1)))
   if (stale > 0) {
-    return(list(state = "build_ready", recommendation = "Run or inspect stale tasks with `dina tasks list` and `dina tasks why TASK`.", stale_tasks = stale))
+    return(dina_session_result(
+      "build_ready",
+      dina_recommendation(
+        command = "dina run stale --dry-run",
+        why = sprintf("%s active task%s %s stale, missing outputs, or waiting on changed inputs.", stale, if (stale == 1L) "" else "s", if (stale == 1L) "is" else "are"),
+        todo_id = "run-pipeline",
+        todo_label = dina_todo_label(root, "run-pipeline"),
+        expected_action = "Preview the stale task run before changing outputs.",
+        next_command = "dina run stale",
+        next_note = "Run without --dry-run after reviewing the preview.",
+        recommendation = "Preview stale tasks with `dina run stale --dry-run`."
+      ),
+      stale_tasks = stale
+    ))
   }
-  list(state = "review_ready", recommendation = "Review outputs, pack archives, then run `dina update finalize`.", stale_tasks = stale)
+  todos <- dina_todo_rows(session, root)
+  open_todos <- if (nrow(todos)) sum(!todos$checked) else 0L
+  if (open_todos > 0L) {
+    open_rows <- todos[!todos$checked, , drop = FALSE]
+    todo_id <- if (nrow(open_rows)) open_rows$id[[1L]] else ""
+    todo_label <- if (nrow(open_rows)) open_rows$label[[1L]] else ""
+    return(dina_session_result(
+      "todo_pending",
+      dina_recommendation(
+        command = "dina todo",
+        why = sprintf("%s helper todo item%s still unchecked.", open_todos, if (open_todos == 1L) " is" else "s are"),
+        todo_id = todo_id,
+        todo_label = todo_label,
+        expected_action = "Review unchecked reminders and mark completed items.",
+        next_command = "dina todo check ID",
+        next_note = "When the checklist is clear, preview the close report.",
+        recommendation = "Review the helper checklist with `dina todo`."
+      ),
+      stale_tasks = stale,
+      open_todos = open_todos
+    ))
+  }
+  dina_session_result(
+    "review_ready",
+    dina_recommendation(
+      command = "dina update close --dry-run",
+      why = "No failed tasks, incoming source files, stale tasks, or unchecked todo items were found.",
+      expected_action = "Preview closure notes before writing the final close report.",
+      next_command = "dina update close",
+      next_note = "Run the final close command after the dry-run report looks right.",
+      recommendation = "Preview closure notes with `dina update close --dry-run`."
+    ),
+    stale_tasks = stale,
+    open_todos = open_todos
+  )
 }
 
 dina_task_map <- function(root = dina_repo_root()) {
@@ -3202,7 +3313,7 @@ dina_task_status <- function(task, root = dina_repo_root(), session = NULL, seen
     ))
   }
 
-  config_inputs <- c("_config.do", "config/dina.yml")
+  config_inputs <- c("config/dina.yml")
   if (!is.null(session)) {
     override <- dina_session_config_override_path(session$id, root)
     if (file.exists(override)) {

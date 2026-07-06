@@ -10,6 +10,7 @@ Data and code to build Distributional National Accounts (DINA) series for Latin 
 ```
 dina-latam/
 ├─ code/                    # Stata & R scripts to ingest, harmonize, benchmark, and export series
+├─ docs/                    # CLI and update workflow notes
 ├─ input_data/              # External source data 
 │  ├─ surveys_CEPAL/        # (ignored in Git) household surveys
 │  ├─ sna_UNDATA/           # national accounts
@@ -18,7 +19,7 @@ dina-latam/
 │  └─ latest_wid_series/    # final WID-formatted TSVs/CSVs (created when running the code)
 |  └─ figures/              # All figures shown in the paper, technical notes and more
 |  └─ synthetic-microfiles/ # Distributive results, in light format, before harmonization
-├─ _config.do               # Global settings: countries, years, steps, language, flags
+├─ config/                  # YAML config, source registry, pipeline graph, todo helper
 └─ .gitignore               # Paths excluded from version control
 ```
 
@@ -40,16 +41,16 @@ input_data/
 
 ### 2. Configure Run Options
 
-Edit `_config.do` to set:
+Edit `config/dina.yml` manually to set:
 
 | Parameter | Description | Example |
 |------------|-------------|----------|
-| `all_countries` | ISO3 country codes to process | `"ARG" "BRA" "CHL" ...` |
-| `first_y`, `last_y` | First and last year | `2000`, `2023` |
-| `lang` | Output language | `eng` |
-| `all_units` | Units (e.g., individuals, equal-split adults) | `"ind" "esn" "pch"` |
-| `all_steps` | Processing steps | `"natinc" "pon"` |
-| Flags | Debug or overwrite options | `debug`, `bfm_replace` |
+| `countries` | ISO3 country codes to process | `ARG, BRA, CHL, ...` |
+| `years.first`, `years.last` | First and last year | `2000`, `2023` |
+| `run.lang` | Output language | `eng` |
+| `run.units` | Units (e.g., individuals, equal-split adults) | `ind, esn, pch` |
+| `run.steps` | Processing steps | `natinc, pon` |
+| Flags | Debug or overwrite options | `run.debug`, `run.bfm_replace` |
 
 ### 3. Run the Pipeline
 
@@ -65,28 +66,33 @@ This repository also includes an experimental R-based project CLI:
 ./bin/dina
 ./bin/dina doctor
 ./bin/dina update start 2026
-./bin/dina update roadmap
-./bin/dina update gate tax-admin
-./bin/dina tasks list
-./bin/dina run 01a --dry-run
+./bin/dina sources list
+./bin/dina sources fetch --dry-run
+./bin/dina sources review
+./bin/dina run list
+./bin/dina run 01a
+./bin/dina update close --dry-run
 ./bin/dina help run
 ```
 
-The CLI keeps Stata's manual workflow available, but adds update sessions,
-roadmap gates, source scans, task freshness checks, generated Stata config
-files, run logs, and archive helpers. Update sessions are stored under
-`output/updates/`.
+The CLI keeps Stata's manual workflow available, but adds update workspaces,
+source registry and `_new` bucket tools, task freshness checks, temporary Stata
+runtime config files, run logs, closure reports, and archive helpers. Update
+workspaces are stored under `output/updates/`.
 Task selectors can use full task IDs, step aliases like `01a`, or whole-block
 aliases like `01`.
+
+Detailed CLI notes live in [`docs/update-workflow.md`](docs/update-workflow.md)
+and [`docs/cli-interaction-guide.md`](docs/cli-interaction-guide.md).
 
 For Pushover notifications, copy `config/pushover.local.R.example` to
 `config/pushover.local.R` or run `./bin/dina notify init`, then replace the
 placeholders. The local credentials file is ignored by Git; server runs can
 instead use `PUSHOVER_USER_KEY` and `PUSHOVER_APP_TOKEN`.
 
-To let Stata use a CLI-generated config, the CLI sets `DINA_CONFIG_DO`; manual
-Stata runs continue to use `_config.do` defaults when that environment variable
-is unset.
+When `dina run` executes a Stata task, the CLI writes a temporary runtime Stata
+config, sets `DINA_CONFIG_DO` for that process, and removes the file after the
+task finishes.
 ---
 
 ## Outputs

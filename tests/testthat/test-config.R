@@ -25,13 +25,12 @@ test_that("export validation config fails without required values", {
 
 test_that("runtime config files do not contain stale fallback values", {
   stata_07d <- readLines(file.path(repo_root_for_tests, "code", "Stata", "07d-export-results-to-wid.do"), warn = FALSE)
-  loader <- readLines(file.path(repo_root_for_tests, "_config.do"), warn = FALSE)
 
   expect_false(any(grepl("dina_latam_3Oct2024", stata_07d, fixed = TRUE)))
   expect_false(any(grepl("local ly = 2024", stata_07d, fixed = TRUE)))
   expect_true(any(grepl("Missing required DINA config global", stata_07d, fixed = TRUE)))
-  expect_true(any(grepl("DINA_CONFIG_DO", loader, fixed = TRUE)))
-  expect_false(any(grepl("global last_y", loader, fixed = TRUE)))
+  expect_true(any(grepl("DINA_CONFIG_DO", stata_07d, fixed = TRUE)))
+  expect_false(file.exists(file.path(repo_root_for_tests, "_config.do")))
 })
 
 test_that("nested config set helper parses scalars and vectors", {
