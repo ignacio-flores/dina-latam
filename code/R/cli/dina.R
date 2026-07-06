@@ -140,6 +140,7 @@ Source data:
   `sources show ID|guide`             [read-only] source detail/reminders
   `sources fetch [--dry-run]`         [read-only/writes inbox] fetch to _new
   `sources compare`                   [read-only] compare source baseline
+  `sources diagnose country-sna`      [writes output] source-value diagnostic
   `sources status`                    [read-only] alias for sources compare
   `sources diff`                      [read-only] detailed source baseline diff
   `sources fields`                    [read-only] source option cheat sheet
@@ -239,6 +240,11 @@ What this page is:
   dina sources compare [--metadata-only] [--hash-all] [--deep]
       Compares configured source files against the active update baseline. This
       does not validate data or manage incoming files.
+
+  dina sources diagnose country-sna [--dry-run]
+      Compares new country-SNA files against the current production extraction
+      contract. Writes diagnostic workbooks and CSVs under
+      output/source_diagnostics/country_sna unless --dry-run is passed.
 
 3. Run the pipeline
   dina run list
@@ -424,6 +430,7 @@ Examples:
   dina sources guide [ID|--family FAMILY] [--urls]
   dina sources fetch [ID|--family FAMILY|--all] [--dry-run]
   dina sources compare [--metadata-only] [--hash-all] [--deep]
+  dina sources diagnose country-sna [--dry-run]
   dina sources status [--metadata-only] [--hash-all] [--deep]
   dina sources diff [--deep] [--hash]
   dina sources fields
@@ -453,6 +460,9 @@ Subcommands:
   compare                         Compares configured source files with the
                                   active update baseline. It does not validate
                                   data or manage incoming files.
+  diagnose country-sna            Compares `_new` country-SNA files with the
+                                  current production extraction contract and
+                                  writes diagnostic workbooks/CSVs.
   status                          Compatibility alias for compare.
   diff                            Compares current scan results with the active
                                   session baseline and classifies changes.
@@ -480,7 +490,8 @@ Options:
   --metadata-only                 For compare/status, compare only paths, size, and
                                   timestamps; do not compute hashes.
   --hash-all                      For compare/status, hash all source files.
-  --dry-run                       For fetch, preview targets only.
+  --dry-run                       For fetch, preview targets only. For diagnose,
+                                  compute summaries without writing outputs.
 
 Gotcha:
   Source coverage is independent of update year. A 2026 update may discover
@@ -507,6 +518,7 @@ Examples:
   dina sources fetch --dry-run
   dina sources fetch chl-pit-total --dry-run
   dina sources compare
+  dina sources diagnose country-sna
 ",
     buckets = "Usage:
   dina buckets [detail|urls|uses|fetch] [OPTIONS]
@@ -1918,6 +1930,7 @@ dina_command_catalog <- function(year = format(Sys.Date(), "%Y")) {
             dina_command_entry("sources-fields", "Source fields", "Explain source registry fields and views.", args = c("sources", "fields")),
             dina_command_entry("sources-methods", "Source methods", "Explain acquisition method labels.", args = c("sources", "methods")),
             dina_command_entry("sources-compare", "Source compare", "Compare configured source files with the active update baseline.", args = c("sources", "compare")),
+            dina_command_entry("sources-diagnose-country-sna", "Country-SNA diagnostic", "Compare new country-SNA files with the current extraction contract.", args = c("sources", "diagnose", "country-sna"), help = "Writes diagnostic workbooks and CSVs under output/source_diagnostics/country_sna."),
             dina_command_entry("sources-scan", "Source scan", "Detect local source coverage from the registry.", args = c("sources", "scan")),
             dina_command_entry("sources-diff", "Source diff", "Compare current source scan with the active session baseline.", args = c("sources", "diff"))
           )
@@ -4194,6 +4207,44 @@ dina_cmd_buckets <- function(root, args) {
   }
 }
 
+dina_print_country_sna_diagnostic <- function(result, dry_run = FALSE) {
+  summary <- result$outputs$country_summary
+  dina_cli_header("Country-SNA Source Diagnostic")
+  if (!nrow(summary)) {
+    dina_cli_alert("No country summary rows were produced.")
+  } else {
+    dina_cli_cat(dina_cli_row(
+      c("country", "status", "extension", "changed", "substantive", "median new/old"),
+      widths = c(8, 20, 12, 10, 12, 14),
+      dim = TRUE
+    ))
+    for (i in seq_len(nrow(summary))) {
+      extension <- paste(
+        c(
+          if (nzchar(summary$extension_years_in_range[[i]] %||% "")) summary$extension_years_in_range[[i]] else NULL,
+          if (nzchar(summary$extension_years_beyond_active[[i]] %||% "")) paste0(">", summary$extension_years_beyond_active[[i]]) else NULL
+        ),
+        collapse = ","
+      )
+      if (!nzchar(extension)) extension <- "-"
+      changed <- if (is.na(summary$changed_values[[i]])) "-" else sprintf("%s", summary$changed_values[[i]])
+      substantive <- if (is.na(summary$substantive_changes[[i]])) "-" else sprintf("%s", summary$substantive_changes[[i]])
+      median_ratio <- if (is.na(summary$median_new_old[[i]])) "-" else sprintf("%.6f", summary$median_new_old[[i]])
+      dina_cli_cat(dina_cli_row(
+        c(summary$country[[i]], summary$status[[i]], extension, changed, substantive, median_ratio),
+        widths = c(8, 20, 12, 10, 12, 14)
+      ))
+    }
+  }
+  if (isTRUE(dry_run)) {
+    dina_cli_alert("Dry-run only: diagnostic outputs were not written.")
+  } else {
+    dina_cli_ok(sprintf("Workbook: %s", result$workbook_path))
+    dina_cli_alert("CSV copies and per-country workbooks were written next to the main workbook.")
+  }
+  invisible(result)
+}
+
 dina_cmd_sources <- function(root, args) {
   args <- dina_drop_leading_separator(args)
   sub <- dina_arg(args, 1L, "list")
@@ -4240,6 +4291,24 @@ dina_cmd_sources <- function(root, args) {
     }
     status <- dina_sources_compare(session, root, hash = hash_mode, deep = isTRUE(flags$deep))
     dina_print_source_compare(status)
+  } else if (sub %in% c("diagnose", "diagnostic", "diagnostics")) {
+    flags <- dina_parse_flags(args[-1])
+    target <- dina_arg(flags$positional, 1L, "country-sna")
+    if (!target %in% c("country-sna", "country_sna")) {
+      stop("Usage: dina sources diagnose country-sna [--dry-run]", call. = FALSE)
+    }
+    diagnostic_path <- file.path(root, "code", "R", "source-diagnostics", "country_sna_current_extractor_diagnostic.R")
+    source(diagnostic_path, local = TRUE)
+    output_dir <- flags[["output-dir"]] %||% file.path(root, "output", "source_diagnostics", "country_sna")
+    if (!grepl("^/", output_dir)) {
+      output_dir <- file.path(root, output_dir)
+    }
+    result <- run_country_sna_current_extractor_diagnostic(
+      root = root,
+      output_dir = output_dir,
+      write_outputs = !isTRUE(flags[["dry-run"]])
+    )
+    dina_print_country_sna_diagnostic(result, dry_run = isTRUE(flags[["dry-run"]]))
   } else if (identical(sub, "complete")) {
     stop("Unknown sources command: complete. Use `dina todo check ID` for helper checklist progress.", call. = FALSE)
   } else if (identical(sub, "scan")) {
