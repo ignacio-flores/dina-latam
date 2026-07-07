@@ -12,7 +12,6 @@ years:
   from_config: config/dina.yml
 
 economic_contract:
-  countries: [PER, DOM, URY, CRI, BRA, CHL, COL, ECU, MEX]
   zero_as_missing: true
   code_aliases:
     D.11: ["D.11", "D11"]
@@ -109,7 +108,7 @@ economic_contract:
 
 source_discovery:
   filename_year_span_max: 35
-  countries:
+  country_rules:
     PER:
       adapter_family: rectangular_workbook
       old: {type: single_stem, stem: input_data/sna_country_data/PER/CEI_merged}

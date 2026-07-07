@@ -67,6 +67,21 @@ test_that("country SNA include contract loads literal Excel column letters", {
   }
 })
 
+test_that("country SNA include imports default countries from project config", {
+  root <- tempfile("country-sna-include-countries-")
+  dir.create(file.path(root, "config"), recursive = TRUE)
+  yaml::write_yaml(list(countries = c("MEX", "AAA", "ARG"), years = list(first = 2020L, last = 2020L)), file.path(root, "config", "dina.yml"))
+
+  contract <- country_sna_include_fixture_contract(root)
+  contract$countries <- c("AAA")
+  contract$country_rules$MEX <- contract$country_rules$AAA
+  contract_path <- file.path(root, "contract.yml")
+  yaml::write_yaml(contract, contract_path)
+
+  loaded <- country_sna_include_read_contract(root, contract_path)
+  expect_equal(loaded$countries, c("MEX", "AAA"))
+})
+
 test_that("country SNA include Mexico resolver prefers index metadata", {
   root <- tempfile("country-sna-mex-index-")
   dir.create(file.path(root, "input_data", "sna_country_data", "MEX"), recursive = TRUE)
@@ -246,7 +261,7 @@ test_that("country SNA include dry-run consumes explorer expectations", {
   expect_true(file.exists(file.path(result$paths$logs, "include_manifest.csv")))
 })
 
-test_that("country SNA include apply refuses without a clean dry-run manifest", {
+test_that("country SNA include apply is retired", {
   skip_if_not_installed("yaml")
 
   root <- tempfile("country-sna-include-apply-guard-")
@@ -257,8 +272,87 @@ test_that("country SNA include apply refuses without a clean dry-run manifest", 
 
   expect_error(
     run_country_sna_include(root = root, contract_path = contract_path, write_outputs = FALSE, apply = TRUE),
-    "requires a clean include dry-run manifest"
+    "Use `--confirm`"
   )
+})
+
+test_that("country SNA include confirm backs up promoted sources and restore reverts them", {
+  skip_if_not_installed("openxlsx")
+  skip_if_not_installed("yaml")
+
+  root <- tempfile("country-sna-include-confirm-")
+  dir.create(file.path(root, "config"), recursive = TRUE)
+  dir.create(file.path(root, "input_data", "sna_country_data", "AAA"), recursive = TRUE)
+  dir.create(file.path(root, "input_data", "_new", "country_sna", "AAA"), recursive = TRUE)
+  dina_sources <- list(sources = list(list(
+    id = "country-sna-aaa",
+    family = "country_sna",
+    country = "AAA",
+    destination = "input_data/sna_country_data/AAA/{basename}"
+  )))
+  yaml::write_yaml(dina_sources, file.path(root, "config", "sources.yml"))
+
+  write_fixture <- function(path, d4) {
+    wb <- openxlsx::createWorkbook()
+    openxlsx::addWorksheet(wb, "2020")
+    openxlsx::writeData(
+      wb,
+      "2020",
+      data.frame(code = c("D.4", "D.43", "D.44", "B.5"), label = "x", households_r = c(d4, NA, 25, 200), households_u = c(NA, 20, NA, NA)),
+      colNames = FALSE
+    )
+    openxlsx::saveWorkbook(wb, path, overwrite = TRUE)
+  }
+  canonical <- file.path(root, "input_data", "sna_country_data", "AAA", "fixture.xlsx")
+  incoming <- file.path(root, "input_data", "_new", "country_sna", "AAA", "fixture.xlsx")
+  write_fixture(canonical, 100)
+  write_fixture(incoming, 110)
+
+  contract <- country_sna_include_fixture_contract(root)
+  contract_path <- file.path(root, "contract.yml")
+  yaml::write_yaml(contract, contract_path)
+
+  exploration_root <- file.path(root, "output", "experiments", "country_sna_explore")
+  dir.create(file.path(exploration_root, "tables"), recursive = TRUE)
+  utils::write.csv(
+    data.frame(country = "AAA", source_set = "new", status = "matched", file = incoming, stringsAsFactors = FALSE),
+    file.path(exploration_root, "tables", "source_inventory.csv"),
+    row.names = FALSE
+  )
+  utils::write.csv(
+    data.frame(
+      country = "AAA", year = 2020L, year_role = "overlap", variable = "D4_cei",
+      variable_type = "primitive", account_code = "D.4", sector_role = "households_r",
+      expected_action = "overlap_confirm", structure_status = "structure_evidence_available",
+      expected_status = "expected_value", stringsAsFactors = FALSE
+    ),
+    file.path(exploration_root, "tables", "variable_expectations.csv"),
+    row.names = FALSE
+  )
+  utils::write.csv(
+    data.frame(country = "AAA", structure_status = "structure_evidence_available", stringsAsFactors = FALSE),
+    file.path(exploration_root, "tables", "structure_summary.csv"),
+    row.names = FALSE
+  )
+  utils::write.csv(
+    data.frame(country = "AAA", year = 2020L, include_scope = TRUE, stringsAsFactors = FALSE),
+    file.path(exploration_root, "tables", "year_expectations.csv"),
+    row.names = FALSE
+  )
+
+  dry <- run_country_sna_include(root = root, contract_path = contract_path, exploration_run = exploration_root, write_outputs = TRUE)
+  expect_equal(country_sna_include_manifest_value(dry$outputs$include_manifest, "status"), "all_good")
+  expect_true(file.exists(file.path(dry$paths$tables, "staged_source_mappings.csv")))
+  expect_true(startsWith(dry$paths$root, file.path(root, "output", "experiments", "country_sna_include", "runs")))
+  expect_equal(openxlsx::read.xlsx(canonical, sheet = "2020", colNames = FALSE)[1, 3], 100)
+
+  confirmed <- country_sna_include_confirm_sources(root, dry$paths$root)
+  expect_equal(openxlsx::read.xlsx(canonical, sheet = "2020", colNames = FALSE)[1, 3], 110)
+  expect_true(file.exists(file.path(confirmed$paths$logs, "backup_manifest.csv")))
+
+  restored <- country_sna_include_restore_sources(root, confirmed$paths$root)
+  expect_true(any(restored$outputs$restore_report$action == "restored"))
+  expect_equal(openxlsx::read.xlsx(canonical, sheet = "2020", colNames = FALSE)[1, 3], 100)
 })
 
 test_that("country SNA include Brazil household override uses Familias year columns", {

@@ -6,9 +6,12 @@
 # and compatibility exclusions. The R code below is intentionally an interpreter
 # of that contract, not a new place to hide country-specific workbook facts.
 #
-# Dry-runs are read-only with respect to input_data and intermediary_data.
-# `--apply` is guarded by a clean dry-run manifest before any source promotion is
-# allowed. Generated reports are written under output/experiments/country_sna_include
+# Dry-runs are read-only with respect to input_data and intermediary_data. They
+# build a staged source tree under the include run, overlay incoming `_new`
+# files at their proposed canonical destinations, and run extraction against
+# that staged tree. `--confirm` is the only promotion path: it requires a clean
+# dry-run manifest and writes a backup snapshot before touching canonical source
+# files. Generated reports stay under output/experiments/country_sna_include
 # unless a caller passes an explicit output_dir for tests.
 
 `%||%` <- function(x, y) {
@@ -66,11 +69,12 @@ country_sna_include_read_contract <- function(
   contract <- country_sna_include_read_yaml(contract_path)
   contract$contract_path <- contract_path
   country_sna_include_validate_contract(contract)
+  contract$countries <- country_sna_include_project_countries(contract, root)
   contract
 }
 
 country_sna_include_validate_contract <- function(contract) {
-  required <- c("output_root", "years", "countries", "variables", "country_rules")
+  required <- c("output_root", "years", "variables", "country_rules")
   missing <- setdiff(required, names(contract))
   if (length(missing)) {
     stop("Country-SNA extractor contract is missing: ", paste(missing, collapse = ", "), call. = FALSE)
@@ -78,11 +82,20 @@ country_sna_include_validate_contract <- function(contract) {
   if (is.null(contract$variables$primitives) || !length(contract$variables$primitives)) {
     stop("Country-SNA extractor contract has no primitive variables.", call. = FALSE)
   }
-  absent_rules <- setdiff(contract$countries, names(contract$country_rules))
-  if (length(absent_rules)) {
-    stop("Country-SNA extractor contract has countries without rules: ", paste(absent_rules, collapse = ", "), call. = FALSE)
-  }
   invisible(contract)
+}
+
+country_sna_include_project_countries <- function(contract, root) {
+  config_path <- country_sna_include_path((contract$years %||% list())$from_config %||% "config/dina.yml", root)
+  if (file.exists(config_path)) {
+    config <- country_sna_include_read_yaml(config_path)
+    configured <- toupper(as.character(config$countries %||% character()))
+    return(configured[configured %in% names(contract$country_rules)])
+  }
+  # Unit fixtures can provide a tiny country list without a full project config.
+  # Production contracts import countries from config/dina.yml instead.
+  fallback <- toupper(as.character(contract$countries %||% names(contract$country_rules)))
+  fallback[fallback %in% names(contract$country_rules)]
 }
 
 country_sna_include_read_dina_years <- function(root, config_path) {
@@ -124,6 +137,54 @@ country_sna_include_output_paths <- function(root, contract, output_dir = NULL) 
     workbooks = file.path(out, "workbooks"),
     logs = file.path(out, "logs"),
     snapshots = file.path(out, "snapshots")
+  )
+}
+
+country_sna_include_run_id <- function(prefix = "include") {
+  paste0(prefix, "-", format(Sys.time(), "%Y%m%d-%H%M%S"))
+}
+
+country_sna_include_output_paths_for_run <- function(root, contract, output_dir = NULL, run_id = NULL) {
+  base <- country_sna_include_output_root(root, contract, output_dir)
+  out <- if (is.null(run_id) || !nzchar(run_id)) base else file.path(base, "runs", run_id)
+  list(
+    root = out,
+    data = file.path(out, "data"),
+    tables = file.path(out, "tables"),
+    figures = file.path(out, "figures"),
+    workbooks = file.path(out, "workbooks"),
+    logs = file.path(out, "logs"),
+    snapshots = file.path(out, "snapshots"),
+    staged_repo = file.path(out, "staged_repo")
+  )
+}
+
+country_sna_include_relative_path <- function(path, root) {
+  path <- normalizePath(path, mustWork = FALSE)
+  root <- normalizePath(root, mustWork = FALSE)
+  prefix <- paste0(root, .Platform$file.sep)
+  if (startsWith(path, prefix)) substring(path, nchar(prefix) + 1L) else path
+}
+
+country_sna_include_file_fingerprint <- function(path, root = country_sna_include_repo_root()) {
+  exists <- file.exists(path)
+  info <- if (exists) file.info(path) else data.frame(size = NA_real_, mtime = as.POSIXct(NA))
+  sha <- NA_character_
+  status <- if (exists) "ok" else "missing"
+  if (exists && country_sna_include_has("digest")) {
+    sha <- digest::digest(file = path, algo = "sha256")
+  } else if (exists) {
+    status <- "digest_missing"
+  }
+  data.frame(
+    path = path,
+    rel = country_sna_include_relative_path(path, root),
+    exists = exists,
+    size = suppressWarnings(as.numeric(info$size[[1L]])),
+    mtime = as.character(info$mtime[[1L]]),
+    sha256 = sha,
+    status = status,
+    stringsAsFactors = FALSE
   )
 }
 
@@ -1446,21 +1507,65 @@ country_sna_include_expectation_summary <- function(detail) {
   }))
 }
 
-country_sna_include_overall_status <- function(summary) {
+country_sna_include_overall_status <- function(summary, source_mappings = NULL) {
+  if (!is.null(source_mappings) && nrow(source_mappings) &&
+      any(source_mappings$action == "blocked" | source_mappings$status %in% c("ambiguous_registry", "ambiguous_destination", "stage_failed"), na.rm = TRUE)) {
+    return("blocked")
+  }
   if (!nrow(summary)) return("check_following")
   if (any(summary$status == "blocked", na.rm = TRUE)) return("blocked")
   if (any(summary$status == "check_following", na.rm = TRUE)) return("check_following")
   "all_good"
 }
 
-country_sna_include_manifest <- function(include_summary, expectations, dry_run = TRUE) {
+country_sna_include_manifest <- function(
+  include_summary,
+  expectations,
+  dry_run = TRUE,
+  source_mappings = NULL,
+  source_fingerprints = NULL,
+  contract = NULL,
+  root = country_sna_include_repo_root(),
+  paths = NULL,
+  run_id = NULL
+) {
+  contract_hash <- NA_character_
+  if (!is.null(contract$contract_path) && file.exists(contract$contract_path) && country_sna_include_has("digest")) {
+    contract_hash <- digest::digest(file = contract$contract_path, algo = "sha256")
+  }
+  source_stage_status <- if (is.null(source_mappings) || !nrow(source_mappings)) {
+    "no_source_mappings"
+  } else if (any(source_mappings$action == "blocked", na.rm = TRUE)) {
+    "blocked"
+  } else {
+    "staged"
+  }
+  fingerprint_status <- if (is.null(source_fingerprints) || !nrow(source_fingerprints)) {
+    "none"
+  } else {
+    paste(sort(unique(source_fingerprints$status)), collapse = ";")
+  }
   data.frame(
-    key = c("run_at", "dry_run", "status", "exploration_run"),
+    key = c(
+      "run_id", "run_at", "dry_run", "status", "exploration_run",
+      "source_stage_status", "source_fingerprint_status", "contract_path",
+      "contract_sha256", "output_root", "candidate_patch_csv", "candidate_patch_dta",
+      "candidate_dataset"
+    ),
     value = c(
+      run_id %||% "",
       format(Sys.time(), "%Y-%m-%d %H:%M:%S %z"),
       as.character(isTRUE(dry_run)),
-      country_sna_include_overall_status(include_summary),
-      expectations$root %||% ""
+      country_sna_include_overall_status(include_summary, source_mappings),
+      expectations$root %||% "",
+      source_stage_status,
+      fingerprint_status,
+      contract$contract_path %||% "",
+      contract_hash,
+      paths$root %||% "",
+      if (!is.null(paths)) file.path(paths$data, "country_sna_candidate_patch.csv") else "",
+      if (!is.null(paths)) file.path(paths$data, "country_sna_candidate_patch.dta") else "",
+      if (!is.null(paths)) file.path(paths$data, "UNDATA-WID-Merged.country_sna_candidate.dta") else ""
     ),
     stringsAsFactors = FALSE
   )
@@ -1521,10 +1626,62 @@ country_sna_include_source_destination <- function(root, source_inventory_row) {
   )
 }
 
-country_sna_include_apply_sources <- function(root, expectations) {
+country_sna_include_source_fingerprints <- function(root, expectations) {
+  inventory <- country_sna_include_read_explorer_table(expectations$root, "source_inventory")
+  files <- as.character(inventory$file %||% character())
+  files <- unique(files[!is.na(files) & nzchar(files)])
+  files <- files[file.exists(files)]
+  country_sna_include_bind(lapply(files, country_sna_include_file_fingerprint, root = root))
+}
+
+country_sna_include_link_or_copy <- function(source, destination) {
+  dir.create(dirname(destination), recursive = TRUE, showWarnings = FALSE)
+  destination_is_dir <- isTRUE(suppressWarnings(file.info(destination)$isdir[[1L]]))
+  if (file.exists(destination) || destination_is_dir) {
+    unlink(destination, recursive = TRUE, force = TRUE)
+  }
+  ok <- suppressWarnings(file.symlink(source, destination))
+  if (!isTRUE(ok)) {
+    ok <- file.copy(source, destination, overwrite = FALSE, copy.mode = FALSE, copy.date = FALSE)
+  }
+  isTRUE(ok)
+}
+
+country_sna_include_stage_canonical_sources <- function(root, staged_root) {
+  source_root <- file.path(root, "input_data", "sna_country_data")
+  staged_source_root <- file.path(staged_root, "input_data", "sna_country_data")
+  if (!dir.exists(source_root)) {
+    return(data.frame(action = "none", status = "canonical_source_root_missing", stringsAsFactors = FALSE))
+  }
+  files <- list.files(source_root, recursive = TRUE, full.names = TRUE, all.files = FALSE, no.. = TRUE)
+  files <- files[file.exists(files) & !dir.exists(files)]
+  rows <- lapply(files, function(file) {
+    rel <- country_sna_include_relative_path(file, source_root)
+    target <- file.path(staged_source_root, rel)
+    ok <- country_sna_include_link_or_copy(file, target)
+    data.frame(
+      source = file,
+      destination = target,
+      action = if (ok) "linked_or_copied" else "blocked",
+      status = if (ok) "staged_canonical" else "stage_failed",
+      stringsAsFactors = FALSE
+    )
+  })
+  country_sna_include_bind(rows)
+}
+
+country_sna_include_prepare_staged_sources <- function(root, paths, expectations) {
+  staged_root <- paths$staged_repo
+  dir.create(staged_root, recursive = TRUE, showWarnings = FALSE)
+  canonical_stage <- country_sna_include_stage_canonical_sources(root, staged_root)
+
   inventory <- country_sna_include_read_explorer_table(expectations$root, "source_inventory")
   if (!nrow(inventory)) {
-    return(data.frame(action = "none", status = "no_source_inventory", stringsAsFactors = FALSE))
+    return(list(
+      staged_root = staged_root,
+      mappings = data.frame(action = "none", status = "no_source_inventory", stringsAsFactors = FALSE),
+      canonical_stage = canonical_stage
+    ))
   }
   candidates <- inventory[
     inventory$source_set == "new" &
@@ -1535,35 +1692,205 @@ country_sna_include_apply_sources <- function(root, expectations) {
     drop = FALSE
   ]
   if (!nrow(candidates)) {
-    return(data.frame(action = "none", status = "no_new_files_to_promote", stringsAsFactors = FALSE))
+    return(list(
+      staged_root = staged_root,
+      mappings = data.frame(action = "none", status = "no_new_files_to_stage", stringsAsFactors = FALSE),
+      canonical_stage = canonical_stage
+    ))
   }
 
-  # Apply is intentionally conservative: source promotion is allowed only when
-  # the registry maps one country-SNA source to a destination template and an
-  # existing destination is byte-identical. Different existing content blocks
-  # the operation so the pipeline cannot accidentally consume a silent overwrite.
+  # The dry-run stage mirrors canonical country-SNA files under the include run
+  # and overlays incoming files at the destination proposed by config/sources.yml.
+  # The production folders are not touched here; ambiguous destinations become
+  # explicit blockers for confirm instead of being guessed.
   rows <- lapply(seq_len(nrow(candidates)), function(i) {
     row <- candidates[i, , drop = FALSE]
     destination <- country_sna_include_source_destination(root, row)
     if (!identical(destination$status, "ok")) {
-      return(data.frame(source = row$file, destination = NA_character_, action = "blocked", status = destination$status, stringsAsFactors = FALSE))
+      return(data.frame(
+        country = row$country,
+        source = row$file,
+        destination = NA_character_,
+        staged_destination = NA_character_,
+        action = "blocked",
+        status = destination$status,
+        confirm_ready = FALSE,
+        stringsAsFactors = FALSE
+      ))
     }
-    if (file.exists(destination$destination)) {
-      same <- identical(country_sna_include_digest(row$file), country_sna_include_digest(destination$destination))
-      if (!same) {
-        return(data.frame(source = row$file, destination = destination$destination, action = "blocked", status = "destination_exists_different_content", stringsAsFactors = FALSE))
-      }
-      return(data.frame(source = row$file, destination = destination$destination, action = "skip", status = "already_present_identical", stringsAsFactors = FALSE))
-    }
-    dir.create(dirname(destination$destination), recursive = TRUE, showWarnings = FALSE)
-    ok <- file.copy(row$file, destination$destination, overwrite = FALSE)
-    data.frame(source = row$file, destination = destination$destination, action = if (ok) "copied" else "blocked", status = if (ok) "promoted" else "copy_failed", stringsAsFactors = FALSE)
+    staged_destination <- file.path(staged_root, country_sna_include_relative_path(destination$destination, root))
+    ok <- country_sna_include_link_or_copy(row$file, staged_destination)
+    data.frame(
+      country = row$country,
+      source = row$file,
+      destination = destination$destination,
+      staged_destination = staged_destination,
+      action = if (ok) "stage_overlay" else "blocked",
+      status = if (ok) "staged_new_source" else "stage_failed",
+      confirm_ready = isTRUE(ok),
+      stringsAsFactors = FALSE
+    )
   })
   out <- country_sna_include_bind(rows)
-  if (any(out$action == "blocked", na.rm = TRUE)) {
-    stop("`--apply` blocked: at least one source destination is ambiguous or would overwrite different content.", call. = FALSE)
+  list(staged_root = staged_root, mappings = out, canonical_stage = canonical_stage)
+}
+
+country_sna_include_resolve_include_run <- function(root, include_run) {
+  if (is.null(include_run) || !nzchar(include_run)) {
+    stop("Usage: dina sources include country-sna --confirm --include-run RUN", call. = FALSE)
   }
-  out
+  direct <- country_sna_include_path(include_run, root)
+  if (file.exists(file.path(direct, "logs", "include_manifest.csv"))) {
+    return(normalizePath(direct, mustWork = FALSE))
+  }
+  by_id <- file.path(root, "output", "experiments", "country_sna_include", "runs", include_run)
+  if (file.exists(file.path(by_id, "logs", "include_manifest.csv"))) {
+    return(normalizePath(by_id, mustWork = FALSE))
+  }
+  stop("Include run not found or has no dry-run manifest: ", include_run, call. = FALSE)
+}
+
+country_sna_include_resolve_confirm_run <- function(root, confirm_run) {
+  if (is.null(confirm_run) || !nzchar(confirm_run)) {
+    stop("Usage: dina sources include country-sna --restore CONFIRM_RUN", call. = FALSE)
+  }
+  direct <- country_sna_include_path(confirm_run, root)
+  if (file.exists(file.path(direct, "logs", "backup_manifest.csv"))) {
+    return(normalizePath(direct, mustWork = FALSE))
+  }
+  by_id <- file.path(root, "output", "experiments", "country_sna_include", "confirms", confirm_run)
+  if (file.exists(file.path(by_id, "logs", "backup_manifest.csv"))) {
+    return(normalizePath(by_id, mustWork = FALSE))
+  }
+  stop("Confirm run not found or has no backup manifest: ", confirm_run, call. = FALSE)
+}
+
+country_sna_include_assert_confirmable <- function(include_run) {
+  manifest_path <- file.path(include_run, "logs", "include_manifest.csv")
+  mappings_path <- file.path(include_run, "tables", "staged_source_mappings.csv")
+  manifest <- utils::read.csv(manifest_path, stringsAsFactors = FALSE)
+  status <- country_sna_include_manifest_value(manifest, "status")
+  dry_run <- country_sna_include_manifest_value(manifest, "dry_run")
+  if (!identical(dry_run, "TRUE")) {
+    stop("Confirm requires a completed include dry-run manifest.", call. = FALSE)
+  }
+  if (identical(status, "blocked")) {
+    stop("Confirm refused: the staged include run is blocked.", call. = FALSE)
+  }
+  if (!identical(status, "all_good")) {
+    stop("Confirm refused: run include --dry-run again until status is all_good.", call. = FALSE)
+  }
+  if (!file.exists(mappings_path)) {
+    stop("Confirm refused: staged source mappings are missing.", call. = FALSE)
+  }
+  mappings <- utils::read.csv(mappings_path, stringsAsFactors = FALSE, na.strings = c("", "NA"))
+  if (!("confirm_ready" %in% names(mappings))) {
+    mappings$confirm_ready <- FALSE
+  }
+  if (nrow(mappings) && any(mappings$action == "blocked", na.rm = TRUE)) {
+    stop("Confirm refused: at least one staged source destination is ambiguous or failed staging.", call. = FALSE)
+  }
+  list(manifest = manifest, mappings = mappings)
+}
+
+country_sna_include_confirm_sources <- function(root, include_run, output_dir = NULL) {
+  include_run <- country_sna_include_resolve_include_run(root, include_run)
+  preflight <- country_sna_include_assert_confirmable(include_run)
+  mappings <- preflight$mappings
+  ready <- mappings[mappings$confirm_ready %in% c(TRUE, "TRUE") & nzchar(mappings$source %||% ""), , drop = FALSE]
+  base <- output_dir %||% file.path(root, "output", "experiments", "country_sna_include")
+  base <- country_sna_include_path(base, root)
+  confirm_id <- country_sna_include_run_id("confirm")
+  confirm_root <- file.path(base, "confirms", confirm_id)
+  paths <- list(
+    root = confirm_root,
+    tables = file.path(confirm_root, "tables"),
+    logs = file.path(confirm_root, "logs"),
+    backups = file.path(confirm_root, "backups")
+  )
+  invisible(lapply(paths, dir.create, recursive = TRUE, showWarnings = FALSE))
+  if (!nrow(ready)) {
+    report <- data.frame(action = "none", status = "no_sources_to_promote", stringsAsFactors = FALSE)
+    utils::write.csv(report, file.path(paths$tables, "promoted_sources.csv"), row.names = FALSE, na = "")
+    manifest <- data.frame(
+      key = c("confirm_id", "include_run", "status", "run_at"),
+      value = c(confirm_id, include_run, "nothing_to_promote", format(Sys.time(), "%Y-%m-%d %H:%M:%S %z")),
+      stringsAsFactors = FALSE
+    )
+    utils::write.csv(manifest, file.path(paths$logs, "confirm_manifest.csv"), row.names = FALSE, na = "")
+    utils::write.csv(data.frame(stringsAsFactors = FALSE), file.path(paths$logs, "backup_manifest.csv"), row.names = FALSE, na = "")
+    return(list(paths = paths, outputs = list(confirm_manifest = manifest, backup_manifest = data.frame(), promote_report = report)))
+  }
+  missing_sources <- ready$source[!file.exists(ready$source)]
+  if (length(missing_sources)) {
+    stop("Confirm refused: staged source files are missing: ", paste(missing_sources, collapse = ", "), call. = FALSE)
+  }
+  rows <- lapply(seq_len(nrow(ready)), function(i) {
+    row <- ready[i, , drop = FALSE]
+    destination <- row$destination[[1L]]
+    backup <- file.path(paths$backups, country_sna_include_relative_path(destination, root))
+    existed <- file.exists(destination)
+    if (existed) {
+      dir.create(dirname(backup), recursive = TRUE, showWarnings = FALSE)
+      backup_ok <- file.copy(destination, backup, overwrite = TRUE, copy.mode = TRUE, copy.date = TRUE)
+      if (!isTRUE(backup_ok)) {
+        return(data.frame(source = row$source, destination = destination, backup = backup, existed_before = existed, action = "blocked", status = "backup_failed", stringsAsFactors = FALSE))
+      }
+    }
+    dir.create(dirname(destination), recursive = TRUE, showWarnings = FALSE)
+    copied <- file.copy(row$source, destination, overwrite = TRUE, copy.mode = TRUE, copy.date = TRUE)
+    data.frame(
+      source = row$source,
+      destination = destination,
+      backup = if (existed) backup else NA_character_,
+      existed_before = existed,
+      action = if (copied) if (existed) "replaced" else "copied" else "blocked",
+      status = if (copied) "confirmed" else "copy_failed",
+      stringsAsFactors = FALSE
+    )
+  })
+  report <- country_sna_include_bind(rows)
+  backup_manifest <- report[, c("source", "destination", "backup", "existed_before", "status"), drop = FALSE]
+  manifest <- data.frame(
+    key = c("confirm_id", "include_run", "status", "run_at", "backup_manifest"),
+    value = c(
+      confirm_id,
+      include_run,
+      if (any(report$action == "blocked", na.rm = TRUE)) "confirm_failed" else "confirmed",
+      format(Sys.time(), "%Y-%m-%d %H:%M:%S %z"),
+      file.path(paths$logs, "backup_manifest.csv")
+    ),
+    stringsAsFactors = FALSE
+  )
+  utils::write.csv(report, file.path(paths$tables, "promoted_sources.csv"), row.names = FALSE, na = "")
+  utils::write.csv(backup_manifest, file.path(paths$logs, "backup_manifest.csv"), row.names = FALSE, na = "")
+  utils::write.csv(manifest, file.path(paths$logs, "confirm_manifest.csv"), row.names = FALSE, na = "")
+  if (any(report$action == "blocked", na.rm = TRUE)) {
+    stop("Confirm failed after backup preflight. Inspect promoted_sources.csv before retrying.", call. = FALSE)
+  }
+  list(paths = paths, outputs = list(confirm_manifest = manifest, backup_manifest = backup_manifest, promote_report = report))
+}
+
+country_sna_include_restore_sources <- function(root, confirm_run) {
+  confirm_run <- country_sna_include_resolve_confirm_run(root, confirm_run)
+  backup_path <- file.path(confirm_run, "logs", "backup_manifest.csv")
+  backup <- utils::read.csv(backup_path, stringsAsFactors = FALSE, na.strings = c("", "NA"))
+  rows <- lapply(seq_len(nrow(backup)), function(i) {
+    row <- backup[i, , drop = FALSE]
+    existed <- row$existed_before[[1L]] %in% c(TRUE, "TRUE")
+    destination <- row$destination[[1L]]
+    if (isTRUE(existed)) {
+      ok <- file.exists(row$backup[[1L]]) && file.copy(row$backup[[1L]], destination, overwrite = TRUE, copy.mode = TRUE, copy.date = TRUE)
+      data.frame(destination = destination, action = if (ok) "restored" else "blocked", status = if (ok) "restored_from_backup" else "backup_missing_or_copy_failed", stringsAsFactors = FALSE)
+    } else {
+      removed <- if (file.exists(destination)) unlink(destination, recursive = TRUE, force = TRUE) == 0L else TRUE
+      data.frame(destination = destination, action = if (removed) "removed" else "blocked", status = if (removed) "removed_new_file" else "remove_failed", stringsAsFactors = FALSE)
+    }
+  })
+  report <- country_sna_include_bind(rows)
+  restore_path <- file.path(confirm_run, "logs", paste0("restore_", format(Sys.time(), "%Y%m%d-%H%M%S"), ".csv"))
+  utils::write.csv(report, restore_path, row.names = FALSE, na = "")
+  list(paths = list(root = confirm_run, restore_report = restore_path), outputs = list(restore_report = report))
 }
 
 country_sna_include_merge_candidate <- function(wide, contract, root, output_path) {
@@ -1676,8 +2003,8 @@ country_sna_include_write_workbook <- function(outputs, paths) {
   list(path = workbook_path, status = "written")
 }
 
-country_sna_include_write_outputs <- function(result, root, contract, output_dir = NULL) {
-  paths <- country_sna_include_output_paths(root, contract, output_dir)
+country_sna_include_write_outputs <- function(result, root, contract, output_dir = NULL, paths = NULL) {
+  paths <- paths %||% country_sna_include_output_paths(root, contract, output_dir)
   for (path in unlist(paths, use.names = FALSE)) {
     dir.create(path, recursive = TRUE, showWarnings = FALSE)
   }
@@ -1688,7 +2015,9 @@ country_sna_include_write_outputs <- function(result, root, contract, output_dir
     values_wide = "country_sna_values_wide.csv",
     source_matches = "source_matches.csv",
     contract_health = "contract_health.csv",
-    country_summary = "country_summary.csv"
+    country_summary = "country_summary.csv",
+    staged_source_mappings = "staged_source_mappings.csv",
+    source_fingerprints = "source_fingerprints.csv"
   )
   for (name in names(tables)) {
     if (!is.data.frame(tables[[name]])) next
@@ -1762,33 +2091,46 @@ run_country_sna_include <- function(
   exploration_run = NULL,
   years = NULL,
   write_outputs = TRUE,
-  apply = FALSE
+  apply = FALSE,
+  run_id = NULL
 ) {
+  if (isTRUE(apply)) {
+    stop("Use `--confirm`; promotion now requires a staged include run and backup snapshot.", call. = FALSE)
+  }
   contract <- country_sna_include_read_contract(root, contract_path)
   expectations <- country_sna_include_read_expectations(root, exploration_run)
   expected_years <- country_sna_include_expected_years(expectations)
   years <- years %||% sort(unique(c(country_sna_include_years(contract, root), expected_years)))
-  if (isTRUE(apply)) {
-    country_sna_include_assert_clean_dry_run(root, contract, output_dir, expectations$root)
-  }
-  extracted <- country_sna_include_extract_all(contract, root, years)
+  run_id <- run_id %||% country_sna_include_run_id("include")
+  paths <- country_sna_include_output_paths_for_run(root, contract, output_dir, run_id)
+  staging <- country_sna_include_prepare_staged_sources(root, paths, expectations)
+  source_fingerprints <- country_sna_include_source_fingerprints(root, expectations)
+  extracted <- country_sna_include_extract_all(contract, staging$staged_root, years)
   values_wide <- country_sna_include_wide(extracted$values_long, contract, years)
   contract_health <- country_sna_include_contract_health(extracted$values_long, extracted$source_matches)
   country_summary <- country_sna_include_country_summary(values_wide, contract_health)
   parity <- country_sna_include_parity_report(values_wide, contract, root)
   include_detail <- country_sna_include_expectation_detail(values_wide, extracted$values_long, expectations)
   include_summary <- country_sna_include_expectation_summary(include_detail)
-  include_manifest <- country_sna_include_manifest(include_summary, expectations, dry_run = !isTRUE(apply))
-  apply_report <- if (isTRUE(apply)) {
-    country_sna_include_apply_sources(root, expectations)
-  } else {
-    data.frame(action = "dry_run", status = "not_applied", stringsAsFactors = FALSE)
-  }
+  include_manifest <- country_sna_include_manifest(
+    include_summary,
+    expectations,
+    dry_run = TRUE,
+    source_mappings = staging$mappings,
+    source_fingerprints = source_fingerprints,
+    contract = contract,
+    root = root,
+    paths = paths,
+    run_id = run_id
+  )
+  apply_report <- data.frame(action = "dry_run", status = "not_applied", stringsAsFactors = FALSE)
   outputs <- list(
     include_summary = include_summary,
     include_detail = include_detail,
     include_manifest = include_manifest,
     apply_report = apply_report,
+    staged_source_mappings = staging$mappings,
+    source_fingerprints = source_fingerprints,
     country_summary = country_summary,
     values_long = extracted$values_long,
     values_wide = values_wide,
@@ -1800,9 +2142,9 @@ run_country_sna_include <- function(
     parity_cell_detail = parity$parity_cell_detail
   )
   written <- if (isTRUE(write_outputs)) {
-    country_sna_include_write_outputs(list(outputs = outputs), root, contract, output_dir)
+    country_sna_include_write_outputs(list(outputs = outputs), root, contract, output_dir, paths = paths)
   } else {
-    list(paths = country_sna_include_output_paths(root, contract, output_dir))
+    list(paths = paths)
   }
-  list(outputs = outputs, paths = written$paths, written = written, contract = contract, years = years)
+  list(outputs = outputs, paths = written$paths, written = written, contract = contract, years = years, run_id = run_id, staging = staging)
 }

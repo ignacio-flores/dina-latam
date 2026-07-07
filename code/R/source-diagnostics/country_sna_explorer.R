@@ -69,6 +69,24 @@ country_sna_explorer_years <- function(contract, root) {
   seq.int(as.integer(config$years$first), as.integer(config$years$last))
 }
 
+country_sna_explorer_country_rules <- function(contract) {
+  contract$source_discovery$country_rules %||% contract$source_discovery$countries %||% list()
+}
+
+country_sna_explorer_project_countries <- function(contract, root) {
+  rules <- country_sna_explorer_country_rules(contract)
+  config_path <- country_sna_explorer_path((contract$years %||% list())$from_config %||% "config/dina.yml", root)
+  if (file.exists(config_path)) {
+    config <- country_sna_explorer_read_yaml(config_path)
+    configured <- toupper(as.character(config$countries %||% character()))
+    return(configured[configured %in% names(rules)])
+  }
+  # Test fixtures may not carry a full project config. In that case, retain
+  # the legacy fixture field if present; production contracts use config/dina.yml.
+  fallback <- toupper(as.character(contract$economic_contract$countries %||% names(rules)))
+  fallback[fallback %in% names(rules)]
+}
+
 country_sna_explorer_output_root <- function(root, contract, output_dir = NULL) {
   country_sna_explorer_path(output_dir %||% contract$output_root, root)
 }
@@ -81,6 +99,39 @@ country_sna_explorer_output_paths <- function(root, contract, output_dir = NULL)
     figures = file.path(out, "figures"),
     workbooks = file.path(out, "workbooks"),
     logs = file.path(out, "logs")
+  )
+}
+
+country_sna_explorer_run_id <- function(prefix = "explore") {
+  paste0(prefix, "-", format(Sys.time(), "%Y%m%d-%H%M%S"))
+}
+
+country_sna_explorer_relative_path <- function(path, root) {
+  path <- normalizePath(path, mustWork = FALSE)
+  root <- normalizePath(root, mustWork = FALSE)
+  prefix <- paste0(root, .Platform$file.sep)
+  if (startsWith(path, prefix)) substring(path, nchar(prefix) + 1L) else path
+}
+
+country_sna_explorer_file_fingerprint <- function(path, root = country_sna_explorer_repo_root()) {
+  exists <- file.exists(path)
+  info <- if (exists) file.info(path) else data.frame(size = NA_real_, mtime = as.POSIXct(NA))
+  sha <- NA_character_
+  status <- if (exists) "ok" else "missing"
+  if (exists && country_sna_explorer_has("digest")) {
+    sha <- digest::digest(file = path, algo = "sha256")
+  } else if (exists) {
+    status <- "digest_missing"
+  }
+  data.frame(
+    path = path,
+    rel = country_sna_explorer_relative_path(path, root),
+    exists = exists,
+    size = suppressWarnings(as.numeric(info$size[[1L]])),
+    mtime = as.character(info$mtime[[1L]]),
+    sha256 = sha,
+    status = status,
+    stringsAsFactors = FALSE
   )
 }
 
@@ -1388,7 +1439,7 @@ country_sna_explorer_review_actions <- function(extension_summary, structure_sum
     structure <- structure_summary[structure_summary$country == country, , drop = FALSE]
     structure_status <- if (nrow(structure)) structure$structure_status[[1L]] else "structure_review_needed"
     action <- if (!nrow(ext) || identical(ext$status[[1L]], "no_new_years_detected")) {
-      "no_new_years_detected"
+      "keep_current"
     } else if (identical(structure_status, "layout_adapter_required")) {
       "layout_adapter_required"
     } else if (identical(ext$status[[1L]], "no_overlap")) {
@@ -1412,7 +1463,7 @@ country_sna_explorer_review_actions <- function(extension_summary, structure_sum
       },
       note = switch(
         action,
-        no_new_years_detected = "No new source years were detected.",
+        keep_current = "No new source years were detected; keep the current canonical source.",
         layout_adapter_required = "Detected layout evidence needs a dedicated adapter before include can extract values.",
         include_dry_run_no_overlap = "New source years exist without old/new overlap; include should check expected extension values.",
         structure_review_needed = "New files exist, but explorer evidence is weak; include dry-run should surface missing expectations.",
@@ -1426,8 +1477,8 @@ country_sna_explorer_review_actions <- function(extension_summary, structure_sum
 }
 
 country_sna_explorer_audit <- function(contract, root, years = country_sna_explorer_years(contract, root), countries = NULL, include_contract = NULL) {
-  rules <- contract$source_discovery$countries
-  countries <- countries %||% contract$economic_contract$countries %||% names(rules)
+  rules <- country_sna_explorer_country_rules(contract)
+  countries <- countries %||% country_sna_explorer_project_countries(contract, root)
   source_rows <- list()
   for (country in countries) {
     rule <- rules[[country]]
@@ -1588,9 +1639,18 @@ country_sna_explorer_write_figures <- function(outputs, paths) {
   country_sna_explorer_bind(rows)
 }
 
-country_sna_explorer_write_outputs <- function(outputs, root, contract, output_dir = NULL) {
+country_sna_explorer_write_outputs <- function(outputs, root, contract, output_dir = NULL, run_id = NULL) {
   paths <- country_sna_explorer_output_paths(root, contract, output_dir)
   invisible(lapply(paths, dir.create, recursive = TRUE, showWarnings = FALSE))
+  run_id <- run_id %||% country_sna_explorer_run_id("explore")
+  source_files <- if (is.data.frame(outputs$source_inventory) && nrow(outputs$source_inventory)) {
+    files <- as.character(outputs$source_inventory$file %||% character())
+    unique(files[!is.na(files) & nzchar(files) & file.exists(files)])
+  } else {
+    character()
+  }
+  source_fingerprints <- country_sna_explorer_bind(lapply(source_files, country_sna_explorer_file_fingerprint, root = root))
+  outputs$source_fingerprints <- source_fingerprints
   csv_paths <- list()
   for (name in names(outputs)) {
     csv_path <- file.path(paths$tables, paste0(name, ".csv"))
@@ -1599,17 +1659,27 @@ country_sna_explorer_write_outputs <- function(outputs, root, contract, output_d
   }
   workbook <- country_sna_explorer_write_workbook(outputs, paths)
   figures <- country_sna_explorer_write_figures(outputs, paths)
+  table_list <- paste(sort(names(csv_paths)), collapse = ",")
+  source_fingerprint_status <- if (nrow(source_fingerprints)) {
+    paste(sort(unique(source_fingerprints$status)), collapse = ";")
+  } else {
+    "none"
+  }
   metadata <- data.frame(
-    key = c("run_at", "output_root", "figure_statuses", "review_actions"),
+    key = c("run_id", "run_at", "output_root", "source_fingerprint_status", "tables", "figure_statuses", "review_actions"),
     value = c(
+      run_id,
       format(Sys.time(), "%Y-%m-%d %H:%M:%S %z"),
       paths$root,
+      source_fingerprint_status,
+      table_list,
       paste(unique(figures$status), collapse = ";"),
       if (nrow(outputs$review_actions)) paste(sort(unique(outputs$review_actions$action)), collapse = ";") else ""
     ),
     stringsAsFactors = FALSE
   )
   utils::write.csv(metadata, file.path(paths$logs, "run_metadata.csv"), row.names = FALSE)
+  utils::write.csv(metadata, file.path(paths$logs, "explore_manifest.csv"), row.names = FALSE)
   utils::write.csv(figures, file.path(paths$logs, "figures.csv"), row.names = FALSE, na = "")
   list(paths = paths, csv = csv_paths, workbook = workbook, figures = figures)
 }
@@ -1627,10 +1697,11 @@ run_country_sna_explorer <- function(
   include_contract <- country_sna_explorer_read_include_contract(root, include_contract_path, fallback_contract = contract)
   years <- years %||% country_sna_explorer_years(contract, root)
   outputs <- country_sna_explorer_audit(contract, root, years = years, countries = countries, include_contract = include_contract)
+  run_id <- country_sna_explorer_run_id("explore")
   written <- if (isTRUE(write_outputs)) {
-    country_sna_explorer_write_outputs(outputs, root, contract, output_dir)
+    country_sna_explorer_write_outputs(outputs, root, contract, output_dir, run_id = run_id)
   } else {
     list(paths = country_sna_explorer_output_paths(root, contract, output_dir))
   }
-  list(contract = contract, years = years, outputs = outputs, written = written, paths = written$paths)
+  list(contract = contract, years = years, outputs = outputs, written = written, paths = written$paths, run_id = run_id)
 }

@@ -46,6 +46,10 @@ should follow this contract directly.
 entrypoints. `dina menu` and `dina menu commands` remain compatibility aliases
 for the navigator, but should not introduce a separate menu layer.
 
+Every user-facing command listed in `dina commands` must appear in `dina help`
+or the relevant topic help. Every documented topic-help command must appear in
+the command navigator unless it is intentionally hidden and covered by a test.
+
 There is no separate "main menu" layer. Plain `dina` shows status, the current
 recommendation, and immediate `DINA Actions` in one screen; browsing commands
 opens the navigator directly.

@@ -136,6 +136,17 @@ test_that("adaptive normalizers and sheet scoring tolerate common variants", {
   expect_match(score$reason, "sheet_year_matches")
 })
 
+test_that("explorer imports default countries from project config", {
+  country_sna_explorer_quiet_locale()
+  root <- tempfile("country-sna-explorer-countries-")
+  dir.create(file.path(root, "config"), recursive = TRUE)
+  yaml::write_yaml(list(countries = c("MEX", "AAA", "ARG"), years = list(first = 2024L, last = 2024L)), file.path(root, "config", "dina.yml"))
+  contract <- country_sna_explorer_fixture_contract(root)
+  contract$economic_contract$countries <- c("ECU", "URY")
+
+  expect_equal(country_sna_explorer_project_countries(contract, root), c("MEX", "AAA"))
+})
+
 test_that("adaptive table and role detection finds shifted rectangular layouts", {
   country_sna_explorer_quiet_locale()
   skip_if_not_installed("openxlsx")
@@ -283,7 +294,7 @@ test_that("adaptive Mexico source matching uses index metadata before year-minus
   writeLines("placeholder", file.path(root, "input_data", "sna_country_data", "MEX", "CSI_99.xlsx"))
   writeLines("placeholder", file.path(root, "input_data", "sna_country_data", "MEX", "CSI_24.xlsx"))
   contract <- country_sna_explorer_fixture_contract(root)
-  spec <- contract$source_discovery$countries$MEX$old
+  spec <- country_sna_explorer_country_rules(contract)$MEX$old
   resolved <- country_sna_explorer_resolve_indexed_year_file(spec, 2024L, root)
   expect_equal(basename(resolved$file), "CSI_99.xlsx")
   expect_equal(resolved$matched_by, "index_metadata")
@@ -344,12 +355,53 @@ test_that("country-SNA explore/include are visible while diagnose is retired", {
   source_cli_for_tests()
   expect_true(grepl("sources explore country-sna", dina_help_text(), fixed = TRUE))
   expect_true(grepl("sources include country-sna", dina_help_text(), fixed = TRUE))
+  expect_true(grepl("sources table country-sna", dina_help_text(), fixed = TRUE))
   expect_true(grepl("dina sources explore country-sna", dina_help_text("sources"), fixed = TRUE))
   expect_true(grepl("dina sources include country-sna", dina_help_text("sources"), fixed = TRUE))
+  expect_true(grepl("dina sources table country-sna", dina_help_text("sources"), fixed = TRUE))
   expect_false(grepl("sources diagnose country-sna", dina_help_text(), fixed = TRUE))
   expect_false(grepl("dina sources diagnose country-sna", dina_help_text("sources"), fixed = TRUE))
   catalog <- paste(dina_command_catalog_lines(dina_command_catalog()), collapse = "\n")
   expect_true(grepl("Country-SNA explore", catalog, fixed = TRUE))
   expect_true(grepl("Country-SNA include", catalog, fixed = TRUE))
+  expect_true(grepl("Country-SNA table preview", catalog, fixed = TRUE))
+  expect_true(grepl("Country-SNA confirm", catalog, fixed = TRUE))
+  expect_true(grepl("Country-SNA restore", catalog, fixed = TRUE))
   expect_false(grepl("Country-SNA diagnostic", catalog, fixed = TRUE))
+})
+
+test_that("explore printer shows current years and no-new keep-current action", {
+  country_sna_explorer_quiet_locale()
+  source_cli_for_tests()
+  result <- list(
+    outputs = list(
+      extension_summary = data.frame(
+        country = c("AAA", "ECU"),
+        old_years = c("2020,2021", "2023"),
+        new_years = c("", "2023,2024"),
+        overlap_years = c("", "2023"),
+        extension_years = c("", "2024"),
+        status = c("no_new_years_detected", "extension_found"),
+        stringsAsFactors = FALSE
+      ),
+      structure_summary = data.frame(
+        country = c("AAA", "ECU"),
+        structure_status = c("no_new_years", "layout_adapter_required"),
+        stringsAsFactors = FALSE
+      ),
+      review_actions = data.frame(
+        country = c("AAA", "ECU"),
+        action = c("keep_current", "layout_adapter_required"),
+        next_command = c("", ""),
+        stringsAsFactors = FALSE
+      )
+    ),
+    paths = list(root = tempdir(), tables = tempdir())
+  )
+  output <- paste(capture.output(dina_print_country_sna_explore(result, dry_run = TRUE, is_terminal = FALSE)), collapse = "\n")
+  expect_match(output, "current")
+  expect_match(output, "2020,2021")
+  expect_match(output, "keep current")
+  expect_match(output, "adapter needed")
+  expect_match(output, "Status notes")
 })

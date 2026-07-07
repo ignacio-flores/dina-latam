@@ -2467,6 +2467,93 @@ dina_session_result <- function(state, proposal, stale_tasks = NA_integer_, open
   out
 }
 
+dina_csv_key_value <- function(path) {
+  if (!file.exists(path)) return(data.frame(key = character(), value = character(), stringsAsFactors = FALSE))
+  utils::read.csv(path, stringsAsFactors = FALSE)
+}
+
+dina_manifest_value <- function(manifest, key) {
+  if (!nrow(manifest) || !("key" %in% names(manifest)) || !("value" %in% names(manifest))) return("")
+  hit <- manifest$key == key
+  if (!any(hit)) "" else as.character(manifest$value[which(hit)[[1L]]])
+}
+
+dina_country_sna_explore_root <- function(root = dina_repo_root()) {
+  file.path(root, "output", "experiments", "country_sna_explore")
+}
+
+dina_country_sna_include_root <- function(root = dina_repo_root()) {
+  file.path(root, "output", "experiments", "country_sna_include")
+}
+
+dina_country_sna_inbox_signature <- function(root = dina_repo_root()) {
+  rows <- dina_sources_country_sna_inbox_rows(root)
+  if (!nrow(rows)) return(data.frame(rel = character(), size = numeric(), mtime = character(), stringsAsFactors = FALSE))
+  rels <- if ("path" %in% names(rows)) rows$path else if ("inbox" %in% names(rows)) rows$inbox else character()
+  files <- ifelse(grepl("^/", rels), rels, file.path(root, rels))
+  files <- unique(files[file.exists(files)])
+  info <- file.info(files)
+  data.frame(
+    rel = vapply(files, dina_relative, character(1), root = root),
+    size = as.numeric(info$size),
+    mtime = as.character(info$mtime),
+    stringsAsFactors = FALSE
+  )
+}
+
+dina_country_sna_matching_explore <- function(root = dina_repo_root()) {
+  explore_root <- dina_country_sna_explore_root(root)
+  manifest_path <- file.path(explore_root, "logs", "explore_manifest.csv")
+  fingerprints_path <- file.path(explore_root, "tables", "source_fingerprints.csv")
+  if (!file.exists(manifest_path) || !file.exists(fingerprints_path)) return(NULL)
+  current <- dina_country_sna_inbox_signature(root)
+  if (!nrow(current)) return(NULL)
+  fingerprints <- utils::read.csv(fingerprints_path, stringsAsFactors = FALSE, na.strings = c("", "NA"))
+  fingerprints <- fingerprints[grepl("^input_data/_new/country_sna/", fingerprints$rel %||% ""), , drop = FALSE]
+  if (!nrow(fingerprints)) return(NULL)
+  key <- function(df) paste(df$rel, df$size, df$mtime, sep = "|")
+  if (!all(key(current) %in% key(fingerprints))) return(NULL)
+  manifest <- dina_csv_key_value(manifest_path)
+  list(root = explore_root, manifest = manifest, run_id = dina_manifest_value(manifest, "run_id"))
+}
+
+dina_country_sna_include_runs <- function(root = dina_repo_root()) {
+  runs_root <- file.path(dina_country_sna_include_root(root), "runs")
+  if (!dir.exists(runs_root)) return(character())
+  runs <- list.dirs(runs_root, full.names = TRUE, recursive = FALSE)
+  runs[file.exists(file.path(runs, "logs", "include_manifest.csv"))]
+}
+
+dina_country_sna_latest_include_for_explore <- function(explore_root, root = dina_repo_root()) {
+  runs <- dina_country_sna_include_runs(root)
+  if (!length(runs)) return(NULL)
+  matches <- lapply(runs, function(run) {
+    manifest <- dina_csv_key_value(file.path(run, "logs", "include_manifest.csv"))
+    prior <- normalizePath(dina_manifest_value(manifest, "exploration_run"), mustWork = FALSE)
+    if (!identical(prior, normalizePath(explore_root, mustWork = FALSE))) return(NULL)
+    list(root = run, manifest = manifest, status = dina_manifest_value(manifest, "status"), mtime = file.info(file.path(run, "logs", "include_manifest.csv"))$mtime)
+  })
+  matches <- Filter(Negate(is.null), matches)
+  if (!length(matches)) return(NULL)
+  matches[[order(vapply(matches, function(x) as.numeric(x$mtime), numeric(1)), decreasing = TRUE)[[1L]]]]
+}
+
+dina_country_sna_confirm_for_include <- function(include_run, root = dina_repo_root()) {
+  confirms_root <- file.path(dina_country_sna_include_root(root), "confirms")
+  if (!dir.exists(confirms_root)) return(NULL)
+  confirms <- list.dirs(confirms_root, full.names = TRUE, recursive = FALSE)
+  matches <- lapply(confirms, function(confirm) {
+    manifest <- dina_csv_key_value(file.path(confirm, "logs", "confirm_manifest.csv"))
+    if (!nrow(manifest)) return(NULL)
+    prior <- normalizePath(dina_manifest_value(manifest, "include_run"), mustWork = FALSE)
+    if (!identical(prior, normalizePath(include_run, mustWork = FALSE))) return(NULL)
+    list(root = confirm, manifest = manifest, status = dina_manifest_value(manifest, "status"), mtime = file.info(file.path(confirm, "logs", "confirm_manifest.csv"))$mtime)
+  })
+  matches <- Filter(Negate(is.null), matches)
+  if (!length(matches)) return(NULL)
+  matches[[order(vapply(matches, function(x) as.numeric(x$mtime), numeric(1)), decreasing = TRUE)[[1L]]]]
+}
+
 dina_session_state <- function(session, root = dina_repo_root()) {
   if (is.null(session)) {
     return(dina_session_result(
@@ -2500,6 +2587,54 @@ dina_session_state <- function(session, root = dina_repo_root()) {
   }
   country_sna_inbox <- dina_sources_country_sna_inbox_rows(root)
   if (nrow(country_sna_inbox) > 0L) {
+    explore <- dina_country_sna_matching_explore(root)
+    if (!is.null(explore)) {
+      include <- dina_country_sna_latest_include_for_explore(explore$root, root)
+      if (!is.null(include) && identical(include$status, "all_good")) {
+        confirm <- dina_country_sna_confirm_for_include(include$root, root)
+        if (!is.null(confirm) && identical(confirm$status, "confirmed")) {
+          return(dina_session_result(
+            "sources_confirmed",
+            dina_recommendation(
+              command = "dina run 01b --dry-run",
+              why = "Country-SNA incoming files were explored, staged, and confirmed with a backup snapshot.",
+              todo_id = "country-sna-source-workflow",
+              todo_label = "Explore country-SNA source changes",
+              expected_action = "Preview the country-SNA pipeline step after confirmed source promotion.",
+              next_command = "dina run 01b",
+              next_note = "Run without --dry-run only after reviewing the preview.",
+              recommendation = "Preview 01b with `dina run 01b --dry-run`."
+            )
+          ))
+        }
+        return(dina_session_result(
+          "sources_include_ready",
+          dina_recommendation(
+            command = sprintf("dina sources include country-sna --confirm --include-run %s", include$root),
+            why = "A matching country-SNA exploration run exists and the latest include dry-run is clean.",
+            todo_id = "country-sna-source-workflow",
+            todo_label = "Explore country-SNA source changes",
+            expected_action = "Promote approved incoming source files after the staged run and backup guard.",
+            next_command = "dina run 01b --dry-run",
+            next_note = "Confirm does not run the pipeline; preview 01b afterward.",
+            recommendation = "Confirm the clean staged include run."
+          )
+        ))
+      }
+      return(dina_session_result(
+        "sources_explored",
+        dina_recommendation(
+          command = "dina sources include country-sna --dry-run",
+          why = "A matching country-SNA exploration run exists for the current incoming files.",
+          todo_id = "country-sna-source-workflow",
+          todo_label = "Explore country-SNA source changes",
+          expected_action = "Stage incoming sources and check deterministic include expectations without changing production files.",
+          next_command = "dina sources include country-sna --confirm --include-run RUN",
+          next_note = "Confirm is only available after an all_good include dry-run.",
+          recommendation = "Run a staged include dry-run."
+        )
+      ))
+    }
     return(dina_session_result(
       "sources_pending",
       dina_recommendation(

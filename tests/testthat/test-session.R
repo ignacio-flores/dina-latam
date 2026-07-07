@@ -180,6 +180,53 @@ test_that("session state recommends country-SNA explore when that inbox has file
   expect_match(status$output, "dina sources explore country-sna")
   expect_match(status$output, "dina sources include country-sna --dry-run")
   expect_match(status$output, "Country-SNA incoming files can be explored")
+
+  explore_root <- file.path(root, "output", "experiments", "country_sna_explore")
+  dir.create(file.path(explore_root, "logs"), recursive = TRUE, showWarnings = FALSE)
+  dir.create(file.path(explore_root, "tables"), recursive = TRUE, showWarnings = FALSE)
+  utils::write.csv(
+    data.frame(key = c("run_id", "output_root"), value = c("explore-test", explore_root), stringsAsFactors = FALSE),
+    file.path(explore_root, "logs", "explore_manifest.csv"),
+    row.names = FALSE
+  )
+  utils::write.csv(
+    dina_country_sna_inbox_signature(root),
+    file.path(explore_root, "tables", "source_fingerprints.csv"),
+    row.names = FALSE
+  )
+  state <- dina_session_state(session, root = root)
+  expect_equal(state$state, "sources_explored")
+  expect_equal(state$proposal$command, "dina sources include country-sna --dry-run")
+
+  include_run <- file.path(root, "output", "experiments", "country_sna_include", "runs", "include-test")
+  dir.create(file.path(include_run, "logs"), recursive = TRUE, showWarnings = FALSE)
+  utils::write.csv(
+    data.frame(
+      key = c("dry_run", "status", "exploration_run"),
+      value = c("TRUE", "all_good", explore_root),
+      stringsAsFactors = FALSE
+    ),
+    file.path(include_run, "logs", "include_manifest.csv"),
+    row.names = FALSE
+  )
+  state <- dina_session_state(session, root = root)
+  expect_equal(state$state, "sources_include_ready")
+  expect_match(state$proposal$command, "dina sources include country-sna --confirm")
+
+  confirm_run <- file.path(root, "output", "experiments", "country_sna_include", "confirms", "confirm-test")
+  dir.create(file.path(confirm_run, "logs"), recursive = TRUE, showWarnings = FALSE)
+  utils::write.csv(
+    data.frame(
+      key = c("include_run", "status"),
+      value = c(include_run, "confirmed"),
+      stringsAsFactors = FALSE
+    ),
+    file.path(confirm_run, "logs", "confirm_manifest.csv"),
+    row.names = FALSE
+  )
+  state <- dina_session_state(session, root = root)
+  expect_equal(state$state, "sources_confirmed")
+  expect_equal(state$proposal$command, "dina run 01b --dry-run")
 })
 
 test_that("update status prints structured recommendation details", {

@@ -28,6 +28,8 @@ test_that("help describes the new workflow and omits retired command families", 
   expect_match(main$output, "`sources compare`")
   expect_match(main$output, "`sources explore country-sna`")
   expect_match(main$output, "`sources include country-sna`")
+  expect_match(main$output, "`sources table country-sna TABLE`")
+  expect_match(main$output, "`update config show\\|set\\|edit`")
   expect_match(main$output, "`run list\\|why TASK`")
   expect_match(main$output, "`todo \\[check\\|uncheck\\|reset\\]`")
   expect_match(main$output, "`maintain repo-status\\|repo-diff`")
@@ -52,6 +54,9 @@ test_that("help describes the new workflow and omits retired command families", 
   expect_match(workflow$output, "dina sources compare")
   expect_match(workflow$output, "dina sources explore country-sna")
   expect_match(workflow$output, "dina sources include country-sna --dry-run")
+  expect_match(workflow$output, "dina sources table country-sna year_expectations")
+  expect_match(workflow$output, "dina sources include country-sna --confirm")
+  expect_match(workflow$output, "dina sources include country-sna --restore")
   expect_false(grepl("dina sources review", workflow$output, fixed = TRUE))
   expect_false(grepl("dina sources integrate", workflow$output, fixed = TRUE))
   expect_false(grepl("dina sources diagnose country-sna", workflow$output, fixed = TRUE))
@@ -62,6 +67,9 @@ test_that("help describes the new workflow and omits retired command families", 
   expect_match(commands$output, "Workflow guide")
   expect_match(commands$output, "Country-SNA explore")
   expect_match(commands$output, "Country-SNA include")
+  expect_match(commands$output, "Country-SNA confirm")
+  expect_match(commands$output, "Country-SNA restore")
+  expect_match(commands$output, "Country-SNA table preview")
   expect_false(grepl("Update recipe", commands$output, fixed = TRUE))
   expect_false(grepl("Country-SNA diagnostic", commands$output, fixed = TRUE))
 
@@ -72,10 +80,19 @@ test_that("help describes the new workflow and omits retired command families", 
   expect_match(sources$output, "dina sources compare \\[--metadata-only\\] \\[--hash-all\\] \\[--deep\\]")
   expect_match(sources$output, "dina sources explore country-sna")
   expect_match(sources$output, "dina sources include country-sna")
+  expect_match(sources$output, "dina sources table country-sna")
+  expect_match(sources$output, "--confirm")
+  expect_match(sources$output, "--restore")
   expect_match(sources$output, "Source registry, incoming `_new` buckets, fetchers, and baseline comparison")
   expect_false(grepl("dina sources review", sources$output, fixed = TRUE))
   expect_false(grepl("dina sources integrate", sources$output, fixed = TRUE))
   expect_false(grepl("dina sources diagnose country-sna", sources$output, fixed = TRUE))
+
+  config <- run_dina_cli(c("help", "config"))
+  expect_equal(config$status, 0L)
+  expect_match(config$output, "dina update config show")
+  expect_match(config$output, "dina update config set KEY VALUE")
+  expect_match(config$output, "dina update config edit")
 })
 
 test_that("sources list is compact by default and exposes richer views", {
@@ -104,6 +121,41 @@ test_that("sources list is compact by default and exposes richer views", {
   urls <- run_dina_cli(c("sources", "list", "--urls", "--no-menu"), root = root)
   expect_equal(urls$status, 0L)
   expect_match(urls$output, "https://example.test/source-a")
+})
+
+test_that("country-SNA table preview prints compact explorer tables", {
+  root <- mini_repo()
+  run <- file.path(root, "output", "experiments", "country_sna_explore")
+  dir.create(file.path(run, "tables"), recursive = TRUE)
+  utils::write.csv(
+    data.frame(country = "AAA", year = 2024L, year_role = "extension", expected_action = "extension_expect_values", stringsAsFactors = FALSE),
+    file.path(run, "tables", "year_expectations.csv"),
+    row.names = FALSE
+  )
+  utils::write.csv(
+    data.frame(
+      country = "AAA",
+      year = c(2024L, 2024L),
+      year_role = "extension",
+      variable = c("D4_cei", "D43_cei"),
+      expected_status = "expected_value",
+      structure_status = "structure_evidence_available",
+      stringsAsFactors = FALSE
+    ),
+    file.path(run, "tables", "variable_expectations.csv"),
+    row.names = FALSE
+  )
+
+  years <- run_dina_cli(c("sources", "table", "country-sna", "year_expectations", "--run", run), root = root)
+  expect_equal(years$status, 0L)
+  expect_match(years$output, "Country-SNA Table")
+  expect_match(years$output, "extension_expect_values")
+
+  variables <- run_dina_cli(c("sources", "table", "country-sna", "variable_expectations", "--run", run), root = root)
+  expect_equal(variables$status, 0L)
+  expect_match(variables$output, "variable_expectations summary")
+  expect_match(variables$output, "variables")
+  expect_false(grepl("D43_cei", variables$output, fixed = TRUE))
 })
 
 test_that("source list follow-up menu is dismissible and routes views", {
@@ -182,6 +234,10 @@ test_that("source show, guide, fields, compare, and retired commands use the sou
   expect_true(diagnose$status != 0L)
   expect_match(diagnose$output, "retired")
   expect_match(diagnose$output, "dina sources explore country-sna")
+
+  apply <- run_dina_cli(c("sources", "include", "country-sna", "--apply"), root = root)
+  expect_true(apply$status != 0L)
+  expect_match(apply$output, "Use `--confirm`")
 
   compare <- run_dina_cli(c("sources", "compare"), root = root)
   expect_equal(compare$status, 0L)

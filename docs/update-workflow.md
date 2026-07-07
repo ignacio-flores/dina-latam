@@ -35,14 +35,27 @@ dina sources show SOURCE --view all --urls
 dina sources guide SOURCE --urls
 dina sources fetch SOURCE --dry-run
 dina sources compare
+dina sources explore country-sna
+dina sources table country-sna year_expectations
+dina sources include country-sna --dry-run
+dina sources include country-sna --confirm --include-run RUN
 ```
 
 `dina sources list` is compact by default. In an interactive terminal it can
 offer a dismissible follow-up menu for details, workflow view, paths, or URLs.
 Use `--no-menu` in scripts.
 
-Fetches write directly to `input_data/_new/<bucket>`. No source
-validation/preparation workflow is implemented yet.
+Fetches write directly to `input_data/_new/<bucket>`.
+
+Country-SNA has an active experimental source workflow. Use
+`dina sources explore country-sna` to inspect `_new/country_sna` files,
+available years, likely extensions, and structure evidence. Then use
+`dina sources include country-sna --dry-run` to check the deterministic include
+contract against the latest exploration run. Use `dina sources table country-sna
+year_expectations` to preview explorer tables inline. Confirm is a separate
+guarded promotion step that writes a backup snapshot first; restore uses that
+snapshot if the source promotion needs to be undone. These commands do not
+replace `01b` or run the pipeline.
 
 ## Run
 

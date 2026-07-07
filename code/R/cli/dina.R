@@ -141,7 +141,8 @@ Source data:
   `sources fetch [--dry-run]`         [read-only/writes inbox] fetch to _new
   `sources compare`                   [read-only] compare source baseline
   `sources explore country-sna`       [writes experiment] inspect _new country-SNA files
-  `sources include country-sna`       [writes experiment/apply guarded] assess inclusion
+  `sources include country-sna`       [writes experiment] stage/check inclusion
+  `sources table country-sna TABLE`   [read-only] preview explore tables
   `sources status`                    [read-only] alias for sources compare
   `sources diff`                      [read-only] detailed source baseline diff
   `sources fields`                    [read-only] source option cheat sheet
@@ -159,6 +160,7 @@ Setup and config:
   `doctor`                            [read-only] check local readiness
   `install`                           install missing R packages
   `config show|check|propose`         [read-only] inspect/propose config
+  `update config show|set|edit`       [writes override] active update config
   `data check|pack|unpack`            [read-only/writes archive/writes files]
   `notify init|test`                  configure or test Pushover
   `setup command`                     install the user-level `dina` wrapper
@@ -221,6 +223,10 @@ What this page is:
       Summarizes incoming sources, task freshness, unchecked todos, config
       override state, and repo changes.
 
+  dina update config show
+      Shows the benchmark `config/dina.yml`, the active update override if one
+      exists, and the effective merged config.
+
   dina maintain repo-status
       Compares current code/config/docs with the session start baseline.
 
@@ -251,6 +257,18 @@ What this page is:
       Uses the deterministic country-SNA include contract plus the latest
       exploration run to report all_good, check_following, or blocked. It does
       not replace 01b or run the pipeline.
+
+  dina sources table country-sna year_expectations
+      Previews explorer tables inline. Variable expectations are summarized by
+      default so the CLI does not dump thousands of rows.
+
+  dina sources include country-sna --confirm --include-run RUN
+      Promotes approved `_new` files from a clean staged include run only after
+      writing a backup snapshot. It does not run the pipeline.
+
+  dina sources include country-sna --restore CONFIRM_RUN
+      Restores canonical source files from the backup snapshot written by
+      confirm.
 
 3. Run the pipeline
   dina run list
@@ -437,7 +455,10 @@ Examples:
   dina sources fetch [ID|--family FAMILY|--all] [--dry-run]
   dina sources compare [--metadata-only] [--hash-all] [--deep]
   dina sources explore country-sna [--dry-run] [--output-dir PATH] [--country ISO]
-  dina sources include country-sna [--dry-run|--apply] [--exploration-run PATH] [--output-dir PATH]
+  dina sources include country-sna [--dry-run] [--exploration-run PATH] [--output-dir PATH]
+  dina sources include country-sna --confirm --include-run RUN
+  dina sources include country-sna --restore CONFIRM_RUN
+  dina sources table country-sna TABLE [--run PATH] [--country ISO] [--limit N]
   dina sources status [--metadata-only] [--hash-all] [--deep]
   dina sources diff [--deep] [--hash]
   dina sources fields
@@ -472,8 +493,12 @@ Subcommands:
                                   expectations under output/experiments.
   include country-sna             Consumes an exploration run and checks the
                                   deterministic include contract. Dry-run is
-                                  the default; --apply is guarded and never
-                                  runs the pipeline.
+                                  the default and stages files under the run.
+                                  --confirm promotes only from a clean staged
+                                  run and writes a backup snapshot.
+  table country-sna               Previews explore output tables inline. The
+                                  variable expectations table is summarized by
+                                  default to avoid dumping thousands of rows.
   status                          Compatibility alias for compare.
   diff                            Compares current scan results with the active
                                   session baseline and classifies changes.
@@ -505,8 +530,15 @@ Options:
                                   compute summaries without writing outputs.
                                   For include, perform the default no-promotion
                                   assessment.
-  --apply                         For include, promote approved `_new` files
-                                  only after a clean dry-run manifest.
+  --confirm                       For include, promote approved `_new` files
+                                  from a clean staged include run.
+  --include-run RUN               Staged include run path or id required by
+                                  --confirm.
+  --restore CONFIRM_RUN           Restore canonical source files from a confirm
+                                  backup snapshot.
+  --apply                         Retired. Use --confirm.
+  --run PATH                      For table, use a specific explore run.
+  --limit N                       For table, limit preview rows.
   --exploration-run PATH          For include, use a specific explore output
                                   folder instead of the default latest folder.
   --output-dir PATH               For explore/include, write experiment outputs
@@ -540,6 +572,7 @@ Examples:
   dina sources compare
   dina sources explore country-sna
   dina sources include country-sna --dry-run
+  dina sources table country-sna year_expectations
 ",
     buckets = "Usage:
   dina buckets [detail|urls|uses|fetch] [OPTIONS]
@@ -641,6 +674,13 @@ Examples:
   dina config check
   dina config propose years.last YEAR
   dina config propose run.units ind,esn,pch
+
+Active update overrides:
+  dina update config show
+  dina update config set KEY VALUE
+  dina update config edit
+      These commands manage the active update's working override. No override
+      is required; when absent, the effective config is just config/dina.yml.
 ",
     todo = "Usage:
   dina todo
@@ -1940,6 +1980,11 @@ dina_command_catalog <- function(year = format(Sys.Date(), "%Y")) {
         dina_command_entry("sources-guide", "Source guide", "Show where sources come from and where they land.", args = c("sources", "guide")),
         dina_command_entry("sources-fetch-dry-run", "Preview fetch", "Preview supported source fetches into _new buckets.", args = c("sources", "fetch", "--dry-run")),
         dina_command_entry("sources-fetch-source", "Preview source fetch", "Preview one supported source fetch.", args = c("sources", "fetch", "--source", "{ID}", "--dry-run"), prompts = list(ID = list(label = "Source id", example = "chl-pit-total"))),
+        dina_command_entry("sources-explore-country-sna", "Country-SNA explore", "Inspect new country-SNA files, likely years, structure evidence, and include expectations.", args = c("sources", "explore", "country-sna"), help = "Writes experiment outputs under output/experiments/country_sna_explore."),
+        dina_command_entry("sources-include-country-sna", "Country-SNA include dry-run", "Stage incoming country-SNA sources and run deterministic inclusion checks.", args = c("sources", "include", "country-sna", "--dry-run"), help = "Writes a staged include run under output/experiments/country_sna_include/runs/. No production files are changed."),
+        dina_command_entry("sources-include-country-sna-confirm", "Country-SNA confirm", "Promote sources from a clean staged include run after writing backups.", args = c("sources", "include", "country-sna", "--confirm", "--include-run", "{RUN}"), prompts = list(RUN = list(label = "Include run", example = "output/experiments/country_sna_include/runs/include-YYYYMMDD-HHMMSS")), mutating = TRUE, confirm = TRUE, help = "Does not run the pipeline. Use only after reviewing a clean include dry-run."),
+        dina_command_entry("sources-include-country-sna-restore", "Country-SNA restore", "Restore canonical sources from a confirm backup snapshot.", args = c("sources", "include", "country-sna", "--restore", "{CONFIRM_RUN}"), prompts = list(CONFIRM_RUN = list(label = "Confirm run", example = "output/experiments/country_sna_include/confirms/confirm-YYYYMMDD-HHMMSS")), mutating = TRUE, confirm = TRUE),
+        dina_command_entry("sources-table-country-sna", "Country-SNA table preview", "Preview explore output tables inline.", args = c("sources", "table", "country-sna", "year_expectations"), help = "Use --run PATH, --country ISO, and --limit N for a narrower preview."),
         dina_command_entry(
           "source-registry-diagnostics",
           "Source diagnostics",
@@ -1951,8 +1996,6 @@ dina_command_catalog <- function(year = format(Sys.Date(), "%Y")) {
             dina_command_entry("sources-fields", "Source fields", "Explain source registry fields and views.", args = c("sources", "fields")),
             dina_command_entry("sources-methods", "Source methods", "Explain acquisition method labels.", args = c("sources", "methods")),
             dina_command_entry("sources-compare", "Source compare", "Compare configured source files with the active update baseline.", args = c("sources", "compare")),
-            dina_command_entry("sources-explore-country-sna", "Country-SNA explore", "Inspect new country-SNA files, likely years, structure evidence, and include expectations.", args = c("sources", "explore", "country-sna"), help = "Writes experiment outputs under output/experiments/country_sna_explore."),
-            dina_command_entry("sources-include-country-sna", "Country-SNA include", "Dry-run deterministic country-SNA inclusion checks from an exploration run.", args = c("sources", "include", "country-sna", "--dry-run"), help = "Writes experiment outputs under output/experiments/country_sna_include. Apply is guarded and never runs the pipeline."),
             dina_command_entry("sources-scan", "Source scan", "Detect local source coverage from the registry.", args = c("sources", "scan")),
             dina_command_entry("sources-diff", "Source diff", "Compare current source scan with the active session baseline.", args = c("sources", "diff"))
           )
@@ -1981,6 +2024,9 @@ dina_command_catalog <- function(year = format(Sys.Date(), "%Y")) {
         dina_command_entry("config-show", "Show config", "Print config/dina.yml.", args = c("config", "show")),
         dina_command_entry("config-check", "Check config", "Report required config keys and legacy runtime file status.", args = c("config", "check")),
         dina_command_entry("config-propose", "Propose config", "Print a manual YAML proposal without changing files.", args = c("config", "propose", "{KEY}", "{VALUE}"), prompts = list(KEY = list(label = "Config key", example = "years.last"), VALUE = list(label = "Value", example = "2026"))),
+        dina_command_entry("update-config-show", "Show update config", "Show benchmark, working override, and effective active-update config.", args = c("update", "config", "show")),
+        dina_command_entry("update-config-set", "Set update config", "Write a key to the active update working override.", args = c("update", "config", "set", "{KEY}", "{VALUE}"), prompts = list(KEY = list(label = "Config key", example = "years.last"), VALUE = list(label = "Value", example = "2026")), mutating = TRUE),
+        dina_command_entry("update-config-edit", "Edit update config", "Open the active update working override for manual editing.", args = c("update", "config", "edit"), mutating = TRUE),
         dina_command_entry("data-check", "Data check", "Report whether configured primary paths exist.", args = c("data", "check")),
         dina_command_entry("notify-init", "Initialize notifications", "Create local Pushover placeholder config.", args = c("notify", "init"), mutating = TRUE),
         dina_command_entry("notify-test", "Test notification", "Send a Pushover test message.", args = c("notify", "test"), mutating = TRUE),
@@ -2417,11 +2463,101 @@ dina_dashboard_status_label <- function(state) {
     failed = "task failed",
     pipeline_check_needed = "pipeline status not checked",
     sources_pending = "incoming source files present",
+    sources_explored = "country-SNA explored",
+    sources_include_ready = "country-SNA ready to confirm",
+    sources_confirmed = "country-SNA confirmed",
     build_ready = "pipeline work pending",
     todo_pending = "todo items open",
     review_ready = "ready for final review",
     gsub("_", " ", raw, fixed = TRUE)
   )
+}
+
+dina_csv_key_value <- function(path) {
+  if (!file.exists(path)) return(data.frame(key = character(), value = character(), stringsAsFactors = FALSE))
+  utils::read.csv(path, stringsAsFactors = FALSE)
+}
+
+dina_manifest_value <- function(manifest, key) {
+  if (!nrow(manifest) || !("key" %in% names(manifest)) || !("value" %in% names(manifest))) return("")
+  hit <- manifest$key == key
+  if (!any(hit)) "" else as.character(manifest$value[which(hit)[[1L]]])
+}
+
+dina_country_sna_explore_root <- function(root = dina_repo_root()) {
+  file.path(root, "output", "experiments", "country_sna_explore")
+}
+
+dina_country_sna_include_root <- function(root = dina_repo_root()) {
+  file.path(root, "output", "experiments", "country_sna_include")
+}
+
+dina_country_sna_inbox_signature <- function(root = dina_repo_root()) {
+  rows <- dina_sources_country_sna_inbox_rows(root)
+  if (!nrow(rows)) return(data.frame(rel = character(), size = numeric(), mtime = character(), stringsAsFactors = FALSE))
+  rels <- if ("path" %in% names(rows)) rows$path else if ("inbox" %in% names(rows)) rows$inbox else character()
+  files <- ifelse(grepl("^/", rels), rels, file.path(root, rels))
+  files <- unique(files[file.exists(files)])
+  info <- file.info(files)
+  data.frame(
+    rel = vapply(files, dina_relative, character(1), root = root),
+    size = as.numeric(info$size),
+    mtime = as.character(info$mtime),
+    stringsAsFactors = FALSE
+  )
+}
+
+dina_country_sna_matching_explore <- function(root = dina_repo_root()) {
+  explore_root <- dina_country_sna_explore_root(root)
+  manifest_path <- file.path(explore_root, "logs", "explore_manifest.csv")
+  fingerprints_path <- file.path(explore_root, "tables", "source_fingerprints.csv")
+  if (!file.exists(manifest_path) || !file.exists(fingerprints_path)) return(NULL)
+  current <- dina_country_sna_inbox_signature(root)
+  if (!nrow(current)) return(NULL)
+  fingerprints <- utils::read.csv(fingerprints_path, stringsAsFactors = FALSE, na.strings = c("", "NA"))
+  fingerprints <- fingerprints[grepl("^input_data/_new/country_sna/", fingerprints$rel %||% ""), , drop = FALSE]
+  if (!nrow(fingerprints)) return(NULL)
+  key <- function(df) paste(df$rel, df$size, df$mtime, sep = "|")
+  if (!all(key(current) %in% key(fingerprints))) return(NULL)
+  manifest <- dina_csv_key_value(manifest_path)
+  list(root = explore_root, manifest = manifest, run_id = dina_manifest_value(manifest, "run_id"))
+}
+
+dina_country_sna_include_runs <- function(root = dina_repo_root()) {
+  runs_root <- file.path(dina_country_sna_include_root(root), "runs")
+  if (!dir.exists(runs_root)) return(character())
+  runs <- list.dirs(runs_root, full.names = TRUE, recursive = FALSE)
+  runs[file.exists(file.path(runs, "logs", "include_manifest.csv"))]
+}
+
+dina_country_sna_latest_include_for_explore <- function(explore_root, root = dina_repo_root()) {
+  runs <- dina_country_sna_include_runs(root)
+  if (!length(runs)) return(NULL)
+  matches <- lapply(runs, function(run) {
+    manifest <- dina_csv_key_value(file.path(run, "logs", "include_manifest.csv"))
+    prior <- normalizePath(dina_manifest_value(manifest, "exploration_run"), mustWork = FALSE)
+    if (!identical(prior, normalizePath(explore_root, mustWork = FALSE))) return(NULL)
+    list(root = run, manifest = manifest, status = dina_manifest_value(manifest, "status"), mtime = file.info(file.path(run, "logs", "include_manifest.csv"))$mtime)
+  })
+  matches <- Filter(Negate(is.null), matches)
+  if (!length(matches)) return(NULL)
+  matches[[order(vapply(matches, function(x) as.numeric(x$mtime), numeric(1)), decreasing = TRUE)[[1L]]]]
+}
+
+dina_country_sna_confirm_for_include <- function(include_run, root = dina_repo_root()) {
+  confirms_root <- file.path(dina_country_sna_include_root(root), "confirms")
+  if (!dir.exists(confirms_root)) return(NULL)
+  confirms <- list.dirs(confirms_root, full.names = TRUE, recursive = FALSE)
+  matches <- lapply(confirms, function(confirm) {
+    manifest <- dina_csv_key_value(file.path(confirm, "logs", "confirm_manifest.csv"))
+    if (!nrow(manifest)) return(NULL)
+    prior <- normalizePath(dina_manifest_value(manifest, "include_run"), mustWork = FALSE)
+    if (!identical(prior, normalizePath(include_run, mustWork = FALSE))) return(NULL)
+    list(root = confirm, manifest = manifest, status = dina_manifest_value(manifest, "status"), mtime = file.info(file.path(confirm, "logs", "confirm_manifest.csv"))$mtime)
+  })
+  matches <- Filter(Negate(is.null), matches)
+  if (!length(matches)) return(NULL)
+  matches[[order(vapply(matches, function(x) as.numeric(x$mtime), numeric(1)), decreasing = TRUE)[[1L]]]]
 }
 
 dina_dashboard_state_fast <- function(session, root = dina_repo_root()) {
@@ -2459,6 +2595,54 @@ dina_dashboard_state_fast <- function(session, root = dina_repo_root()) {
 
   country_sna_inbox <- dina_sources_country_sna_inbox_rows(root)
   if (nrow(country_sna_inbox) > 0L) {
+    explore <- dina_country_sna_matching_explore(root)
+    if (!is.null(explore)) {
+      include <- dina_country_sna_latest_include_for_explore(explore$root, root)
+      if (!is.null(include) && identical(include$status, "all_good")) {
+        confirm <- dina_country_sna_confirm_for_include(include$root, root)
+        if (!is.null(confirm) && identical(confirm$status, "confirmed")) {
+          return(dina_session_result(
+            "sources_confirmed",
+            dina_recommendation(
+              command = "dina run 01b --dry-run",
+              why = "Country-SNA incoming files were explored, staged, and confirmed with a backup snapshot.",
+              todo_id = "country-sna-source-workflow",
+              todo_label = "Explore country-SNA source changes",
+              expected_action = "Preview the country-SNA pipeline step after confirmed source promotion.",
+              next_command = "dina run 01b",
+              next_note = "Run without --dry-run only after reviewing the preview.",
+              recommendation = "Preview 01b with `dina run 01b --dry-run`."
+            )
+          ))
+        }
+        return(dina_session_result(
+          "sources_include_ready",
+          dina_recommendation(
+            command = sprintf("dina sources include country-sna --confirm --include-run %s", include$root),
+            why = "A matching country-SNA exploration run exists and the latest include dry-run is clean.",
+            todo_id = "country-sna-source-workflow",
+            todo_label = "Explore country-SNA source changes",
+            expected_action = "Promote approved incoming source files after the staged run and backup guard.",
+            next_command = "dina run 01b --dry-run",
+            next_note = "Confirm does not run the pipeline; preview 01b afterward.",
+            recommendation = "Confirm the clean staged include run."
+          )
+        ))
+      }
+      return(dina_session_result(
+        "sources_explored",
+        dina_recommendation(
+          command = "dina sources include country-sna --dry-run",
+          why = "A matching country-SNA exploration run exists for the current incoming files.",
+          todo_id = "country-sna-source-workflow",
+          todo_label = "Explore country-SNA source changes",
+          expected_action = "Stage incoming sources and check deterministic include expectations without changing production files.",
+          next_command = "dina sources include country-sna --confirm --include-run RUN",
+          next_note = "Confirm is only available after an all_good include dry-run.",
+          recommendation = "Run a staged include dry-run."
+        )
+      ))
+    }
     return(dina_session_result(
       "sources_pending",
       dina_recommendation(
@@ -2537,6 +2721,17 @@ dina_dashboard_summary_lines <- function(root = dina_repo_root(), session = dina
     lines <- c(lines, "", dina_cli_key_value("Active update:", sprintf("%s (%s)", year, session$id)), dina_cli_key_value("Status:", dina_dashboard_status_label(state)))
     if (nzchar(session$status %||% "")) {
       lines <- c(lines, dina_cli_key_value("Session status:", session$status))
+    }
+    override_path <- dina_session_config_override_path(session$id, root)
+    effective <- tryCatch(dina_session_config(session, root, expand_env = FALSE), error = function(e) list())
+    years <- effective$years %||% list()
+    lines <- c(
+      lines,
+      dina_cli_key_value("Benchmark config:", "config/dina.yml"),
+      dina_cli_key_value("Override:", if (file.exists(override_path)) "present" else "not created")
+    )
+    if (!is.null(years$first) && !is.null(years$last)) {
+      lines <- c(lines, dina_cli_key_value("Effective years:", sprintf("%s-%s", years$first, years$last)))
     }
   }
 
@@ -2689,7 +2884,19 @@ dina_print_update_summary <- function(session, root = dina_repo_root()) {
   task_runs <- session$task_runs %||% list()
   dina_cli_alert(sprintf("Recorded task runs: %s", length(task_runs)))
   override_path <- dina_session_config_override_path(session$id, root)
-  dina_cli_alert(sprintf("Working config override: %s", if (file.exists(override_path)) dina_relative(override_path, root) else "not created"))
+  effective <- tryCatch(dina_session_config(session, root, expand_env = FALSE), error = function(e) list())
+  years <- effective$years %||% list()
+  countries <- effective$countries %||% character()
+  dina_cli_alert("Benchmark config path: config/dina.yml")
+  dina_cli_alert(sprintf("Override status: %s", if (file.exists(override_path)) sprintf("present (%s)", dina_relative(override_path, root)) else "not created"))
+  if (!is.null(years$first) && !is.null(years$last)) {
+    dina_cli_alert(sprintf("Effective years: %s-%s", years$first, years$last))
+  }
+  if (length(countries)) {
+    dina_cli_alert(sprintf("Effective countries: %s", paste(countries, collapse = ",")))
+  }
+  dina_cli_alert("Review command: dina config show")
+  dina_cli_alert("Active-update override: dina update config show")
 }
 
 dina_print_todo_rows <- function(session = NULL, root = dina_repo_root()) {
@@ -4253,7 +4460,54 @@ dina_cmd_buckets <- function(root, args) {
   }
 }
 
-dina_print_country_sna_explore <- function(result, dry_run = FALSE) {
+dina_country_sna_year_label <- function(x) {
+  years <- suppressWarnings(as.integer(unlist(strsplit(as.character(x %||% ""), ",", fixed = TRUE), use.names = FALSE)))
+  years <- sort(unique(years[!is.na(years)]))
+  if (!length(years)) return("-")
+  if (length(years) <= 4L) return(paste(years, collapse = ","))
+  consecutive <- identical(years, seq.int(min(years), max(years)))
+  if (consecutive) {
+    sprintf("%s-%s (%s)", min(years), max(years), length(years))
+  } else {
+    sprintf("%s...%s (%s)", min(years), max(years), length(years))
+  }
+}
+
+dina_country_sna_explore_label <- function(x) {
+  switch(
+    x %||% "",
+    extension_found = "extension",
+    overlap_only = "overlap",
+    no_overlap = "new only",
+    no_new_years_detected = "no new",
+    no_old_years_detected = "no baseline",
+    structure_evidence_available = "evidence ok",
+    structure_review_needed = "review structure",
+    layout_adapter_required = "adapter needed",
+    no_new_years = "no new",
+    no_new_files = "no files",
+    include_dry_run = "include dry-run",
+    include_dry_run_no_overlap = "include dry-run",
+    keep_current = "keep current",
+    gsub("_", " ", x %||% "", fixed = TRUE)
+  )
+}
+
+dina_country_sna_explore_status_notes <- function(structure, actions) {
+  notes <- character()
+  if (nrow(structure) && any(structure$structure_status == "layout_adapter_required", na.rm = TRUE)) {
+    notes <- c(notes, "adapter needed: layout family detected, but no deterministic adapter exists yet.")
+  }
+  if (nrow(structure) && any(structure$structure_status == "structure_review_needed", na.rm = TRUE)) {
+    notes <- c(notes, "review structure: files/years were found, but sheet/table evidence is weak and include may warn.")
+  }
+  if (nrow(actions) && any(actions$action == "keep_current", na.rm = TRUE)) {
+    notes <- c(notes, "no new: no incoming years found; existing canonical source is kept.")
+  }
+  unique(notes)
+}
+
+dina_print_country_sna_explore <- function(result, dry_run = FALSE, input = "stdin", is_terminal = isatty(stdin())) {
   summary <- result$outputs$extension_summary
   structure <- result$outputs$structure_summary
   actions <- result$outputs$review_actions
@@ -4262,31 +4516,165 @@ dina_print_country_sna_explore <- function(result, dry_run = FALSE) {
   if (!nrow(summary)) {
     dina_cli_alert("No country-SNA explorer rows were produced.")
   } else {
-    dina_cli_cat(dina_cli_row(c("country", "years", "extension", "structure", "next"), widths = c(8, 18, 18, 28, 24), dim = TRUE))
+    counts <- table(summary$status)
+    count_labels <- vapply(names(counts), dina_country_sna_explore_label, character(1))
+    count_text <- paste(sprintf("%s=%s", count_labels, as.integer(counts)), collapse = ", ")
+    dina_cli_alert(sprintf("Summary: %s countr%s%s", nrow(summary), if (nrow(summary) == 1L) "y" else "ies", if (nzchar(count_text)) paste0(" (", count_text, ")") else ""))
+    dina_cli_cat(dina_cli_row(c("ctry", "current", "new", "ext", "overlap", "result", "structure", "action"), widths = c(5, 14, 14, 12, 14, 12, 16, 15), dim = TRUE))
     for (i in seq_len(nrow(summary))) {
       country <- summary$country[[i]]
       structure_row <- structure[structure$country == country, , drop = FALSE]
       action_row <- actions[actions$country == country, , drop = FALSE]
-      years <- summary$extension_years[[i]]
-      if (!nzchar(years %||% "")) years <- summary$overlap_years[[i]] %||% ""
-      if (!nzchar(years %||% "")) years <- "-"
-      next_cmd <- if (nrow(action_row) && nzchar(action_row$next_command[[1L]] %||% "")) action_row$next_command[[1L]] else "-"
       dina_cli_cat(dina_cli_row(
-        c(country, years, summary$status[[i]], if (nrow(structure_row)) structure_row$structure_status[[1L]] else "-", next_cmd),
-        widths = c(8, 18, 18, 28, 24)
+        c(
+          country,
+          dina_country_sna_year_label(summary$old_years[[i]]),
+          dina_country_sna_year_label(summary$new_years[[i]]),
+          dina_country_sna_year_label(summary$extension_years[[i]]),
+          dina_country_sna_year_label(summary$overlap_years[[i]]),
+          dina_country_sna_explore_label(summary$status[[i]]),
+          dina_country_sna_explore_label(if (nrow(structure_row)) structure_row$structure_status[[1L]] else "-"),
+          dina_country_sna_explore_label(if (nrow(action_row)) action_row$action[[1L]] else "-")
+        ),
+        widths = c(5, 14, 14, 12, 14, 12, 16, 15)
       ))
+    }
+    notes <- dina_country_sna_explore_status_notes(structure, actions)
+    if (length(notes)) {
+      dina_cli_cat("")
+      dina_cli_cat("Status notes:")
+      for (note in notes) dina_cli_alert(note)
+    }
+    next_commands <- unique(actions$next_command[nzchar(actions$next_command %||% "")])
+    if (length(next_commands)) {
+      dina_cli_alert(sprintf("Next likely command: %s", next_commands[[1L]]))
     }
   }
   if (isTRUE(dry_run)) {
     dina_cli_alert("Dry-run only: explorer outputs were not written.")
   } else {
     dina_cli_ok(sprintf("Explorer output: %s", result$paths$root))
-    dina_cli_alert("User-facing tables include year_expectations and variable_expectations; low-level candidates are developer evidence.")
+    dina_cli_alert("Review tables inline with `dina sources table country-sna year_expectations`.")
+    dina_cli_alert("Low-level table/role/value candidates are developer evidence, not review actions.")
+    dina_country_sna_explore_tables_menu(result$paths$root, input = input, is_terminal = is_terminal)
   }
   invisible(result)
 }
 
-dina_print_country_sna_include <- function(result, applied = FALSE) {
+dina_country_sna_table_run <- function(root, run = NULL) {
+  path <- run %||% file.path(root, "output", "experiments", "country_sna_explore")
+  if (!grepl("^/", path)) path <- file.path(root, path)
+  normalizePath(path, mustWork = FALSE)
+}
+
+dina_country_sna_table_file <- function(root, table, run = NULL) {
+  table <- gsub("-", "_", table %||% "", fixed = TRUE)
+  run <- dina_country_sna_table_run(root, run)
+  file.path(run, "tables", paste0(table, ".csv"))
+}
+
+dina_country_sna_read_table <- function(root, table, run = NULL) {
+  path <- dina_country_sna_table_file(root, table, run)
+  if (!file.exists(path)) {
+    stop(sprintf("Country-SNA explore table not found: %s", path), call. = FALSE)
+  }
+  utils::read.csv(path, stringsAsFactors = FALSE, na.strings = c("", "NA"))
+}
+
+dina_country_sna_variable_expectation_summary <- function(rows) {
+  if (!nrow(rows)) return(rows)
+  keys <- unique(rows[, intersect(c("country", "year_role", "expected_status", "structure_status"), names(rows)), drop = FALSE])
+  out <- lapply(seq_len(nrow(keys)), function(i) {
+    key <- keys[i, , drop = FALSE]
+    hit <- rep(TRUE, nrow(rows))
+    for (name in names(key)) {
+      value <- key[[name]][[1L]]
+      hit <- hit & if (is.na(value)) is.na(rows[[name]]) else rows[[name]] == value
+    }
+    part <- rows[hit, , drop = FALSE]
+    data.frame(
+      key,
+      years = length(unique(part$year)),
+      variables = length(unique(part$variable)),
+      rows = nrow(part),
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    )
+  })
+  do.call(rbind, out)
+}
+
+dina_print_data_frame_compact <- function(rows, limit = 20L) {
+  limit <- suppressWarnings(as.integer(limit %||% 20L))
+  if (is.na(limit) || limit < 1L) limit <- 20L
+  if (!nrow(rows)) {
+    dina_cli_alert("No rows.")
+    return(invisible(rows))
+  }
+  shown <- utils::head(rows, limit)
+  shown[] <- lapply(shown, function(x) {
+    x <- as.character(x)
+    x[is.na(x)] <- "-"
+    ifelse(nchar(x) > 34L, paste0(substr(x, 1L, 31L), "..."), x)
+  })
+  widths <- vapply(names(shown), nchar, integer(1))
+  for (name in names(shown)) {
+    widths[[name]] <- max(widths[[name]], max(nchar(shown[[name]]), na.rm = TRUE), 4L)
+  }
+  widths <- pmin(widths, 34L)
+  dina_cli_cat(dina_cli_row(names(shown), widths = widths, dim = TRUE))
+  for (i in seq_len(nrow(shown))) {
+    dina_cli_cat(dina_cli_row(as.list(shown[i, , drop = FALSE]), widths = widths))
+  }
+  if (nrow(rows) > nrow(shown)) {
+    dina_cli_alert(sprintf("Showing %s of %s rows. Use --limit N for more.", nrow(shown), nrow(rows)))
+  }
+  invisible(rows)
+}
+
+dina_print_country_sna_table <- function(root, table, run = NULL, country = NULL, limit = 20L) {
+  table <- gsub("-", "_", table %||% "", fixed = TRUE)
+  rows <- dina_country_sna_read_table(root, table, run)
+  if (!is.null(country) && "country" %in% names(rows)) {
+    rows <- rows[toupper(rows$country) == toupper(country), , drop = FALSE]
+  }
+  display <- rows
+  title <- table
+  if (identical(table, "variable_expectations")) {
+    display <- dina_country_sna_variable_expectation_summary(rows)
+    title <- "variable_expectations summary"
+  }
+  dina_cli_header(sprintf("Country-SNA Table: %s", title))
+  dina_cli_alert(sprintf("Run: %s", dina_country_sna_table_run(root, run)))
+  dina_print_data_frame_compact(display, limit = limit)
+  invisible(display)
+}
+
+dina_country_sna_explore_tables_menu <- function(run, input = "stdin", is_terminal = isatty(stdin())) {
+  if (!isTRUE(is_terminal)) return(invisible(NULL))
+  actions <- list(
+    dina_menu_action("year_expectations", "Year expectations", value = "year_expectations"),
+    dina_menu_action("variable_expectations", "Variable expectation summary", value = "variable_expectations"),
+    dina_menu_action("extension_summary", "Extension summary", value = "extension_summary"),
+    dina_menu_action("source_inventory", "Source inventory", value = "source_inventory"),
+    dina_menu_action("structure_summary", "Structure summary", value = "structure_summary"),
+    dina_menu_action("quit", "Quit", value = "quit")
+  )
+  selected <- dina_menu_select(
+    "Explore Tables",
+    actions,
+    prompt = "",
+    default = "quit",
+    allow_quit = TRUE,
+    input = input,
+    is_terminal = is_terminal
+  )
+  if (is.null(selected) || identical(selected, "quit")) return(invisible(NULL))
+  dina_print_country_sna_table(dina_repo_root(), selected, run = run, limit = 20L)
+  invisible(selected)
+}
+
+dina_print_country_sna_include <- function(result, mode = "dry_run") {
   summary <- result$outputs$include_summary
   manifest <- result$outputs$include_manifest
   status <- if (nrow(manifest)) manifest$value[manifest$key == "status"][[1L]] else "check_following"
@@ -4311,12 +4699,32 @@ dina_print_country_sna_include <- function(result, applied = FALSE) {
       ))
     }
   }
-  if (isTRUE(applied)) {
-    dina_cli_ok(sprintf("Apply report: %s", file.path(result$paths$tables, "apply_report.csv")))
-  } else {
-    dina_cli_ok(sprintf("Include dry-run output: %s", result$paths$root))
-    dina_cli_alert("A clean dry-run manifest is required before `--apply` can promote sources.")
+  dina_cli_ok(sprintf("Include dry-run output: %s", result$paths$root))
+  dina_cli_alert("No production files changed. Fix code/contract and rerun safely.")
+  dina_cli_alert(sprintf("Confirm after a clean run: dina sources include country-sna --confirm --include-run %s", result$paths$root))
+  dina_cli_alert("Safe retry: before confirm, edit code/contract and rerun explore/include. After confirm, restore first, then rerun.")
+  dina_cli_alert("Use git for code/config rollback; source data rollback uses the confirm backup snapshot.")
+  invisible(result)
+}
+
+dina_print_country_sna_confirm <- function(result) {
+  report <- result$outputs$promote_report
+  dina_cli_header("Country-SNA Include Confirm")
+  if (nrow(report)) {
+    dina_print_data_frame_compact(report, limit = 20L)
   }
+  dina_cli_ok(sprintf("Confirm run: %s", result$paths$root))
+  dina_cli_alert("No pipeline was run. Next likely command: dina run 01b --dry-run")
+  dina_cli_alert(sprintf("Rollback: dina sources include country-sna --restore %s", result$paths$root))
+  invisible(result)
+}
+
+dina_print_country_sna_restore <- function(result) {
+  report <- result$outputs$restore_report
+  dina_cli_header("Country-SNA Include Restore")
+  dina_print_data_frame_compact(report, limit = 20L)
+  dina_cli_ok(sprintf("Restore report: %s", result$paths$restore_report))
+  dina_cli_alert("Manual next steps: inspect sources, edit code/contract if needed, then rerun explore/include/confirm.")
   invisible(result)
 }
 
@@ -4366,6 +4774,20 @@ dina_cmd_sources <- function(root, args) {
     }
     status <- dina_sources_compare(session, root, hash = hash_mode, deep = isTRUE(flags$deep))
     dina_print_source_compare(status)
+  } else if (identical(sub, "table")) {
+    flags <- dina_parse_flags(args[-1])
+    target <- dina_arg(flags$positional, 1L, "country-sna")
+    table <- dina_arg(flags$positional, 2L, NULL)
+    if (!target %in% c("country-sna", "country_sna") || is.null(table)) {
+      stop("Usage: dina sources table country-sna TABLE [--run PATH] [--country ISO] [--limit N]", call. = FALSE)
+    }
+    dina_print_country_sna_table(
+      root,
+      table,
+      run = flags$run %||% NULL,
+      country = flags$country %||% NULL,
+      limit = flags$limit %||% 20L
+    )
   } else if (sub %in% c("explore", "include")) {
     flags <- dina_parse_flags(args[-1])
     target <- dina_arg(flags$positional, 1L, "country-sna")
@@ -4387,19 +4809,29 @@ dina_cmd_sources <- function(root, args) {
       result <- run_country_sna_explorer(root = root, output_dir = output_dir, countries = country, write_outputs = !isTRUE(flags[["dry-run"]]))
       dina_print_country_sna_explore(result, dry_run = isTRUE(flags[["dry-run"]]))
     } else {
-      apply <- isTRUE(flags$apply)
-      if (isTRUE(flags[["dry-run"]]) && apply) {
-        stop("Use either --dry-run or --apply, not both.", call. = FALSE)
+      if (isTRUE(flags$apply)) {
+        stop("Use `--confirm`; promotion now requires a staged include run and backup snapshot.", call. = FALSE)
       }
       source(file.path(root, "code", "R", "source-diagnostics", "country_sna_include.R"), local = TRUE)
-      result <- run_country_sna_include(
-        root = root,
-        output_dir = output_dir,
-        exploration_run = flags[["exploration-run"]] %||% NULL,
-        write_outputs = TRUE,
-        apply = apply
-      )
-      dina_print_country_sna_include(result, applied = apply)
+      if (isTRUE(flags$confirm)) {
+        result <- country_sna_include_confirm_sources(
+          root = root,
+          include_run = flags[["include-run"]] %||% NULL,
+          output_dir = flags[["output-dir"]] %||% NULL
+        )
+        dina_print_country_sna_confirm(result)
+      } else if (!is.null(flags$restore)) {
+        result <- country_sna_include_restore_sources(root = root, confirm_run = flags$restore)
+        dina_print_country_sna_restore(result)
+      } else {
+        result <- run_country_sna_include(
+          root = root,
+          output_dir = output_dir,
+          exploration_run = flags[["exploration-run"]] %||% NULL,
+          write_outputs = TRUE
+        )
+        dina_print_country_sna_include(result)
+      }
     }
   } else if (sub %in% c("diagnose", "diagnostic", "diagnostics")) {
     stop("`dina sources diagnose country-sna` was retired. Use `dina sources explore country-sna`.", call. = FALSE)
