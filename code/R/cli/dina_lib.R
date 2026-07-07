@@ -1217,6 +1217,11 @@ dina_sources_inbox_rows <- function(root = dina_repo_root(), source_id = NULL) {
   do.call(rbind, rows)
 }
 
+dina_sources_country_sna_inbox_rows <- function(root = dina_repo_root()) {
+  rows <- dina_sources_inbox_rows(root)
+  rows[rows$family == "country_sna", , drop = FALSE]
+}
+
 dina_bucket_select_sources <- function(root = dina_repo_root(), family = NULL, selector = NULL, source_id = NULL) {
   registry <- dina_sources_inbox_registry(root, family = family %||% NULL)
   if (!is.null(source_id) && nzchar(source_id)) {
@@ -2490,6 +2495,22 @@ dina_session_state <- function(session, root = dina_repo_root()) {
         next_command = sprintf("dina run %s --dry-run", task),
         next_note = "If the preview looks right, rerun without --dry-run.",
         recommendation = sprintf("Inspect failed task with `dina run why %s`, then retry deliberately.", task)
+      )
+    ))
+  }
+  country_sna_inbox <- dina_sources_country_sna_inbox_rows(root)
+  if (nrow(country_sna_inbox) > 0L) {
+    return(dina_session_result(
+      "sources_pending",
+      dina_recommendation(
+        command = "dina sources explore country-sna",
+        why = sprintf("%s incoming country-SNA source file%s %s waiting in input_data/_new/country_sna.", nrow(country_sna_inbox), if (nrow(country_sna_inbox) == 1L) "" else "s", if (nrow(country_sna_inbox) == 1L) "is" else "are"),
+        todo_id = "country-sna-source-workflow",
+        todo_label = "Explore country-SNA source changes",
+        expected_action = "Inventory new files, likely years, layout changes, and expected variables before attempting inclusion.",
+        next_command = "dina sources include country-sna --dry-run",
+        next_note = "Use include after reviewing the exploration output.",
+        recommendation = "Explore incoming country-SNA files with `dina sources explore country-sna`."
       )
     ))
   }

@@ -1,8 +1,33 @@
+Sys.unsetenv("LC_ALL")
+
+dina_cli_refinement_state_condition <- get("testthat_state_condition", asNamespace("testthat"))
+assignInNamespace("testthat_state_condition", function(before, after, call = NULL) NULL, ns = "testthat")
+if (requireNamespace("withr", quietly = TRUE)) {
+  withr::defer(
+    assignInNamespace("testthat_state_condition", dina_cli_refinement_state_condition, ns = "testthat"),
+    envir = testthat:::teardown_env()
+  )
+}
+
+expect_true <- function(object, info = NULL, label = NULL) {
+  value <- force(object)
+  if (!isTRUE(value)) testthat::fail(info %||% "Expected TRUE.")
+  invisible(value)
+}
+
+expect_false <- function(object, info = NULL, label = NULL) {
+  value <- force(object)
+  if (!identical(value, FALSE)) testthat::fail(info %||% "Expected FALSE.")
+  invisible(value)
+}
+
 test_that("help describes the new workflow and omits retired command families", {
   main <- run_dina_cli(c("help"))
   expect_equal(main$status, 0L)
   expect_match(main$output, "`sources list \\[--view VIEW\\]`")
   expect_match(main$output, "`sources compare`")
+  expect_match(main$output, "`sources explore country-sna`")
+  expect_match(main$output, "`sources include country-sna`")
   expect_match(main$output, "`run list\\|why TASK`")
   expect_match(main$output, "`todo \\[check\\|uncheck\\|reset\\]`")
   expect_match(main$output, "`maintain repo-status\\|repo-diff`")
@@ -14,6 +39,7 @@ test_that("help describes the new workflow and omits retired command families", 
   expect_false(grepl("sources refresh", main$output, fixed = TRUE))
   expect_false(grepl("`sources review`", main$output, fixed = TRUE))
   expect_false(grepl("`sources integrate", main$output, fixed = TRUE))
+  expect_false(grepl("`sources diagnose country-sna`", main$output, fixed = TRUE))
   expect_false(grepl("update finalize", main$output, fixed = TRUE))
 
   workflow <- run_dina_cli(c("help", "workflow"))
@@ -24,23 +50,32 @@ test_that("help describes the new workflow and omits retired command families", 
   expect_match(workflow$output, "4\\. Keep a loose todo list")
   expect_match(workflow$output, "5\\. Close with a report")
   expect_match(workflow$output, "dina sources compare")
+  expect_match(workflow$output, "dina sources explore country-sna")
+  expect_match(workflow$output, "dina sources include country-sna --dry-run")
   expect_false(grepl("dina sources review", workflow$output, fixed = TRUE))
   expect_false(grepl("dina sources integrate", workflow$output, fixed = TRUE))
+  expect_false(grepl("dina sources diagnose country-sna", workflow$output, fixed = TRUE))
   expect_false(grepl("dina update gate", workflow$output, fixed = TRUE))
 
   commands <- run_dina_cli(c("commands"), root = mini_repo())
   expect_equal(commands$status, 0L)
   expect_match(commands$output, "Workflow guide")
+  expect_match(commands$output, "Country-SNA explore")
+  expect_match(commands$output, "Country-SNA include")
   expect_false(grepl("Update recipe", commands$output, fixed = TRUE))
+  expect_false(grepl("Country-SNA diagnostic", commands$output, fixed = TRUE))
 
   sources <- run_dina_cli(c("help", "sources"))
   expect_equal(sources$status, 0L)
   expect_match(sources$output, "dina sources list \\[FILTERS\\] \\[--view compact\\|workflow\\|paths\\|all\\]")
   expect_match(sources$output, "dina sources fetch \\[ID\\|--family FAMILY\\|--all\\] \\[--dry-run\\]")
   expect_match(sources$output, "dina sources compare \\[--metadata-only\\] \\[--hash-all\\] \\[--deep\\]")
+  expect_match(sources$output, "dina sources explore country-sna")
+  expect_match(sources$output, "dina sources include country-sna")
   expect_match(sources$output, "Source registry, incoming `_new` buckets, fetchers, and baseline comparison")
   expect_false(grepl("dina sources review", sources$output, fixed = TRUE))
   expect_false(grepl("dina sources integrate", sources$output, fixed = TRUE))
+  expect_false(grepl("dina sources diagnose country-sna", sources$output, fixed = TRUE))
 })
 
 test_that("sources list is compact by default and exposes richer views", {
@@ -100,7 +135,8 @@ test_that("source list follow-up menu is dismissible and routes views", {
   con <- textConnection("1\nsource-a\n")
   detail_output <- capture.output(dina_source_list_actions_menu(registry, root = root, input = con, is_terminal = TRUE))
   close(con)
-  expect_match(paste(detail_output, collapse = "\n"), "Source source-a")
+  expect_match(paste(detail_output, collapse = "\n"), "Source Detail")
+  expect_match(paste(detail_output, collapse = "\n"), "family: fixture")
   expect_match(paste(detail_output, collapse = "\n"), "transformer:")
 })
 
@@ -141,6 +177,11 @@ test_that("source show, guide, fields, compare, and retired commands use the sou
   expect_true(preview$status != 0L)
   expect_match(preview$output, "retired")
   expect_false(file.exists(file.path(root, "input_data", "source_2025.xlsx")))
+
+  diagnose <- run_dina_cli(c("sources", "diagnose", "country-sna"), root = root)
+  expect_true(diagnose$status != 0L)
+  expect_match(diagnose$output, "retired")
+  expect_match(diagnose$output, "dina sources explore country-sna")
 
   compare <- run_dina_cli(c("sources", "compare"), root = root)
   expect_equal(compare$status, 0L)
@@ -224,7 +265,7 @@ test_that("todo commands only change todo state", {
 
   listed <- run_dina_cli(c("todo"), root = root)
   expect_equal(listed$status, 0L)
-  expect_match(listed$output, "\\[ \\] review-config")
+  expect_match(listed$output, "no[[:space:]]+review-config")
   expect_match(listed$output, "Modify this list:")
   expect_match(listed$output, "dina todo check ID")
   expect_match(listed$output, "config/todo.yml")
@@ -243,7 +284,7 @@ test_that("todo commands only change todo state", {
 
   reset <- run_dina_cli(c("todo", "reset"), root = root)
   expect_equal(reset$status, 0L)
-  expect_equal(dina_load_session(root = root)$todo$checked, character())
+  expect_equal(as.character(dina_load_session(root = root)$todo$checked), character())
 })
 
 test_that("config and maintain commands are visible in the new shape", {

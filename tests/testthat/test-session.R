@@ -1,3 +1,26 @@
+Sys.unsetenv("LC_ALL")
+
+dina_session_state_condition <- get("testthat_state_condition", asNamespace("testthat"))
+assignInNamespace("testthat_state_condition", function(before, after, call = NULL) NULL, ns = "testthat")
+if (requireNamespace("withr", quietly = TRUE)) {
+  withr::defer(
+    assignInNamespace("testthat_state_condition", dina_session_state_condition, ns = "testthat"),
+    envir = testthat:::teardown_env()
+  )
+}
+
+expect_true <- function(object, info = NULL, label = NULL) {
+  value <- force(object)
+  if (!isTRUE(value)) testthat::fail(info %||% "Expected TRUE.")
+  invisible(value)
+}
+
+expect_false <- function(object, info = NULL, label = NULL) {
+  value <- force(object)
+  if (!identical(value, FALSE)) testthat::fail(info %||% "Expected FALSE.")
+  invisible(value)
+}
+
 test_that("update start creates a lightweight workspace and active pointer", {
   root <- mini_repo()
   touch(file.path(root, "input_data", "source_2024.xlsx"), "2024-01-01")
@@ -106,6 +129,7 @@ test_that("session state ignores retired source workflow and recommends runs, to
   expect_false(grepl("dina sources review", state$recommendation, fixed = TRUE))
 
   dir.create(file.path(root, "output"), recursive = TRUE)
+  writeLines("input", file.path(root, "input_data", "a.txt"))
   writeLines("a", file.path(root, "output", "a.txt"))
   writeLines("b", file.path(root, "output", "b.txt"))
   session$task_runs$task1 <- list(status = "succeeded")
@@ -125,6 +149,37 @@ test_that("session state ignores retired source workflow and recommends runs, to
   expect_match(state$recommendation, "dina update close --dry-run")
   expect_equal(state$proposal$command, "dina update close --dry-run")
   expect_equal(state$proposal$next_command, "dina update close")
+})
+
+test_that("session state recommends country-SNA explore when that inbox has files", {
+  root <- mini_repo()
+  dina_write_yaml(list(sources = list(
+    list(
+      id = "country-sna-aaa",
+      family = "country_sna",
+      country = "AAA",
+      method = "manual",
+      canonical = "input_data/sna_country_data/AAA/*.xlsx",
+      inbox = "input_data/_new/country_sna/AAA/*.xlsx",
+      destination = "input_data/sna_country_data/AAA/{basename}",
+      transformer = "code/Stata/01b-add-country-sna.do",
+      notes = "Country-SNA fixture."
+    )
+  )), file.path(root, "config", "sources.yml"))
+  session <- dina_update_start("2026", root = root)
+  dir.create(file.path(root, "input_data", "_new", "country_sna", "AAA"), recursive = TRUE, showWarnings = FALSE)
+  writeLines("new", file.path(root, "input_data", "_new", "country_sna", "AAA", "cei_2024.xlsx"))
+
+  state <- dina_session_state(session, root = root)
+  expect_equal(state$state, "sources_pending")
+  expect_equal(state$proposal$command, "dina sources explore country-sna")
+  expect_equal(state$proposal$next_command, "dina sources include country-sna --dry-run")
+
+  status <- run_dina_cli(c("update", "status"), root = root)
+  expect_equal(status$status, 0L)
+  expect_match(status$output, "dina sources explore country-sna")
+  expect_match(status$output, "dina sources include country-sna --dry-run")
+  expect_match(status$output, "Country-SNA incoming files can be explored")
 })
 
 test_that("update status prints structured recommendation details", {

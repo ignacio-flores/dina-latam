@@ -1,0 +1,434 @@
+version: 1
+name: country_sna_include_contract
+description: >
+  Experimental country-SNA include contract. Country-specific source
+  selectors, layouts, code aliases, column roles, units, and compatibility
+  exclusions live here so the R extractor can stay generic.
+
+output_root: output/experiments/country_sna_include
+base_dataset: intermediary_data/national_accounts/UNDATA-WID-Merged.dta
+
+years:
+  from_config: config/dina.yml
+
+countries:
+  - PER
+  - DOM
+  - URY
+  - CRI
+  - BRA
+  - CHL
+  - COL
+  - ECU
+  - MEX
+
+thresholds:
+  anecdotal_pct: 1
+  zero_as_missing: true
+
+code_aliases:
+  D.11: ["D.11", "D11"]
+  D.1: ["D.1", "D1"]
+  D.44: ["D.44", "D44"]
+  D.43: ["D.43", "D43"]
+  D.4: ["D.4", "D4"]
+  D.5: ["D.5", "D5"]
+  D.61: ["D.61", "D61"]
+  D.62: ["D.62", "D62"]
+  D.752: ["D.752", "D752"]
+  D.75: ["D.75", "D75"]
+  D.7: ["D.7", "D7"]
+  D.41: ["D.41", "D41"]
+  D.42: ["D.42", "D42"]
+  B.2: ["B.2", "B2", "B.2b", "B2b"]
+  B.3: ["B.3", "B3", "B.3b", "B3b"]
+  B.5: ["B.5", "B5", "B.5b", "B5b"]
+
+variables:
+  primitives:
+    - {name: D11_cei, account: D.11, role: households_r}
+    - {name: D1_cei, account: D.1, role: households_r}
+    - {name: D44_cei, account: D.44, role: households_r}
+    - {name: D43_cei, account: D.43, role: households_u}
+    - {name: D4_cei, account: D.4, role: households_r}
+    - {name: D5_cei, account: D.5, role: households_u}
+    - {name: D61_cei, account: D.61, role: households_u}
+    - {name: D62_cei, account: D.62, role: households_r}
+    - {name: D752_cei, account: D.752, role: households_r}
+    - {name: D75_cei, account: D.75, role: households_r}
+    - {name: D7_cei, account: D.7, role: households_r}
+    - {name: B2g_cei, account: B.2, role: households_r}
+    - {name: B3g_cei, account: B.3, role: households_r}
+    - {name: B5g_cei, account: B.5, role: households_r}
+    - {name: NFC_B5g_cei, account: B.5, role: NFC_r}
+    - {name: FC_B5g_cei, account: B.5, role: FC_r}
+    - {name: GG_B5g_cei, account: B.5, role: GG_r}
+    - {name: TOT_B5g_cei, account: B.5, role: TOT_r}
+    - {name: NFC_r_D4_cei, account: D.4, role: NFC_r}
+    - {name: FC_r_D4_cei, account: D.4, role: FC_r}
+    - {name: GG_r_D4_cei, account: D.4, role: GG_r}
+    - {name: TOT_r_D4_cei, account: D.4, role: TOT_r}
+    - {name: ROW_r_D4_cei, account: D.4, role: ROW_r}
+    - {name: NFC_r_D41_cei, account: D.41, role: NFC_r}
+    - {name: FC_r_D41_cei, account: D.41, role: FC_r}
+    - {name: GG_r_D41_cei, account: D.41, role: GG_r}
+    - {name: TOT_r_D41_cei, account: D.41, role: TOT_r}
+    - {name: ROW_r_D41_cei, account: D.41, role: ROW_r}
+    - {name: NFC_r_D42_cei, account: D.42, role: NFC_r}
+    - {name: FC_r_D42_cei, account: D.42, role: FC_r}
+    - {name: GG_r_D42_cei, account: D.42, role: GG_r}
+    - {name: TOT_r_D42_cei, account: D.42, role: TOT_r}
+    - {name: ROW_r_D42_cei, account: D.42, role: ROW_r}
+    - {name: NFC_r_D43_cei, account: D.43, role: NFC_r}
+    - {name: FC_r_D43_cei, account: D.43, role: FC_r}
+    - {name: GG_r_D43_cei, account: D.43, role: GG_r}
+    - {name: TOT_r_D43_cei, account: D.43, role: TOT_r}
+    - {name: ROW_r_D43_cei, account: D.43, role: ROW_r}
+    - {name: NFC_r_D44_cei, account: D.44, role: NFC_r}
+    - {name: FC_r_D44_cei, account: D.44, role: FC_r}
+    - {name: GG_r_D44_cei, account: D.44, role: GG_r}
+    - {name: TOT_r_D44_cei, account: D.44, role: TOT_r}
+    - {name: ROW_r_D44_cei, account: D.44, role: ROW_r}
+
+  derived:
+    - {name: ratio_d43_d4, op: ratio, numerator: D43_cei, denominator: D4_cei}
+    - {name: ratio_d44_d4, op: ratio, numerator: D44_cei, denominator: D4_cei}
+    - {name: ratio_d44_b5g, op: ratio, numerator: D44_cei, denominator: B5g_cei}
+    - {name: ratio_d75_d7, op: ratio, numerator: D75_cei, denominator: D7_cei}
+    - {name: ratio_d75_b5g, op: ratio, numerator: D75_cei, denominator: B5g_cei}
+    - {name: ratio_d43d44, op: sum, inputs: [ratio_d43_d4, ratio_d44_d4]}
+
+post_merge_exclusions:
+  - country: ECU
+    years: {max: 2017}
+    variables: [B2g_cei, HH_B2g_R]
+    reason: "Current country-SNA contract excludes Ecuador aggregated household B2 before 2018."
+  - country: BRA
+    years: {max: 2009}
+    variables: [B2g_cei, B3g_cei]
+    reason: "Current benchmark leaves Brazil household B2/B3 missing before 2010."
+  - country: URY
+    variables:
+      - NFC_B5g_cei
+      - FC_B5g_cei
+      - GG_B5g_cei
+      - TOT_B5g_cei
+      - NFC_r_D4_cei
+      - FC_r_D4_cei
+      - GG_r_D4_cei
+      - TOT_r_D4_cei
+      - ROW_r_D4_cei
+      - NFC_r_D41_cei
+      - FC_r_D41_cei
+      - GG_r_D41_cei
+      - TOT_r_D41_cei
+      - ROW_r_D41_cei
+      - NFC_r_D42_cei
+      - FC_r_D42_cei
+      - GG_r_D42_cei
+      - TOT_r_D42_cei
+      - ROW_r_D42_cei
+      - NFC_r_D43_cei
+      - FC_r_D43_cei
+      - GG_r_D43_cei
+      - TOT_r_D43_cei
+      - ROW_r_D43_cei
+      - NFC_r_D44_cei
+      - FC_r_D44_cei
+      - GG_r_D44_cei
+      - TOT_r_D44_cei
+      - ROW_r_D44_cei
+    reason: "Current benchmark exports Uruguay household CEI values and ratios, not non-household sector variables from the auxiliary sector bundle."
+
+country_rules:
+  PER:
+    adapter: workbook_table
+    magnitude: 1000000
+    source:
+      type: single_stem
+      stem: input_data/sna_country_data/PER/CEI_merged
+    layouts:
+      - years: {min: 2000}
+        sheet: {type: year_variants}
+        range: A21:U40
+        columns:
+          code: K
+          code_long: L
+          households_r: P
+          households_u: G
+          NFC_r: M
+          FC_r: "N"
+          GG_r: O
+          TOT_r: U
+          ROW_r: S
+
+  DOM:
+    adapter: workbook_table
+    magnitude: 1000000
+    source:
+      type: single_stem
+      stem: input_data/sna_country_data/DOM/cei
+    layouts:
+      - years: {min: 2000}
+        sheet: {type: year_variants}
+        range: D10:Q42
+        columns:
+          code: J
+          code_long: K
+          households_r: O
+          households_u: F
+          NFC_r: L
+          FC_r: M
+          GG_r: "N"
+          TOT_r: P
+          ROW_r: Q
+
+  URY:
+    adapter: sector_file_bundle
+    magnitude: 1000000
+    source:
+      type: sector_file_bundle
+      folder: input_data/sna_country_data/URY
+      filename_template: "CSI_3.{year}_SC_{sector_code}.xlsx"
+      sectors:
+        households: S.1402
+        GG: S.1301
+        ROW: S.2000
+      columns:
+        code: E
+        code_long: F
+        value: G
+      directions:
+        r: "por cobrar"
+        u: "por pagar"
+
+  CRI:
+    adapter: workbook_table
+    magnitude: 1000000
+    source:
+      type: year_pattern
+      pattern: input_data/sna_country_data/CRI/Cuentas_Economicas_Integradas_{year}.xls*
+    layouts:
+      - years: {max: 2016}
+        sheet: {type: template, value: "CEI{year}"}
+        range: A27:AY69
+        columns:
+          code: Z
+          code_long: AA
+          households_r: AT
+          households_u: G
+          NFC_r: AD
+          FC_r: AM
+          GG_r: AS
+          TOT_r: AY
+          ROW_r: AW
+      - years: {min: 2017}
+        sheet: {type: fixed, value: "CUENTAS CORRIENTES"}
+        range: A26:AU91
+        columns:
+          code: B
+          code_long: C
+          households_r: AO
+          households_u: AN
+          NFC_r: E
+          FC_r: M
+          GG_r: AE
+          TOT_r: AS
+          ROW_r: AU
+
+  BRA:
+    adapter: workbook_table
+    magnitude: 1000000
+    source:
+      type: year_pattern
+      pattern: input_data/sna_country_data/BRA/single_year/CEI{year}.xls
+    primitive_overrides:
+      - id: household_familias
+        type: year_column_table
+        role: households_r
+        variables:
+          - D11_cei
+          - D1_cei
+          - D44_cei
+          - D43_cei
+          - D4_cei
+          - D5_cei
+          - D61_cei
+          - D62_cei
+          - D752_cei
+          - D75_cei
+          - D7_cei
+          - B2g_cei
+          - B3g_cei
+          - B5g_cei
+        source:
+          type: single_stem
+          stem: input_data/sna_country_data/BRA/contas_economicas_a_precos_correntes_2000a2021
+        sheet: {type: fixed, value: Familias}
+        range: A30:X56
+        columns:
+          code: A
+          code_long: B
+        year_columns:
+          first_year: 2000
+          last_year: 2021
+          first_col: C
+        row_edits:
+          drop_rows: [13]
+          recode_rows:
+            - {excel_row: 55, code: D.7u}
+    layouts:
+      - years: {min: 2000}
+        sheet: {type: fixed, value: CEI}
+        range: A26:U53
+        columns:
+          code: K
+          code_long: L
+          households_r: P
+          households_u: G
+          NFC_r: M
+          FC_r: "N"
+          GG_r: O
+          TOT_r: U
+          ROW_r: S
+
+  CHL:
+    adapter: workbook_table
+    magnitude: 1000000000
+    source:
+      type: single_stem
+      stem: input_data/sna_country_data/CHL/CEI_merged
+      extension_priority: [".xls", ".xlsx"]
+    code_alias_overrides:
+      B.2:
+        - ["B.2b/B.3b", "B.2b y B.3b", "B.2b / B.3b"]
+        - ["B.2", "B2", "B.2b", "B2b"]
+    layouts:
+      - years: {min: 2000}
+        sheet: {type: year_variants}
+        range: E27:Q48
+        columns:
+          code: I
+          code_long: J
+          households_r: "N"
+          households_u: E
+          NFC_r: K
+          FC_r: L
+          GG_r: M
+          TOT_r: Q
+          ROW_r: P
+
+  COL:
+    adapter: workbook_table
+    magnitude: 1000000000
+    source:
+      type: single_pattern
+      pattern: input_data/sna_country_data/COL/*CuentasEconomicasIntegradas*.xls*
+    layouts:
+      - years: {min: 2000}
+        sheet: {type: year_variants}
+        range: F49:T146
+        columns:
+          code: J
+          code_long: K
+          households_r: O
+          households_u: F
+          NFC_r: L
+          FC_r: M
+          GG_r: "N"
+          TOT_r: T
+          ROW_r: R
+
+  ECU:
+    adapter: workbook_table
+    magnitude: 1000
+    code_alias_overrides:
+      B.2:
+        - ["B.2b/B.3b", "B.2b y B.3b", "B.2b / B.3b"]
+        - ["B.2", "B2", "B.2b", "B2b"]
+    layouts:
+      - years: {max: 2014}
+        source: {type: single_stem, stem: input_data/sna_country_data/ECU/ceinivel2sd}
+        sheet: {type: template, value: "D {year}"}
+        range: A26:BV68
+        columns: &ecu_2007_columns
+          code: A
+          code_long: B
+          households_r: BQ
+          households_u: J
+          NFC_r: AU
+          FC_r: BL
+          GG_r: BP
+          TOT_r: BV
+          ROW_r: BT
+      - years: {min: 2015, max: 2015}
+        source: {type: single_stem, stem: input_data/sna_country_data/ECU/ceinivel2sd}
+        sheet: {type: template, value: "{year}"}
+        range: A26:BV68
+        columns: *ecu_2007_columns
+      - years: {min: 2016, max: 2016}
+        source: {type: single_stem, stem: input_data/sna_country_data/ECU/ceinivel2sd}
+        sheet: {type: template, value: "{year}sd"}
+        range: A26:BV68
+        columns: *ecu_2007_columns
+      - years: {min: 2017, max: 2017}
+        source: {type: single_stem, stem: input_data/sna_country_data/ECU/CEI2007-2020p}
+        sheet: {type: template, value: "CEI_{year}p"}
+        range: A26:Y90
+        columns:
+          code: A
+          code_long: B
+          households_r: S
+          households_u: J
+          NFC_r: P
+          FC_r: Q
+          GG_r: R
+          TOT_r: X
+          ROW_r: V
+      - years: {min: 2018, max: 2022}
+        source: {type: single_stem, stem: input_data/sna_country_data/ECU/mcs_cei_2018_2023p}
+        sheet: {type: template, value: "CEI_{year}"}
+        range: A38:BD128
+        columns: &ecu_2018_columns
+          code: A
+          code_long: B
+          households_r: AY
+          households_u: W
+          NFC_r: AK
+          FC_r: AT
+          GG_r: AX
+          TOT_r: BD
+          ROW_r: BB
+      - years: {min: 2023}
+        source: {type: single_stem, stem: input_data/sna_country_data/ECU/mcs_cei_2018_2023p}
+        sheet: {type: template, value: "CEI_{year}p"}
+        range: A38:BD128
+        columns: *ecu_2018_columns
+
+  MEX:
+    adapter: workbook_table
+    magnitude: 1000000
+    source:
+      type: indexed_year_file
+      folder: input_data/sna_country_data/MEX
+      index_file: input_data/sna_country_data/MEX/indice_archivos.txt
+      filename_column: 1
+      title_contains: "Cuentas institucionales de la economia, por sector"
+      unit_contains: "Precios corrientes en millones de pesos"
+      year_column: last
+      fallback_pattern: input_data/sna_country_data/MEX/CSI_{index}.xlsx
+      fallback_index_offset: 2000
+    layouts:
+      - years: {min: 2000}
+        sheet: {type: fixed, value: Tabulado}
+        range: A68:S153
+        columns:
+          code: A
+          code_long: A
+          households_r: I
+          households_u: H
+          NFC_r: C
+          FC_r: E
+          GG_r: G
+          TOT_r: S
+          ROW_r: "N"
