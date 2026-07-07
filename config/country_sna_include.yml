@@ -375,7 +375,7 @@ country_rules:
           TOT_r: X
           ROW_r: V
       - years: {min: 2018, max: 2022}
-        source: {type: single_stem, stem: input_data/sna_country_data/ECU/mcs_cei_2018_2023p}
+        source: {type: single_pattern, pattern: "input_data/sna_country_data/ECU/mc?_cei_2018_*.xls*"}
         sheet: {type: template, value: "CEI_{year}"}
         range: A38:BD128
         columns: &ecu_2018_columns
@@ -389,7 +389,7 @@ country_rules:
           TOT_r: BD
           ROW_r: BB
       - years: {min: 2023}
-        source: {type: single_stem, stem: input_data/sna_country_data/ECU/mcs_cei_2018_2023p}
+        source: {type: single_pattern, pattern: "input_data/sna_country_data/ECU/mc?_cei_2018_*.xls*"}
         sheet: {type: template, value: "CEI_{year}p"}
         range: A38:BD128
         columns: *ecu_2018_columns

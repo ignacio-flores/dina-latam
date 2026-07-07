@@ -431,6 +431,11 @@ country_sna_explorer_sheet_score <- function(sheet, target_year = NA_integer_, c
     score <- score + 0.20
     reason <- c(reason, "sheet_keyword")
   }
+  fixed_keywords <- country_sna_explorer_text(contract$layout_detection$fixed_sheet_keywords %||% character())
+  if (any(nzchar(fixed_keywords) & vapply(fixed_keywords, grepl, logical(1), x = sheet_norm, fixed = TRUE))) {
+    score <- max(score, 0.75)
+    reason <- c(reason, "fixed_sheet_keyword")
+  }
   if (identical(adapter_family, "account_sheet_workbook")) {
     account_keywords <- country_sna_explorer_text(contract$layout_detection$account_sheet_keywords %||% character())
     if (any(nzchar(account_keywords) & vapply(account_keywords, grepl, logical(1), x = sheet_norm, fixed = TRUE))) {

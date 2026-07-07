@@ -166,9 +166,9 @@ source_discovery:
         GG: S.1301
         ROW: S.2000
     ECU:
-      adapter_family: account_sheet_workbook
+      adapter_family: rectangular_workbook
       old: {type: single_pattern, pattern: "input_data/sna_country_data/ECU/mcs_cei_*.xls*"}
-      new: {type: single_pattern, pattern: "input_data/_new/country_sna/ECU/bam_cei_*.xls*"}
+      new: {type: single_pattern, pattern: "input_data/_new/country_sna/ECU/mcn_cei_*.xls*"}
 
 layout_detection:
   max_rows: 220
@@ -181,6 +181,7 @@ layout_detection:
   table_score_high: 0.70
   table_score_low: 0.40
   sheet_keywords: ["CEI", "cuentas corrientes", "tabulado"]
+  fixed_sheet_keywords: ["cuentas corrientes", "tabulado"]
   account_sheet_keywords:
     - "produccion"
     - "consumo intermedio"
