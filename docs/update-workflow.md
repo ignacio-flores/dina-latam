@@ -60,6 +60,19 @@ guarded promotion step that writes a backup snapshot first; restore uses that
 snapshot if the source promotion needs to be undone. These commands do not
 replace `01b` or run the pipeline.
 
+## Compress Input Data
+
+Use `dina compress input` when you need a portable zip of `input_data/`.
+The default excludes the heavy `admin-microdata` source type, currently
+`input_data/admin_data/MEX` and `input_data/admin_data/URY`.
+
+```bash
+dina compress input --dry-run
+dina compress input --dropbox
+```
+
+`--dropbox` reads and writes under `~/Dropbox/DINA-LatAm`.
+
 ## Run
 
 Pipeline tasks come from `config/pipeline.yml`; the CLI does not hardcode task

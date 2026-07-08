@@ -118,6 +118,26 @@ mini_repo <- function() {
       canonical = c("input_data/missing_*.csv"),
       integration = "none",
       notes = "Reference-only missing-source fixture."
+    ),
+    list(
+      id = "mex-admin-microdata",
+      family = "admin_microdata",
+      country = "MEX",
+      method = "manual",
+      canonical = c("input_data/admin_data/MEX"),
+      destination = "input_data/admin_data/MEX",
+      transformer = "code/Stata/02b-prepare-admin-microdata.do",
+      notes = "Heavy Mexico admin microdata fixture."
+    ),
+    list(
+      id = "ury-admin-microdata",
+      family = "admin_microdata",
+      country = "URY",
+      method = "manual",
+      canonical = c("input_data/admin_data/URY"),
+      destination = "input_data/admin_data/URY",
+      transformer = "code/Stata/02b-prepare-admin-microdata.do",
+      notes = "Heavy Uruguay admin microdata fixture."
     )
   )), file.path(root, "config", "sources.yml"))
 

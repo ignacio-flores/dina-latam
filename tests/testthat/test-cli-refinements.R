@@ -31,6 +31,7 @@ test_that("help describes the new workflow and omits retired command families", 
   expect_match(main$output, "`sources include SOURCETYPE`")
   expect_match(main$output, "`sources table SOURCETYPE TABLE`")
   expect_match(main$output, "`update config show\\|edit`")
+  expect_match(main$output, "`compress input`")
   expect_match(main$output, "`run list\\|why TASK`")
   expect_match(main$output, "`todo \\[check\\|uncheck\\|reset\\]`")
   expect_match(main$output, "`maintain repo-status\\|repo-diff`")
@@ -45,6 +46,7 @@ test_that("help describes the new workflow and omits retired command families", 
   expect_false(grepl("`sources review`", main$output, fixed = TRUE))
   expect_false(grepl("`sources integrate", main$output, fixed = TRUE))
   expect_false(grepl("`sources diagnose country-sna`", main$output, fixed = TRUE))
+  expect_false(grepl("`data check|pack|unpack`", main$output, fixed = TRUE))
   expect_false(grepl("update finalize", main$output, fixed = TRUE))
 
   workflow <- run_dina_cli(c("help", "workflow"))
@@ -70,6 +72,8 @@ test_that("help describes the new workflow and omits retired command families", 
   commands <- run_dina_cli(c("commands"), root = mini_repo())
   expect_equal(commands$status, 0L)
   expect_match(commands$output, "Workflow guide")
+  expect_match(commands$output, "Preview input zip")
+  expect_match(commands$output, "Dropbox input zip")
   expect_match(commands$output, "Explore source type")
   expect_match(commands$output, "Include source type")
   expect_match(commands$output, "Confirm source type")
@@ -77,6 +81,7 @@ test_that("help describes the new workflow and omits retired command families", 
   expect_match(commands$output, "Source type table preview")
   expect_false(grepl("Update recipe", commands$output, fixed = TRUE))
   expect_false(grepl("Country-SNA diagnostic", commands$output, fixed = TRUE))
+  expect_false(grepl("Data check", commands$output, fixed = TRUE))
 
   sources <- run_dina_cli(c("help", "sources"))
   expect_equal(sources$status, 0L)
@@ -92,7 +97,7 @@ test_that("help describes the new workflow and omits retired command families", 
   expect_match(sources$output, "--confirm")
   expect_match(sources$output, "--restore")
   expect_match(sources$output, "Source registry, incoming `_new` buckets, fetchers, and baseline comparison")
-  expect_match(sources$output, "sna, admin, surveys")
+  expect_match(sources$output, "sna, admin, admin-microdata, surveys")
   expect_false(grepl("dina sources show ID", sources$output, fixed = TRUE))
   expect_false(grepl("dina sources guide [ID", sources$output, fixed = TRUE))
   expect_false(grepl("dina sources review", sources$output, fixed = TRUE))
@@ -105,6 +110,20 @@ test_that("help describes the new workflow and omits retired command families", 
   expect_match(config$output, "dina update config edit")
   expect_false(grepl("dina config propose", config$output, fixed = TRUE))
   expect_false(grepl("dina update config set", config$output, fixed = TRUE))
+
+  compress <- run_dina_cli(c("help", "compress"))
+  expect_equal(compress$status, 0L)
+  expect_match(compress$output, "dina compress input")
+  expect_match(compress$output, "--dropbox")
+  expect_match(compress$output, "admin-microdata")
+
+  data_help <- run_dina_cli(c("help", "data"))
+  expect_equal(data_help$status, 0L)
+  expect_match(data_help$output, "Unknown help topic `data`")
+
+  data_check <- run_dina_cli(c("data", "check"))
+  expect_true(data_check$status != 0L)
+  expect_match(data_check$output, "Unknown command: data")
 })
 
 test_that("sources list is compact by default and exposes richer views", {

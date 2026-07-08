@@ -293,6 +293,7 @@ dina_source_public_family_map <- function() {
   list(
     sna = c("macro_sna", "country_sna"),
     admin = c("admin_tax", "admin_tax_aux"),
+    `admin-microdata` = c("admin_microdata"),
     surveys = c("surveys"),
     wid = c("wid"),
     other = c(
@@ -332,7 +333,8 @@ dina_source_resolve_family_filter <- function(value, root = dina_repo_root()) {
   }
   normalized <- dina_source_norm(value)
   public_map <- dina_source_public_family_map()
-  alias <- public_map[[normalized]] %||% switch(
+  public_match <- names(public_map)[dina_source_norm(names(public_map)) == normalized]
+  alias <- if (length(public_match)) public_map[[public_match[[1L]]]] else switch(
     normalized,
     admin_data = public_map$admin,
     country_sna = "country_sna",
@@ -3293,30 +3295,125 @@ dina_finalize_update <- function(session, root = dina_repo_root(), force = FALSE
   list(ok = TRUE, snapshot_dir = dina_relative(snapshot_dir, root), config_promoted = isTRUE(promote_config))
 }
 
-dina_pack_data <- function(root = dina_repo_root(), archive = NULL) {
-  config <- dina_config(root)
-  dir.create(file.path(root, config$archives$default_dir %||% "output/archives"), recursive = TRUE, showWarnings = FALSE)
-  if (is.null(archive)) {
-    archive <- file.path(root, config$archives$default_dir %||% "output/archives", paste0("primary-data-", format(Sys.Date(), "%Y-%m-%d"), ".tar.gz"))
-  } else if (!grepl("^/", archive)) {
-    archive <- file.path(root, archive)
-  }
-  old <- setwd(root)
-  on.exit(setwd(old), add = TRUE)
-  paths <- config$archives$primary_paths %||% c("input_data", "previous_series")
-  paths <- paths[file.exists(paths)]
-  utils::tar(archive, files = paths, compression = "gzip")
-  archive
+dina_compress_dropbox_root <- function() {
+  normalizePath(path.expand(Sys.getenv("DINA_DROPBOX_ROOT", unset = "~/Dropbox/DINA-LatAm")), mustWork = FALSE)
 }
 
-dina_data_check <- function(root = dina_repo_root()) {
-  config <- dina_config(root)
-  paths <- c(config$archives$primary_paths %||% character(), config$paths$input_data %||% "input_data")
-  unique(data.frame(
-    path = paths,
-    exists = file.exists(file.path(root, paths)),
+dina_compress_flag_values <- function(value) {
+  if (is.null(value) || isTRUE(value) || !length(value)) {
+    return(character())
+  }
+  value <- unlist(strsplit(as.character(value), ",", fixed = TRUE), use.names = FALSE)
+  value <- trimws(value)
+  unique(value[nzchar(value)])
+}
+
+dina_compress_source_type_paths <- function(type, root = dina_repo_root()) {
+  normalized <- dina_source_norm(type)
+  fallback <- if (identical(normalized, "admin_microdata")) {
+    c("input_data/admin_data/MEX", "input_data/admin_data/URY")
+  } else {
+    character()
+  }
+  registry_paths <- character()
+  families <- tryCatch(dina_source_resolve_family_filter(type, root), error = function(e) character())
+  if (length(families)) {
+    registry <- dina_source_registry(root, family = families)
+    registry_paths <- unique(unlist(lapply(registry, function(source) {
+      c(
+        dina_source_values(source$canonical %||% character()),
+        dina_source_values(source$destination %||% character()),
+        dina_source_values(source$destinations %||% character())
+      )
+    }), use.names = FALSE))
+  }
+  paths <- unique(c(registry_paths, fallback))
+  paths <- paths[nzchar(paths)]
+  paths <- gsub("\\\\", "/", paths)
+  paths <- sub("^\\./", "", paths)
+  paths <- paths[paths == "input_data" | startsWith(paths, "input_data/")]
+  paths
+}
+
+dina_compress_input_plan <- function(
+    root = dina_repo_root(),
+    dropbox = FALSE,
+    output = NULL,
+    all = FALSE,
+    include = character(),
+    exclude = character()) {
+  operation_root <- if (isTRUE(dropbox)) dina_compress_dropbox_root() else normalizePath(root, mustWork = FALSE)
+  if (isTRUE(dropbox) && !dir.exists(operation_root)) {
+    stop("Dropbox mirror not found: ", operation_root, call. = FALSE)
+  }
+  input_root <- file.path(operation_root, "input_data")
+  if (!dir.exists(input_root)) {
+    stop("Input data folder not found: ", input_root, call. = FALSE)
+  }
+  archive <- output %||% file.path("output", "archives", paste0("input-data-", format(Sys.Date(), "%Y-%m-%d"), ".zip"))
+  if (!grepl("^/", archive)) {
+    archive <- file.path(operation_root, archive)
+  }
+  include <- dina_compress_flag_values(include)
+  exclude <- dina_compress_flag_values(exclude)
+  default_exclude <- if (isTRUE(all)) character() else "admin-microdata"
+  exclude_types <- unique(c(default_exclude, exclude))
+  exclude_types <- exclude_types[!dina_source_norm(exclude_types) %in% dina_source_norm(include)]
+  excluded_paths <- unique(unlist(lapply(exclude_types, dina_compress_source_type_paths, root = operation_root), use.names = FALSE))
+  excluded_paths <- excluded_paths[nzchar(excluded_paths)]
+  excluded <- data.frame(
+    path = excluded_paths,
+    exists = file.exists(file.path(operation_root, excluded_paths)),
     stringsAsFactors = FALSE
-  ))
+  )
+  zip_patterns <- unique(unlist(lapply(excluded_paths, function(path) {
+    c(path, paste0(path, "/"), paste0(path, "/*"), paste0(path, "/**"))
+  }), use.names = FALSE))
+  list(
+    target = "input",
+    source_root = operation_root,
+    included_root = "input_data",
+    output = normalizePath(archive, mustWork = FALSE),
+    dropbox = isTRUE(dropbox),
+    excluded_types = exclude_types,
+    excluded_paths = excluded,
+    zip_exclude_patterns = zip_patterns
+  )
+}
+
+dina_compress_input <- function(root = dina_repo_root(), dropbox = FALSE, output = NULL, all = FALSE, include = character(), exclude = character(), dry_run = FALSE) {
+  plan <- dina_compress_input_plan(root = root, dropbox = dropbox, output = output, all = all, include = include, exclude = exclude)
+  if (isTRUE(dry_run)) {
+    plan$dry_run <- TRUE
+    return(plan)
+  }
+  zip_cmd <- Sys.getenv("DINA_ZIP_CMD", unset = Sys.getenv("R_ZIPCMD", unset = ""))
+  if (!nzchar(zip_cmd)) {
+    zip_cmd <- if (file.exists("/usr/bin/zip")) "/usr/bin/zip" else "zip"
+  }
+  zip_available <- if (grepl("/", zip_cmd, fixed = TRUE)) file.exists(zip_cmd) else nzchar(Sys.which(zip_cmd))
+  if (!zip_available) {
+    stop("zip command not found. Set DINA_ZIP_CMD or install zip.", call. = FALSE)
+  }
+  dir.create(dirname(plan$output), recursive = TRUE, showWarnings = FALSE)
+  if (file.exists(plan$output)) {
+    unlink(plan$output)
+  }
+  old <- setwd(plan$source_root)
+  on.exit(setwd(old), add = TRUE)
+  args <- c("-r9X", plan$output, plan$included_root)
+  if (length(plan$zip_exclude_patterns)) {
+    args <- c(args, "-x", plan$zip_exclude_patterns)
+  }
+  output_lines <- system2(zip_cmd, args = args, stdout = TRUE, stderr = TRUE)
+  status <- attr(output_lines, "status") %||% 0L
+  plan$dry_run <- FALSE
+  plan$status <- as.integer(status)
+  plan$zip_output <- paste(output_lines, collapse = "\n")
+  if (!identical(as.integer(status), 0L)) {
+    stop("zip failed", if (nzchar(plan$zip_output)) paste0(":\n", plan$zip_output) else ".", call. = FALSE)
+  }
+  plan
 }
 
 dina_command_program <- function(command) {

@@ -161,7 +161,7 @@ Setup and config:
   `install`                           install missing R packages
   `config show|check`                 [read-only] inspect benchmark config
   `update config show|edit`           [writes override] active update config
-  `data check|pack|unpack`            [read-only/writes archive/writes files]
+  `compress input`                    [writes zip] bundle input_data
   `notify init|test`                  configure or test Pushover
   `setup command`                     install the user-level `dina` wrapper
 
@@ -198,6 +198,7 @@ Examples:
   dina update start YEAR
   dina sources list
   dina sources fetch --dry-run
+  dina compress input --dry-run
   dina run 01a
   dina run 01a --dry-run
 ",
@@ -471,8 +472,8 @@ Examples:
 What it manages:
   Source registry, incoming `_new` buckets, fetchers, and baseline comparison.
   Supported fetches write directly to `input_data/_new`. Public source types are
-  sna, admin, surveys, wid, and other. Only sna has explore/include/table
-  automation for now; it does not replace `01b`.
+  sna, admin, admin-microdata, surveys, wid, and other. Only sna has
+  explore/include/table automation for now; it does not replace `01b`.
 
 Subcommands:
   list                            Default compact registry view. Columns: id,
@@ -518,8 +519,9 @@ Options:
   --all                           For fetch, process every eligible matching
                                   source.
   SOURCETYPE                      Keep a public source type: sna, admin,
-                                  surveys, wid, other. Internal family names
-                                  also work as compatibility selectors.
+                                  admin-microdata, surveys, wid, other.
+                                  Internal family names also work as
+                                  compatibility selectors.
   --country ISO                   For list, keep one ISO country plus broad
                                   country sources.
   country ISO                     Friendly form of --country ISO for list.
@@ -696,30 +698,42 @@ Examples:
   dina todo uncheck review-config
   dina todo reset
 ",
-    data = "Usage:
-  dina data check
-  dina data pack [ARCHIVE]
-  dina data unpack ARCHIVE
+    compress = "Usage:
+  dina compress input [OPTIONS]
 
 What it manages:
-  Portable primary-data bundles for machines or servers where large data are not
-  permanently stored.
+  Zip bundles for selected project folders. The first supported target is
+  `input`, which writes a `.zip` archive containing `input_data/`.
 
-Subcommands:
-  check                           Reports whether configured primary paths exist.
-  pack [ARCHIVE]                  Creates a `.tar.gz` archive from configured
-                                  primary paths. If no archive is given, writes
-                                  under `output/archives/`.
-  unpack ARCHIVE                  Extracts an archive into the repo root.
+Options:
+  --dry-run                       Preview the archive plan without writing.
+  --dropbox                       Use ~/Dropbox/DINA-LatAm as both source root
+                                  and output root. Tests may override this with
+                                  DINA_DROPBOX_ROOT.
+  --all                           Include every configured input source type.
+  --include SOURCETYPE            Include a source type otherwise excluded by
+                                  default. Example: admin-microdata.
+  --exclude SOURCETYPE            Exclude a source type from the zip.
+  --output PATH                   Write to PATH. Relative paths are relative to
+                                  the selected source root.
 
-What it changes:
-  `check` changes nothing. `pack` writes an archive. `unpack` may create or
-  overwrite data files depending on archive contents.
+Defaults:
+  Source root: current repo.
+  Output zip: output/archives/input-data-YYYY-MM-DD.zip.
+  Included root: input_data.
+  Excluded source types: admin-microdata.
+
+Source types:
+  Uses the same public SOURCETYPE vocabulary as `dina sources list`, including
+  admin-microdata for the heavy MEX and URY admin-data folders.
 
 Examples:
-  dina data check
-  dina data pack output/archives/primary-data-YEAR.tar.gz
-  dina data unpack output/archives/primary-data-YEAR.tar.gz
+  dina compress input --dry-run
+  dina compress input --dropbox
+  dina compress input --all
+  dina compress input --include admin-microdata
+  dina compress input --exclude admin-microdata
+  dina compress input --output output/archives/input-data.zip
 ",
     audit = "Usage:
   dina audit paths
@@ -1645,7 +1659,8 @@ dina_command_catalog <- function(year = format(Sys.Date(), "%Y")) {
         dina_command_entry("config-check", "Check config", "Report required config keys and legacy runtime file status.", args = c("config", "check")),
         dina_command_entry("update-config-show", "Show update config", "Show benchmark, working override, and effective active-update config.", args = c("update", "config", "show")),
         dina_command_entry("update-config-edit", "Edit update config", "Open the active update working override for manual editing.", args = c("update", "config", "edit"), mutating = TRUE),
-        dina_command_entry("data-check", "Data check", "Report whether configured primary paths exist.", args = c("data", "check")),
+        dina_command_entry("compress-input-preview", "Preview input zip", "Preview a zip bundle of input_data without heavy admin microdata.", args = c("compress", "input", "--dry-run")),
+        dina_command_entry("compress-input-dropbox", "Dropbox input zip", "Zip Dropbox mirror input_data under ~/Dropbox/DINA-LatAm/output/archives.", args = c("compress", "input", "--dropbox"), mutating = TRUE),
         dina_command_entry("notify-init", "Initialize notifications", "Create local Pushover placeholder config.", args = c("notify", "init"), mutating = TRUE),
         dina_command_entry("notify-test", "Test notification", "Send a Pushover test message.", args = c("notify", "test"), mutating = TRUE),
         dina_command_entry("setup-command", "Install command wrapper", "Install the user-level dina wrapper.", args = c("setup", "command"), mutating = TRUE)
@@ -4623,7 +4638,7 @@ dina_source_workflow_family <- function(target = NULL, command = "explore") {
     }
     return("sna")
   }
-  if (normalized %in% dina_source_public_families()) {
+  if (normalized %in% dina_source_norm(dina_source_public_families())) {
     stop(
       sprintf(
         "`dina sources %s %s` is not implemented yet. For now, populate the buckets and inspect them with `dina sources list %s`.",
@@ -5040,27 +5055,60 @@ dina_cmd_config <- function(root, args) {
   }
 }
 
-dina_cmd_data <- function(root, args) {
-  args <- dina_drop_leading_separator(args)
-  sub <- dina_arg(args, 1L, "check")
-  if (identical(sub, "check")) {
-    checks <- dina_data_check(root)
-    dina_cli_header("Data Check")
-    for (i in seq_len(nrow(checks))) {
-      if (checks$exists[i]) dina_cli_ok(checks$path[i]) else dina_cli_warn(paste("missing", checks$path[i]))
+dina_print_compress_input <- function(result) {
+  title <- if (isTRUE(result$dry_run)) "Compress Input Preview" else "Compress Input"
+  dina_cli_header(title)
+  dina_cli_cat(dina_cli_key_value("Source root:", result$source_root %||% ""))
+  dina_cli_cat(dina_cli_key_value("Included root:", result$included_root %||% ""))
+  dina_cli_cat(dina_cli_key_value("Output zip:", result$output %||% ""))
+  excluded_types <- result$excluded_types %||% character()
+  dina_cli_cat(dina_cli_key_value("Excluded source types:", if (length(excluded_types)) paste(excluded_types, collapse = ", ") else "none"))
+  excluded <- result$excluded_paths
+  if (is.data.frame(excluded) && nrow(excluded)) {
+    dina_cli_cat("")
+    dina_cli_cat("Excluded paths:")
+    for (i in seq_len(nrow(excluded))) {
+      status <- if (isTRUE(excluded$exists[[i]])) "present" else "missing"
+      dina_cli_cat(sprintf("  %-8s %s", status, excluded$path[[i]]))
     }
-  } else if (identical(sub, "pack")) {
-    archive <- dina_arg(args, 2L, NULL)
-    path <- dina_pack_data(root, archive)
-    dina_cli_ok(sprintf("Packed %s", dina_relative(path, root)))
-  } else if (identical(sub, "unpack")) {
-    archive <- dina_arg(args, 2L, NULL)
-    if (is.null(archive)) stop("Usage: dina data unpack ARCHIVE", call. = FALSE)
-    utils::untar(archive, exdir = root)
-    dina_cli_ok(sprintf("Unpacked %s", archive))
-  } else {
-    stop("Unknown data command: ", sub, call. = FALSE)
   }
+  if (isTRUE(result$dry_run)) {
+    dina_cli_alert("Dry-run only: no zip was written.")
+  } else {
+    dina_cli_ok(sprintf("Wrote %s", result$output %||% ""))
+  }
+  invisible(result)
+}
+
+dina_cmd_compress <- function(root, args) {
+  args <- dina_drop_leading_separator(args)
+  target <- dina_arg(args, 1L, "input")
+  if (!identical(target, "input")) {
+    stop("Usage: dina compress input [--dry-run] [--dropbox] [--all] [--include SOURCETYPE] [--exclude SOURCETYPE] [--output PATH]", call. = FALSE)
+  }
+  flags <- dina_parse_flags(args[-1])
+  if (length(flags$positional %||% character())) {
+    stop("Usage: dina compress input [--dry-run] [--dropbox] [--all] [--include SOURCETYPE] [--exclude SOURCETYPE] [--output PATH]", call. = FALSE)
+  }
+  if (isTRUE(flags$output)) {
+    stop("Missing value for --output.", call. = FALSE)
+  }
+  if (isTRUE(flags$include)) {
+    stop("Missing value for --include.", call. = FALSE)
+  }
+  if (isTRUE(flags$exclude)) {
+    stop("Missing value for --exclude.", call. = FALSE)
+  }
+  result <- dina_compress_input(
+    root = root,
+    dropbox = isTRUE(flags$dropbox),
+    output = flags$output %||% NULL,
+    all = isTRUE(flags$all),
+    include = flags$include %||% character(),
+    exclude = flags$exclude %||% character(),
+    dry_run = isTRUE(flags[["dry-run"]])
+  )
+  dina_print_compress_input(result)
 }
 
 dina_cmd_audit <- function(root, args) {
@@ -5210,7 +5258,7 @@ dina_main <- function(args = commandArgs(trailingOnly = TRUE), root = dina_repo_
     run = dina_cmd_run(root, rest),
     todo = dina_cmd_todo(root, rest),
     config = dina_cmd_config(root, rest),
-    data = dina_cmd_data(root, rest),
+    compress = dina_cmd_compress(root, rest),
     commands = dina_cmd_commands(root, rest),
     navigate = dina_cmd_commands(root, rest),
     menu = dina_cmd_menu(root, rest),

@@ -75,6 +75,8 @@ This repository also includes an experimental R-based project CLI:
 ./bin/dina sources table sna year_expectations
 ./bin/dina sources include sna --dry-run
 ./bin/dina sources include sna --confirm --include-run RUN
+./bin/dina compress input --dry-run
+./bin/dina compress input --dropbox
 ./bin/dina run list
 ./bin/dina run 01a
 ./bin/dina update close --dry-run

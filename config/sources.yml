@@ -111,6 +111,26 @@ sources:
     integration: none
     notes: Manually curated tax/admin inputs consumed by static and updated admin-data pipeline tasks.
 
+  - id: mex-admin-microdata
+    family: admin_microdata
+    country: MEX
+    method: manual
+    canonical:
+      - input_data/admin_data/MEX
+    destination: input_data/admin_data/MEX
+    transformer: code/Stata/02b-prepare-admin-microdata.do
+    notes: Heavy static Mexico admin microdata consumed by inactive task 02b; excluded from input compression by default.
+
+  - id: ury-admin-microdata
+    family: admin_microdata
+    country: URY
+    method: manual
+    canonical:
+      - input_data/admin_data/URY
+    destination: input_data/admin_data/URY
+    transformer: code/Stata/02b-prepare-admin-microdata.do
+    notes: Heavy static Uruguay admin microdata consumed by inactive task 02b; excluded from input compression by default.
+
   - id: col-pit-total
     family: admin_tax
     country: COL
