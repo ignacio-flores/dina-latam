@@ -240,15 +240,15 @@ test_that("session state recommends country-SNA explore when that inbox has file
       country = "AAA",
       method = "manual",
       canonical = "input_data/sna_country_data/AAA/*.xlsx",
-      inbox = "input_data/_new/country_sna/AAA/*.xlsx",
+      inbox = "input_data/_new/sna/AAA/*.xlsx",
       destination = "input_data/sna_country_data/AAA/{basename}",
       transformer = "code/Stata/01b-add-country-sna.do",
       notes = "Country-SNA fixture."
     )
   )), file.path(root, "config", "sources.yml"))
   session <- dina_update_start("2026", root = root)
-  dir.create(file.path(root, "input_data", "_new", "country_sna", "AAA"), recursive = TRUE, showWarnings = FALSE)
-  writeLines("new", file.path(root, "input_data", "_new", "country_sna", "AAA", "cei_2024.xlsx"))
+  dir.create(file.path(root, "input_data", "_new", "sna", "AAA"), recursive = TRUE, showWarnings = FALSE)
+  writeLines("new", file.path(root, "input_data", "_new", "sna", "AAA", "cei_2024.xlsx"))
 
   state <- dina_session_state(session, root = root)
   expect_equal(state$state, "sources_pending")

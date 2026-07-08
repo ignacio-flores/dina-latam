@@ -2151,7 +2151,7 @@ dina_country_sna_matching_explore <- function(root = dina_repo_root()) {
   current <- dina_country_sna_inbox_signature(root)
   if (!nrow(current)) return(NULL)
   fingerprints <- utils::read.csv(fingerprints_path, stringsAsFactors = FALSE, na.strings = c("", "NA"))
-  fingerprints <- fingerprints[grepl("^input_data/_new/country_sna/", fingerprints$rel %||% ""), , drop = FALSE]
+  fingerprints <- fingerprints[grepl("^input_data/_new/sna/", fingerprints$rel %||% ""), , drop = FALSE]
   if (!nrow(fingerprints)) return(NULL)
   key <- function(df) paste(df$rel, df$size, df$mtime, sep = "|")
   if (!all(key(current) %in% key(fingerprints))) return(NULL)
@@ -2283,7 +2283,7 @@ dina_dashboard_state_fast <- function(session, root = dina_repo_root()) {
       "sources_pending",
       dina_recommendation(
         command = "dina sources explore sna",
-        why = sprintf("%s incoming country-SNA source file%s %s waiting in input_data/_new/country_sna.", nrow(country_sna_inbox), if (nrow(country_sna_inbox) == 1L) "" else "s", if (nrow(country_sna_inbox) == 1L) "is" else "are"),
+        why = sprintf("%s incoming country-SNA source file%s %s waiting in input_data/_new/sna.", nrow(country_sna_inbox), if (nrow(country_sna_inbox) == 1L) "" else "s", if (nrow(country_sna_inbox) == 1L) "is" else "are"),
         todo_id = "country-sna-source-workflow",
         todo_label = "Explore country-SNA source changes",
         expected_action = "Inventory new files, likely years, layout changes, and expected variables before attempting inclusion.",
@@ -4230,6 +4230,40 @@ dina_print_bucket_uses <- function(rows) {
   invisible(rows)
 }
 
+dina_bucket_fetch_followup_messages <- function(fetch_rows) {
+  active_status <- c("fetched", "already_present", "would_fetch")
+  active <- fetch_rows[fetch_rows$status %in% active_status, , drop = FALSE]
+  if (!nrow(active)) {
+    return(character())
+  }
+  source_types <- sort(unique(vapply(active$family, dina_source_public_family_for_internal, character(1))))
+  source_types <- source_types[nzchar(source_types)]
+  messages <- character()
+  if ("admin" %in% source_types) {
+    messages <- c(
+      messages,
+      "Admin fetch targets land in input_data/_new/admin. Review with `dina sources explore admin`, then validate with `dina sources include admin --dry-run`."
+    )
+  }
+  if ("sna" %in% source_types) {
+    messages <- c(
+      messages,
+      "SNA fetch targets land in input_data/_new/sna. Review with `dina sources explore sna`, then validate with `dina sources include sna --dry-run`."
+    )
+  }
+  unsupported <- setdiff(source_types, c("admin", "sna"))
+  if (length(unsupported)) {
+    messages <- c(
+      messages,
+      sprintf(
+        "Fetch targets for %s land in input_data/_new. No source validation/preparation workflow is implemented yet for those source types.",
+        paste(unsupported, collapse = ", ")
+      )
+    )
+  }
+  messages
+}
+
 dina_print_bucket_fetch_results <- function(rows, dry_run = FALSE, show_skipped = FALSE, title = NULL) {
   dina_cli_header(title %||% if (isTRUE(dry_run)) "Source Fetch Preview" else "Source Fetch")
   if (!nrow(rows)) {
@@ -4289,8 +4323,11 @@ dina_print_bucket_fetch_results <- function(rows, dry_run = FALSE, show_skipped 
   if (isTRUE(dry_run)) {
     dina_cli_ok("Dry-run only: no files were written.")
   }
-  if (any(fetch_rows$status %in% c("fetched", "already_present", "would_fetch"))) {
-    dina_cli_alert("Fetched files land in input_data/_new. No source validation/preparation workflow is implemented yet.")
+  followups <- dina_bucket_fetch_followup_messages(fetch_rows)
+  if (length(followups)) {
+    for (message in followups) {
+      dina_cli_alert(message)
+    }
   }
   invisible(rows)
 }

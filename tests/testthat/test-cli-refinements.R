@@ -156,6 +156,64 @@ test_that("sources list is compact by default and exposes richer views", {
   expect_match(urls$output, "https://example.test/source-a")
 })
 
+test_that("source inbox displays use normalized public buckets", {
+  retired_inboxes <- c(
+    "input_data/_new/admin_tax",
+    "input_data/_new/admin_tax_aux",
+    "input_data/_new/country_sna",
+    "input_data/_new/survey_inputs",
+    "input_data/_new/macro",
+    "input_data/_new/spending",
+    "input_data/_new/tax_rates",
+    "input_data/_new/validation",
+    "input_data/_new/prices",
+    "input_data/_new/population",
+    "input_data/_new/balance_sheet",
+    "input_data/_new/tax_composition",
+    "input_data/_new/social_security",
+    "input_data/_new/ceq",
+    "input_data/_new/public_spending"
+  )
+
+  guide <- run_dina_cli(c("sources", "inbox", "guide"), root = repo_root_for_tests)
+  expect_equal(guide$status, 0L)
+  expect_match(guide$output, "input_data/_new/admin")
+  expect_match(guide$output, "input_data/_new/sna")
+  expect_match(guide$output, "input_data/_new/surveys")
+  expect_match(guide$output, "input_data/_new/other")
+  expect_false(any(vapply(retired_inboxes, grepl, logical(1), x = guide$output, fixed = TRUE)))
+
+  paths <- run_dina_cli(c("sources", "list", "paths", "--no-menu"), root = repo_root_for_tests)
+  expect_equal(paths$status, 0L)
+  expect_match(paths$output, "input_data/_new/admin")
+  expect_match(paths$output, "input_data/_new/sna")
+  expect_match(paths$output, "input_data/_new/surveys")
+  expect_match(paths$output, "input_data/_new/other")
+  expect_false(any(vapply(retired_inboxes, grepl, logical(1), x = paths$output, fixed = TRUE)))
+
+  inbox_state <- dina_sources_inbox_init(repo_root_for_tests, dry_run = TRUE, migrate = FALSE)
+  expect_equal(sort(basename(inbox_state$buckets$bucket)), c("admin", "other", "sna", "surveys"))
+
+  mex_fetch <- run_dina_cli(c("sources", "fetch", "country-sna-mex", "--dry-run"), root = repo_root_for_tests)
+  expect_equal(mex_fetch$status, 0L)
+  expect_match(mex_fetch$output, "input_data/_new/sna/MEX/tabulados_si.zip")
+  expect_match(mex_fetch$output, "dina sources explore sna")
+  expect_match(mex_fetch$output, "dina sources include sna --dry-run")
+  expect_false(grepl("input_data/_new/country_sna", mex_fetch$output, fixed = TRUE))
+
+  minwage_fetch <- run_dina_cli(c("sources", "fetch", "bra-minwage", "--dry-run"), root = repo_root_for_tests)
+  expect_equal(minwage_fetch$status, 0L)
+  expect_match(minwage_fetch$output, "input_data/_new/admin/BRA/wiki_minwage.csv")
+  expect_match(minwage_fetch$output, "dina sources explore admin")
+  expect_match(minwage_fetch$output, "dina sources include admin --dry-run")
+  expect_false(grepl("No source validation/preparation workflow is implemented yet", minwage_fetch$output, fixed = TRUE))
+
+  xrates_fetch <- run_dina_cli(c("sources", "fetch", "wb-xrates", "--dry-run"), root = repo_root_for_tests)
+  expect_equal(xrates_fetch$status, 0L)
+  expect_match(xrates_fetch$output, "input_data/_new/other/prices/wb-xrates.xls")
+  expect_false(grepl("input_data/_new/survey_inputs", xrates_fetch$output, fixed = TRUE))
+})
+
 test_that("public source type filters aggregate internal families including wid", {
   root <- mini_repo()
   dina_write_yaml(list(sources = list(

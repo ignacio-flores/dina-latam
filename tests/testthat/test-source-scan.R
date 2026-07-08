@@ -66,6 +66,34 @@ test_that("source diff distinguishes content changes from timestamp-only changes
 })
 
 test_that("project source registry is a complete readable catalog", {
+  registry_text <- paste(readLines(file.path(repo_root_for_tests, "config", "sources.yml"), warn = FALSE), collapse = "\n")
+  explorer_text <- paste(readLines(file.path(repo_root_for_tests, "config", "country_sna_explorer.yml"), warn = FALSE), collapse = "\n")
+  retired_inboxes <- c(
+    "input_data/_new/admin_tax",
+    "input_data/_new/admin_tax_aux",
+    "input_data/_new/country_sna",
+    "input_data/_new/survey_inputs",
+    "input_data/_new/macro",
+    "input_data/_new/spending",
+    "input_data/_new/tax_rates",
+    "input_data/_new/validation",
+    "input_data/_new/prices",
+    "input_data/_new/population",
+    "input_data/_new/balance_sheet",
+    "input_data/_new/tax_composition",
+    "input_data/_new/social_security",
+    "input_data/_new/ceq",
+    "input_data/_new/public_spending"
+  )
+  expect_false(any(vapply(retired_inboxes, grepl, logical(1), x = registry_text, fixed = TRUE)))
+  expect_false(any(vapply(retired_inboxes, grepl, logical(1), x = explorer_text, fixed = TRUE)))
+
+  registry_inboxes <- regmatches(registry_text, gregexpr("input_data/_new/[^[:space:]\"']+", registry_text, perl = TRUE))[[1]]
+  registry_inboxes <- sub("[,)]$", "", registry_inboxes)
+  registry_buckets <- unique(sub("^input_data/_new/([^/]+).*$", "\\1", registry_inboxes))
+  expect_true(all(registry_buckets %in% c("admin", "sna", "surveys", "other")))
+  expect_true(all(c("admin", "sna", "surveys", "other") %in% registry_buckets))
+
   registry <- dina_sources(repo_root_for_tests)$sources
   ids <- vapply(registry, function(source) source$id, character(1))
 

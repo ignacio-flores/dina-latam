@@ -52,7 +52,7 @@ country_sna_explorer_fixture_contract <- function(root) {
         AAA = list(
           adapter_family = "rectangular_workbook",
           old = list(type = "single_stem", stem = "input_data/sna_country_data/AAA/fixture"),
-          new = list(type = "single_pattern", pattern = "input_data/_new/country_sna/AAA/*.xlsx")
+          new = list(type = "single_pattern", pattern = "input_data/_new/sna/AAA/*.xlsx")
         ),
         MEX = list(
           adapter_family = "rectangular_workbook",
@@ -65,7 +65,7 @@ country_sna_explorer_fixture_contract <- function(root) {
             fallback_pattern = "input_data/sna_country_data/MEX/CSI_{index}.xlsx",
             fallback_index_offset = 2000L
           ),
-          new = list(type = "single_pattern", pattern = "input_data/_new/country_sna/MEX/*.xlsx")
+          new = list(type = "single_pattern", pattern = "input_data/_new/sna/MEX/*.xlsx")
         ),
         URY = list(
           adapter_family = "sector_file_bundle",
@@ -74,13 +74,13 @@ country_sna_explorer_fixture_contract <- function(root) {
             folder = "input_data/sna_country_data/URY",
             pattern = "CSI_3.{year}_SC_*.xlsx"
           ),
-          new = list(type = "sector_file_bundle", folder = "input_data/_new/country_sna/URY", pattern = "CSI_3.{year}_SC_*.xlsx"),
+          new = list(type = "sector_file_bundle", folder = "input_data/_new/sna/URY", pattern = "CSI_3.{year}_SC_*.xlsx"),
           sector_codes = list(households = "S.1402", GG = "S.1301", ROW = "S.2000")
         ),
         ECU = list(
           adapter_family = "account_sheet_workbook",
           old = list(type = "single_pattern", pattern = "input_data/sna_country_data/ECU/mcs_cei_*.xlsx"),
-          new = list(type = "single_pattern", pattern = "input_data/_new/country_sna/ECU/bam_cei_*.xlsx")
+          new = list(type = "single_pattern", pattern = "input_data/_new/sna/ECU/bam_cei_*.xlsx")
         )
       )
     ),
@@ -154,10 +154,10 @@ test_that("adaptive table and role detection finds shifted rectangular layouts",
 
   root <- tempfile("country-sna-adaptive-rect-")
   dir.create(file.path(root, "input_data", "sna_country_data", "AAA"), recursive = TRUE)
-  dir.create(file.path(root, "input_data", "_new", "country_sna", "AAA"), recursive = TRUE)
+  dir.create(file.path(root, "input_data", "_new", "sna", "AAA"), recursive = TRUE)
   path <- file.path(root, "input_data", "sna_country_data", "AAA", "fixture.xlsx")
   country_sna_explorer_write_rectangular_fixture(path)
-  country_sna_explorer_write_rectangular_fixture(file.path(root, "input_data", "_new", "country_sna", "AAA", "fixture_new.xlsx"))
+  country_sna_explorer_write_rectangular_fixture(file.path(root, "input_data", "_new", "sna", "AAA", "fixture_new.xlsx"))
   contract <- country_sna_explorer_fixture_contract(root)
   result <- run_country_sna_explorer(root = root, contract_path = {
     p <- file.path(root, "contract.yml")
@@ -194,6 +194,29 @@ test_that("adaptive table and role detection finds shifted rectangular layouts",
   expect_true(any(result$outputs$year_expectations$country == "AAA" & result$outputs$year_expectations$year_role == "overlap"))
   expect_true(any(result$outputs$variable_expectations$country == "AAA" & result$outputs$variable_expectations$variable == "D4_cei"))
   expect_equal(result$outputs$review_actions$action[result$outputs$review_actions$country == "AAA"], "include_dry_run")
+})
+
+test_that("explorer ignores retired country_sna inbox paths", {
+  country_sna_explorer_quiet_locale()
+  skip_if_not_installed("openxlsx")
+  skip_if_not_installed("readxl")
+
+  root <- tempfile("country-sna-retired-inbox-")
+  dir.create(file.path(root, "input_data", "sna_country_data", "AAA"), recursive = TRUE)
+  dir.create(file.path(root, "input_data", "_new", "country_sna", "AAA"), recursive = TRUE)
+  country_sna_explorer_write_rectangular_fixture(file.path(root, "input_data", "sna_country_data", "AAA", "fixture.xlsx"))
+  country_sna_explorer_write_rectangular_fixture(file.path(root, "input_data", "_new", "country_sna", "AAA", "fixture_new.xlsx"))
+  contract <- country_sna_explorer_fixture_contract(root)
+  result <- run_country_sna_explorer(root = root, contract_path = {
+    p <- file.path(root, "contract.yml")
+    yaml::write_yaml(contract, p)
+    p
+  }, years = 2024L, countries = "AAA", write_outputs = FALSE)
+
+  new_rows <- result$outputs$source_inventory[result$outputs$source_inventory$country == "AAA" & result$outputs$source_inventory$source_set == "new", , drop = FALSE]
+  expect_true(nrow(new_rows) > 0L)
+  expect_true(all(new_rows$status == "no_file"))
+  expect_false(any(grepl("input_data/_new/country_sna", new_rows$file, fixed = TRUE)))
 })
 
 test_that("adaptive value candidates flag duplicate conflicts", {
@@ -334,8 +357,8 @@ test_that("adaptive audit inventories Ecuador account-sheet workbooks as unhandl
   skip_if_not_installed("openxlsx")
 
   root <- tempfile("country-sna-adaptive-ecu-")
-  dir.create(file.path(root, "input_data", "_new", "country_sna", "ECU"), recursive = TRUE)
-  path <- file.path(root, "input_data", "_new", "country_sna", "ECU", "bam_cei_2018_2024p.xlsx")
+  dir.create(file.path(root, "input_data", "_new", "sna", "ECU"), recursive = TRUE)
+  path <- file.path(root, "input_data", "_new", "sna", "ECU", "bam_cei_2018_2024p.xlsx")
   wb <- openxlsx::createWorkbook()
   openxlsx::addWorksheet(wb, "Produccion")
   openxlsx::writeData(wb, "Produccion", data.frame(x = 1))

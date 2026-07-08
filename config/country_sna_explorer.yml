@@ -112,27 +112,27 @@ source_discovery:
     PER:
       adapter_family: rectangular_workbook
       old: {type: single_stem, stem: input_data/sna_country_data/PER/CEI_merged}
-      new: {type: year_pattern, pattern: "input_data/_new/country_sna/PER/cei_econtotal_{year}*.xls*"}
+      new: {type: year_pattern, pattern: "input_data/_new/sna/PER/cei_econtotal_{year}*.xls*"}
     DOM:
       adapter_family: rectangular_workbook
       old: {type: single_stem, stem: input_data/sna_country_data/DOM/cei}
-      new: {type: single_pattern, pattern: "input_data/_new/country_sna/DOM/*.xls*"}
+      new: {type: single_pattern, pattern: "input_data/_new/sna/DOM/*.xls*"}
     CRI:
       adapter_family: rectangular_workbook
       old: {type: year_pattern, pattern: "input_data/sna_country_data/CRI/Cuentas_Economicas_Integradas_{year}.xls*"}
-      new: {type: year_pattern, pattern: "input_data/_new/country_sna/CRI/CEI{year}.xls*"}
+      new: {type: year_pattern, pattern: "input_data/_new/sna/CRI/CEI{year}.xls*"}
     BRA:
       adapter_family: rectangular_workbook
       old: {type: year_pattern, pattern: "input_data/sna_country_data/BRA/single_year/CEI{year}.xls*"}
-      new: {type: single_pattern, pattern: "input_data/_new/country_sna/BRA/*.xls*"}
+      new: {type: single_pattern, pattern: "input_data/_new/sna/BRA/*.xls*"}
     CHL:
       adapter_family: rectangular_workbook
       old: {type: single_stem, stem: input_data/sna_country_data/CHL/CEI_merged}
-      new: {type: single_pattern, pattern: "input_data/_new/country_sna/CHL/CEI_anuario_*.xls*"}
+      new: {type: single_pattern, pattern: "input_data/_new/sna/CHL/CEI_anuario_*.xls*"}
     COL:
       adapter_family: rectangular_workbook
       old: {type: single_pattern, pattern: "input_data/sna_country_data/COL/*CuentasEconomicasIntegradas*.xls*"}
-      new: {type: single_pattern, pattern: "input_data/_new/country_sna/COL/*CuentasEconomicasIntegradas*.xls*"}
+      new: {type: single_pattern, pattern: "input_data/_new/sna/COL/*CuentasEconomicasIntegradas*.xls*"}
     MEX:
       adapter_family: rectangular_workbook
       old:
@@ -145,11 +145,11 @@ source_discovery:
         fallback_index_offset: 2000
       new:
         type: indexed_year_file
-        folder: input_data/_new/country_sna/MEX/tabulados_CSI
-        index_file: input_data/_new/country_sna/MEX/tabulados_CSI/indice_archivos.txt
+        folder: input_data/_new/sna/MEX/tabulados_CSI
+        index_file: input_data/_new/sna/MEX/tabulados_CSI/indice_archivos.txt
         title_contains: "Cuentas institucionales de la economia, por sector"
         unit_contains: "Precios corrientes en millones de pesos"
-        fallback_pattern: "input_data/_new/country_sna/MEX/tabulados_CSI/CSI_{index}.xlsx"
+        fallback_pattern: "input_data/_new/sna/MEX/tabulados_CSI/CSI_{index}.xlsx"
         fallback_index_offset: 2000
     URY:
       adapter_family: sector_file_bundle
@@ -159,7 +159,7 @@ source_discovery:
         pattern: "CSI_3.{year}_SC_*.xlsx"
       new:
         type: sector_file_bundle
-        folder: input_data/_new/country_sna/URY
+        folder: input_data/_new/sna/URY
         pattern: "CSI_3.{year}_SC_*.xlsx"
       sector_codes:
         households: S.1402
@@ -168,7 +168,7 @@ source_discovery:
     ECU:
       adapter_family: rectangular_workbook
       old: {type: single_pattern, pattern: "input_data/sna_country_data/ECU/mcs_cei_*.xls*"}
-      new: {type: single_pattern, pattern: "input_data/_new/country_sna/ECU/mcn_cei_*.xls*"}
+      new: {type: single_pattern, pattern: "input_data/_new/sna/ECU/mcn_cei_*.xls*"}
 
 layout_detection:
   max_rows: 220

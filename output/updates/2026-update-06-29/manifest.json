@@ -3,7 +3,7 @@
   "year": "2026",
   "status": "initialized",
   "created_at": "2026-07-08T11:49:56+0200",
-  "updated_at": "2026-07-08T11:49:56+0200",
+  "updated_at": "2026-07-08T19:02:03+0200",
   "preferences": [],
   "config_override": "output/updates/2026-update-06-29/config.override.yml",
   "config_override_hash": "38327860912052c5dd1e84e304f045c96d5317dd4694825dbd4145c8239caf4d",
@@ -19,176 +19,173 @@
     "hash_mode": "all"
   },
   "source_inbox": {
-    "prepared_at": "2026-07-08T11:49:56+0200",
+    "prepared_at": "2026-07-08T19:02:03+0200",
     "buckets": [
       {
-        "bucket": "input_data/_new/admin_tax",
+        "bucket": "input_data/_new/admin",
         "status": "exists",
         "files": 35
       },
       {
-        "bucket": "input_data/_new/country_sna",
-        "status": "exists",
-        "files": 306
-      },
-      {
-        "bucket": "input_data/_new/macro",
-        "status": "exists",
-        "files": 0
-      },
-      {
-        "bucket": "input_data/_new/spending",
-        "status": "exists",
-        "files": 0
-      },
-      {
-        "bucket": "input_data/_new/survey_inputs",
-        "status": "exists",
-        "files": 2
-      },
-      {
-        "bucket": "input_data/_new/tax_rates",
-        "status": "exists",
-        "files": 0
-      },
-      {
-        "bucket": "input_data/_new/validation",
-        "status": "exists",
-        "files": 1
-      }
-    ],
-    "folders": [
-      {
-        "folder": "input_data/_new/admin_tax",
-        "bucket": "input_data/_new/admin_tax",
-        "status": "exists",
-        "files": 35
-      },
-      {
-        "folder": "input_data/_new/country_sna/ARG",
-        "bucket": "input_data/_new/country_sna",
-        "status": "exists",
-        "files": 0
-      },
-      {
-        "folder": "input_data/_new/country_sna/BRA",
-        "bucket": "input_data/_new/country_sna",
-        "status": "exists",
-        "files": 0
-      },
-      {
-        "folder": "input_data/_new/country_sna/CHL",
-        "bucket": "input_data/_new/country_sna",
-        "status": "exists",
-        "files": 1
-      },
-      {
-        "folder": "input_data/_new/country_sna/COL",
-        "bucket": "input_data/_new/country_sna",
-        "status": "exists",
-        "files": 1
-      },
-      {
-        "folder": "input_data/_new/country_sna/CRI",
-        "bucket": "input_data/_new/country_sna",
-        "status": "exists",
-        "files": 5
-      },
-      {
-        "folder": "input_data/_new/country_sna/DOM",
-        "bucket": "input_data/_new/country_sna",
-        "status": "exists",
-        "files": 0
-      },
-      {
-        "folder": "input_data/_new/country_sna/ECU",
-        "bucket": "input_data/_new/country_sna",
-        "status": "exists",
-        "files": 2
-      },
-      {
-        "folder": "input_data/_new/country_sna/MEX",
-        "bucket": "input_data/_new/country_sna",
-        "status": "exists",
-        "files": 276
-      },
-      {
-        "folder": "input_data/_new/country_sna/PER",
-        "bucket": "input_data/_new/country_sna",
-        "status": "exists",
-        "files": 18
-      },
-      {
-        "folder": "input_data/_new/country_sna/URY",
-        "bucket": "input_data/_new/country_sna",
+        "bucket": "input_data/_new/other",
         "status": "exists",
         "files": 3
       },
       {
-        "folder": "input_data/_new/country_sna/VEN",
-        "bucket": "input_data/_new/country_sna",
+        "bucket": "input_data/_new/sna",
         "status": "exists",
+        "files": 306
+      },
+      {
+        "bucket": "input_data/_new/surveys",
+        "status": "exists",
+        "files": 0
+      }
+    ],
+    "folders": [
+      {
+        "folder": "input_data/_new/admin/BRA",
+        "bucket": "input_data/_new/admin",
+        "status": "exists",
+        "files": 1
+      },
+      {
+        "folder": "input_data/_new/admin/CHL",
+        "bucket": "input_data/_new/admin",
+        "status": "exists",
+        "files": 1
+      },
+      {
+        "folder": "input_data/_new/admin/COL",
+        "bucket": "input_data/_new/admin",
+        "status": "exists",
+        "files": 33
+      },
+      {
+        "folder": "input_data/_new/other/balance_sheet/IMF",
+        "bucket": "input_data/_new/other",
+        "status": "would_create",
         "files": 0
       },
       {
-        "folder": "input_data/_new/macro/balance_sheet/IMF",
-        "bucket": "input_data/_new/macro",
-        "status": "exists",
+        "folder": "input_data/_new/other/balance_sheet/OECD",
+        "bucket": "input_data/_new/other",
+        "status": "would_create",
         "files": 0
       },
       {
-        "folder": "input_data/_new/macro/balance_sheet/OECD",
-        "bucket": "input_data/_new/macro",
-        "status": "exists",
+        "folder": "input_data/_new/other/ceq",
+        "bucket": "input_data/_new/other",
+        "status": "would_create",
         "files": 0
       },
       {
-        "folder": "input_data/_new/macro/social_security",
-        "bucket": "input_data/_new/macro",
-        "status": "exists",
+        "folder": "input_data/_new/other/population",
+        "bucket": "input_data/_new/other",
+        "status": "would_create",
         "files": 0
       },
       {
-        "folder": "input_data/_new/spending/ceq",
-        "bucket": "input_data/_new/spending",
-        "status": "exists",
-        "files": 0
-      },
-      {
-        "folder": "input_data/_new/spending/public_spending",
-        "bucket": "input_data/_new/spending",
-        "status": "exists",
-        "files": 0
-      },
-      {
-        "folder": "input_data/_new/survey_inputs/population",
-        "bucket": "input_data/_new/survey_inputs",
-        "status": "exists",
-        "files": 0
-      },
-      {
-        "folder": "input_data/_new/survey_inputs/prices",
-        "bucket": "input_data/_new/survey_inputs",
+        "folder": "input_data/_new/other/prices",
+        "bucket": "input_data/_new/other",
         "status": "exists",
         "files": 2
       },
       {
-        "folder": "input_data/_new/survey_inputs/surveys",
-        "bucket": "input_data/_new/survey_inputs",
-        "status": "exists",
+        "folder": "input_data/_new/other/public_spending",
+        "bucket": "input_data/_new/other",
+        "status": "would_create",
         "files": 0
       },
       {
-        "folder": "input_data/_new/tax_rates/tax_composition",
-        "bucket": "input_data/_new/tax_rates",
-        "status": "exists",
+        "folder": "input_data/_new/other/social_security",
+        "bucket": "input_data/_new/other",
+        "status": "would_create",
         "files": 0
       },
       {
-        "folder": "input_data/_new/validation",
-        "bucket": "input_data/_new/validation",
+        "folder": "input_data/_new/other/tax_composition",
+        "bucket": "input_data/_new/other",
+        "status": "would_create",
+        "files": 0
+      },
+      {
+        "folder": "input_data/_new/other/validation",
+        "bucket": "input_data/_new/other",
         "status": "exists",
         "files": 1
+      },
+      {
+        "folder": "input_data/_new/sna/ARG",
+        "bucket": "input_data/_new/sna",
+        "status": "would_create",
+        "files": 0
+      },
+      {
+        "folder": "input_data/_new/sna/BRA",
+        "bucket": "input_data/_new/sna",
+        "status": "would_create",
+        "files": 0
+      },
+      {
+        "folder": "input_data/_new/sna/CHL",
+        "bucket": "input_data/_new/sna",
+        "status": "exists",
+        "files": 1
+      },
+      {
+        "folder": "input_data/_new/sna/COL",
+        "bucket": "input_data/_new/sna",
+        "status": "exists",
+        "files": 1
+      },
+      {
+        "folder": "input_data/_new/sna/CRI",
+        "bucket": "input_data/_new/sna",
+        "status": "exists",
+        "files": 5
+      },
+      {
+        "folder": "input_data/_new/sna/DOM",
+        "bucket": "input_data/_new/sna",
+        "status": "would_create",
+        "files": 0
+      },
+      {
+        "folder": "input_data/_new/sna/ECU",
+        "bucket": "input_data/_new/sna",
+        "status": "exists",
+        "files": 2
+      },
+      {
+        "folder": "input_data/_new/sna/MEX",
+        "bucket": "input_data/_new/sna",
+        "status": "exists",
+        "files": 276
+      },
+      {
+        "folder": "input_data/_new/sna/PER",
+        "bucket": "input_data/_new/sna",
+        "status": "exists",
+        "files": 18
+      },
+      {
+        "folder": "input_data/_new/sna/URY",
+        "bucket": "input_data/_new/sna",
+        "status": "exists",
+        "files": 3
+      },
+      {
+        "folder": "input_data/_new/sna/VEN",
+        "bucket": "input_data/_new/sna",
+        "status": "would_create",
+        "files": 0
+      },
+      {
+        "folder": "input_data/_new/surveys",
+        "bucket": "input_data/_new/surveys",
+        "status": "exists",
+        "files": 0
       }
     ]
   },
@@ -477,7 +474,28 @@
           "sheets": []
         }
       ],
-      "detected_years": [2000, 2002, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023]
+      "detected_years": [
+        2000,
+        2002,
+        2006,
+        2007,
+        2008,
+        2009,
+        2010,
+        2011,
+        2012,
+        2013,
+        2014,
+        2015,
+        2016,
+        2017,
+        2018,
+        2019,
+        2020,
+        2021,
+        2022,
+        2023
+      ]
     },
     "bra-minwage": {
       "id": "bra-minwage",
@@ -526,7 +544,12 @@
       "id": "admin-tax-static",
       "family": "admin_tax",
       "country": "4 countries",
-      "country_coverage": ["ARG", "DOM", "PER", "SLV"],
+      "country_coverage": [
+        "ARG",
+        "DOM",
+        "PER",
+        "SLV"
+      ],
       "method": "manual",
       "hash_mode": "all",
       "files": [
@@ -642,9 +665,15 @@
           "mtime": "2026-06-29T09:55:58+0200",
           "sha256": null,
           "hash_status": "computed",
-          "filename_years": [2014, 2020],
+          "filename_years": [
+            2014,
+            2020
+          ],
           "sheet_years": [],
-          "detected_years": [2014, 2020],
+          "detected_years": [
+            2014,
+            2020
+          ],
           "sheets": []
         },
         {
@@ -654,9 +683,15 @@
           "mtime": "2026-06-29T09:55:57+0200",
           "sha256": null,
           "hash_status": "computed",
-          "filename_years": [2014, 2022],
+          "filename_years": [
+            2014,
+            2022
+          ],
           "sheet_years": [],
-          "detected_years": [2014, 2022],
+          "detected_years": [
+            2014,
+            2022
+          ],
           "sheets": []
         },
         {
@@ -672,7 +707,11 @@
           "sheets": []
         }
       ],
-      "detected_years": [2014, 2020, 2022]
+      "detected_years": [
+        2014,
+        2020,
+        2022
+      ]
     },
     "col-admin-wealth": {
       "id": "col-admin-wealth",
@@ -689,9 +728,15 @@
           "mtime": "2025-08-05T12:32:14+0200",
           "sha256": null,
           "hash_status": "computed",
-          "filename_years": [2014, 2023],
+          "filename_years": [
+            2014,
+            2023
+          ],
           "sheet_years": [],
-          "detected_years": [2014, 2023],
+          "detected_years": [
+            2014,
+            2023
+          ],
           "sheets": []
         },
         {
@@ -707,13 +752,28 @@
           "sheets": []
         }
       ],
-      "detected_years": [2014, 2023]
+      "detected_years": [
+        2014,
+        2023
+      ]
     },
     "un-sna": {
       "id": "un-sna",
       "family": "macro_sna",
       "country": "11 countries",
-      "country_coverage": ["COL", "ARG", "PER", "URY", "CRI", "ECU", "CHL", "BRA", "SLV", "MEX", "DOM"],
+      "country_coverage": [
+        "COL",
+        "ARG",
+        "PER",
+        "URY",
+        "CRI",
+        "ECU",
+        "CHL",
+        "BRA",
+        "SLV",
+        "MEX",
+        "DOM"
+      ],
       "method": "script",
       "hash_mode": "all",
       "files": [
@@ -1310,9 +1370,15 @@
           "mtime": "2025-07-30T18:24:45+0200",
           "sha256": "f11c32b0387c6c2099e68158ed8ce9333536743f1aa44af0924866afdbeb9360",
           "hash_status": "computed",
-          "filename_years": [2000, 2021],
+          "filename_years": [
+            2000,
+            2021
+          ],
           "sheet_years": [],
-          "detected_years": [2000, 2021],
+          "detected_years": [
+            2000,
+            2021
+          ],
           "sheets": []
         },
         {
@@ -1328,7 +1394,10 @@
           "sheets": []
         }
       ],
-      "detected_years": [2000, 2021]
+      "detected_years": [
+        2000,
+        2021
+      ]
     },
     "country-sna-chl": {
       "id": "country-sna-chl",
@@ -1541,7 +1610,18 @@
           "sheets": []
         }
       ],
-      "detected_years": [2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021]
+      "detected_years": [
+        2012,
+        2013,
+        2014,
+        2015,
+        2016,
+        2017,
+        2018,
+        2019,
+        2020,
+        2021
+      ]
     },
     "country-sna-dom": {
       "id": "country-sna-dom",
@@ -1570,13 +1650,22 @@
           "mtime": "2025-07-31T16:33:07+0200",
           "sha256": "b685bf3402b566887bad90ab91b606618458340ce459702fc9cb25bcf907f668",
           "hash_status": "computed",
-          "filename_years": [2007, 2017],
+          "filename_years": [
+            2007,
+            2017
+          ],
           "sheet_years": [],
-          "detected_years": [2007, 2017],
+          "detected_years": [
+            2007,
+            2017
+          ],
           "sheets": []
         }
       ],
-      "detected_years": [2007, 2017]
+      "detected_years": [
+        2007,
+        2017
+      ]
     },
     "country-sna-ecu": {
       "id": "country-sna-ecu",
@@ -1605,9 +1694,15 @@
           "mtime": "2023-06-29T22:43:02+0200",
           "sha256": "b23c8c0caebbba8dd50e219a92d814be9e552d27826e804783309c0e56d593f8",
           "hash_status": "computed",
-          "filename_years": [2007, 2020],
+          "filename_years": [
+            2007,
+            2020
+          ],
           "sheet_years": [],
-          "detected_years": [2007, 2020],
+          "detected_years": [
+            2007,
+            2020
+          ],
           "sheets": []
         },
         {
@@ -1629,9 +1724,15 @@
           "mtime": "2024-06-29T12:22:33+0200",
           "sha256": "493139b0884553a9b86de096246367d9bf9fab6695103b4c28eb3e162f3cbaf8",
           "hash_status": "computed",
-          "filename_years": [2018, 2022],
+          "filename_years": [
+            2018,
+            2022
+          ],
           "sheet_years": [],
-          "detected_years": [2018, 2022],
+          "detected_years": [
+            2018,
+            2022
+          ],
           "sheets": []
         },
         {
@@ -1641,13 +1742,25 @@
           "mtime": "2025-07-31T17:03:18+0200",
           "sha256": "67b7ff062e7a769cf5d083fe457644a04165bed26ba465bb1003eb7c09e11950",
           "hash_status": "computed",
-          "filename_years": [2018, 2023],
+          "filename_years": [
+            2018,
+            2023
+          ],
           "sheet_years": [],
-          "detected_years": [2018, 2023],
+          "detected_years": [
+            2018,
+            2023
+          ],
           "sheets": []
         }
       ],
-      "detected_years": [2007, 2018, 2020, 2022, 2023]
+      "detected_years": [
+        2007,
+        2018,
+        2020,
+        2022,
+        2023
+      ]
     },
     "country-sna-mex": {
       "id": "country-sna-mex",
@@ -1922,7 +2035,29 @@
           "sheets": []
         }
       ],
-      "detected_years": [2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023]
+      "detected_years": [
+        2003,
+        2004,
+        2005,
+        2006,
+        2007,
+        2008,
+        2009,
+        2010,
+        2011,
+        2012,
+        2013,
+        2014,
+        2015,
+        2016,
+        2017,
+        2018,
+        2019,
+        2020,
+        2021,
+        2022,
+        2023
+      ]
     },
     "country-sna-per": {
       "id": "country-sna-per",
@@ -2173,7 +2308,25 @@
           "sheets": []
         }
       ],
-      "detected_years": [2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023]
+      "detected_years": [
+        2007,
+        2008,
+        2009,
+        2010,
+        2011,
+        2012,
+        2013,
+        2014,
+        2015,
+        2016,
+        2017,
+        2018,
+        2019,
+        2020,
+        2021,
+        2022,
+        2023
+      ]
     },
     "country-sna-ury": {
       "id": "country-sna-ury",
@@ -2214,9 +2367,15 @@
           "mtime": "2021-06-25T20:43:07+0200",
           "sha256": "70aac042bb5859539c98c5d2d7587d83a6e392753fcda495a403b2f67f9b3aac",
           "hash_status": "computed",
-          "filename_years": [2012, 2003],
+          "filename_years": [
+            2012,
+            2003
+          ],
           "sheet_years": [],
-          "detected_years": [2003, 2012],
+          "detected_years": [
+            2003,
+            2012
+          ],
           "sheets": []
         },
         {
@@ -2226,9 +2385,15 @@
           "mtime": "2021-06-25T20:51:34+0200",
           "sha256": "6c59d7db5ba3d77fedd2f045e0cc89665d841cc23ee941fedabd517d3ebd30ac",
           "hash_status": "computed",
-          "filename_years": [2012, 2003],
+          "filename_years": [
+            2012,
+            2003
+          ],
           "sheet_years": [],
-          "detected_years": [2003, 2012],
+          "detected_years": [
+            2003,
+            2012
+          ],
           "sheets": []
         },
         {
@@ -2238,9 +2403,15 @@
           "mtime": "2021-06-25T20:46:06+0200",
           "sha256": "e82ada1d07fa40317056541550afbc54b39ce6b4f1533feb3fbfeb9dd8a01424",
           "hash_status": "computed",
-          "filename_years": [2012, 2003],
+          "filename_years": [
+            2012,
+            2003
+          ],
           "sheet_years": [],
-          "detected_years": [2003, 2012],
+          "detected_years": [
+            2003,
+            2012
+          ],
           "sheets": []
         },
         {
@@ -2250,9 +2421,15 @@
           "mtime": "2021-06-25T20:54:47+0200",
           "sha256": "bbf25c97d520acc0fe3d26fef54ccb60d2c72bbc236e263e0998ae6f6d46d12d",
           "hash_status": "computed",
-          "filename_years": [2012, 2003],
+          "filename_years": [
+            2012,
+            2003
+          ],
           "sheet_years": [],
-          "detected_years": [2003, 2012],
+          "detected_years": [
+            2003,
+            2012
+          ],
           "sheets": []
         },
         {
@@ -2262,9 +2439,15 @@
           "mtime": "2021-06-25T20:05:29+0200",
           "sha256": "8dc4ff82748f8c46389217e84268c18bd7acae3538b9296575c36b5538a597af",
           "hash_status": "computed",
-          "filename_years": [2012, 2003],
+          "filename_years": [
+            2012,
+            2003
+          ],
           "sheet_years": [],
-          "detected_years": [2003, 2012],
+          "detected_years": [
+            2003,
+            2012
+          ],
           "sheets": []
         },
         {
@@ -2274,9 +2457,15 @@
           "mtime": "2021-06-25T20:38:57+0200",
           "sha256": "5be1e33b1f5023b59830013bd990c0f3dda921be2c8b372a8e42a95e9fa19d3e",
           "hash_status": "computed",
-          "filename_years": [2012, 2003],
+          "filename_years": [
+            2012,
+            2003
+          ],
           "sheet_years": [],
-          "detected_years": [2003, 2012],
+          "detected_years": [
+            2003,
+            2012
+          ],
           "sheets": []
         },
         {
@@ -2286,9 +2475,17 @@
           "mtime": "2021-06-25T20:57:32+0200",
           "sha256": "d70a0241ababec56855e0931232ab5bb452f42c00ead40b60a01cb7b07acd13b",
           "hash_status": "computed",
-          "filename_years": [2012, 2000, 2003],
+          "filename_years": [
+            2012,
+            2000,
+            2003
+          ],
           "sheet_years": [],
-          "detected_years": [2000, 2003, 2012],
+          "detected_years": [
+            2000,
+            2003,
+            2012
+          ],
           "sheets": []
         },
         {
@@ -2298,9 +2495,15 @@
           "mtime": "2021-06-25T20:36:15+0200",
           "sha256": "d34a496d431b519c37a2dca0d04e64e00d651b3bf02f62514d4ebe8d0c9c5175",
           "hash_status": "computed",
-          "filename_years": [2016, 2003],
+          "filename_years": [
+            2016,
+            2003
+          ],
           "sheet_years": [],
-          "detected_years": [2003, 2016],
+          "detected_years": [
+            2003,
+            2016
+          ],
           "sheets": []
         },
         {
@@ -2310,9 +2513,15 @@
           "mtime": "2021-06-25T20:50:37+0200",
           "sha256": "cf1ec5f3dcec59dff8529385501f498e6a41316c9c1151edfff3e6eea1cccafb",
           "hash_status": "computed",
-          "filename_years": [2016, 2003],
+          "filename_years": [
+            2016,
+            2003
+          ],
           "sheet_years": [],
-          "detected_years": [2003, 2016],
+          "detected_years": [
+            2003,
+            2016
+          ],
           "sheets": []
         },
         {
@@ -2322,9 +2531,15 @@
           "mtime": "2021-06-25T20:44:23+0200",
           "sha256": "6e11fbcf53a1376876fe9216c762a5f0d56cdeecac84519f860e707675da6dc2",
           "hash_status": "computed",
-          "filename_years": [2016, 2003],
+          "filename_years": [
+            2016,
+            2003
+          ],
           "sheet_years": [],
-          "detected_years": [2003, 2016],
+          "detected_years": [
+            2003,
+            2016
+          ],
           "sheets": []
         },
         {
@@ -2334,9 +2549,15 @@
           "mtime": "2021-06-25T20:47:07+0200",
           "sha256": "0c91fe1bf1c20483a3e998d5d6ee7cbbde4bc09ca06a98ec61fb20bac60a8bed",
           "hash_status": "computed",
-          "filename_years": [2016, 2003],
+          "filename_years": [
+            2016,
+            2003
+          ],
           "sheet_years": [],
-          "detected_years": [2003, 2016],
+          "detected_years": [
+            2003,
+            2016
+          ],
           "sheets": []
         },
         {
@@ -2346,9 +2567,15 @@
           "mtime": "2021-06-25T20:53:14+0200",
           "sha256": "d7026ca73d2e65c2c70648af0254ce70d7713f2ce22719268168ed46b7bc98f1",
           "hash_status": "computed",
-          "filename_years": [2016, 2003],
+          "filename_years": [
+            2016,
+            2003
+          ],
           "sheet_years": [],
-          "detected_years": [2003, 2016],
+          "detected_years": [
+            2003,
+            2016
+          ],
           "sheets": []
         },
         {
@@ -2358,9 +2585,15 @@
           "mtime": "2021-06-25T19:55:52+0200",
           "sha256": "c9a284f55dce0a9bc91611536eb6f7c2836e20204fb4da9af4ec165319ad87e7",
           "hash_status": "computed",
-          "filename_years": [2016, 2003],
+          "filename_years": [
+            2016,
+            2003
+          ],
           "sheet_years": [],
-          "detected_years": [2003, 2016],
+          "detected_years": [
+            2003,
+            2016
+          ],
           "sheets": []
         },
         {
@@ -2370,9 +2603,15 @@
           "mtime": "2021-06-25T20:41:26+0200",
           "sha256": "9d6ad282085451194c2eb1c6e728eeacad31c8e3c0ec07ebe072c5c72677eb02",
           "hash_status": "computed",
-          "filename_years": [2016, 2003],
+          "filename_years": [
+            2016,
+            2003
+          ],
           "sheet_years": [],
-          "detected_years": [2003, 2016],
+          "detected_years": [
+            2003,
+            2016
+          ],
           "sheets": []
         },
         {
@@ -2382,9 +2621,17 @@
           "mtime": "2021-06-25T20:56:07+0200",
           "sha256": "ccfb356b20685c79cae460d15cce66d21cfccd95f10780ced5ba5c693b5b30d5",
           "hash_status": "computed",
-          "filename_years": [2016, 2000, 2003],
+          "filename_years": [
+            2016,
+            2000,
+            2003
+          ],
           "sheet_years": [],
-          "detected_years": [2000, 2003, 2016],
+          "detected_years": [
+            2000,
+            2003,
+            2016
+          ],
           "sheets": []
         },
         {
@@ -2394,9 +2641,15 @@
           "mtime": "2024-07-26T13:47:27+0200",
           "sha256": "6f8ac4d6603fe5d99983325cf523ba9d8f7c332d60b2235c2a17077e00ede5a4",
           "hash_status": "computed",
-          "filename_years": [2017, 2003],
+          "filename_years": [
+            2017,
+            2003
+          ],
           "sheet_years": [],
-          "detected_years": [2003, 2017],
+          "detected_years": [
+            2003,
+            2017
+          ],
           "sheets": []
         },
         {
@@ -2406,9 +2659,15 @@
           "mtime": "2024-07-26T13:47:18+0200",
           "sha256": "73ce761821fc6e57ef10f3362bfaceff7cefdf1d0bd6f559709e1b1860bf542e",
           "hash_status": "computed",
-          "filename_years": [2017, 2003],
+          "filename_years": [
+            2017,
+            2003
+          ],
           "sheet_years": [],
-          "detected_years": [2003, 2017],
+          "detected_years": [
+            2003,
+            2017
+          ],
           "sheets": []
         },
         {
@@ -2418,9 +2677,17 @@
           "mtime": "2024-07-26T13:47:14+0200",
           "sha256": "1e8ad9c0a22a14dbf733bddb48a574288b2817f84e9351e3cd5baec52dabcb1b",
           "hash_status": "computed",
-          "filename_years": [2017, 2000, 2003],
+          "filename_years": [
+            2017,
+            2000,
+            2003
+          ],
           "sheet_years": [],
-          "detected_years": [2000, 2003, 2017],
+          "detected_years": [
+            2000,
+            2003,
+            2017
+          ],
           "sheets": []
         },
         {
@@ -2430,9 +2697,15 @@
           "mtime": "2024-07-26T13:47:04+0200",
           "sha256": "52c772803fb2ebc02e4e543abfa207e054fbef35cd475e45bd2d1939b4941837",
           "hash_status": "computed",
-          "filename_years": [2018, 2003],
+          "filename_years": [
+            2018,
+            2003
+          ],
           "sheet_years": [],
-          "detected_years": [2003, 2018],
+          "detected_years": [
+            2003,
+            2018
+          ],
           "sheets": []
         },
         {
@@ -2442,9 +2715,15 @@
           "mtime": "2024-07-26T13:46:38+0200",
           "sha256": "90f324d18ce9444f31fb6572250b0aabc9c62a03f1dcb7891e7762314b3a6574",
           "hash_status": "computed",
-          "filename_years": [2018, 2003],
+          "filename_years": [
+            2018,
+            2003
+          ],
           "sheet_years": [],
-          "detected_years": [2003, 2018],
+          "detected_years": [
+            2003,
+            2018
+          ],
           "sheets": []
         },
         {
@@ -2454,9 +2733,17 @@
           "mtime": "2024-07-26T13:46:41+0200",
           "sha256": "e182a27e23ad302c65eb459bc28e4f0bc4874fd2bd5a7bbcf90cc52604309926",
           "hash_status": "computed",
-          "filename_years": [2018, 2000, 2003],
+          "filename_years": [
+            2018,
+            2000,
+            2003
+          ],
           "sheet_years": [],
-          "detected_years": [2000, 2003, 2018],
+          "detected_years": [
+            2000,
+            2003,
+            2018
+          ],
           "sheets": []
         },
         {
@@ -2466,9 +2753,15 @@
           "mtime": "2024-07-26T13:46:32+0200",
           "sha256": "5336bcca61b66a26bf58653b49a12a2fa772cb8c582516bc04bd1351b754133d",
           "hash_status": "computed",
-          "filename_years": [2019, 2003],
+          "filename_years": [
+            2019,
+            2003
+          ],
           "sheet_years": [],
-          "detected_years": [2003, 2019],
+          "detected_years": [
+            2003,
+            2019
+          ],
           "sheets": []
         },
         {
@@ -2478,9 +2771,15 @@
           "mtime": "2024-07-26T13:46:26+0200",
           "sha256": "1fb516cc2fb1e8ed0ca206e4de65b1c95533a668a102022ce935b378978e5dbf",
           "hash_status": "computed",
-          "filename_years": [2019, 2003],
+          "filename_years": [
+            2019,
+            2003
+          ],
           "sheet_years": [],
-          "detected_years": [2003, 2019],
+          "detected_years": [
+            2003,
+            2019
+          ],
           "sheets": []
         },
         {
@@ -2490,9 +2789,17 @@
           "mtime": "2024-07-26T13:46:19+0200",
           "sha256": "02cbeb28073d839ccdd0aeb20cecbd91de321740a14c4d89b2c5e96f6025d973",
           "hash_status": "computed",
-          "filename_years": [2019, 2000, 2003],
+          "filename_years": [
+            2019,
+            2000,
+            2003
+          ],
           "sheet_years": [],
-          "detected_years": [2000, 2003, 2019],
+          "detected_years": [
+            2000,
+            2003,
+            2019
+          ],
           "sheets": []
         },
         {
@@ -2502,9 +2809,15 @@
           "mtime": "2025-07-31T15:33:23+0200",
           "sha256": "5e5f26777a39ddabcd9ff140fa3d8403f01e137cb6e6b06bd9a2701eb014ac58",
           "hash_status": "computed",
-          "filename_years": [2020, 2003],
+          "filename_years": [
+            2020,
+            2003
+          ],
           "sheet_years": [],
-          "detected_years": [2003, 2020],
+          "detected_years": [
+            2003,
+            2020
+          ],
           "sheets": []
         },
         {
@@ -2514,9 +2827,15 @@
           "mtime": "2025-07-31T15:33:29+0200",
           "sha256": "7e96da3f56fe6697af891b69fe76852c2a682d0c6f6166ddb0b520785fe299c2",
           "hash_status": "computed",
-          "filename_years": [2020, 2003],
+          "filename_years": [
+            2020,
+            2003
+          ],
           "sheet_years": [],
-          "detected_years": [2003, 2020],
+          "detected_years": [
+            2003,
+            2020
+          ],
           "sheets": []
         },
         {
@@ -2526,9 +2845,17 @@
           "mtime": "2025-07-31T15:33:34+0200",
           "sha256": "56b374349d527f2b025ca03d216dc31bd78ae2239e130cf483919910a39bdebe",
           "hash_status": "computed",
-          "filename_years": [2020, 2000, 2003],
+          "filename_years": [
+            2020,
+            2000,
+            2003
+          ],
           "sheet_years": [],
-          "detected_years": [2000, 2003, 2020],
+          "detected_years": [
+            2000,
+            2003,
+            2020
+          ],
           "sheets": []
         },
         {
@@ -2538,9 +2865,15 @@
           "mtime": "2025-07-31T15:47:01+0200",
           "sha256": "51106aaad6b86582ee0ca5c91d0ae52935cbb70f3568fbf2ef0a3eef2ad2f399",
           "hash_status": "computed",
-          "filename_years": [2021, 2003],
+          "filename_years": [
+            2021,
+            2003
+          ],
           "sheet_years": [],
-          "detected_years": [2003, 2021],
+          "detected_years": [
+            2003,
+            2021
+          ],
           "sheets": []
         },
         {
@@ -2550,9 +2883,15 @@
           "mtime": "2025-07-31T15:47:05+0200",
           "sha256": "511da37a842a43c7030c70df54711e4b22fc17ea9276f2070276ea9783d61821",
           "hash_status": "computed",
-          "filename_years": [2021, 2003],
+          "filename_years": [
+            2021,
+            2003
+          ],
           "sheet_years": [],
-          "detected_years": [2003, 2021],
+          "detected_years": [
+            2003,
+            2021
+          ],
           "sheets": []
         },
         {
@@ -2562,9 +2901,17 @@
           "mtime": "2025-07-31T15:47:08+0200",
           "sha256": "f2c2ccebce6d2a4bcb8bd5b58204eaf109a698379f5595b757b3653b8cd6025e",
           "hash_status": "computed",
-          "filename_years": [2021, 2000, 2003],
+          "filename_years": [
+            2021,
+            2000,
+            2003
+          ],
           "sheet_years": [],
-          "detected_years": [2000, 2003, 2021],
+          "detected_years": [
+            2000,
+            2003,
+            2021
+          ],
           "sheets": []
         },
         {
@@ -2580,7 +2927,17 @@
           "sheets": []
         }
       ],
-      "detected_years": [2000, 2003, 2012, 2016, 2017, 2018, 2019, 2020, 2021]
+      "detected_years": [
+        2000,
+        2003,
+        2012,
+        2016,
+        2017,
+        2018,
+        2019,
+        2020,
+        2021
+      ]
     },
     "country-sna-ven": {
       "id": "country-sna-ven",
@@ -2609,7 +2966,19 @@
       "id": "wid-macro",
       "family": "wid",
       "country": "11 countries",
-      "country_coverage": ["COL", "ARG", "PER", "URY", "CRI", "ECU", "CHL", "BRA", "SLV", "MEX", "DOM"],
+      "country_coverage": [
+        "COL",
+        "ARG",
+        "PER",
+        "URY",
+        "CRI",
+        "ECU",
+        "CHL",
+        "BRA",
+        "SLV",
+        "MEX",
+        "DOM"
+      ],
       "method": "wid",
       "hash_mode": "all",
       "files": [
@@ -2644,7 +3013,19 @@
       "id": "wid-public-spending",
       "family": "wid",
       "country": "11 countries",
-      "country_coverage": ["COL", "ARG", "PER", "URY", "CRI", "ECU", "CHL", "BRA", "SLV", "MEX", "DOM"],
+      "country_coverage": [
+        "COL",
+        "ARG",
+        "PER",
+        "URY",
+        "CRI",
+        "ECU",
+        "CHL",
+        "BRA",
+        "SLV",
+        "MEX",
+        "DOM"
+      ],
       "method": "wid",
       "hash_mode": "all",
       "files": [
@@ -2673,13 +3054,28 @@
           "sheets": []
         }
       ],
-      "detected_years": [2024, 2025]
+      "detected_years": [
+        2024,
+        2025
+      ]
     },
     "wid-export-checks": {
       "id": "wid-export-checks",
       "family": "wid",
       "country": "11 countries",
-      "country_coverage": ["COL", "ARG", "PER", "URY", "CRI", "ECU", "CHL", "BRA", "SLV", "MEX", "DOM"],
+      "country_coverage": [
+        "COL",
+        "ARG",
+        "PER",
+        "URY",
+        "CRI",
+        "ECU",
+        "CHL",
+        "BRA",
+        "SLV",
+        "MEX",
+        "DOM"
+      ],
       "method": "wid",
       "hash_mode": "all",
       "files": [
@@ -2712,7 +3108,19 @@
       "id": "wid-prices-xrates",
       "family": "prices",
       "country": "11 countries",
-      "country_coverage": ["COL", "ARG", "PER", "URY", "CRI", "ECU", "CHL", "BRA", "SLV", "MEX", "DOM"],
+      "country_coverage": [
+        "COL",
+        "ARG",
+        "PER",
+        "URY",
+        "CRI",
+        "ECU",
+        "CHL",
+        "BRA",
+        "SLV",
+        "MEX",
+        "DOM"
+      ],
       "method": "wid",
       "hash_mode": "all",
       "files": [
@@ -2735,7 +3143,19 @@
       "id": "wb-xrates",
       "family": "prices",
       "country": "11 countries",
-      "country_coverage": ["COL", "ARG", "PER", "URY", "CRI", "ECU", "CHL", "BRA", "SLV", "MEX", "DOM"],
+      "country_coverage": [
+        "COL",
+        "ARG",
+        "PER",
+        "URY",
+        "CRI",
+        "ECU",
+        "CHL",
+        "BRA",
+        "SLV",
+        "MEX",
+        "DOM"
+      ],
       "method": "manual",
       "hash_mode": "all",
       "files": [
@@ -2758,7 +3178,19 @@
       "id": "wb-inflation",
       "family": "prices",
       "country": "11 countries",
-      "country_coverage": ["COL", "ARG", "PER", "URY", "CRI", "ECU", "CHL", "BRA", "SLV", "MEX", "DOM"],
+      "country_coverage": [
+        "COL",
+        "ARG",
+        "PER",
+        "URY",
+        "CRI",
+        "ECU",
+        "CHL",
+        "BRA",
+        "SLV",
+        "MEX",
+        "DOM"
+      ],
       "method": "manual",
       "hash_mode": "all",
       "files": [
@@ -2793,7 +3225,19 @@
       "id": "cepal-prices",
       "family": "prices",
       "country": "11 countries",
-      "country_coverage": ["COL", "ARG", "PER", "URY", "CRI", "ECU", "CHL", "BRA", "SLV", "MEX", "DOM"],
+      "country_coverage": [
+        "COL",
+        "ARG",
+        "PER",
+        "URY",
+        "CRI",
+        "ECU",
+        "CHL",
+        "BRA",
+        "SLV",
+        "MEX",
+        "DOM"
+      ],
       "method": "manual",
       "hash_mode": "all",
       "files": [
@@ -2828,7 +3272,19 @@
       "id": "population",
       "family": "population",
       "country": "11 countries",
-      "country_coverage": ["COL", "ARG", "PER", "URY", "CRI", "ECU", "CHL", "BRA", "SLV", "MEX", "DOM"],
+      "country_coverage": [
+        "COL",
+        "ARG",
+        "PER",
+        "URY",
+        "CRI",
+        "ECU",
+        "CHL",
+        "BRA",
+        "SLV",
+        "MEX",
+        "DOM"
+      ],
       "method": "manual",
       "hash_mode": "all",
       "files": [
@@ -2851,7 +3307,19 @@
       "id": "balance-sheet-imf",
       "family": "balance_sheet",
       "country": "11 countries",
-      "country_coverage": ["COL", "ARG", "PER", "URY", "CRI", "ECU", "CHL", "BRA", "SLV", "MEX", "DOM"],
+      "country_coverage": [
+        "COL",
+        "ARG",
+        "PER",
+        "URY",
+        "CRI",
+        "ECU",
+        "CHL",
+        "BRA",
+        "SLV",
+        "MEX",
+        "DOM"
+      ],
       "method": "manual",
       "hash_mode": "all",
       "files": [
@@ -2874,7 +3342,11 @@
       "id": "balance-sheet-oecd",
       "family": "balance_sheet",
       "country": "BRA,COL,MEX",
-      "country_coverage": ["BRA", "COL", "MEX"],
+      "country_coverage": [
+        "BRA",
+        "COL",
+        "MEX"
+      ],
       "method": "manual",
       "hash_mode": "all",
       "files": [
@@ -2897,7 +3369,19 @@
       "id": "tax-composition-oecd-ciat-cepal",
       "family": "tax_composition",
       "country": "11 countries",
-      "country_coverage": ["COL", "ARG", "PER", "URY", "CRI", "ECU", "CHL", "BRA", "SLV", "MEX", "DOM"],
+      "country_coverage": [
+        "COL",
+        "ARG",
+        "PER",
+        "URY",
+        "CRI",
+        "ECU",
+        "CHL",
+        "BRA",
+        "SLV",
+        "MEX",
+        "DOM"
+      ],
       "method": "manual",
       "hash_mode": "all",
       "files": [
@@ -2920,7 +3404,19 @@
       "id": "social-security-oecd",
       "family": "social_security",
       "country": "11 countries",
-      "country_coverage": ["COL", "ARG", "PER", "URY", "CRI", "ECU", "CHL", "BRA", "SLV", "MEX", "DOM"],
+      "country_coverage": [
+        "COL",
+        "ARG",
+        "PER",
+        "URY",
+        "CRI",
+        "ECU",
+        "CHL",
+        "BRA",
+        "SLV",
+        "MEX",
+        "DOM"
+      ],
       "method": "manual",
       "hash_mode": "all",
       "files": [
@@ -2943,7 +3439,19 @@
       "id": "ceq",
       "family": "ceq",
       "country": "11 countries",
-      "country_coverage": ["COL", "ARG", "PER", "URY", "CRI", "ECU", "CHL", "BRA", "SLV", "MEX", "DOM"],
+      "country_coverage": [
+        "COL",
+        "ARG",
+        "PER",
+        "URY",
+        "CRI",
+        "ECU",
+        "CHL",
+        "BRA",
+        "SLV",
+        "MEX",
+        "DOM"
+      ],
       "method": "manual",
       "hash_mode": "all",
       "files": [
@@ -2966,7 +3474,19 @@
       "id": "public-spending-local",
       "family": "public_spending",
       "country": "11 countries",
-      "country_coverage": ["COL", "ARG", "PER", "URY", "CRI", "ECU", "CHL", "BRA", "SLV", "MEX", "DOM"],
+      "country_coverage": [
+        "COL",
+        "ARG",
+        "PER",
+        "URY",
+        "CRI",
+        "ECU",
+        "CHL",
+        "BRA",
+        "SLV",
+        "MEX",
+        "DOM"
+      ],
       "method": "manual",
       "hash_mode": "all",
       "files": [
@@ -2989,7 +3509,19 @@
       "id": "surveys-cepal",
       "family": "surveys",
       "country": "11 countries",
-      "country_coverage": ["COL", "ARG", "PER", "URY", "CRI", "ECU", "CHL", "BRA", "SLV", "MEX", "DOM"],
+      "country_coverage": [
+        "COL",
+        "ARG",
+        "PER",
+        "URY",
+        "CRI",
+        "ECU",
+        "CHL",
+        "BRA",
+        "SLV",
+        "MEX",
+        "DOM"
+      ],
       "method": "manual",
       "hash_mode": "all",
       "files": [
@@ -9438,13 +9970,61 @@
           "sheets": []
         }
       ],
-      "detected_years": [1989, 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023]
+      "detected_years": [
+        1989,
+        1990,
+        1991,
+        1992,
+        1993,
+        1994,
+        1995,
+        1996,
+        1997,
+        1998,
+        1999,
+        2000,
+        2001,
+        2002,
+        2003,
+        2004,
+        2005,
+        2006,
+        2007,
+        2008,
+        2009,
+        2010,
+        2011,
+        2012,
+        2013,
+        2014,
+        2015,
+        2016,
+        2017,
+        2018,
+        2019,
+        2020,
+        2021,
+        2022,
+        2023
+      ]
     },
     "previous-series": {
       "id": "previous-series",
       "family": "validation",
       "country": "11 countries",
-      "country_coverage": ["COL", "ARG", "PER", "URY", "CRI", "ECU", "CHL", "BRA", "SLV", "MEX", "DOM"],
+      "country_coverage": [
+        "COL",
+        "ARG",
+        "PER",
+        "URY",
+        "CRI",
+        "ECU",
+        "CHL",
+        "BRA",
+        "SLV",
+        "MEX",
+        "DOM"
+      ],
       "method": "manual",
       "hash_mode": "all",
       "files": [

@@ -283,7 +283,7 @@ test_that("country SNA include confirm backs up promoted sources and restore rev
   root <- tempfile("country-sna-include-confirm-")
   dir.create(file.path(root, "config"), recursive = TRUE)
   dir.create(file.path(root, "input_data", "sna_country_data", "AAA"), recursive = TRUE)
-  dir.create(file.path(root, "input_data", "_new", "country_sna", "AAA"), recursive = TRUE)
+  dir.create(file.path(root, "input_data", "_new", "sna", "AAA"), recursive = TRUE)
   dina_sources <- list(sources = list(list(
     id = "country-sna-aaa",
     family = "country_sna",
@@ -304,7 +304,7 @@ test_that("country SNA include confirm backs up promoted sources and restore rev
     openxlsx::saveWorkbook(wb, path, overwrite = TRUE)
   }
   canonical <- file.path(root, "input_data", "sna_country_data", "AAA", "fixture.xlsx")
-  incoming <- file.path(root, "input_data", "_new", "country_sna", "AAA", "fixture.xlsx")
+  incoming <- file.path(root, "input_data", "_new", "sna", "AAA", "fixture.xlsx")
   write_fixture(canonical, 100)
   write_fixture(incoming, 110)
 

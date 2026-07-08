@@ -2683,7 +2683,7 @@ dina_country_sna_matching_explore <- function(root = dina_repo_root()) {
   current <- dina_country_sna_inbox_signature(root)
   if (!nrow(current)) return(NULL)
   fingerprints <- utils::read.csv(fingerprints_path, stringsAsFactors = FALSE, na.strings = c("", "NA"))
-  fingerprints <- fingerprints[grepl("^input_data/_new/country_sna/", fingerprints$rel %||% ""), , drop = FALSE]
+  fingerprints <- fingerprints[grepl("^input_data/_new/sna/", fingerprints$rel %||% ""), , drop = FALSE]
   if (!nrow(fingerprints)) return(NULL)
   key <- function(df) paste(df$rel, df$size, df$mtime, sep = "|")
   if (!all(key(current) %in% key(fingerprints))) return(NULL)
@@ -2813,7 +2813,7 @@ dina_session_state <- function(session, root = dina_repo_root()) {
       "sources_pending",
       dina_recommendation(
         command = "dina sources explore sna",
-        why = sprintf("%s incoming country-SNA source file%s %s waiting in input_data/_new/country_sna.", nrow(country_sna_inbox), if (nrow(country_sna_inbox) == 1L) "" else "s", if (nrow(country_sna_inbox) == 1L) "is" else "are"),
+        why = sprintf("%s incoming country-SNA source file%s %s waiting in input_data/_new/sna.", nrow(country_sna_inbox), if (nrow(country_sna_inbox) == 1L) "" else "s", if (nrow(country_sna_inbox) == 1L) "is" else "are"),
         todo_id = "country-sna-source-workflow",
         todo_label = "Explore country-SNA source changes",
         expected_action = "Inventory new files, likely years, layout changes, and expected variables before attempting inclusion.",
