@@ -86,11 +86,11 @@ admin_pit_fixture_repo <- function(block_col = FALSE, backup_overlap = FALSE, mi
   dina_write_yaml(list(years = list(last = 2024L)), file.path(root, "output", "updates", "fixture-update", "config.override.yml"))
 
   dina_write_yaml(list(sources = list(
-    list(id = "chl-pit-total", family = "admin_tax", country = "CHL", method = "manual", canonical = "input_data/admin_data/CHL/PUB_Total_*.xlsx", inbox = "input_data/_new/admin_tax/PUB_Total_*.xlsx", destination = "input_data/admin_data/CHL/{basename}", notes = "Chile PIT fixture."),
-    list(id = "bra-pit-total", family = "admin_tax", country = "BRA", method = "manual", canonical = "input_data/admin_data/BRA/gn-irpf-ac*.xlsx", inbox = "input_data/_new/admin_tax/gn-irpf-ac*.xlsx", destination = "input_data/admin_data/BRA/{basename}", notes = "Brazil PIT fixture."),
-    list(id = "col-pit-total", family = "admin_tax", country = "COL", method = "manual", canonical = "input_data/admin_data/COL/1_Cuantiles_Ingreso_Bruto_Naturales_2014-*", inbox = "input_data/_new/admin_tax/1_Cuantiles_Ingreso_Bruto_Naturales_2014-*", destination = "input_data/admin_data/COL/{basename}", notes = "Colombia PIT fixture."),
-    list(id = "bra-minwage", family = "admin_tax_aux", country = "BRA", method = "manual", canonical = "input_data/admin_data/BRA/downloads/wiki_minwage.csv", inbox = "input_data/_new/admin_tax/wiki_minwage.csv", destination = "input_data/admin_data/BRA/downloads/{basename}", notes = "Brazil min wage fixture."),
-    list(id = "chl-uta", family = "admin_tax_aux", country = "CHL", method = "manual", canonical = "input_data/admin_data/CHL/uta_december.csv", inbox = "input_data/_new/admin_tax/chl_uta_december.csv", destination = "input_data/admin_data/CHL/uta_december.csv", notes = "Chile UTA fixture."),
+    list(id = "chl-pit-total", family = "admin_tax", country = "CHL", method = "manual", canonical = "input_data/admin_data/CHL/PUB_Total_*.xlsx", inbox = "input_data/_new/admin/CHL/PUB_Total_*.xlsx", destination = "input_data/admin_data/CHL/{basename}", notes = "Chile PIT fixture."),
+    list(id = "bra-pit-total", family = "admin_tax", country = "BRA", method = "manual", canonical = "input_data/admin_data/BRA/gn-irpf-ac*.xlsx", inbox = "input_data/_new/admin/BRA/gn-irpf-ac*.xlsx", destination = "input_data/admin_data/BRA/{basename}", notes = "Brazil PIT fixture."),
+    list(id = "col-pit-total", family = "admin_tax", country = "COL", method = "manual", canonical = "input_data/admin_data/COL/1_Cuantiles_Ingreso_Bruto_Naturales_2014-*", inbox = "input_data/_new/admin/COL/1_Cuantiles_Ingreso_Bruto_Naturales_2014-*", destination = "input_data/admin_data/COL/{basename}", notes = "Colombia PIT fixture."),
+    list(id = "bra-minwage", family = "admin_tax_aux", country = "BRA", method = "manual", canonical = "input_data/admin_data/BRA/downloads/wiki_minwage.csv", inbox = "input_data/_new/admin/BRA/wiki_minwage.csv", destination = "input_data/admin_data/BRA/downloads/{basename}", notes = "Brazil min wage fixture."),
+    list(id = "chl-uta", family = "admin_tax_aux", country = "CHL", method = "manual", canonical = "input_data/admin_data/CHL/uta_december.csv", inbox = "input_data/_new/admin/CHL/chl_uta_december.csv", destination = "input_data/admin_data/CHL/uta_december.csv", notes = "Chile UTA fixture."),
     list(id = "mex-admin-microdata", family = "admin_microdata", country = "MEX", method = "manual", canonical = "input_data/admin_data/MEX", notes = "Unsupported admin microdata fixture.")
   )), file.path(root, "config", "sources.yml"))
 
@@ -98,22 +98,22 @@ admin_pit_fixture_repo <- function(block_col = FALSE, backup_overlap = FALSE, mi
   if (isTRUE(backup_overlap)) {
     admin_pit_write_workbook(file.path(root, "input_data", "admin_data", "CHL", "PUB_Total_2024.xlsx"), "Datos", "old-2024", years = 2005:2024)
   }
-  admin_pit_write_workbook(file.path(root, "input_data", "_new", "admin_tax", "PUB_Total_2024.xlsx"), "Datos", "new-2024", years = 2005:2024)
+  admin_pit_write_workbook(file.path(root, "input_data", "_new", "admin", "CHL", "PUB_Total_2024.xlsx"), "Datos", "new-2024", years = 2005:2024)
   admin_pit_write_workbook(file.path(root, "input_data", "admin_data", "BRA", "gn-irpf-ac2023.xlsx"), "Tab8", "old-2023")
-  admin_pit_write_workbook(file.path(root, "input_data", "_new", "admin_tax", "gn-irpf-ac2024.xlsx"), "Tab8", "new-2024")
+  admin_pit_write_workbook(file.path(root, "input_data", "_new", "admin", "BRA", "gn-irpf-ac2024.xlsx"), "Tab8", "new-2024")
   if (identical(minwage, "new")) {
     admin_pit_write_minwage(file.path(root, "input_data", "admin_data", "BRA", "downloads", "wiki_minwage.csv"), 2007:2023)
-    admin_pit_write_minwage(file.path(root, "input_data", "_new", "admin_tax", "wiki_minwage.csv"), 2007:2024)
+    admin_pit_write_minwage(file.path(root, "input_data", "_new", "admin", "BRA", "wiki_minwage.csv"), 2007:2024)
   } else if (identical(minwage, "canonical")) {
     admin_pit_write_minwage(file.path(root, "input_data", "admin_data", "BRA", "downloads", "wiki_minwage.csv"), 2007:2024)
   } else if (identical(minwage, "changed_overlap")) {
     admin_pit_write_minwage(file.path(root, "input_data", "admin_data", "BRA", "downloads", "wiki_minwage.csv"), 2007:2023)
-    admin_pit_write_minwage(file.path(root, "input_data", "_new", "admin_tax", "wiki_minwage.csv"), 2007:2024, changed_year = 2023L)
+    admin_pit_write_minwage(file.path(root, "input_data", "_new", "admin", "BRA", "wiki_minwage.csv"), 2007:2024, changed_year = 2023L)
   } else if (identical(minwage, "missing_history")) {
     admin_pit_write_minwage(file.path(root, "input_data", "admin_data", "BRA", "downloads", "wiki_minwage.csv"), 2000:2023)
-    admin_pit_write_minwage(file.path(root, "input_data", "_new", "admin_tax", "wiki_minwage.csv"), 2007:2024)
+    admin_pit_write_minwage(file.path(root, "input_data", "_new", "admin", "BRA", "wiki_minwage.csv"), 2007:2024)
   }
-  writeLines("year,uta\n2024,75981", file.path(root, "input_data", "_new", "admin_tax", "chl_uta_december.csv"))
+  writeLines("year,uta\n2024,75981", file.path(root, "input_data", "_new", "admin", "CHL", "chl_uta_december.csv"))
   dir.create(file.path(root, "intermediary_data", "population"), recursive = TRUE)
   dir.create(file.path(root, "input_data", "population"), recursive = TRUE)
   writeLines("survey-pop-fixture", file.path(root, "intermediary_data", "population", "SurveyPop.dta"))
@@ -123,7 +123,7 @@ admin_pit_fixture_repo <- function(block_col = FALSE, backup_overlap = FALSE, mi
   }
   admin_pit_write_workbook(file.path(root, "input_data", "admin_data", "BRA", "ptot_2000.xlsx"), "Sheet1", "static-2000")
   old_col <- file.path(root, "input_data", "admin_data", "COL", "1_Cuantiles_Ingreso_Bruto_Naturales_2014-2022")
-  new_col <- file.path(root, "input_data", "_new", "admin_tax", "1_Cuantiles_Ingreso_Bruto_Naturales_2014-2023")
+  new_col <- file.path(root, "input_data", "_new", "admin", "COL", "1_Cuantiles_Ingreso_Bruto_Naturales_2014-2023")
   admin_pit_col_files(old_col, 2014:2022)
   admin_pit_col_files(new_col, 2014:2023, nested = TRUE, omit = if (isTRUE(block_col)) 2023L else integer())
   root
@@ -137,6 +137,21 @@ admin_pit_hashes <- function(root) {
   )
   stats::setNames(vapply(paths, digest::digest, character(1), file = TRUE, algo = "sha256"), basename(paths))
 }
+
+test_that("admin source registry uses public admin buckets only", {
+  skip_if_not_installed("yaml")
+  registry_text <- paste(readLines(file.path(repo_root_for_tests, "config", "sources.yml"), warn = FALSE), collapse = "\n")
+  admin_pit_expect_false(grepl("input_data/_new/admin_tax", registry_text, fixed = TRUE))
+  admin_pit_expect_false(grepl("input_data/_new/admin_tax_aux", registry_text, fixed = TRUE))
+  admin_pit_expect_true(grepl("input_data/_new/admin/CHL/PUB_Total_", registry_text, fixed = TRUE))
+  admin_pit_expect_true(grepl("input_data/_new/admin/BRA/gn-irpf-ac", registry_text, fixed = TRUE))
+  admin_pit_expect_true(grepl("input_data/_new/admin/BRA/wiki_minwage", registry_text, fixed = TRUE))
+  admin_pit_expect_true(grepl("input_data/_new/admin/COL/1_Cuantiles_Ingreso_Bruto_Naturales_2014-", registry_text, fixed = TRUE))
+
+  sources <- yaml::read_yaml(file.path(repo_root_for_tests, "config", "sources.yml"))$sources
+  minwage <- Filter(function(source) identical(source$id, "bra-minwage"), sources)[[1L]]
+  expect_equal(minwage$fetch_target, "input_data/_new/admin/BRA/wiki_minwage.csv")
+})
 
 test_that("isolated PIT admin explorer detects supported sources, years, unsupported rows, and active override", {
   skip_if_not_installed("openxlsx")
@@ -167,6 +182,21 @@ test_that("PIT admin explorer reports Brazil min-wage dependency actions", {
   candidate <- run_admin_pit_explorer(root = admin_pit_fixture_repo(minwage = "new"), write_outputs = FALSE)
   dep <- candidate$outputs$aux_dependency_summary[candidate$outputs$aux_dependency_summary$dependency_id == "bra-minwage", , drop = FALSE]
   expect_equal(dep$status, "aux_candidate")
+})
+
+test_that("PIT admin explorer ignores old admin_tax inbox paths", {
+  skip_if_not_installed("openxlsx")
+  root <- admin_pit_fixture_repo()
+  unlink(file.path(root, "input_data", "_new", "admin"), recursive = TRUE)
+  admin_pit_write_workbook(file.path(root, "input_data", "_new", "admin_tax", "PUB_Total_2024.xlsx"), "Datos", "old-bucket", years = 2005:2024)
+  admin_pit_write_workbook(file.path(root, "input_data", "_new", "admin_tax", "gn-irpf-ac2024.xlsx"), "Tab8", "old-bucket")
+  admin_pit_col_files(file.path(root, "input_data", "_new", "admin_tax", "1_Cuantiles_Ingreso_Bruto_Naturales_2014-2023"), 2014:2023, nested = TRUE)
+
+  result <- run_admin_pit_explorer(root = root, write_outputs = FALSE)
+  new_rows <- result$outputs$source_inventory[result$outputs$source_inventory$source_set == "new", , drop = FALSE]
+  admin_pit_expect_true(all(new_rows$status == "no_file"))
+  admin_pit_expect_false(any(grepl("input_data/_new/admin_tax", new_rows$rel, fixed = TRUE)))
+  admin_pit_expect_true(all(result$outputs$extension_summary$status == "blocked_missing_new"))
 })
 
 test_that("isolated PIT admin explorer blocks missing expected Colombia files", {
@@ -303,7 +333,7 @@ test_that("isolated PIT admin confirm refuses changed incoming source fingerprin
   explore <- run_admin_pit_explorer(root = root, write_outputs = TRUE)
   include <- run_admin_pit_include(root = root, exploration_run = explore$paths$root, write_outputs = TRUE, cleaner_mode = "mock")
 
-  admin_pit_write_workbook(file.path(root, "input_data", "_new", "admin_tax", "PUB_Total_2024.xlsx"), "Datos", "changed-after-dry-run")
+  admin_pit_write_workbook(file.path(root, "input_data", "_new", "admin", "CHL", "PUB_Total_2024.xlsx"), "Datos", "changed-after-dry-run")
 
   expect_error(admin_pit_include_confirm_sources(root = root, include_run = include$paths$root), "fingerprints changed since dry-run")
   admin_pit_expect_false(file.exists(file.path(root, "input_data", "admin_data", "BRA", "gn-irpf-ac2024.xlsx")))
@@ -350,15 +380,15 @@ test_that("main dina CLI dispatches admin PIT explore and table to isolated modu
   expect_match(explore$output, "chl-pit-total")
   expect_match(explore$output, "2005-2022 \\(18y\\)")
   expect_match(explore$output, "dina sources table admin")
-  expect_match(explore$output, "extension_summary")
   admin_pit_expect_false(grepl("Experimental isolated source workflow", explore$output, fixed = TRUE))
+  admin_pit_expect_false(grepl("review: structure=", explore$output, fixed = TRUE))
   admin_pit_expect_false(grepl("2005,2006,2007,2008", explore$output, fixed = TRUE))
 
-  tables <- run_dina_cli(c("sources", "table", "admin"), root = root)
+  tables <- run_dina_cli(c("sources", "table", "admin", "--limit", "2"), root = root)
   expect_equal(tables$status, 0L)
   expect_match(tables$output, "PIT Admin Tables")
-  expect_match(tables$output, "extension_summary")
-  expect_match(tables$output, "source_inventory")
+  expect_match(tables$output, "PIT Admin Table: extension_summary")
+  expect_match(tables$output, "PIT Admin Table: source_inventory")
 
   table <- run_dina_cli(c("sources", "table", "admin", "year_expectations", "--country", "CHL"), root = root)
   expect_equal(table$status, 0L)

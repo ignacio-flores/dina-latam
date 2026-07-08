@@ -851,6 +851,10 @@ admin_pit_explorer_manifest <- function(contract, years, status) {
 admin_pit_explorer_write_outputs <- function(outputs, paths, manifest) {
   dir.create(paths$tables, recursive = TRUE, showWarnings = FALSE)
   dir.create(paths$logs, recursive = TRUE, showWarnings = FALSE)
+  old_tables <- Sys.glob(file.path(paths$tables, "*.csv"))
+  if (length(old_tables)) unlink(old_tables)
+  old_logs <- Sys.glob(file.path(paths$logs, "*.csv"))
+  if (length(old_logs)) unlink(old_logs)
   for (name in names(outputs)) {
     utils::write.csv(outputs[[name]], file.path(paths$tables, paste0(name, ".csv")), row.names = FALSE, na = "")
   }

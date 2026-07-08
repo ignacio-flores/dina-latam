@@ -11,11 +11,8 @@ sources:
       - input_data/admin_data/CHL/PUB_Total_*.xlsx
       - input_data/admin_data/CHL/PUB_Total_*.xlsb
     inbox:
-      - input_data/_new/admin_tax/PUB_Total_*.xlsb
-      - input_data/_new/admin_tax/PUB_Total_*.xlsx
-    legacy_inbox:
-      - input_data/admin_data/CHL/_new/PUB_Total_*.xlsb
-      - input_data/admin_data/CHL/_new/PUB_Total_*.xlsx
+      - input_data/_new/admin/CHL/PUB_Total_*.xlsb
+      - input_data/_new/admin/CHL/PUB_Total_*.xlsx
     inbox_examples:
       - PUB_Total_2024.xlsb
       - PUB_Total_2024.xlsx
@@ -35,9 +32,7 @@ sources:
       - input_data/admin_data/BRA/gn-irpf-ac*.xlsx
       - input_data/admin_data/BRA/ptot_*.xlsx
     inbox:
-      - input_data/_new/admin_tax/gn-irpf-ac*.xlsx
-    legacy_inbox:
-      - input_data/admin_data/BRA/_new/gn-irpf-ac*.xlsx
+      - input_data/_new/admin/BRA/gn-irpf-ac*.xlsx
     inbox_examples:
       - gn-irpf-ac2024.xlsx
     destination: input_data/admin_data/BRA/{basename}
@@ -57,15 +52,13 @@ sources:
     canonical:
       - input_data/admin_data/BRA/downloads/wiki_minwage.csv
     inbox:
-      - input_data/_new/admin_tax/wiki_minwage*.csv
-    legacy_inbox:
-      - input_data/_new/admin_tax_aux/wiki_minwage*.csv
+      - input_data/_new/admin/BRA/wiki_minwage*.csv
     inbox_examples:
       - wiki_minwage.csv
     destination: input_data/admin_data/BRA/downloads/{basename}
     downloader: code/R/manual-downloaders/bra_minwage_downloader.R
     fetcher: code/R/manual-downloaders/fetch_bra_minwage.R
-    fetch_target: input_data/_new/admin_tax/wiki_minwage.csv
+    fetch_target: input_data/_new/admin/BRA/wiki_minwage.csv
     transformer: code/R/02c_clean_admin_bra.R
     notes: Scrapes the minimum wage table used by the Brazil admin cleaner.
 
@@ -144,9 +137,7 @@ sources:
       - input_data/admin_data/COL/1_Cuantiles_Ingreso_Bruto_Naturales_2014-*
       - input_data/admin_data/COL/Nota-Metodologica-Cuantiles-Personas-Naturales.pdf
     inbox:
-      - input_data/_new/admin_tax/1_Cuantiles_Ingreso_Bruto_Naturales_2014-*
-    legacy_inbox:
-      - input_data/admin_data/COL/_new/1_Cuantiles_Ingreso_Bruto_Naturales_2014-*
+      - input_data/_new/admin/COL/1_Cuantiles_Ingreso_Bruto_Naturales_2014-*
     inbox_examples:
       - 1_Cuantiles_Ingreso_Bruto_Naturales_2014-2023
     destination: input_data/admin_data/COL/{basename}

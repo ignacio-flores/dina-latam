@@ -142,7 +142,7 @@ Source data:
   `sources compare`                   [read-only] compare source baseline
   `sources explore SOURCETYPE`        [writes experiment] inspect _new files
   `sources include SOURCETYPE`        [writes experiment] stage/check inclusion
-  `sources table SOURCETYPE TABLE`    [read-only] preview explore tables
+  `sources table SOURCETYPE [TABLE]`  [read-only] preview explore tables
   `sources status`                    [read-only] alias for sources compare
   `sources diff`                      [read-only] detailed source baseline diff
   `sources fields`                    [read-only] source option cheat sheet
@@ -259,10 +259,9 @@ What this page is:
       exploration run to report all_good, check_following, or blocked. It does
       not replace pipeline tasks or run the pipeline. Implemented for sna and admin.
 
-  dina sources table SOURCETYPE TABLE
-      Previews explorer tables inline. Implemented for sna; variable
-      expectations are summarized by default so the CLI does not dump thousands
-      of rows.
+  dina sources table SOURCETYPE [TABLE]
+      Previews explorer/include tables inline. Without TABLE, prints compact
+      previews of all available tables for that source workflow.
 
   dina sources include SOURCETYPE --confirm --include-run RUN
       Promotes approved `_new` files from a clean staged include run only after
@@ -463,7 +462,7 @@ Examples:
   dina sources include SOURCETYPE [--dry-run] [--exploration-run PATH] [--output-dir PATH]
   dina sources include SOURCETYPE --confirm --include-run RUN
   dina sources include SOURCETYPE --restore CONFIRM_RUN
-  dina sources table SOURCETYPE TABLE [--run PATH] [--country ISO] [--limit N]
+  dina sources table SOURCETYPE [TABLE] [--run PATH] [--country ISO] [--limit N]
   dina sources status [--metadata-only] [--hash-all] [--deep]
   dina sources diff [--deep] [--hash]
   dina sources fields
@@ -4459,7 +4458,7 @@ dina_print_country_sna_explore <- function(result, dry_run = FALSE, input = "std
     dina_cli_alert("Dry-run only: explorer outputs were not written.")
   } else {
     dina_cli_ok(sprintf("Explorer output: %s", result$paths$root))
-    dina_cli_alert("Review tables inline with `dina sources table sna year_expectations`.")
+    dina_cli_alert("Review tables inline with `dina sources table sna`; use `dina sources table sna TABLE` for one table.")
     dina_cli_alert("Low-level table/role/value candidates are developer evidence, not review actions.")
     dina_country_sna_explore_tables_menu(result$paths$root, input = input, is_terminal = is_terminal)
   }
@@ -4478,12 +4477,19 @@ dina_country_sna_table_file <- function(root, table, run = NULL) {
   file.path(run, "tables", paste0(table, ".csv"))
 }
 
+dina_country_sna_table_available <- function(root, run = NULL) {
+  run <- dina_country_sna_table_run(root, run)
+  table_dir <- file.path(run, "tables")
+  if (!dir.exists(table_dir)) return(character())
+  tools::file_path_sans_ext(basename(Sys.glob(file.path(table_dir, "*.csv"))))
+}
+
 dina_country_sna_read_table <- function(root, table, run = NULL) {
   path <- dina_country_sna_table_file(root, table, run)
   if (!file.exists(path)) {
     stop(sprintf("Country-SNA explore table not found: %s", path), call. = FALSE)
   }
-  utils::read.csv(path, stringsAsFactors = FALSE, na.strings = c("", "NA"))
+  dina_read_csv_table_or_empty(path, na.strings = c("", "NA"))
 }
 
 dina_country_sna_variable_expectation_summary <- function(rows) {
@@ -4537,7 +4543,23 @@ dina_print_data_frame_compact <- function(rows, limit = 20L) {
   invisible(rows)
 }
 
-dina_print_country_sna_table <- function(root, table, run = NULL, country = NULL, limit = 20L) {
+dina_read_csv_table_or_empty <- function(path, ...) {
+  lines <- readLines(path, warn = FALSE, n = 5L)
+  if (!length(lines) || all(!nzchar(trimws(lines)))) {
+    return(data.frame(stringsAsFactors = FALSE))
+  }
+  tryCatch(
+    utils::read.csv(path, stringsAsFactors = FALSE, ...),
+    error = function(e) {
+      if (grepl("first five rows are empty", conditionMessage(e), fixed = TRUE)) {
+        return(data.frame(stringsAsFactors = FALSE))
+      }
+      stop(e)
+    }
+  )
+}
+
+dina_print_country_sna_table <- function(root, table, run = NULL, country = NULL, limit = 20L, show_run = TRUE) {
   table <- gsub("-", "_", table %||% "", fixed = TRUE)
   rows <- dina_country_sna_read_table(root, table, run)
   if (!is.null(country) && "country" %in% names(rows)) {
@@ -4550,9 +4572,41 @@ dina_print_country_sna_table <- function(root, table, run = NULL, country = NULL
     title <- "variable_expectations summary"
   }
   dina_cli_header(sprintf("Country-SNA Table: %s", title))
-  dina_cli_alert(sprintf("Run: %s", dina_country_sna_table_run(root, run)))
+  if (isTRUE(show_run)) dina_cli_alert(sprintf("Run: %s", dina_country_sna_table_run(root, run)))
   dina_print_data_frame_compact(display, limit = limit)
   invisible(display)
+}
+
+dina_print_country_sna_tables <- function(root, run = NULL, country = NULL, limit = 20L) {
+  run_path <- dina_country_sna_table_run(root, run)
+  available <- dina_country_sna_table_available(root, run)
+  preferred <- c(
+    "extension_summary",
+    "year_expectations",
+    "variable_expectations",
+    "source_inventory",
+    "source_match_summary",
+    "structure_summary",
+    "review_actions",
+    "available_years",
+    "table_candidates",
+    "role_candidates",
+    "value_candidates",
+    "overlap_revision_summary",
+    "overlap_revision_detail",
+    "value_status_summary"
+  )
+  ordered <- c(preferred[preferred %in% available], sort(setdiff(available, preferred)))
+  dina_cli_header("Country-SNA Tables")
+  dina_cli_alert(sprintf("Run: %s", run_path))
+  if (!length(ordered)) {
+    dina_cli_warn("No country-SNA tables found yet. Run `dina sources explore sna` first, or pass --run PATH.")
+    return(invisible(character()))
+  }
+  for (table in ordered) {
+    dina_print_country_sna_table(root, table, run = run, country = country, limit = limit, show_run = FALSE)
+  }
+  invisible(ordered)
 }
 
 dina_country_sna_explore_tables_menu <- function(run, input = "stdin", is_terminal = isatty(stdin())) {
@@ -4670,8 +4724,6 @@ dina_admin_pit_year_label <- function(x, max_chars = 34L) {
 
 dina_print_admin_pit_explore <- function(result, dry_run = FALSE) {
   summary <- result$outputs$extension_summary
-  structure <- result$outputs$structure_summary
-  actions <- result$outputs$review_actions
   manifest <- result$manifest
   status <- if (nrow(manifest)) manifest$value[manifest$key == "status"][[1L]] else "check_following"
   dina_cli_header("PIT Admin Explore")
@@ -4681,8 +4733,6 @@ dina_print_admin_pit_explore <- function(result, dry_run = FALSE) {
   } else {
     dina_cli_cat(dina_cli_row(c("source", "ctry", "current", "incoming", "extension", "result"), widths = c(18, 5, 22, 22, 18, 16), dim = TRUE))
     for (i in seq_len(nrow(summary))) {
-      structure_row <- structure[structure$source_id == summary$source_id[[i]] & structure$country == summary$country[[i]], , drop = FALSE]
-      action_row <- actions[actions$source_id == summary$source_id[[i]] & actions$country == summary$country[[i]], , drop = FALSE]
       dina_cli_cat(dina_cli_row(
         c(
           summary$source_id[[i]],
@@ -4694,11 +4744,6 @@ dina_print_admin_pit_explore <- function(result, dry_run = FALSE) {
         ),
         widths = c(18, 5, 22, 22, 18, 16)
       ))
-      dina_cli_cat(dina_cli_dim(sprintf(
-        "  review: structure=%s; action=%s",
-        dina_admin_pit_label(if (nrow(structure_row)) structure_row$structure_status[[1L]] else "-"),
-        dina_admin_pit_label(if (nrow(action_row)) action_row$action[[1L]] else "-")
-      )))
     }
   }
   deps <- result$outputs$aux_dependency_summary %||% data.frame()
@@ -4744,8 +4789,7 @@ dina_print_admin_pit_explore <- function(result, dry_run = FALSE) {
     dina_cli_alert("Dry-run only: review tables were not written.")
   } else {
     dina_cli_ok(sprintf("Explore output: %s", result$paths$root))
-    dina_cli_alert("List review tables with `dina sources table admin`; preview one with `dina sources table admin TABLE`.")
-    dina_cli_alert("Common tables: extension_summary, year_expectations, structure_summary, source_inventory, aux_dependency_summary, dependency_actions.")
+    dina_cli_alert("Review tables inline with `dina sources table admin`; use `dina sources table admin TABLE` for one table.")
   }
   invisible(result)
 }
@@ -4816,23 +4860,21 @@ dina_admin_pit_table_available <- function(root, run = NULL) {
   tools::file_path_sans_ext(basename(Sys.glob(file.path(table_dir, "*.csv"))))
 }
 
-dina_print_admin_pit_tables <- function(root, run = NULL) {
+dina_print_admin_pit_tables <- function(root, run = NULL, country = NULL, limit = 20L) {
   run_path <- dina_admin_pit_table_run(root, run)
   catalog <- dina_admin_pit_table_catalog()
   available <- dina_admin_pit_table_available(root, run)
-  catalog$available <- ifelse(catalog$table %in% available, "yes", "no")
+  ordered <- c(catalog$table[catalog$table %in% available], sort(setdiff(available, catalog$table)))
   dina_cli_header("PIT Admin Tables")
   dina_cli_alert(sprintf("Run: %s", run_path))
-  if (!length(available)) {
+  if (!length(ordered)) {
     dina_cli_warn("No admin PIT tables found yet. Run `dina sources explore admin` first, or pass --run PATH.")
+    return(invisible(character()))
   }
-  dina_print_data_frame_compact(catalog, limit = nrow(catalog))
-  if (!is.null(run)) {
-    dina_cli_alert(sprintf("Preview one table with `dina sources table admin TABLE --run %s`.", run_path))
-  } else {
-    dina_cli_alert("Preview one table with `dina sources table admin TABLE`.")
+  for (table in ordered) {
+    dina_print_admin_pit_table(root, table, run = run, country = country, limit = limit, show_run = FALSE)
   }
-  invisible(catalog)
+  invisible(ordered)
 }
 
 dina_admin_pit_table_file <- function(root, table, run = NULL) {
@@ -4850,17 +4892,17 @@ dina_admin_pit_table_file <- function(root, table, run = NULL) {
 }
 
 dina_admin_pit_read_table <- function(root, table, run = NULL) {
-  utils::read.csv(dina_admin_pit_table_file(root, table, run), stringsAsFactors = FALSE)
+  dina_read_csv_table_or_empty(dina_admin_pit_table_file(root, table, run))
 }
 
-dina_print_admin_pit_table <- function(root, table, run = NULL, country = NULL, limit = 20L) {
+dina_print_admin_pit_table <- function(root, table, run = NULL, country = NULL, limit = 20L, show_run = TRUE) {
   table <- gsub("-", "_", table %||% "", fixed = TRUE)
   rows <- dina_admin_pit_read_table(root, table, run)
   if (!is.null(country) && "country" %in% names(rows)) {
     rows <- rows[toupper(rows$country) == toupper(country), , drop = FALSE]
   }
   dina_cli_header(sprintf("PIT Admin Table: %s", table))
-  dina_cli_alert(sprintf("Run: %s", dina_admin_pit_table_run(root, run)))
+  if (isTRUE(show_run)) dina_cli_alert(sprintf("Run: %s", dina_admin_pit_table_run(root, run)))
   dina_print_data_frame_compact(rows, limit = limit)
   invisible(rows)
 }
@@ -5199,10 +5241,21 @@ dina_cmd_sources <- function(root, args) {
     family <- dina_source_workflow_family(target, command = "table")
     if (is.null(table)) {
       if (identical(family, "admin")) {
-        dina_print_admin_pit_tables(root, run = flags$run %||% NULL)
-        return(invisible(NULL))
+        dina_print_admin_pit_tables(
+          root,
+          run = flags$run %||% NULL,
+          country = flags$country %||% NULL,
+          limit = flags$limit %||% 20L
+        )
+      } else {
+        dina_print_country_sna_tables(
+          root,
+          run = flags$run %||% NULL,
+          country = flags$country %||% NULL,
+          limit = flags$limit %||% 20L
+        )
       }
-      stop("Usage: dina sources table SOURCETYPE TABLE [--run PATH] [--country ISO] [--limit N]", call. = FALSE)
+      return(invisible(NULL))
     }
     if (identical(family, "admin")) {
       dina_print_admin_pit_table(
