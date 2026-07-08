@@ -1,18 +1,19 @@
 # Country-SNA source workflow
 
 This document describes the active experimental country-SNA source workflow.
-The workflow is available in the CLI, but it does not replace `01b`, does not
-run the production pipeline, and keeps generated artifacts under disposable
-experiment folders.
+The public CLI source type is `sna`; the implementation still writes country-SNA
+experiment folders. The workflow does not replace `01b`, does not run the
+production pipeline, and keeps generated artifacts under disposable experiment
+folders.
 
 ## Commands
 
 ```bash
-dina sources explore country-sna [--dry-run] [--output-dir PATH] [--country ISO]
-dina sources table country-sna TABLE [--run PATH] [--country ISO] [--limit N]
-dina sources include country-sna [--dry-run] [--exploration-run PATH] [--output-dir PATH]
-dina sources include country-sna --confirm --include-run RUN
-dina sources include country-sna --restore CONFIRM_RUN
+dina sources explore sna [--dry-run] [--output-dir PATH] [--country ISO]
+dina sources table sna TABLE [--run PATH] [--country ISO] [--limit N]
+dina sources include sna [--dry-run] [--exploration-run PATH] [--output-dir PATH]
+dina sources include sna --confirm --include-run RUN
+dina sources include sna --restore CONFIRM_RUN
 ```
 
 `explore` reads `input_data/_new/country_sna`, inventories old and new source
@@ -70,7 +71,7 @@ The expected variables come from the deterministic include contract. Adaptive
 table, role, and value candidates are still written as developer evidence, but
 they are not surfaced as thousands of user review actions.
 
-Use `dina sources table country-sna year_expectations` to preview review tables
+Use `dina sources table sna year_expectations` to preview review tables
 inline. The variable expectations table is summarized by default to avoid
 dumping thousands of rows into the terminal.
 

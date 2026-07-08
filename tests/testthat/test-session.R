@@ -28,7 +28,14 @@ test_that("update start creates a lightweight workspace and active pointer", {
 
   expect_equal(session$id, sprintf("2026-update-%s", format(Sys.Date(), "%m-%d")))
   expect_true(file.exists(file.path(root, "output", "updates", ".active_update")))
-  expect_false(file.exists(file.path(root, session$config_override)))
+  expect_true(file.exists(file.path(root, session$config_override)))
+  expect_true(nzchar(session$config_override_hash))
+  override <- dina_config_override(session, root)
+  expect_equal(override$years$last, 2024L)
+  expect_equal(override$export_validation$last_year, 2025L)
+  effective <- dina_session_config(session, root, expand_env = FALSE)
+  expect_equal(effective$years$last, 2024L)
+  expect_equal(effective$export_validation$last_year, 2025L)
   expect_true(file.exists(file.path(root, "output", "updates", session$id, "repo_state", "start", "metadata.json")))
   expect_false(dir.exists(file.path(root, "output", "updates", session$id, "source_staging")))
   expect_equal(session$todo$checked, character())
@@ -41,12 +48,53 @@ test_that("update start creates a lightweight workspace and active pointer", {
   expect_equal(loaded$status, "initialized")
   expect_true(is.null(loaded$gate_records))
   expect_true(is.null(loaded$checklist))
+
+  restarted <- dina_update_restart(session$id, root = root, yes = TRUE)
+  expect_true(isTRUE(restarted$restarted))
+  expect_true(file.exists(dina_session_config_override_path(session$id, root)))
+  expect_equal(dina_config_override(restarted$new_session, root)$years$last, 2024L)
 })
 
 test_that("dashboard state is no_active_update without session", {
   root <- mini_repo()
   state <- dina_session_state(NULL, root = root)
   expect_equal(state$state, "no_active_update")
+})
+
+test_that("update start and restart print config proposal in CLI", {
+  root <- mini_repo()
+
+  started <- run_dina_cli(c("update", "start", "2026", "--yes"), root = root)
+  expect_equal(started$status, 0L)
+  expect_match(started$output, "Config Proposal")
+  expect_match(started$output, "config.override.yml")
+  expect_match(started$output, "key[[:space:]]+current[[:space:]]+proposed[[:space:]]+reason")
+  expect_match(started$output, "years\\.last[[:space:]]+2023[[:space:]]+2024[[:space:]]+next update year")
+  expect_match(started$output, "export_validation\\.last_year[[:space:]]+2024[[:space:]]+2025[[:space:]]+next export validation year")
+  expect_match(started$output, "Override YAML")
+  expect_match(started$output, "years:")
+  expect_match(started$output, "last: 2024")
+  expect_match(started$output, "export_validation:")
+  expect_match(started$output, "last_year: 2025")
+  expect_match(started$output, "Edit manually or run `dina update config edit`")
+  expect_match(started$output, "Workflow reminder: `dina help workflow`")
+
+  session <- dina_load_session(root = root)
+  dina_session_config_set(session, root = root, key = "run.lang", value = "spa")
+  shown <- run_dina_cli(c("update", "config", "show"), root = root)
+  expect_equal(shown$status, 0L)
+  expect_match(shown$output, "Config Proposal")
+  expect_match(shown$output, "run\\.lang[[:space:]]+eng[[:space:]]+spa[[:space:]]+manual override")
+  expect_match(shown$output, "Effective config:")
+
+  update_id <- dina_current_update(root)
+  restarted <- run_dina_cli(c("update", "restart", update_id, "--yes"), root = root)
+  expect_equal(restarted$status, 0L)
+  expect_match(restarted$output, "Config Proposal")
+  expect_match(restarted$output, "config.override.yml")
+  expect_match(restarted$output, "years\\.last[[:space:]]+2023[[:space:]]+2024")
+  expect_match(restarted$output, "last: 2024")
+  expect_match(restarted$output, "Edit manually or run `dina update config edit`")
 })
 
 test_that("plain dashboard prints status and recommendation without common commands", {
@@ -128,7 +176,7 @@ test_that("session state ignores retired source workflow and recommends runs, to
   expect_equal(state$proposal$next_command, "dina run stale")
   expect_false(grepl("dina sources review", state$recommendation, fixed = TRUE))
 
-  dir.create(file.path(root, "output"), recursive = TRUE)
+  dir.create(file.path(root, "output"), recursive = TRUE, showWarnings = FALSE)
   writeLines("input", file.path(root, "input_data", "a.txt"))
   writeLines("a", file.path(root, "output", "a.txt"))
   writeLines("b", file.path(root, "output", "b.txt"))
@@ -172,14 +220,14 @@ test_that("session state recommends country-SNA explore when that inbox has file
 
   state <- dina_session_state(session, root = root)
   expect_equal(state$state, "sources_pending")
-  expect_equal(state$proposal$command, "dina sources explore country-sna")
-  expect_equal(state$proposal$next_command, "dina sources include country-sna --dry-run")
+  expect_equal(state$proposal$command, "dina sources explore sna")
+  expect_equal(state$proposal$next_command, "dina sources include sna --dry-run")
 
   status <- run_dina_cli(c("update", "status"), root = root)
   expect_equal(status$status, 0L)
-  expect_match(status$output, "dina sources explore country-sna")
-  expect_match(status$output, "dina sources include country-sna --dry-run")
-  expect_match(status$output, "Country-SNA incoming files can be explored")
+  expect_match(status$output, "dina sources explore sna")
+  expect_match(status$output, "dina sources include sna --dry-run")
+  expect_match(status$output, "SNA incoming files can be explored")
 
   explore_root <- file.path(root, "output", "experiments", "country_sna_explore")
   dir.create(file.path(explore_root, "logs"), recursive = TRUE, showWarnings = FALSE)
@@ -196,7 +244,7 @@ test_that("session state recommends country-SNA explore when that inbox has file
   )
   state <- dina_session_state(session, root = root)
   expect_equal(state$state, "sources_explored")
-  expect_equal(state$proposal$command, "dina sources include country-sna --dry-run")
+  expect_equal(state$proposal$command, "dina sources include sna --dry-run")
 
   include_run <- file.path(root, "output", "experiments", "country_sna_include", "runs", "include-test")
   dir.create(file.path(include_run, "logs"), recursive = TRUE, showWarnings = FALSE)
@@ -211,7 +259,7 @@ test_that("session state recommends country-SNA explore when that inbox has file
   )
   state <- dina_session_state(session, root = root)
   expect_equal(state$state, "sources_include_ready")
-  expect_match(state$proposal$command, "dina sources include country-sna --confirm")
+  expect_match(state$proposal$command, "dina sources include sna --confirm")
 
   confirm_run <- file.path(root, "output", "experiments", "country_sna_include", "confirms", "confirm-test")
   dir.create(file.path(confirm_run, "logs"), recursive = TRUE, showWarnings = FALSE)

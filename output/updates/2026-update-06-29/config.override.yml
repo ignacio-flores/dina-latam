@@ -1,0 +1,6 @@
+years:
+  last: 2024
+export_validation:
+  last_year: 2025
+  previous_update_file: input_data/_new/validation/dina_latam_7Nov2025.dta
+  previous_update_date: 7Nov2025

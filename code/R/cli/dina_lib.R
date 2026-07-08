@@ -289,23 +289,66 @@ dina_source_filter_label <- function(kind, requested, resolved) {
   sprintf("%s (%s)", requested, paste(resolved, collapse = ", "))
 }
 
+dina_source_public_family_map <- function() {
+  list(
+    sna = c("macro_sna", "country_sna"),
+    admin = c("admin_tax", "admin_tax_aux"),
+    surveys = c("surveys"),
+    wid = c("wid"),
+    other = c(
+      "balance_sheet",
+      "ceq",
+      "population",
+      "prices",
+      "public_spending",
+      "social_security",
+      "tax_composition",
+      "validation"
+    )
+  )
+}
+
+dina_source_public_families <- function() {
+  names(dina_source_public_family_map())
+}
+
+dina_source_public_family_for_internal <- function(family) {
+  family <- dina_source_norm(family %||% "")
+  for (public in names(dina_source_public_family_map())) {
+    if (family %in% dina_source_norm(dina_source_public_family_map()[[public]])) {
+      return(public)
+    }
+  }
+  family
+}
+
+dina_source_public_family <- function(source) {
+  dina_source_public_family_for_internal(source$family %||% "")
+}
+
 dina_source_resolve_family_filter <- function(value, root = dina_repo_root()) {
   if (is.null(value) || !nzchar(value)) {
     return(character())
   }
   normalized <- dina_source_norm(value)
-  alias <- switch(
+  public_map <- dina_source_public_family_map()
+  alias <- public_map[[normalized]] %||% switch(
     normalized,
-    admin_data = c("admin_tax", "admin_tax_aux"),
-    admin = c("admin_tax", "admin_tax_aux"),
-    sna = c("macro_sna", "country_sna"),
+    admin_data = public_map$admin,
+    country_sna = "country_sna",
+    country_sna_sources = "country_sna",
     normalized
   )
   registry <- dina_sources(root)$sources
   available <- unique(vapply(registry, function(source) dina_source_field(source, "family", ""), character(1)))
   matches <- available[dina_source_norm(available) %in% dina_source_norm(alias)]
   if (!length(matches)) {
-    stop("Unknown source family: ", value, "\nAvailable families: ", paste(sort(available), collapse = ", "), call. = FALSE)
+    stop(
+      "Unknown source type: ", value,
+      "\nPublic source types: ", paste(dina_source_public_families(), collapse = ", "),
+      "\nInternal families: ", paste(sort(available), collapse = ", "),
+      call. = FALSE
+    )
   }
   matches
 }
@@ -1433,6 +1476,42 @@ dina_download_direct_source <- function(url, target) {
 
 dina_buckets_fetch <- function(root = dina_repo_root(), family = NULL, selector = NULL, source_id = NULL, dry_run = FALSE) {
   registry <- dina_bucket_select_sources(root, family = family, selector = selector, source_id = source_id)
+  fallback_unfetchable <- function(sources, detail) {
+    rows <- lapply(sources, function(source) {
+      as.data.frame(list(
+        source_id = source$id %||% "",
+        family = source$family %||% "",
+        bucket = dina_source_inbox_bucket_rel(source),
+        target = "",
+        status = dina_fetch_status_without_fetcher(source),
+        detail = detail,
+        stringsAsFactors = FALSE
+      ))
+    })
+    if (!length(rows)) {
+      return(NULL)
+    }
+    do.call(rbind, rows)
+  }
+  if (!length(registry)) {
+    if (!is.null(source_id) && nzchar(source_id)) {
+      fallback <- fallback_unfetchable(
+        list(dina_source_by_id(source_id, root)),
+        sprintf("Use `dina sources list guide %s --urls`; no automatic fetch is configured.", source_id)
+      )
+      if (!is.null(fallback)) {
+        return(fallback)
+      }
+    } else if (!is.null(family) && nzchar(family)) {
+      fallback <- fallback_unfetchable(
+        dina_source_registry(root, family = family),
+        sprintf("Use `dina sources list guide %s --urls`; no automatic fetch is configured.", family)
+      )
+      if (!is.null(fallback)) {
+        return(fallback)
+      }
+    }
+  }
   rows <- lapply(registry, function(source) {
     fetcher <- dina_source_fetcher_path(source, root)
     method <- source$method %||% "manual"
@@ -1801,6 +1880,90 @@ dina_session_config_set <- function(session, root = dina_repo_root(), key, value
   dina_save_session_config_override(session, override, root)
 }
 
+dina_update_extract_wid_update_date <- function(path) {
+  base <- basename(path %||% "")
+  match <- regexpr("[0-9]{1,2}(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[0-9]{4}", base, ignore.case = TRUE)
+  if (match < 0L) {
+    return("")
+  }
+  raw <- regmatches(base, match)
+  day <- sub("^([0-9]{1,2}).*$", "\\1", raw)
+  month <- sub("^[0-9]{1,2}([A-Za-z]{3})[0-9]{4}$", "\\1", raw)
+  year <- sub("^[0-9]{1,2}[A-Za-z]{3}([0-9]{4})$", "\\1", raw)
+  paste0(day, toupper(substr(month, 1L, 1L)), tolower(substr(month, 2L, 3L)), year)
+}
+
+dina_update_previous_update_candidates <- function(root = dina_repo_root()) {
+  source <- NULL
+  for (candidate in dina_sources(root)$sources) {
+    if (identical(candidate$id %||% "", "previous-series")) {
+      source <- candidate
+      break
+    }
+  }
+  if (is.null(source)) {
+    return(data.frame(path = character(), rel = character(), source = character(), mtime = as.POSIXct(character()), stringsAsFactors = FALSE))
+  }
+  collect <- function(patterns, source_name) {
+    paths <- dina_expand_paths(patterns, root = root)
+    paths <- paths[file.exists(paths) & !dir.exists(paths)]
+    paths <- paths[tolower(tools::file_ext(paths)) == "dta"]
+    if (!length(paths)) {
+      return(data.frame(path = character(), rel = character(), source = character(), mtime = as.POSIXct(character()), stringsAsFactors = FALSE))
+    }
+    info <- file.info(paths)
+    data.frame(
+      path = normalizePath(paths, mustWork = FALSE),
+      rel = dina_relative(paths, root),
+      source = source_name,
+      mtime = as.POSIXct(info$mtime, origin = "1970-01-01"),
+      stringsAsFactors = FALSE
+    )
+  }
+  rows <- rbind(
+    collect(dina_source_values(source$canonical %||% character()), "canonical"),
+    collect(dina_source_inbox_patterns(source), "inbox")
+  )
+  if (!nrow(rows)) {
+    return(rows)
+  }
+  rows$rank <- ifelse(rows$source == "canonical", 0L, 1L)
+  rows$mtime_rank <- -as.numeric(rows$mtime)
+  rows <- rows[order(rows$mtime_rank, rows$rank), , drop = FALSE]
+  rows[!duplicated(rows$rel), c("path", "rel", "source", "mtime"), drop = FALSE]
+}
+
+dina_update_suggested_config_override <- function(root = dina_repo_root(), config = dina_config(root, expand_env = FALSE)) {
+  override <- list()
+  current_last <- suppressWarnings(as.integer(config$years$last %||% NA_integer_))
+  if (!is.na(current_last)) {
+    override <- dina_config_override_set(override, "years.last", as.character(current_last + 1L))
+  }
+  export_last <- suppressWarnings(as.integer(config$export_validation$last_year %||% NA_integer_))
+  if (!is.na(export_last)) {
+    override <- dina_config_override_set(override, "export_validation.last_year", as.character(export_last + 1L))
+  }
+  previous <- dina_update_previous_update_candidates(root)
+  if (nrow(previous)) {
+    override <- dina_config_override_set(override, "export_validation.previous_update_file", previous$rel[[1]])
+    date <- dina_update_extract_wid_update_date(previous$rel[[1]])
+    if (nzchar(date)) {
+      override <- dina_config_override_set(override, "export_validation.previous_update_date", date)
+    }
+  }
+  override
+}
+
+dina_write_suggested_session_config_override <- function(session_or_id, root = dina_repo_root(), overwrite = TRUE) {
+  id <- if (is.list(session_or_id)) session_or_id$id else session_or_id
+  path <- dina_session_config_override_path(id, root)
+  if (!isTRUE(overwrite) && file.exists(path)) {
+    return(path)
+  }
+  dina_write_yaml(dina_update_suggested_config_override(root), path)
+  path
+}
+
 dina_todo_items <- function(root = dina_repo_root()) {
   items <- dina_todo_config(root)$items %||% list()
   ids <- vapply(items, function(item) item$id %||% "", character(1))
@@ -2120,7 +2283,8 @@ dina_update_start <- function(year = format(Sys.Date(), "%Y"), id = NULL, root =
   inbox_init <- dina_sources_inbox_init(root, dry_run = FALSE, migrate = FALSE)
 
   config_override <- dina_session_config_override_path(id, root)
-  dina_progress(progress, "Using benchmark config with an empty working override.")
+  dina_progress(progress, "Writing suggested working config override.")
+  dina_write_suggested_session_config_override(id, root = root, overwrite = TRUE)
   repo_state <- NULL
   if (isTRUE(repo_snapshot)) {
     dina_progress(progress, "Recording recoverable repo-state baseline.")
@@ -2150,6 +2314,7 @@ dina_update_start <- function(year = format(Sys.Date(), "%Y"), id = NULL, root =
     updated_at = started_at,
     preferences = list(),
     config_override = dina_relative(config_override, root),
+    config_override_hash = dina_hash_file(config_override),
     repo_state = list(
       baselines = if (isTRUE(repo_snapshot)) "start" else character(),
       start = dina_repo_state_summary(repo_state)
@@ -2610,7 +2775,7 @@ dina_session_state <- function(session, root = dina_repo_root()) {
         return(dina_session_result(
           "sources_include_ready",
           dina_recommendation(
-            command = sprintf("dina sources include country-sna --confirm --include-run %s", include$root),
+            command = sprintf("dina sources include sna --confirm --include-run %s", include$root),
             why = "A matching country-SNA exploration run exists and the latest include dry-run is clean.",
             todo_id = "country-sna-source-workflow",
             todo_label = "Explore country-SNA source changes",
@@ -2624,12 +2789,12 @@ dina_session_state <- function(session, root = dina_repo_root()) {
       return(dina_session_result(
         "sources_explored",
         dina_recommendation(
-          command = "dina sources include country-sna --dry-run",
+          command = "dina sources include sna --dry-run",
           why = "A matching country-SNA exploration run exists for the current incoming files.",
           todo_id = "country-sna-source-workflow",
           todo_label = "Explore country-SNA source changes",
           expected_action = "Stage incoming sources and check deterministic include expectations without changing production files.",
-          next_command = "dina sources include country-sna --confirm --include-run RUN",
+          next_command = "dina sources include sna --confirm --include-run RUN",
           next_note = "Confirm is only available after an all_good include dry-run.",
           recommendation = "Run a staged include dry-run."
         )
@@ -2638,14 +2803,14 @@ dina_session_state <- function(session, root = dina_repo_root()) {
     return(dina_session_result(
       "sources_pending",
       dina_recommendation(
-        command = "dina sources explore country-sna",
+        command = "dina sources explore sna",
         why = sprintf("%s incoming country-SNA source file%s %s waiting in input_data/_new/country_sna.", nrow(country_sna_inbox), if (nrow(country_sna_inbox) == 1L) "" else "s", if (nrow(country_sna_inbox) == 1L) "is" else "are"),
         todo_id = "country-sna-source-workflow",
         todo_label = "Explore country-SNA source changes",
         expected_action = "Inventory new files, likely years, layout changes, and expected variables before attempting inclusion.",
-        next_command = "dina sources include country-sna --dry-run",
+        next_command = "dina sources include sna --dry-run",
         next_note = "Use include after reviewing the exploration output.",
-        recommendation = "Explore incoming country-SNA files with `dina sources explore country-sna`."
+        recommendation = "Explore incoming SNA files with `dina sources explore sna`."
       )
     ))
   }

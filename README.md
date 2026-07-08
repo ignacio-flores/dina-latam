@@ -67,12 +67,14 @@ This repository also includes an experimental R-based project CLI:
 ./bin/dina doctor
 ./bin/dina update start 2026
 ./bin/dina sources list
+./bin/dina sources list sna
 ./bin/dina sources fetch --dry-run
+./bin/dina sources fetch wid --dry-run
 ./bin/dina sources compare
-./bin/dina sources explore country-sna
-./bin/dina sources table country-sna year_expectations
-./bin/dina sources include country-sna --dry-run
-./bin/dina sources include country-sna --confirm --include-run RUN
+./bin/dina sources explore sna
+./bin/dina sources table sna year_expectations
+./bin/dina sources include sna --dry-run
+./bin/dina sources include sna --confirm --include-run RUN
 ./bin/dina run list
 ./bin/dina run 01a
 ./bin/dina update close --dry-run

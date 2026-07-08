@@ -18,12 +18,14 @@ source_cli_for_tests <- function() {
 }
 
 run_dina_cli <- function(args, root = repo_root_for_tests, env = character()) {
-  output <- system2(
-    file.path(repo_root_for_tests, "bin", "dina"),
-    args,
-    stdout = TRUE,
-    stderr = TRUE,
-    env = c(sprintf("DINA_REPO_ROOT=%s", root), env)
+  output <- suppressWarnings(
+    system2(
+      file.path(repo_root_for_tests, "bin", "dina"),
+      args,
+      stdout = TRUE,
+      stderr = TRUE,
+      env = c(sprintf("DINA_REPO_ROOT=%s", root), env)
+    )
   )
   status <- attr(output, "status")
   if (is.null(status)) status <- 0L

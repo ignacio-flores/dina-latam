@@ -24,12 +24,13 @@ expect_false <- function(object, info = NULL, label = NULL) {
 test_that("help describes the new workflow and omits retired command families", {
   main <- run_dina_cli(c("help"))
   expect_equal(main$status, 0L)
-  expect_match(main$output, "`sources list \\[--view VIEW\\]`")
+  expect_match(main$output, "`sources list \\[SOURCETYPE\\]`")
+  expect_match(main$output, "`sources list detail\\|guide`")
   expect_match(main$output, "`sources compare`")
-  expect_match(main$output, "`sources explore country-sna`")
-  expect_match(main$output, "`sources include country-sna`")
-  expect_match(main$output, "`sources table country-sna TABLE`")
-  expect_match(main$output, "`update config show\\|set\\|edit`")
+  expect_match(main$output, "`sources explore SOURCETYPE`")
+  expect_match(main$output, "`sources include SOURCETYPE`")
+  expect_match(main$output, "`sources table SOURCETYPE TABLE`")
+  expect_match(main$output, "`update config show\\|edit`")
   expect_match(main$output, "`run list\\|why TASK`")
   expect_match(main$output, "`todo \\[check\\|uncheck\\|reset\\]`")
   expect_match(main$output, "`maintain repo-status\\|repo-diff`")
@@ -39,6 +40,8 @@ test_that("help describes the new workflow and omits retired command families", 
   expect_false(grepl("update gate", main$output, fixed = TRUE))
   expect_false(grepl("update mark", main$output, fixed = TRUE))
   expect_false(grepl("sources refresh", main$output, fixed = TRUE))
+  expect_false(grepl("`sources show", main$output, fixed = TRUE))
+  expect_false(grepl("`sources guide", main$output, fixed = TRUE))
   expect_false(grepl("`sources review`", main$output, fixed = TRUE))
   expect_false(grepl("`sources integrate", main$output, fixed = TRUE))
   expect_false(grepl("`sources diagnose country-sna`", main$output, fixed = TRUE))
@@ -52,11 +55,13 @@ test_that("help describes the new workflow and omits retired command families", 
   expect_match(workflow$output, "4\\. Keep a loose todo list")
   expect_match(workflow$output, "5\\. Close with a report")
   expect_match(workflow$output, "dina sources compare")
-  expect_match(workflow$output, "dina sources explore country-sna")
-  expect_match(workflow$output, "dina sources include country-sna --dry-run")
-  expect_match(workflow$output, "dina sources table country-sna year_expectations")
-  expect_match(workflow$output, "dina sources include country-sna --confirm")
-  expect_match(workflow$output, "dina sources include country-sna --restore")
+  expect_match(workflow$output, "dina sources list detail ID --urls")
+  expect_match(workflow$output, "dina sources list guide ID --urls")
+  expect_match(workflow$output, "dina sources explore SOURCETYPE")
+  expect_match(workflow$output, "dina sources include SOURCETYPE --dry-run")
+  expect_match(workflow$output, "dina sources table SOURCETYPE TABLE")
+  expect_match(workflow$output, "dina sources include SOURCETYPE --confirm")
+  expect_match(workflow$output, "dina sources include SOURCETYPE --restore")
   expect_false(grepl("dina sources review", workflow$output, fixed = TRUE))
   expect_false(grepl("dina sources integrate", workflow$output, fixed = TRUE))
   expect_false(grepl("dina sources diagnose country-sna", workflow$output, fixed = TRUE))
@@ -65,25 +70,31 @@ test_that("help describes the new workflow and omits retired command families", 
   commands <- run_dina_cli(c("commands"), root = mini_repo())
   expect_equal(commands$status, 0L)
   expect_match(commands$output, "Workflow guide")
-  expect_match(commands$output, "Country-SNA explore")
-  expect_match(commands$output, "Country-SNA include")
-  expect_match(commands$output, "Country-SNA confirm")
-  expect_match(commands$output, "Country-SNA restore")
-  expect_match(commands$output, "Country-SNA table preview")
+  expect_match(commands$output, "Explore source type")
+  expect_match(commands$output, "Include source type")
+  expect_match(commands$output, "Confirm source type")
+  expect_match(commands$output, "Restore source type")
+  expect_match(commands$output, "Source type table preview")
   expect_false(grepl("Update recipe", commands$output, fixed = TRUE))
   expect_false(grepl("Country-SNA diagnostic", commands$output, fixed = TRUE))
 
   sources <- run_dina_cli(c("help", "sources"))
   expect_equal(sources$status, 0L)
-  expect_match(sources$output, "dina sources list \\[FILTERS\\] \\[--view compact\\|workflow\\|paths\\|all\\]")
-  expect_match(sources$output, "dina sources fetch \\[ID\\|--family FAMILY\\|--all\\] \\[--dry-run\\]")
+  expect_match(sources$output, "dina sources list \\[SOURCETYPE\\] \\[--country ISO\\] \\[--urls\\]")
+  expect_match(sources$output, "dina sources list detail ID")
+  expect_match(sources$output, "dina sources list guide")
+  expect_match(sources$output, "dina sources list workflow")
+  expect_match(sources$output, "dina sources fetch \\[ID\\|SOURCETYPE\\|--all\\] \\[--dry-run\\]")
   expect_match(sources$output, "dina sources compare \\[--metadata-only\\] \\[--hash-all\\] \\[--deep\\]")
-  expect_match(sources$output, "dina sources explore country-sna")
-  expect_match(sources$output, "dina sources include country-sna")
-  expect_match(sources$output, "dina sources table country-sna")
+  expect_match(sources$output, "dina sources explore SOURCETYPE")
+  expect_match(sources$output, "dina sources include SOURCETYPE")
+  expect_match(sources$output, "dina sources table SOURCETYPE")
   expect_match(sources$output, "--confirm")
   expect_match(sources$output, "--restore")
   expect_match(sources$output, "Source registry, incoming `_new` buckets, fetchers, and baseline comparison")
+  expect_match(sources$output, "sna, admin, surveys")
+  expect_false(grepl("dina sources show ID", sources$output, fixed = TRUE))
+  expect_false(grepl("dina sources guide [ID", sources$output, fixed = TRUE))
   expect_false(grepl("dina sources review", sources$output, fixed = TRUE))
   expect_false(grepl("dina sources integrate", sources$output, fixed = TRUE))
   expect_false(grepl("dina sources diagnose country-sna", sources$output, fixed = TRUE))
@@ -91,8 +102,9 @@ test_that("help describes the new workflow and omits retired command families", 
   config <- run_dina_cli(c("help", "config"))
   expect_equal(config$status, 0L)
   expect_match(config$output, "dina update config show")
-  expect_match(config$output, "dina update config set KEY VALUE")
   expect_match(config$output, "dina update config edit")
+  expect_false(grepl("dina config propose", config$output, fixed = TRUE))
+  expect_false(grepl("dina update config set", config$output, fixed = TRUE))
 })
 
 test_that("sources list is compact by default and exposes richer views", {
@@ -100,27 +112,91 @@ test_that("sources list is compact by default and exposes richer views", {
 
   compact <- run_dina_cli(c("sources", "list", "--no-menu"), root = root)
   expect_equal(compact$status, 0L)
-  expect_match(compact$output, "id[[:space:]]+family[[:space:]]+country[[:space:]]+method[[:space:]]+bucket[[:space:]]+destination[[:space:]]+transformer[[:space:]]+notes")
+  expect_match(compact$output, "id[[:space:]]+type[[:space:]]+country[[:space:]]+method[[:space:]]+urls[[:space:]]+bucket[[:space:]]+destination[[:space:]]+transformer[[:space:]]+influence")
   expect_match(compact$output, "source-a")
   expect_match(compact$output, "fixture")
+  expect_match(compact$output, "fixture page")
   expect_match(compact$output, "input_data/\\{basename\\}")
   expect_match(compact$output, "01a.do")
-  expect_match(compact$output, "Fixture source")
+  expect_match(compact$output, "More source detail")
+  expect_match(compact$output, "dina sources list detail source-a --urls")
   expect_false(grepl("Source List Actions", compact$output, fixed = TRUE))
 
-  workflow <- run_dina_cli(c("sources", "list", "--view", "workflow", "--no-menu"), root = root)
+  workflow <- run_dina_cli(c("sources", "list", "workflow", "--no-menu"), root = root)
   expect_equal(workflow$status, 0L)
   expect_match(workflow$output, "fetch[[:space:]]+bucket[[:space:]]+destination[[:space:]]+transformer[[:space:]]+tasks")
 
-  paths <- run_dina_cli(c("sources", "list", "--view", "paths", "--no-menu"), root = root)
+  paths <- run_dina_cli(c("sources", "list", "paths", "--no-menu"), root = root)
   expect_equal(paths$status, 0L)
   expect_match(paths$output, "canonical:")
   expect_match(paths$output, "inbox:")
   expect_match(paths$output, "destination:")
 
-  urls <- run_dina_cli(c("sources", "list", "--urls", "--no-menu"), root = root)
+  urls <- run_dina_cli(c("sources", "list", "urls", "--no-menu"), root = root)
   expect_equal(urls$status, 0L)
   expect_match(urls$output, "https://example.test/source-a")
+})
+
+test_that("public source type filters aggregate internal families including wid", {
+  root <- mini_repo()
+  dina_write_yaml(list(sources = list(
+    list(id = "sna-macro", family = "macro_sna", method = "manual", notes = "macro SNA"),
+    list(id = "sna-country", family = "country_sna", method = "manual", notes = "country SNA"),
+    list(id = "admin-tax", family = "admin_tax", method = "manual", notes = "admin"),
+    list(id = "admin-aux", family = "admin_tax_aux", method = "manual", notes = "admin aux"),
+    list(id = "survey-cepal", family = "surveys", method = "manual", notes = "survey"),
+    list(id = "wid-macro", family = "wid", method = "wid", notes = "wid"),
+    list(id = "price-index", family = "prices", method = "manual", notes = "other")
+  )), file.path(root, "config", "sources.yml"))
+
+  expect_equal(sort(dina_source_resolve_family_filter("sna", root)), c("country_sna", "macro_sna"))
+  expect_equal(sort(dina_source_resolve_family_filter("admin", root)), c("admin_tax", "admin_tax_aux"))
+  expect_equal(dina_source_resolve_family_filter("surveys", root), "surveys")
+  expect_equal(dina_source_resolve_family_filter("wid", root), "wid")
+  expect_equal(dina_source_resolve_family_filter("other", root), "prices")
+
+  sna <- run_dina_cli(c("sources", "list", "sna", "--no-menu"), root = root)
+  expect_equal(sna$status, 0L)
+  expect_match(sna$output, "sna-macro")
+  expect_match(sna$output, "sna-country")
+  expect_false(grepl("wid-macro", sna$output, fixed = TRUE))
+
+  wid <- run_dina_cli(c("sources", "list", "wid", "--no-menu"), root = root)
+  expect_equal(wid$status, 0L)
+  expect_match(wid$output, "wid-macro")
+  expect_false(grepl("price-index", wid$output, fixed = TRUE))
+
+  wid_urls <- run_dina_cli(c("sources", "list", "urls", "wid", "--no-menu"), root = root)
+  expect_equal(wid_urls$status, 0L)
+  expect_match(wid_urls$output, "wid-macro")
+
+  wid_guide <- run_dina_cli(c("sources", "list", "guide", "wid", "--urls"), root = root)
+  expect_equal(wid_guide$status, 0L)
+  expect_match(wid_guide$output, "wid-macro")
+
+  wid_workflow <- run_dina_cli(c("sources", "list", "workflow", "wid", "--no-menu"), root = root)
+  expect_equal(wid_workflow$status, 0L)
+  expect_match(wid_workflow$output, "wid-macro")
+
+  wid_paths <- run_dina_cli(c("sources", "list", "paths", "wid", "--no-menu"), root = root)
+  expect_equal(wid_paths$status, 0L)
+  expect_match(wid_paths$output, "wid-macro")
+
+  compat <- run_dina_cli(c("sources", "list", "--family", "wid", "--no-menu"), root = root)
+  expect_equal(compat$status, 0L)
+  expect_match(compat$output, "wid-macro")
+
+  unsupported <- run_dina_cli(c("sources", "explore", "wid"), root = root)
+  expect_true(unsupported$status != 0L)
+  expect_match(unsupported$output, "not implemented yet")
+  expect_match(unsupported$output, "dina sources list wid")
+
+  wid_fetch <- run_dina_cli(c("sources", "fetch", "wid", "--dry-run"), root = root)
+  expect_equal(wid_fetch$status, 0L)
+  expect_match(wid_fetch$output, "wid-macro")
+  expect_match(wid_fetch$output, "No automatic fetch")
+  expect_match(wid_fetch$output, "dina sources list guide wid --urls")
+  expect_false(grepl("No bucket fetch rows matched", wid_fetch$output, fixed = TRUE))
 })
 
 test_that("country-SNA table preview prints compact explorer tables", {
@@ -146,16 +222,20 @@ test_that("country-SNA table preview prints compact explorer tables", {
     row.names = FALSE
   )
 
-  years <- run_dina_cli(c("sources", "table", "country-sna", "year_expectations", "--run", run), root = root)
+  years <- run_dina_cli(c("sources", "table", "sna", "year_expectations", "--run", run), root = root)
   expect_equal(years$status, 0L)
   expect_match(years$output, "Country-SNA Table")
   expect_match(years$output, "extension_expect_values")
 
-  variables <- run_dina_cli(c("sources", "table", "country-sna", "variable_expectations", "--run", run), root = root)
+  variables <- run_dina_cli(c("sources", "table", "sna", "variable_expectations", "--run", run), root = root)
   expect_equal(variables$status, 0L)
   expect_match(variables$output, "variable_expectations summary")
   expect_match(variables$output, "variables")
   expect_false(grepl("D43_cei", variables$output, fixed = TRUE))
+
+  deprecated <- run_dina_cli(c("sources", "table", "country-sna", "year_expectations", "--run", run), root = root)
+  expect_equal(deprecated$status, 0L)
+  expect_match(deprecated$output, "deprecated")
 })
 
 test_that("source list follow-up menu is dismissible and routes views", {
@@ -169,17 +249,17 @@ test_that("source list follow-up menu is dismissible and routes views", {
   expect_match(paste(quit_output, collapse = "\n"), "Source List Actions")
   expect_false(grepl("canonical:", paste(quit_output, collapse = "\n"), fixed = TRUE))
 
-  con <- textConnection("2\n")
+  con <- textConnection("3\n")
   workflow_output <- capture.output(dina_source_list_actions_menu(registry, root = root, input = con, is_terminal = TRUE))
   close(con)
   expect_match(paste(workflow_output, collapse = "\n"), "fetch[[:space:]]+bucket[[:space:]]+destination")
 
-  con <- textConnection("3\n")
+  con <- textConnection("4\n")
   paths_output <- capture.output(dina_source_list_actions_menu(registry, root = root, input = con, is_terminal = TRUE))
   close(con)
   expect_match(paste(paths_output, collapse = "\n"), "canonical:")
 
-  con <- textConnection("4\n")
+  con <- textConnection("5\n")
   urls_output <- capture.output(dina_source_list_actions_menu(registry, root = root, input = con, is_terminal = TRUE))
   close(con)
   expect_match(paste(urls_output, collapse = "\n"), "https://example.test/source-a")
@@ -188,30 +268,42 @@ test_that("source list follow-up menu is dismissible and routes views", {
   detail_output <- capture.output(dina_source_list_actions_menu(registry, root = root, input = con, is_terminal = TRUE))
   close(con)
   expect_match(paste(detail_output, collapse = "\n"), "Source Detail")
-  expect_match(paste(detail_output, collapse = "\n"), "family: fixture")
+  expect_match(paste(detail_output, collapse = "\n"), "source type: fixture")
+  expect_match(paste(detail_output, collapse = "\n"), "internal family: fixture")
   expect_match(paste(detail_output, collapse = "\n"), "transformer:")
 })
 
-test_that("source show, guide, fields, compare, and retired commands use the source model", {
+test_that("source list detail, guide, compatibility aliases, fields, compare, and retired commands use the source model", {
   root <- mini_repo()
-  show <- run_dina_cli(c("sources", "show", "source-a", "--view", "all", "--urls"), root = root)
+  show <- run_dina_cli(c("sources", "list", "detail", "source-a", "--urls"), root = root)
   expect_equal(show$status, 0L)
-  expect_match(show$output, "family:")
+  expect_match(show$output, "source type:")
+  expect_match(show$output, "internal family:")
   expect_match(show$output, "destination:")
   expect_match(show$output, "transformer:")
   expect_match(show$output, "notes:")
   expect_false(grepl("checks:", show$output, fixed = TRUE))
   expect_match(show$output, "https://example.test/source-a")
 
-  guide <- run_dina_cli(c("sources", "guide", "source-a", "--urls"), root = root)
+  guide <- run_dina_cli(c("sources", "list", "guide", "source-a", "--urls"), root = root)
   expect_equal(guide$status, 0L)
   expect_match(guide$output, "bucket:")
   expect_match(guide$output, "destination:")
   expect_match(guide$output, "tasks:")
 
+  old_show <- run_dina_cli(c("sources", "show", "source-a", "--urls"), root = root)
+  expect_equal(old_show$status, 0L)
+  expect_match(old_show$output, "deprecated")
+
+  old_guide <- run_dina_cli(c("sources", "guide", "source-a"), root = root)
+  expect_equal(old_guide$status, 0L)
+  expect_match(old_guide$output, "deprecated")
+
   fields <- run_dina_cli(c("sources", "fields"), root = root)
   expect_equal(fields$status, 0L)
   expect_match(fields$output, "Views:")
+  expect_match(fields$output, "compact[[:space:]]+id, source type, country, method, urls")
+  expect_match(fields$output, "Public source type")
   expect_match(fields$output, "Filters:")
   expect_match(fields$output, "Methods:")
 
@@ -233,7 +325,7 @@ test_that("source show, guide, fields, compare, and retired commands use the sou
   diagnose <- run_dina_cli(c("sources", "diagnose", "country-sna"), root = root)
   expect_true(diagnose$status != 0L)
   expect_match(diagnose$output, "retired")
-  expect_match(diagnose$output, "dina sources explore country-sna")
+  expect_match(diagnose$output, "dina sources explore sna")
 
   apply <- run_dina_cli(c("sources", "include", "country-sna", "--apply"), root = root)
   expect_true(apply$status != 0L)
@@ -276,12 +368,47 @@ test_that("sources fetch previews direct URL targets under _new", {
   expect_match(dry$output, "would fetch")
   expect_match(dry$output, "input_data/_new/fixture/remote.csv")
   expect_false(file.exists(file.path(root, "input_data", "_new", "fixture", "remote.csv")))
+
+  by_type <- run_dina_cli(c("sources", "fetch", "fixture", "--dry-run"), root = root)
+  expect_equal(by_type$status, 0L)
+  expect_match(by_type$output, "direct-source")
+  expect_match(by_type$output, "would fetch")
+
+  dina_write_yaml(list(sources = list(
+    list(
+      id = "fixture",
+      family = "fixture",
+      country = "AAA",
+      method = "url",
+      url = paste0("file://", remote),
+      inbox = c("input_data/_new/fixture/exact.csv"),
+      destination = "input_data/{basename}",
+      transformer = "code/Stata/01a.do",
+      notes = "Exact source id fixture."
+    ),
+    list(
+      id = "other-fixture",
+      family = "fixture",
+      country = "AAA",
+      method = "url",
+      url = paste0("file://", remote),
+      inbox = c("input_data/_new/fixture/other.csv"),
+      destination = "input_data/{basename}",
+      transformer = "code/Stata/01a.do",
+      notes = "Same source type fixture."
+    )
+  )), file.path(root, "config", "sources.yml"))
+
+  exact <- run_dina_cli(c("sources", "fetch", "fixture", "--dry-run"), root = root)
+  expect_equal(exact$status, 0L)
+  expect_match(exact$output, "fixture")
+  expect_false(grepl("other-fixture", exact$output, fixed = TRUE))
 })
 
 test_that("run executes by default and dry-run must be explicit", {
   root <- mini_repo()
   numbered_pipeline(root)
-  dir.create(file.path(root, "input_data"), recursive = TRUE)
+  dir.create(file.path(root, "input_data"), recursive = TRUE, showWarnings = FALSE)
   writeLines("input", file.path(root, "input_data", "a.txt"))
   fake_stata <- file.path(root, "fake-stata")
   writeLines(c(
@@ -352,9 +479,18 @@ test_that("config and maintain commands are visible in the new shape", {
   expect_match(check$output, "Config Check")
 
   proposal <- run_dina_cli(c("config", "propose", "years.last", "2024"), root = root)
-  expect_equal(proposal$status, 0L)
-  expect_match(proposal$output, "No files were changed")
+  expect_true(proposal$status != 0L)
+  expect_match(proposal$output, "retired")
   expect_equal(dina_config(root, expand_env = FALSE)$years$last, 2023L)
+
+  config_set <- run_dina_cli(c("config", "set", "years.last", "2024"), root = root)
+  expect_true(config_set$status != 0L)
+  expect_match(config_set$output, "retired")
+  expect_equal(dina_config(root, expand_env = FALSE)$years$last, 2023L)
+
+  update_set <- run_dina_cli(c("update", "config", "set", "years.last", "2024"), root = root)
+  expect_true(update_set$status != 0L)
+  expect_match(update_set$output, "retired")
 
   repo_status <- run_dina_cli(c("maintain", "repo-status"), root = root)
   expect_equal(repo_status$status, 0L)

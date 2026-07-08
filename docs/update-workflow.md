@@ -2,8 +2,8 @@
 
 This project treats `config/dina.yml` as the benchmark configuration. An update
 workspace can carry a working override at
-`output/updates/<id>/config.override.yml`, but the CLI is intentionally
-read/propose first:
+`output/updates/<id>/config.override.yml`, and start/restart pre-populates that
+file with suggested annual overrides:
 
 ```text
 config/dina.yml + active update override
@@ -17,8 +17,8 @@ dina update status
 ```
 
 `dina update start` creates the active workspace, source baseline, repo
-baseline, todo state, and central incoming buckets under `input_data/_new`.
-It does not create a source staging area.
+baseline, todo state, central incoming buckets under `input_data/_new`, and a
+suggested `config.override.yml`. It does not create a source staging area.
 
 `dina update status` reports current state: incoming sources, stale or failed
 runs, unchecked todos, config override presence, and repo changes.
@@ -30,15 +30,18 @@ baseline comparison.
 
 ```bash
 dina sources list
-dina sources list --view workflow
-dina sources show SOURCE --view all --urls
-dina sources guide SOURCE --urls
+dina sources list sna
+dina sources list workflow
+dina sources list urls wid
+dina sources list detail SOURCE --urls
+dina sources list guide SOURCE --urls
 dina sources fetch SOURCE --dry-run
+dina sources fetch wid --dry-run
 dina sources compare
-dina sources explore country-sna
-dina sources table country-sna year_expectations
-dina sources include country-sna --dry-run
-dina sources include country-sna --confirm --include-run RUN
+dina sources explore sna
+dina sources table sna year_expectations
+dina sources include sna --dry-run
+dina sources include sna --confirm --include-run RUN
 ```
 
 `dina sources list` is compact by default. In an interactive terminal it can
@@ -47,11 +50,11 @@ Use `--no-menu` in scripts.
 
 Fetches write directly to `input_data/_new/<bucket>`.
 
-Country-SNA has an active experimental source workflow. Use
-`dina sources explore country-sna` to inspect `_new/country_sna` files,
+The public `sna` source type has an active experimental source workflow. Use
+`dina sources explore sna` to inspect `_new/country_sna` files,
 available years, likely extensions, and structure evidence. Then use
-`dina sources include country-sna --dry-run` to check the deterministic include
-contract against the latest exploration run. Use `dina sources table country-sna
+`dina sources include sna --dry-run` to check the deterministic include contract
+against the latest exploration run. Use `dina sources table sna
 year_expectations` to preview explorer tables inline. Confirm is a separate
 guarded promotion step that writes a backup snapshot first; restore uses that
 snapshot if the source promotion needs to be undone. These commands do not
@@ -89,13 +92,14 @@ Todos never block runs, config checks, or closure.
 
 ## Config
 
-Edit `config/dina.yml` or the active workspace override manually. CLI config
-commands are mainly reminders and proposals:
+Inspect `config/dina.yml` through read-only commands. Edit the active workspace
+override with your default editor when an update is active:
 
 ```bash
 dina config show
 dina config check
-dina config propose years.last 2024
+dina update config show
+dina update config edit
 ```
 
 `dina run` creates a temporary Stata runtime config only while a Stata task is
