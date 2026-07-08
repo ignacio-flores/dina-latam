@@ -50,7 +50,7 @@ admin_pit_write_minwage <- function(path, years, changed_year = NULL) {
   utils::write.csv(data.frame(year = as.integer(years), minwage = as.numeric(values)), path, row.names = FALSE)
 }
 
-admin_pit_fixture_repo <- function(block_col = FALSE, backup_overlap = FALSE, minwage = c("new", "canonical", "missing", "changed_overlap", "missing_history")) {
+admin_pit_fixture_repo <- function(block_col = FALSE, backup_overlap = FALSE, minwage = c("new", "canonical", "missing", "changed_overlap", "missing_history", "missing_required", "ambiguous")) {
   minwage <- match.arg(minwage)
   root <- tempfile("admin-pit-fixture-")
   dir.create(root, recursive = TRUE)
@@ -89,7 +89,7 @@ admin_pit_fixture_repo <- function(block_col = FALSE, backup_overlap = FALSE, mi
     list(id = "chl-pit-total", family = "admin_tax", country = "CHL", method = "manual", canonical = "input_data/admin_data/CHL/PUB_Total_*.xlsx", inbox = "input_data/_new/admin/CHL/PUB_Total_*.xlsx", destination = "input_data/admin_data/CHL/{basename}", notes = "Chile PIT fixture."),
     list(id = "bra-pit-total", family = "admin_tax", country = "BRA", method = "manual", canonical = "input_data/admin_data/BRA/gn-irpf-ac*.xlsx", inbox = "input_data/_new/admin/BRA/gn-irpf-ac*.xlsx", destination = "input_data/admin_data/BRA/{basename}", notes = "Brazil PIT fixture."),
     list(id = "col-pit-total", family = "admin_tax", country = "COL", method = "manual", canonical = "input_data/admin_data/COL/1_Cuantiles_Ingreso_Bruto_Naturales_2014-*", inbox = "input_data/_new/admin/COL/1_Cuantiles_Ingreso_Bruto_Naturales_2014-*", destination = "input_data/admin_data/COL/{basename}", notes = "Colombia PIT fixture."),
-    list(id = "bra-minwage", family = "admin_tax_aux", country = "BRA", method = "manual", canonical = "input_data/admin_data/BRA/downloads/wiki_minwage.csv", inbox = "input_data/_new/admin/BRA/wiki_minwage.csv", destination = "input_data/admin_data/BRA/downloads/{basename}", notes = "Brazil min wage fixture."),
+    list(id = "bra-minwage", family = "admin_tax_aux", country = "BRA", method = "manual", canonical = "input_data/admin_data/BRA/downloads/wiki_minwage.csv", inbox = "input_data/_new/admin/BRA/wiki_minwage*.csv", destination = "input_data/admin_data/BRA/downloads/{basename}", notes = "Brazil min wage fixture."),
     list(id = "chl-uta", family = "admin_tax_aux", country = "CHL", method = "manual", canonical = "input_data/admin_data/CHL/uta_december.csv", inbox = "input_data/_new/admin/CHL/chl_uta_december.csv", destination = "input_data/admin_data/CHL/uta_december.csv", notes = "Chile UTA fixture."),
     list(id = "mex-admin-microdata", family = "admin_microdata", country = "MEX", method = "manual", canonical = "input_data/admin_data/MEX", notes = "Unsupported admin microdata fixture.")
   )), file.path(root, "config", "sources.yml"))
@@ -112,6 +112,13 @@ admin_pit_fixture_repo <- function(block_col = FALSE, backup_overlap = FALSE, mi
   } else if (identical(minwage, "missing_history")) {
     admin_pit_write_minwage(file.path(root, "input_data", "admin_data", "BRA", "downloads", "wiki_minwage.csv"), 2000:2023)
     admin_pit_write_minwage(file.path(root, "input_data", "_new", "admin", "BRA", "wiki_minwage.csv"), 2007:2024)
+  } else if (identical(minwage, "missing_required")) {
+    admin_pit_write_minwage(file.path(root, "input_data", "admin_data", "BRA", "downloads", "wiki_minwage.csv"), 2007:2023)
+    admin_pit_write_minwage(file.path(root, "input_data", "_new", "admin", "BRA", "wiki_minwage.csv"), 2007:2023)
+  } else if (identical(minwage, "ambiguous")) {
+    admin_pit_write_minwage(file.path(root, "input_data", "admin_data", "BRA", "downloads", "wiki_minwage.csv"), 2007:2023)
+    admin_pit_write_minwage(file.path(root, "input_data", "_new", "admin", "BRA", "wiki_minwage.csv"), 2007:2024)
+    admin_pit_write_minwage(file.path(root, "input_data", "_new", "admin", "BRA", "wiki_minwage_alt.csv"), 2007:2024)
   }
   writeLines("year,uta\n2024,75981", file.path(root, "input_data", "_new", "admin", "CHL", "chl_uta_december.csv"))
   dir.create(file.path(root, "intermediary_data", "population"), recursive = TRUE)
@@ -173,15 +180,54 @@ test_that("PIT admin explorer reports Brazil min-wage dependency actions", {
   action <- missing$outputs$dependency_actions[missing$outputs$dependency_actions$dependency_id == "bra-minwage", , drop = FALSE]
   expect_equal(action$status, "blocked_missing_aux")
   expect_equal(action$next_command, "dina sources fetch bra-minwage")
+  missing_cmp <- missing$outputs$aux_comparison_summary[missing$outputs$aux_comparison_summary$dependency_id == "bra-minwage", , drop = FALSE]
+  expect_equal(missing_cmp$status, "blocked_missing_aux")
+  expect_equal(missing_cmp$next_command, "dina sources fetch bra-minwage")
 
   canonical <- run_admin_pit_explorer(root = admin_pit_fixture_repo(minwage = "canonical"), write_outputs = FALSE)
   dep <- canonical$outputs$aux_dependency_summary[canonical$outputs$aux_dependency_summary$dependency_id == "bra-minwage", , drop = FALSE]
   expect_equal(dep$status, "carried_forward_aux")
   expect_equal(dep$severity, "info")
+  canonical_cmp <- canonical$outputs$aux_comparison_summary[canonical$outputs$aux_comparison_summary$dependency_id == "bra-minwage", , drop = FALSE]
+  expect_equal(canonical_cmp$status, "carried_forward_aux")
+  expect_equal(canonical_cmp$current_years, paste(2007:2024, collapse = ","))
 
   candidate <- run_admin_pit_explorer(root = admin_pit_fixture_repo(minwage = "new"), write_outputs = FALSE)
   dep <- candidate$outputs$aux_dependency_summary[candidate$outputs$aux_dependency_summary$dependency_id == "bra-minwage", , drop = FALSE]
   expect_equal(dep$status, "aux_candidate")
+  cmp <- candidate$outputs$aux_comparison_summary[candidate$outputs$aux_comparison_summary$dependency_id == "bra-minwage", , drop = FALSE]
+  expect_equal(cmp$status, "aux_validated_append_only")
+  expect_equal(cmp$current_years, paste(2007:2023, collapse = ","))
+  expect_equal(cmp$incoming_years, paste(2007:2024, collapse = ","))
+  expect_equal(cmp$extension_years, "2024")
+  expect_equal(cmp$overlap_years, paste(2007:2023, collapse = ","))
+  detail <- candidate$outputs$aux_comparison_detail[candidate$outputs$aux_comparison_detail$dependency_id == "bra-minwage", , drop = FALSE]
+  expect_equal(detail$value_status[detail$year == 2024L], "extension")
+})
+
+test_that("PIT admin explorer blocks invalid Brazil min-wage comparison states", {
+  skip_if_not_installed("openxlsx")
+  changed <- run_admin_pit_explorer(root = admin_pit_fixture_repo(minwage = "changed_overlap"), write_outputs = FALSE)
+  changed_cmp <- changed$outputs$aux_comparison_summary[changed$outputs$aux_comparison_summary$dependency_id == "bra-minwage", , drop = FALSE]
+  expect_equal(changed_cmp$status, "blocked_aux_overlap_changed")
+  expect_equal(changed_cmp$changed_overlap_years, "2023")
+  expect_equal(changed$manifest$value[changed$manifest$key == "status"], "blocked")
+
+  history <- run_admin_pit_explorer(root = admin_pit_fixture_repo(minwage = "missing_history"), write_outputs = FALSE)
+  history_cmp <- history$outputs$aux_comparison_summary[history$outputs$aux_comparison_summary$dependency_id == "bra-minwage", , drop = FALSE]
+  expect_equal(history_cmp$status, "blocked_aux_missing_canonical_years")
+  expect_equal(history_cmp$dropped_current_years, paste(2000:2006, collapse = ","))
+
+  missing_required <- run_admin_pit_explorer(root = admin_pit_fixture_repo(minwage = "missing_required"), write_outputs = FALSE)
+  required_cmp <- missing_required$outputs$aux_comparison_summary[missing_required$outputs$aux_comparison_summary$dependency_id == "bra-minwage", , drop = FALSE]
+  expect_equal(required_cmp$status, "blocked_aux_missing_required_years")
+  expect_equal(required_cmp$missing_required_years, "2024")
+  expect_equal(required_cmp$next_command, "dina sources fetch bra-minwage")
+
+  ambiguous <- run_admin_pit_explorer(root = admin_pit_fixture_repo(minwage = "ambiguous"), write_outputs = FALSE)
+  ambiguous_cmp <- ambiguous$outputs$aux_comparison_summary[ambiguous$outputs$aux_comparison_summary$dependency_id == "bra-minwage", , drop = FALSE]
+  expect_equal(ambiguous_cmp$status, "blocked_aux_ambiguous_candidates")
+  expect_match(ambiguous_cmp$detail, "More than one incoming")
 })
 
 test_that("PIT admin explorer ignores old admin_tax inbox paths", {
@@ -379,6 +425,9 @@ test_that("main dina CLI dispatches admin PIT explore and table to isolated modu
   expect_match(explore$output, "PIT Admin Explore")
   expect_match(explore$output, "chl-pit-total")
   expect_match(explore$output, "2005-2022 \\(18y\\)")
+  expect_match(explore$output, "Aux source coverage:")
+  expect_match(explore$output, "bra-minwage")
+  expect_match(explore$output, "aux validated append only")
   expect_match(explore$output, "dina sources table admin")
   admin_pit_expect_false(grepl("Experimental isolated source workflow", explore$output, fixed = TRUE))
   admin_pit_expect_false(grepl("review: structure=", explore$output, fixed = TRUE))
@@ -388,7 +437,13 @@ test_that("main dina CLI dispatches admin PIT explore and table to isolated modu
   expect_equal(tables$status, 0L)
   expect_match(tables$output, "PIT Admin Tables")
   expect_match(tables$output, "PIT Admin Table: extension_summary")
+  expect_match(tables$output, "PIT Admin Table: aux_comparison_summary")
+  expect_match(tables$output, "PIT Admin Table: aux_comparison_detail")
   expect_match(tables$output, "PIT Admin Table: source_inventory")
+
+  aux_table <- run_dina_cli(c("sources", "table", "admin", "aux_comparison_summary"), root = root)
+  expect_equal(aux_table$status, 0L)
+  expect_match(aux_table$output, "aux_validated_append_only")
 
   table <- run_dina_cli(c("sources", "table", "admin", "year_expectations", "--country", "CHL"), root = root)
   expect_equal(table$status, 0L)

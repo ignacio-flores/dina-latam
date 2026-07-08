@@ -4783,6 +4783,49 @@ dina_print_admin_pit_explore <- function(result, dry_run = FALSE) {
       ))
     }
   }
+  aux_compare <- result$outputs$aux_comparison_summary %||% data.frame()
+  if (nrow(aux_compare)) {
+    dina_cli_cat("")
+    dina_cli_cat("Aux source coverage:")
+    dina_cli_cat(dina_cli_row(c("source", "country", "dependency", "current", "incoming", "extension", "overlap", "status", "next"), widths = c(18, 8, 16, 18, 18, 14, 14, 28, 28), dim = TRUE))
+    for (i in seq_len(nrow(aux_compare))) {
+      dina_cli_cat(dina_cli_row(
+        c(
+          aux_compare$source_id[[i]],
+          aux_compare$country[[i]],
+          aux_compare$dependency_id[[i]],
+          dina_admin_pit_year_label(aux_compare$current_years[[i]], max_chars = 18L),
+          dina_admin_pit_year_label(aux_compare$incoming_years[[i]], max_chars = 18L),
+          dina_admin_pit_year_label(aux_compare$extension_years[[i]], max_chars = 14L),
+          dina_admin_pit_year_label(aux_compare$overlap_years[[i]], max_chars = 14L),
+          dina_admin_pit_label(aux_compare$status[[i]]),
+          dina_refresh_shorten(aux_compare$next_command[[i]] %||% "", 28L)
+        ),
+        widths = c(18, 8, 16, 18, 18, 14, 14, 28, 28)
+      ))
+    }
+    aux_blocked <- aux_compare[aux_compare$severity == "blocked", , drop = FALSE]
+    if (nrow(aux_blocked)) {
+      dina_cli_cat("")
+      dina_cli_cat("Aux blocking items:")
+      dina_cli_cat(dina_cli_row(c("source", "dependency", "blocker", "detail"), widths = c(18, 16, 28, 72), dim = TRUE))
+      for (i in seq_len(nrow(aux_blocked))) {
+        detail <- aux_blocked$detail[[i]]
+        if (nzchar(aux_blocked$next_command[[i]] %||% "")) {
+          detail <- paste(detail, "Run:", aux_blocked$next_command[[i]])
+        }
+        dina_cli_cat(dina_cli_row(
+          c(
+            aux_blocked$source_id[[i]],
+            aux_blocked$dependency_id[[i]],
+            dina_admin_pit_label(aux_blocked$status[[i]]),
+            dina_refresh_shorten(detail, 72L)
+          ),
+          widths = c(18, 16, 28, 72)
+        ))
+      }
+    }
+  }
   deps <- result$outputs$aux_dependency_summary %||% data.frame()
   static <- result$outputs$static_dependency_report %||% data.frame()
   static_attention <- if (nrow(static)) static[static$severity %in% c("blocked", "warning"), , drop = FALSE] else data.frame()
@@ -4855,6 +4898,8 @@ dina_admin_pit_table_catalog <- function() {
       "aux_validation_report",
       "aux_dependency_summary",
       "aux_dependency_detail",
+      "aux_comparison_summary",
+      "aux_comparison_detail",
       "dependency_actions",
       "cleaner_summary",
       "cleaner_outputs",
@@ -4879,6 +4924,8 @@ dina_admin_pit_table_catalog <- function() {
       "semantic aux validation, including Brazil minimum wage overlap checks",
       "compact aux dependency status by source",
       "explore-time aux dependency inventory",
+      "explore-time aux coverage, overlap, and append-only status",
+      "per-year explore-time aux value comparison",
       "suggested next command for blocked dependencies",
       "candidate cleaner status and reasons",
       "generated candidate clean output files",
