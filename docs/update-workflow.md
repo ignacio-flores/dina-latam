@@ -42,6 +42,10 @@ dina sources explore sna
 dina sources table sna year_expectations
 dina sources include sna --dry-run
 dina sources include sna --confirm --include-run RUN
+dina sources explore admin
+dina sources table admin year_expectations
+dina sources include admin --dry-run
+dina sources include admin --confirm --include-run RUN
 ```
 
 `dina sources list` is compact by default. In an interactive terminal it can
@@ -59,6 +63,15 @@ year_expectations` to preview explorer tables inline. Confirm is a separate
 guarded promotion step that writes a backup snapshot first; restore uses that
 snapshot if the source promotion needs to be undone. These commands do not
 replace `01b` or run the pipeline.
+
+The public `admin` source type has a PIT-only v1 workflow for Chile
+`chl-pit-total`, Brazil `bra-pit-total`, and Colombia `col-pit-total`. Use
+`dina sources explore admin` to inspect incoming PIT files and shallow
+country-specific structure evidence, then `dina sources include admin --dry-run`
+to stage source/contract compatibility checks. Confirm and restore follow the
+same guarded snapshot pattern as SNA. This v1 does not run admin cleaners during
+include, and non-PIT admin families are reported as unsupported for this
+workflow.
 
 ## Compress Input Data
 
@@ -92,12 +105,13 @@ the commands.
 ## Todo
 
 The todo list is a loose helper from `config/todo.yml`. Checked state lives in
-the active workspace manifest.
+the active workspace manifest. This repo does not need default todo items right
+now, so `config/todo.yml` can be empty.
 
 ```bash
 dina todo
-dina todo check review-config
-dina todo uncheck review-config
+dina todo check ID
+dina todo uncheck ID
 dina todo reset
 ```
 
@@ -105,8 +119,9 @@ Todos never block runs, config checks, or closure.
 
 ## Config
 
-Inspect `config/dina.yml` through read-only commands. Edit the active workspace
-override with your default editor when an update is active:
+Inspect `config/dina.yml` through read-only commands. Review the active
+workspace override with the proposed keys, override YAML, and full effective
+merged config:
 
 ```bash
 dina config show
@@ -114,6 +129,11 @@ dina config check
 dina update config show
 dina update config edit
 ```
+
+Edit protocol: manually edit `output/updates/<id>/config.override.yml`, then
+verify with `dina update config show`. Do not edit `config/dina.yml` for
+active-update override changes. `dina update config edit --open` can launch the
+default editor, but the normal command prints the path and protocol instead.
 
 `dina run` creates a temporary Stata runtime config only while a Stata task is
 running, points `DINA_CONFIG_DO` to it, and removes it afterward. R helpers read

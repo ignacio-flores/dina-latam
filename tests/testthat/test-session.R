@@ -61,6 +61,19 @@ test_that("dashboard state is no_active_update without session", {
   expect_equal(state$state, "no_active_update")
 })
 
+test_that("update restart preserves valid todo state and drops stale ids", {
+  root <- mini_repo()
+  session <- dina_update_start("2026", root = root)
+  session <- dina_update_todo_state(session, root = root, id = "review-config", checked = TRUE)
+  session$todo$checked <- c(session$todo$checked, "stale-todo")
+  dina_save_session(session, root)
+
+  restarted <- dina_update_restart(session$id, root = root, yes = TRUE)
+
+  expect_equal(restarted$new_session$todo$checked, "review-config")
+  expect_equal(dina_load_session(root = root)$todo$checked, "review-config")
+})
+
 test_that("update start and restart print config proposal in CLI", {
   root <- mini_repo()
 
@@ -76,8 +89,13 @@ test_that("update start and restart print config proposal in CLI", {
   expect_match(started$output, "last: 2024")
   expect_match(started$output, "export_validation:")
   expect_match(started$output, "last_year: 2025")
-  expect_match(started$output, "Edit manually or run `dina update config edit`")
+  expect_match(started$output, "Effective config:")
+  expect_match(started$output, "project:")
+  expect_match(started$output, "Edit protocol:")
+  expect_match(started$output, "Do not edit config/dina.yml")
+  expect_match(started$output, "dina update config show")
   expect_match(started$output, "Workflow reminder: `dina help workflow`")
+  expect_false(grepl("Config Override", started$output, fixed = TRUE))
 
   session <- dina_load_session(root = root)
   dina_session_config_set(session, root = root, key = "run.lang", value = "spa")
@@ -86,6 +104,18 @@ test_that("update start and restart print config proposal in CLI", {
   expect_match(shown$output, "Config Proposal")
   expect_match(shown$output, "run\\.lang[[:space:]]+eng[[:space:]]+spa[[:space:]]+manual override")
   expect_match(shown$output, "Effective config:")
+  expect_match(shown$output, "lang: spa")
+  expect_match(shown$output, "Edit protocol:")
+
+  swap <- file.path(root, "output", "updates", dina_current_update(root), ".config.override.yml.swp")
+  writeLines("swap", swap)
+  edit <- run_dina_cli(c("update", "config", "edit"), root = root)
+  expect_equal(edit$status, 0L)
+  expect_match(edit$output, "Update Config Edit")
+  expect_match(edit$output, "Edit protocol:")
+  expect_match(edit$output, "No editor was opened")
+  expect_match(edit$output, "Possible editor swap file")
+  expect_match(edit$output, "dina update config show")
 
   update_id <- dina_current_update(root)
   restarted <- run_dina_cli(c("update", "restart", update_id, "--yes"), root = root)
@@ -94,7 +124,9 @@ test_that("update start and restart print config proposal in CLI", {
   expect_match(restarted$output, "config.override.yml")
   expect_match(restarted$output, "years\\.last[[:space:]]+2023[[:space:]]+2024")
   expect_match(restarted$output, "last: 2024")
-  expect_match(restarted$output, "Edit manually or run `dina update config edit`")
+  expect_match(restarted$output, "Effective config:")
+  expect_match(restarted$output, "Edit protocol:")
+  expect_false(grepl("Config Override", restarted$output, fixed = TRUE))
 })
 
 test_that("plain dashboard prints status and recommendation without common commands", {
@@ -287,7 +319,7 @@ test_that("update status prints structured recommendation details", {
   expect_equal(status$status, 0L)
   expect_match(status$output, "Recommended:")
   expect_match(status$output, "Why:")
-  expect_match(status$output, "Todo:")
+  expect_match(status$output, "Focus:")
   expect_match(status$output, "Expected action:")
   expect_match(status$output, "Next likely command:")
   expect_match(status$output, "Incoming source files: 1")

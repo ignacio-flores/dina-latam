@@ -1,0 +1,66 @@
+version: 1
+name: admin_pit_include_contract
+description: >
+  Experimental PIT admin include contract. Dry-run stages incoming PIT sources
+  and isolated candidate cleaner outputs without modifying mainstream pipeline
+  scripts.
+
+output_root: output/experiments/admin_pit_include
+explore_output_root: output/experiments/admin_pit_explore
+
+years:
+  from_config: config/dina.yml
+  use_active_update_override: true
+
+source_ids:
+  - chl-pit-total
+  - bra-pit-total
+  - col-pit-total
+
+statuses:
+  clean:
+    - ok_source_staged
+  warnings:
+    - warning_structure_review
+    - warning_static_dependency_carried_forward
+    - warning_aux_dependency_carried_forward
+    - warning_aux_dependency_legacy
+  blocked:
+    - blocked_structure_mismatch
+    - blocked_destination_missing
+    - blocked_missing_incoming_source
+    - blocked_static_dependency_missing
+    - blocked_aux_dependency_missing
+    - blocked_cleaner_failed
+    - blocked_clean_output_missing
+
+fingerprints:
+  require_sha256: true
+  compare:
+    - kind
+    - sha256
+
+cleaners:
+  mode: real
+  expected_outputs:
+    chl-pit-total:
+      - input_data/admin_data/CHL/_clean/total-pre-CHL.xlsx
+      - input_data/admin_data/CHL/_clean/total-pos-CHL.xlsx
+    bra-pit-total:
+      - input_data/admin_data/BRA/_clean/total-pre-BRA.xlsx
+    col-pit-total:
+      - input_data/admin_data/COL/_clean/total-pos-COL.xlsx
+  static_dependencies:
+    chl-pit-total:
+      - input_data/admin_data/CHL/tab_gc_1991_2000.xls
+      - input_data/admin_data/CHL/tab_gc_1963_1981.xlsx
+      - input_data/admin_data/CHL/tab_gc_1998_2009.xlsx
+      - input_data/admin_data/CHL/tab_gc_wage_1998_2009.xlsx
+      - input_data/admin_data/CHL/Data_1998-2009sinKG.xlsx
+    bra-pit-total:
+      - input_data/admin_data/BRA/ptot_*.xlsx
+  auxiliary_sources:
+    chl-pit-total:
+      - chl-uta
+    bra-pit-total:
+      - bra-minwage

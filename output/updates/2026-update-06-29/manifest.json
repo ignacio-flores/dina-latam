@@ -2,8 +2,8 @@
   "id": "2026-update-06-29",
   "year": "2026",
   "status": "initialized",
-  "created_at": "2026-07-08T08:23:29+0200",
-  "updated_at": "2026-07-08T08:23:29+0200",
+  "created_at": "2026-07-08T11:49:56+0200",
+  "updated_at": "2026-07-08T11:49:56+0200",
   "preferences": [],
   "config_override": "output/updates/2026-update-06-29/config.override.yml",
   "config_override_hash": "38327860912052c5dd1e84e304f045c96d5317dd4694825dbd4145c8239caf4d",
@@ -15,11 +15,11 @@
     "restart": null
   },
   "source_baseline": {
-    "created_at": "2026-07-08T08:23:29+0200",
+    "created_at": "2026-07-08T11:49:56+0200",
     "hash_mode": "all"
   },
   "source_inbox": {
-    "prepared_at": "2026-07-08T08:23:29+0200",
+    "prepared_at": "2026-07-08T11:49:56+0200",
     "buckets": [
       {
         "bucket": "input_data/_new/admin_tax",

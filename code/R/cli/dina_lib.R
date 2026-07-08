@@ -2479,6 +2479,13 @@ dina_update_restart <- function(update_id = NULL, root = dina_repo_root(), yes =
     repo_snapshot = identical(repo_policy, "replace"),
     progress = progress
   )
+  if (!is.null(session)) {
+    checked <- intersect(dina_todo_state(session), dina_todo_known_ids(root))
+    new_session$todo <- list(checked = checked)
+    if (length(checked) && !is.null(session$todo$updated_at)) {
+      new_session$todo$updated_at <- session$todo$updated_at
+    }
+  }
   if (isTRUE(preserve_repo_state) && !is.null(repo_tmp) && dir.exists(repo_tmp)) {
     unlink(file.path(dir, "repo_state"), recursive = TRUE)
     dina_copy_tree(repo_tmp, file.path(dir, "repo_state"))

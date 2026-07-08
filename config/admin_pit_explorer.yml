@@ -1,0 +1,55 @@
+version: 1
+name: admin_pit_explorer
+description: >
+  Experimental PIT admin source explorer. V1 supports the PIT-style admin
+  sources with existing legacy cleaners: Chile, Brazil, and Colombia.
+
+output_root: output/experiments/admin_pit_explore
+
+years:
+  from_config: config/dina.yml
+  use_active_update_override: true
+
+source_discovery:
+  source_ids:
+    - chl-pit-total
+    - bra-pit-total
+    - col-pit-total
+  unsupported_admin_families:
+    - admin_tax
+    - admin_tax_aux
+    - admin_microdata
+  structure_checks:
+    chl-pit-total:
+      type: workbook_sheet
+      expected_sheets: [Datos]
+      filename_year_span_max: 2
+      workbook_years:
+        sheet: Datos
+        range: A8:A5000
+        min: 1900
+        max: 2099
+    bra-pit-total:
+      type: workbook_sheet_by_year
+      filename_year_span_max: 2
+      known_layout_years:
+        min: 2007
+      sheets:
+        - years: {max: 2013}
+          sheet: P14_P15_T9
+        - years: {min: 2014, max: 2014}
+          sheet: T9_AC2014
+        - years: {min: 2015, max: 2015}
+          sheet: T9
+        - years: {min: 2016, max: 2019}
+          sheet: faixa SM RTT+RTE+RTI
+        - years: {min: 2020, max: 2020}
+          sheet: Tab9_Fx Rend Total
+        - years: {min: 2021}
+          sheet: Tab8
+    col-pit-total:
+      type: folder_year_files
+      folder_span_regex: "2014-([0-9]{4})"
+      first_year: 2014
+      expected_file_template: "{index}_Cuantiles_Ingreso_Bruto_Naturales_{year}_F-210.xlsx"
+      index_offset: 2007
