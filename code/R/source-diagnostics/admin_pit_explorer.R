@@ -167,6 +167,19 @@ admin_pit_explorer_registry <- function(root) {
   config$sources %||% list()
 }
 
+admin_pit_explorer_registry_source <- function(root, source_id) {
+  registry <- admin_pit_explorer_registry(root)
+  matches <- Filter(function(source) identical(source$id %||% "", source_id), registry)
+  if (!length(matches)) NULL else matches[[1L]]
+}
+
+admin_pit_explorer_read_include_contract <- function(root) {
+  admin_pit_explorer_read_yaml(
+    file.path(root, "config", "admin_pit_include.yml"),
+    default = list(cleaners = list(static_dependencies = list(), auxiliary_sources = list()))
+  )
+}
+
 admin_pit_explorer_supported_ids <- function(contract) {
   as.character(contract$source_discovery$source_ids %||% character())
 }
@@ -406,6 +419,287 @@ admin_pit_explorer_source_inventory <- function(sources, contract, root) {
   admin_pit_explorer_bind(rows)
 }
 
+admin_pit_explorer_existing_glob <- function(patterns, root) {
+  patterns <- admin_pit_explorer_source_values(patterns)
+  if (!length(patterns)) return(character())
+  paths <- unique(unlist(lapply(patterns, function(pattern) Sys.glob(admin_pit_explorer_path(pattern, root))), use.names = FALSE))
+  paths <- as.character(paths %||% character())
+  sort(paths[file.exists(paths)])
+}
+
+admin_pit_explorer_aux_destination <- function(source, path) {
+  destinations <- unique(admin_pit_explorer_source_values(source$destination %||% source$destinations))
+  if (!length(destinations)) return("")
+  admin_pit_explorer_template(destinations[[1L]], list(source = source$id %||% "", basename = basename(path), incoming = path))
+}
+
+admin_pit_explorer_csv_years <- function(path, year_col = "year") {
+  if (!file.exists(path) || dir.exists(path)) return(integer())
+  data <- tryCatch(utils::read.csv(path, stringsAsFactors = FALSE), error = function(e) NULL)
+  if (is.null(data) || !nrow(data)) return(integer())
+  names(data) <- tolower(names(data))
+  if (!(tolower(year_col) %in% names(data))) return(integer())
+  years <- suppressWarnings(as.integer(data[[tolower(year_col)]]))
+  sort(unique(years[!is.na(years)]))
+}
+
+admin_pit_explorer_aux_years <- function(aux_id, path) {
+  if (identical(aux_id, "bra-minwage")) {
+    return(admin_pit_explorer_csv_years(path, "year"))
+  }
+  admin_pit_explorer_csv_years(path, "year")
+}
+
+admin_pit_explorer_aux_required_years <- function(aux_id, years) {
+  if (identical(aux_id, "bra-minwage")) {
+    last <- max(as.integer(years), na.rm = TRUE)
+    if (is.infinite(last) || is.na(last) || last < 2007L) return(integer())
+    return(seq.int(2007L, last))
+  }
+  integer()
+}
+
+admin_pit_explorer_fetch_command <- function(source, aux_id) {
+  if (is.null(source)) return("")
+  if (nzchar(source$fetcher %||% "") || identical(aux_id, "bra-minwage")) {
+    return(sprintf("dina sources fetch %s", aux_id))
+  }
+  ""
+}
+
+admin_pit_explorer_aux_row <- function(source_id, country, aux_id, artifact_class, source_set, from_rel, to_rel, status, severity, years, required_years, next_command = "", detail = "") {
+  data.frame(
+    source_id = source_id,
+    country = country,
+    dependency_id = aux_id,
+    artifact_class = artifact_class,
+    source_set = source_set,
+    from_rel = from_rel,
+    to_rel = to_rel,
+    status = status,
+    severity = severity,
+    years = paste(years, collapse = ","),
+    year_start = if (length(years)) min(years) else NA_integer_,
+    year_end = if (length(years)) max(years) else NA_integer_,
+    required_years = paste(required_years, collapse = ","),
+    required_year_start = if (length(required_years)) min(required_years) else NA_integer_,
+    required_year_end = if (length(required_years)) max(required_years) else NA_integer_,
+    next_command = next_command,
+    detail = detail,
+    stringsAsFactors = FALSE
+  )
+}
+
+admin_pit_explorer_aux_dependency_detail <- function(root, include_contract, source_ids, years) {
+  aux <- include_contract$cleaners$auxiliary_sources %||% list()
+  rows <- list()
+  for (source_id in intersect(names(aux), source_ids)) {
+    country <- admin_pit_explorer_source_country(source_id)
+    for (aux_id in as.character(aux[[source_id]] %||% character())) {
+      source <- admin_pit_explorer_registry_source(root, aux_id)
+      required_years <- admin_pit_explorer_aux_required_years(aux_id, years)
+      if (is.null(source)) {
+        rows[[length(rows) + 1L]] <- admin_pit_explorer_aux_row(source_id, country, aux_id, "aux_source", "missing", "", "", "missing_aux_registry", "warning", integer(), required_years, "", "Aux source is not configured in config/sources.yml.")
+        next
+      }
+      inbox <- admin_pit_explorer_existing_glob(source$inbox, root)
+      canonical <- admin_pit_explorer_existing_glob(source$canonical, root)
+      fetch <- admin_pit_explorer_fetch_command(source, aux_id)
+      if (length(inbox)) {
+        for (path in inbox) {
+          aux_years <- admin_pit_explorer_aux_years(aux_id, path)
+          rows[[length(rows) + 1L]] <- admin_pit_explorer_aux_row(
+            source_id,
+            country,
+            aux_id,
+            "aux_source",
+            "new",
+            admin_pit_explorer_relative_path(path, root),
+            admin_pit_explorer_aux_destination(source, basename(path)),
+            "aux_candidate",
+            "info",
+            aux_years,
+            required_years,
+            "",
+            "Candidate aux source found in _new; include will validate append-only overlap."
+          )
+        }
+        next
+      }
+      if (length(canonical)) {
+        for (path in canonical) {
+          aux_years <- admin_pit_explorer_aux_years(aux_id, path)
+          missing_required <- setdiff(required_years, aux_years)
+          blocked <- length(missing_required) > 0L
+          rows[[length(rows) + 1L]] <- admin_pit_explorer_aux_row(
+            source_id,
+            country,
+            aux_id,
+            "aux_source",
+            "canonical",
+            admin_pit_explorer_relative_path(path, root),
+            admin_pit_explorer_relative_path(path, root),
+            if (blocked) "blocked_aux_missing_years" else "carried_forward_aux",
+            if (blocked) "blocked" else "info",
+            aux_years,
+            required_years,
+            if (blocked) fetch else "",
+            if (blocked) {
+              paste("Canonical aux source is missing required years:", paste(missing_required, collapse = ","))
+            } else {
+              "Canonical aux source covers required years and can be carried forward."
+            }
+          )
+        }
+        next
+      }
+      missing_patterns <- paste(c(admin_pit_explorer_source_values(source$inbox), admin_pit_explorer_source_values(source$canonical)), collapse = ", ")
+      rows[[length(rows) + 1L]] <- admin_pit_explorer_aux_row(
+        source_id,
+        country,
+        aux_id,
+        "aux_source",
+        "missing",
+        missing_patterns,
+        "",
+        if (identical(aux_id, "chl-uta")) "legacy_live_aux" else "blocked_missing_aux",
+        if (identical(aux_id, "chl-uta")) "warning" else "blocked",
+        integer(),
+        required_years,
+        if (identical(aux_id, "chl-uta")) "" else fetch,
+        if (identical(aux_id, "chl-uta")) {
+          "No materialized UTA aux source is configured; current legacy live behavior is noted for review."
+        } else {
+          "Aux source is missing in both _new and canonical paths."
+        }
+      )
+    }
+  }
+  admin_pit_explorer_bind(rows)
+}
+
+admin_pit_explorer_source_country <- function(source_id) {
+  switch(source_id, "chl-pit-total" = "CHL", "bra-pit-total" = "BRA", "col-pit-total" = "COL", "")
+}
+
+admin_pit_explorer_aux_dependency_summary <- function(detail) {
+  if (!nrow(detail)) return(data.frame(stringsAsFactors = FALSE))
+  keys <- unique(detail[, c("source_id", "country", "dependency_id", "artifact_class"), drop = FALSE])
+  rows <- lapply(seq_len(nrow(keys)), function(i) {
+    key <- keys[i, , drop = FALSE]
+    rows <- detail[
+      detail$source_id == key$source_id & detail$country == key$country & detail$dependency_id == key$dependency_id,
+      ,
+      drop = FALSE
+    ]
+    severity <- if (any(rows$severity == "blocked", na.rm = TRUE)) {
+      "blocked"
+    } else if (any(rows$severity == "warning", na.rm = TRUE)) {
+      "warning"
+    } else {
+      "info"
+    }
+    status <- rows$status[[which.max(match(rows$severity, c("info", "warning", "blocked"), nomatch = 0L))]]
+    years <- sort(unique(suppressWarnings(as.integer(unlist(strsplit(paste(rows$years, collapse = ","), "[^0-9]+"))))))
+    years <- years[!is.na(years)]
+    required <- sort(unique(suppressWarnings(as.integer(unlist(strsplit(paste(rows$required_years, collapse = ","), "[^0-9]+"))))))
+    required <- required[!is.na(required)]
+    command <- rows$next_command[nzchar(rows$next_command %||% "")]
+    data.frame(
+      source_id = key$source_id,
+      country = key$country,
+      dependency_id = key$dependency_id,
+      artifact_class = key$artifact_class,
+      status = status,
+      severity = severity,
+      available_years = paste(years, collapse = ","),
+      required_years = paste(required, collapse = ","),
+      next_command = if (length(command)) command[[1L]] else "",
+      detail = paste(unique(rows$detail[nzchar(rows$detail %||% "")]), collapse = " | "),
+      stringsAsFactors = FALSE
+    )
+  })
+  admin_pit_explorer_bind(rows)
+}
+
+admin_pit_explorer_static_dependency_report <- function(root, include_contract, source_ids) {
+  deps <- include_contract$cleaners$static_dependencies %||% list()
+  rows <- list()
+  for (source_id in intersect(names(deps), source_ids)) {
+    country <- admin_pit_explorer_source_country(source_id)
+    for (pattern in unique(as.character(deps[[source_id]] %||% character()))) {
+      matches <- admin_pit_explorer_existing_glob(pattern, root)
+      if (!length(matches)) {
+        rows[[length(rows) + 1L]] <- data.frame(
+          source_id = source_id,
+          country = country,
+          dependency_id = pattern,
+          artifact_class = "static_dependency",
+          from_rel = pattern,
+          status = "missing_static_dependency",
+          severity = "blocked",
+          next_command = "",
+          detail = "Required carry-forward dependency is missing from canonical paths.",
+          stringsAsFactors = FALSE
+        )
+      } else {
+        for (path in matches) {
+          rows[[length(rows) + 1L]] <- data.frame(
+            source_id = source_id,
+            country = country,
+            dependency_id = pattern,
+            artifact_class = "static_dependency",
+            from_rel = admin_pit_explorer_relative_path(path, root),
+            status = "available_static_dependency",
+            severity = "info",
+            next_command = "",
+            detail = "Static dependency is available for carry-forward staging.",
+            stringsAsFactors = FALSE
+          )
+        }
+      }
+    }
+  }
+  admin_pit_explorer_bind(rows)
+}
+
+admin_pit_explorer_dependency_actions <- function(aux_summary, static_report) {
+  rows <- list()
+  if (nrow(aux_summary)) {
+    needs_action <- aux_summary[aux_summary$severity %in% c("blocked", "warning") | nzchar(aux_summary$next_command %||% ""), , drop = FALSE]
+    if (nrow(needs_action)) {
+      rows[[length(rows) + 1L]] <- data.frame(
+        source_id = needs_action$source_id,
+        country = needs_action$country,
+        dependency_id = needs_action$dependency_id,
+        artifact_class = needs_action$artifact_class,
+        status = needs_action$status,
+        action = ifelse(nzchar(needs_action$next_command %||% ""), "fetch_aux_source", "review_aux_dependency"),
+        next_command = needs_action$next_command,
+        detail = needs_action$detail,
+        stringsAsFactors = FALSE
+      )
+    }
+  }
+  if (nrow(static_report)) {
+    blocked <- static_report[static_report$severity == "blocked", , drop = FALSE]
+    if (nrow(blocked)) {
+      rows[[length(rows) + 1L]] <- data.frame(
+        source_id = blocked$source_id,
+        country = blocked$country,
+        dependency_id = blocked$dependency_id,
+        artifact_class = blocked$artifact_class,
+        status = blocked$status,
+        action = "provide_static_dependency",
+        next_command = "",
+        detail = blocked$detail,
+        stringsAsFactors = FALSE
+      )
+    }
+  }
+  admin_pit_explorer_bind(rows)
+}
+
 admin_pit_explorer_structure_summary <- function(source_inventory, contract) {
   rules <- contract$source_discovery$structure_checks %||% list()
   keys <- unique(source_inventory[, c("source_id", "country"), drop = FALSE])
@@ -575,6 +869,7 @@ run_admin_pit_explorer <- function(
   contract <- admin_pit_explorer_read_contract(root, contract_path)
   years <- admin_pit_explorer_years(contract, root)
   sources <- admin_pit_explorer_supported_sources(contract, root, countries)
+  source_ids <- unique(vapply(sources, function(source) source$id %||% "", character(1)))
   unsupported <- admin_pit_explorer_unsupported_sources(contract, root, countries)
   inventory <- admin_pit_explorer_source_inventory(sources, contract, root)
   structure <- admin_pit_explorer_structure_summary(inventory, contract)
@@ -582,7 +877,18 @@ run_admin_pit_explorer <- function(
   expectations <- admin_pit_explorer_year_expectations(inventory, structure)
   actions <- admin_pit_explorer_review_actions(extension, structure)
   fingerprints <- admin_pit_explorer_source_fingerprints(inventory)
-  status <- if (nrow(structure) && any(structure$structure_status == "blocked_structure_mismatch", na.rm = TRUE)) "blocked" else "all_good"
+  include_contract <- admin_pit_explorer_read_include_contract(root)
+  aux_detail <- admin_pit_explorer_aux_dependency_detail(root, include_contract, source_ids, years)
+  aux_summary <- admin_pit_explorer_aux_dependency_summary(aux_detail)
+  static_report <- admin_pit_explorer_static_dependency_report(root, include_contract, source_ids)
+  dependency_actions <- admin_pit_explorer_dependency_actions(aux_summary, static_report)
+  blocked <- (nrow(structure) && any(structure$structure_status == "blocked_structure_mismatch", na.rm = TRUE)) ||
+    (nrow(aux_summary) && any(aux_summary$severity == "blocked", na.rm = TRUE)) ||
+    (nrow(static_report) && any(static_report$severity == "blocked", na.rm = TRUE))
+  warning <- (nrow(structure) && any(structure$structure_status == "structure_review_needed", na.rm = TRUE)) ||
+    (nrow(aux_summary) && any(aux_summary$severity == "warning", na.rm = TRUE)) ||
+    (nrow(static_report) && any(static_report$severity == "warning", na.rm = TRUE))
+  status <- if (blocked) "blocked" else if (warning) "check_following" else "all_good"
   manifest <- admin_pit_explorer_manifest(contract, years, status)
   paths <- admin_pit_explorer_output_paths(root, contract, output_dir)
   outputs <- list(
@@ -592,7 +898,11 @@ run_admin_pit_explorer <- function(
     year_expectations = expectations,
     review_actions = actions,
     unsupported_sources = unsupported,
-    source_fingerprints = fingerprints
+    source_fingerprints = fingerprints,
+    aux_dependency_summary = aux_summary,
+    aux_dependency_detail = aux_detail,
+    static_dependency_report = static_report,
+    dependency_actions = dependency_actions
   )
   if (isTRUE(write_outputs)) {
     admin_pit_explorer_write_outputs(outputs, paths, manifest)

@@ -39,35 +39,57 @@ parse_money <- function(x) {
   suppressWarnings(as.numeric(x))
 }
 
+parse_year <- function(x) {
+  x <- as.character(x)
+  hit <- regexpr("(19|20)[0-9]{2}", x, perl = TRUE)
+  out <- rep(NA_integer_, length(x))
+  ok <- hit > 0L
+  out[ok] <- suppressWarnings(as.integer(regmatches(x, hit)))
+  out
+}
+
+candidate_from_table <- function(tbl) {
+  best <- NULL
+  for (year_col in seq_along(tbl)) {
+    years <- parse_year(tbl[[year_col]])
+    for (value_col in seq_along(tbl)) {
+      if (identical(year_col, value_col)) next
+      minwage <- parse_money(tbl[[value_col]])
+      valid <- !is.na(years) & !is.na(minwage) & years >= 1900L & years <= 2100L & minwage > 0
+      score <- sum(valid)
+      if (!is.null(best) && score <= best$score) next
+      best <- list(
+        score = score,
+        data = data.frame(row_id = seq_along(years), year = years, minwage = minwage, stringsAsFactors = FALSE)
+      )
+    }
+  }
+  best
+}
+
 content <- rvest::read_html(url)
 tables <- rvest::html_table(content, fill = TRUE)
 if (!length(tables)) {
   stop("No HTML tables found on the Brazil minimum wage page.", call. = FALSE)
 }
 
-score_table <- function(tbl) {
-  names_norm <- normalize_name(names(tbl))
-  sum(grepl("vig|ano|year", names_norm)) + sum(grepl("valor|salario|minimum", names_norm))
+candidate <- NULL
+for (tbl in tables) {
+  current <- candidate_from_table(tbl)
+  if (!is.null(current) && (is.null(candidate) || current$score > candidate$score)) {
+    candidate <- current
+  }
 }
-
-scores <- vapply(tables, score_table, integer(1))
-tbl <- tables[[which.max(scores)]]
-names_norm <- normalize_name(names(tbl))
-vig_col <- grep("vig|ano|year", names_norm, value = FALSE)[1]
-value_col <- grep("valor|salario|minimum", names_norm, value = FALSE)[1]
-if (is.na(vig_col) || is.na(value_col)) {
+if (is.null(candidate) || candidate$score == 0L) {
   stop("Could not identify year and minimum-wage columns.", call. = FALSE)
 }
 
-year <- regmatches(as.character(tbl[[vig_col]]), regexpr("(19|20)[0-9]{2}", as.character(tbl[[vig_col]]), perl = TRUE))
-year <- suppressWarnings(as.integer(year))
-minwage <- parse_money(tbl[[value_col]])
-out <- data.frame(year = year, minwage = minwage)
+out <- candidate$data
 out <- out[!is.na(out$year) & !is.na(out$minwage), , drop = FALSE]
 if (!nrow(out)) {
   stop("Parsed the page but found no year/minimum-wage rows.", call. = FALSE)
 }
-out <- out[order(out$year), , drop = FALSE]
+out <- out[order(out$year, out$row_id), , drop = FALSE]
 out <- aggregate(minwage ~ year, data = out, FUN = function(x) tail(x[!is.na(x)], 1L))
 
 dir.create(dirname(target), recursive = TRUE, showWarnings = FALSE)

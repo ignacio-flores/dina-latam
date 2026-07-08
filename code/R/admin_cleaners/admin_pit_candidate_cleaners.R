@@ -142,7 +142,7 @@ admin_pit_candidate_clean_chl <- function(
   coverage_years <- admin_pit_candidate_workbook_years(tfile)
   target_years <- coverage_years[coverage_years <= last_y]
 
-  popdata <- haven::read_dta(file.path(repo_root, "intermediary_data", "population", "SurveyPop.dta"))
+  popdata <- haven::read_dta(file.path(input_root, "intermediary_data", "population", "SurveyPop.dta"))
   raw_tabs <- admin_pit_candidate_read_workbook(tfile, sheet = "Datos", range = "A8:K5000", col_names = TRUE)
   raw_tabs <- raw_tabs |>
     janitor::clean_names() |>
@@ -180,7 +180,7 @@ admin_pit_candidate_clean_chl <- function(
     dplyr::mutate(freq = personas / totpop_ie, p = 1 - cumsum(freq), cum = cumsum(freq)) |>
     dplyr::arrange(year, thr)
 
-  chl_pop1999 <- haven::read_dta(file.path(repo_root, "input_data", "population", "PopulationLatAm.dta"))
+  chl_pop1999 <- haven::read_dta(file.path(input_root, "input_data", "population", "PopulationLatAm.dta"))
   chl_pop1999 <- chl_pop1999 |>
     janitor::clean_names() |>
     dplyr::filter(stringr::str_detect(country, "Chile"), year == 1999) |>
@@ -409,7 +409,7 @@ admin_pit_candidate_clean_bra <- function(
   admin_pit_candidate_load(c("dplyr", "tidyr", "readr", "readxl", "haven", "janitor", "stringr", "glue", "purrr", "openxlsx"))
   config <- admin_pit_candidate_read_config(repo_root, config_path, override_path)
   last_y <- as.integer(config$years$last)
-  popdata <- haven::read_dta(file.path(repo_root, "intermediary_data", "population", "SurveyPop.dta"))
+  popdata <- haven::read_dta(file.path(input_root, "intermediary_data", "population", "SurveyPop.dta"))
   bra_file <- file.path(input_root, "input_data", "admin_data", "BRA")
   bra_tabs_2000_06 <- NULL
   for (year in 2000:2007) {

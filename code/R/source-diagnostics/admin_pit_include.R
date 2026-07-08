@@ -256,7 +256,7 @@ admin_pit_include_stage_dependency_path <- function(root, paths, source_id, coun
     staged_to = if (identical(copy_status, "missing_dependency")) "" else staged_to,
     status = if (identical(copy_status, "staged")) "carried_forward" else copy_status,
     promotion_scope = promotion_scope,
-    severity = if (identical(copy_status, "missing_dependency")) "warning" else "info",
+    severity = if (identical(copy_status, "missing_dependency")) "blocked" else "info",
     stringsAsFactors = FALSE
   )
 }
@@ -288,15 +288,21 @@ admin_pit_include_aux_destination <- function(source, path) {
   admin_pit_include_template(destinations[[1L]], list(source = source$id %||% "", basename = basename(path), incoming = path))
 }
 
+admin_pit_include_existing_glob <- function(patterns, root) {
+  patterns <- admin_pit_include_source_values(patterns)
+  if (!length(patterns)) return(character())
+  paths <- unique(unlist(lapply(patterns, function(pattern) Sys.glob(admin_pit_include_path(pattern, root))), use.names = FALSE))
+  paths <- as.character(paths %||% character())
+  sort(paths[file.exists(paths)])
+}
+
 admin_pit_include_stage_one_aux <- function(root, paths, source_id, aux_id) {
   country <- admin_pit_include_source_country(source_id)
   source <- admin_pit_include_registry_source(root, aux_id)
   if (is.null(source)) {
     return(data.frame(source_id = source_id, country = country, dependency_id = aux_id, dependency_type = "aux_dependency", from_rel = "", to_rel = "", staged_to = "", status = "missing_aux_registry", promotion_scope = "none", severity = "warning", stringsAsFactors = FALSE))
   }
-  inbox_patterns <- admin_pit_include_source_values(source$inbox)
-  inbox <- unique(unlist(lapply(inbox_patterns, function(pattern) Sys.glob(admin_pit_include_path(pattern, root))), use.names = FALSE))
-  inbox <- sort(inbox[file.exists(inbox)])
+  inbox <- admin_pit_include_existing_glob(source$inbox, root)
   if (length(inbox)) {
     rows <- lapply(inbox, function(path) {
       to_rel <- admin_pit_include_aux_destination(source, basename(path))
@@ -319,16 +325,14 @@ admin_pit_include_stage_one_aux <- function(root, paths, source_id, aux_id) {
     })
     return(admin_pit_include_bind(rows))
   }
-  canonical_patterns <- admin_pit_include_source_values(source$canonical)
-  canonical <- unique(unlist(lapply(canonical_patterns, function(pattern) Sys.glob(admin_pit_include_path(pattern, root))), use.names = FALSE))
-  canonical <- sort(canonical[file.exists(canonical)])
+  canonical <- admin_pit_include_existing_glob(source$canonical, root)
   if (length(canonical)) {
     rows <- lapply(canonical, function(path) {
       admin_pit_include_stage_dependency_path(root, paths, source_id, country, admin_pit_include_relative_path(path, root), "aux_dependency", dependency_id = aux_id, promotion_scope = "carry_forward")
     })
     out <- admin_pit_include_bind(rows)
     out$status <- "carried_forward_aux"
-    out$severity <- "warning"
+    out$severity <- "info"
     return(out)
   }
   data.frame(
@@ -336,7 +340,7 @@ admin_pit_include_stage_one_aux <- function(root, paths, source_id, aux_id) {
     country = country,
     dependency_id = aux_id,
     dependency_type = "aux_dependency",
-    from_rel = "",
+    from_rel = paste(c(admin_pit_include_source_values(source$inbox), admin_pit_include_source_values(source$canonical)), collapse = ", "),
     to_rel = "",
     staged_to = "",
     status = if (identical(aux_id, "chl-uta")) "legacy_live_aux" else "missing_aux_dependency",
@@ -354,6 +358,287 @@ admin_pit_include_stage_aux_dependencies <- function(root, paths, contract) {
       rows[[length(rows) + 1L]] <- admin_pit_include_stage_one_aux(root, paths, source_id, aux_id)
     }
   }
+  admin_pit_include_bind(rows)
+}
+
+admin_pit_include_required_bra_minwage_years <- function(root, contract) {
+  config <- admin_pit_include_effective_config(root, contract)
+  last <- suppressWarnings(as.integer(config$years$last))
+  if (is.na(last) || last < 2007L) return(integer())
+  seq.int(2007L, last)
+}
+
+admin_pit_include_read_minwage <- function(path) {
+  if (!file.exists(path) || dir.exists(path)) {
+    return(list(ok = FALSE, data = data.frame(stringsAsFactors = FALSE), status = "blocked_aux_file_missing", detail = "wiki_minwage.csv file is missing."))
+  }
+  data <- tryCatch(utils::read.csv(path, stringsAsFactors = FALSE), error = function(e) e)
+  if (inherits(data, "error")) {
+    return(list(ok = FALSE, data = data.frame(stringsAsFactors = FALSE), status = "blocked_aux_read_failed", detail = conditionMessage(data)))
+  }
+  names(data) <- tolower(names(data))
+  missing <- setdiff(c("year", "minwage"), names(data))
+  if (length(missing)) {
+    return(list(ok = FALSE, data = data.frame(stringsAsFactors = FALSE), status = "blocked_aux_schema", detail = paste("Missing required columns:", paste(missing, collapse = ","))))
+  }
+  out <- data.frame(
+    year = suppressWarnings(as.integer(data$year)),
+    minwage = suppressWarnings(as.numeric(data$minwage)),
+    stringsAsFactors = FALSE
+  )
+  if (!nrow(out)) {
+    return(list(ok = FALSE, data = out, status = "blocked_aux_empty", detail = "wiki_minwage.csv has no rows."))
+  }
+  if (any(is.na(out$year)) || any(is.na(out$minwage))) {
+    return(list(ok = FALSE, data = out, status = "blocked_aux_non_numeric", detail = "Columns year and minwage must be numeric."))
+  }
+  if (any(out$minwage <= 0, na.rm = TRUE)) {
+    return(list(ok = FALSE, data = out, status = "blocked_aux_non_positive", detail = "Minimum-wage values must be positive."))
+  }
+  duplicated_years <- unique(out$year[duplicated(out$year)])
+  if (length(duplicated_years)) {
+    return(list(ok = FALSE, data = out, status = "blocked_aux_duplicate_years", detail = paste("Duplicate years:", paste(duplicated_years, collapse = ","))))
+  }
+  out <- out[order(out$year), , drop = FALSE]
+  list(ok = TRUE, data = out, status = "ok", detail = "")
+}
+
+admin_pit_include_aux_fetch_command <- function(root, aux_id) {
+  source <- admin_pit_include_registry_source(root, aux_id)
+  if (!is.null(source) && (nzchar(source$fetcher %||% "") || identical(aux_id, "bra-minwage"))) {
+    return(sprintf("dina sources fetch %s", aux_id))
+  }
+  ""
+}
+
+admin_pit_include_aux_validation_row <- function(source_id, country, dependency_id, status, severity, required_years = integer(), available_years = integer(), overlap_years = integer(), extension_years = integer(), changed_overlap_years = integer(), missing_required_years = integer(), missing_canonical_years = integer(), next_command = "", detail = "") {
+  data.frame(
+    source_id = source_id,
+    country = country,
+    dependency_id = dependency_id,
+    artifact_class = "aux_source",
+    status = status,
+    severity = severity,
+    required_years = paste(required_years, collapse = ","),
+    available_years = paste(available_years, collapse = ","),
+    overlap_years = paste(overlap_years, collapse = ","),
+    extension_years = paste(extension_years, collapse = ","),
+    changed_overlap_years = paste(changed_overlap_years, collapse = ","),
+    missing_required_years = paste(missing_required_years, collapse = ","),
+    missing_canonical_years = paste(missing_canonical_years, collapse = ","),
+    next_command = next_command,
+    detail = detail,
+    stringsAsFactors = FALSE
+  )
+}
+
+admin_pit_include_validate_bra_minwage <- function(root, contract, aux_rows) {
+  if (!nrow(aux_rows)) return(data.frame(stringsAsFactors = FALSE))
+  row <- aux_rows[1L, , drop = FALSE]
+  required <- admin_pit_include_required_bra_minwage_years(root, contract)
+  fetch <- admin_pit_include_aux_fetch_command(root, "bra-minwage")
+  if (identical(row$severity[[1L]], "blocked")) {
+    return(admin_pit_include_aux_validation_row(
+      row$source_id[[1L]],
+      row$country[[1L]],
+      row$dependency_id[[1L]],
+      "blocked_missing_aux",
+      "blocked",
+      required,
+      integer(),
+      next_command = fetch,
+      detail = "Brazil minimum-wage aux file is missing in both _new and canonical paths."
+    ))
+  }
+  candidate_path <- row$staged_to[[1L]]
+  candidate <- admin_pit_include_read_minwage(candidate_path)
+  if (!isTRUE(candidate$ok)) {
+    return(admin_pit_include_aux_validation_row(
+      row$source_id[[1L]],
+      row$country[[1L]],
+      row$dependency_id[[1L]],
+      candidate$status,
+      "blocked",
+      required,
+      integer(),
+      next_command = fetch,
+      detail = candidate$detail
+    ))
+  }
+  available <- candidate$data$year
+  missing_required <- setdiff(required, available)
+  if (length(missing_required)) {
+    return(admin_pit_include_aux_validation_row(
+      row$source_id[[1L]],
+      row$country[[1L]],
+      row$dependency_id[[1L]],
+      "blocked_aux_missing_required_years",
+      "blocked",
+      required,
+      available,
+      missing_required_years = missing_required,
+      next_command = fetch,
+      detail = paste("wiki_minwage.csv is missing required years:", paste(missing_required, collapse = ","))
+    ))
+  }
+  if (!identical(row$status[[1L]], "staged_new_aux")) {
+    return(admin_pit_include_aux_validation_row(
+      row$source_id[[1L]],
+      row$country[[1L]],
+      row$dependency_id[[1L]],
+      "aux_carried_forward_valid",
+      "info",
+      required,
+      available,
+      detail = "Canonical wiki_minwage.csv covers required years and is carried forward."
+    ))
+  }
+  source <- admin_pit_include_registry_source(root, "bra-minwage")
+  canonical_paths <- if (is.null(source)) character() else admin_pit_include_existing_glob(source$canonical, root)
+  if (length(canonical_paths)) {
+    canonical <- admin_pit_include_read_minwage(canonical_paths[[1L]])
+    if (!isTRUE(canonical$ok)) {
+      return(admin_pit_include_aux_validation_row(
+        row$source_id[[1L]],
+        row$country[[1L]],
+        row$dependency_id[[1L]],
+        "blocked_aux_canonical_invalid",
+        "blocked",
+        required,
+        available,
+        next_command = fetch,
+        detail = canonical$detail
+      ))
+    }
+    missing_canonical <- setdiff(canonical$data$year, candidate$data$year)
+    overlap <- intersect(canonical$data$year, candidate$data$year)
+    changed <- overlap[abs(candidate$data$minwage[match(overlap, candidate$data$year)] - canonical$data$minwage[match(overlap, canonical$data$year)]) > 1e-9]
+    extension <- setdiff(candidate$data$year, canonical$data$year)
+    if (length(changed)) {
+      return(admin_pit_include_aux_validation_row(
+        row$source_id[[1L]],
+        row$country[[1L]],
+        row$dependency_id[[1L]],
+        "blocked_aux_overlap_changed",
+        "blocked",
+        required,
+        available,
+        overlap_years = overlap,
+        extension_years = extension,
+        changed_overlap_years = changed,
+        next_command = fetch,
+        detail = paste("Overlapping minimum-wage values changed for years:", paste(changed, collapse = ","))
+      ))
+    }
+    if (length(missing_canonical)) {
+      return(admin_pit_include_aux_validation_row(
+        row$source_id[[1L]],
+        row$country[[1L]],
+        row$dependency_id[[1L]],
+        "blocked_aux_missing_canonical_years",
+        "blocked",
+        required,
+        available,
+        overlap_years = overlap,
+        extension_years = extension,
+        missing_canonical_years = missing_canonical,
+        next_command = fetch,
+        detail = paste("New wiki_minwage.csv omits canonical historical years:", paste(missing_canonical, collapse = ","))
+      ))
+    }
+    return(admin_pit_include_aux_validation_row(
+      row$source_id[[1L]],
+      row$country[[1L]],
+      row$dependency_id[[1L]],
+      "aux_validated_append_only",
+      "info",
+      required,
+      available,
+      overlap_years = overlap,
+      extension_years = extension,
+      detail = "New wiki_minwage.csv preserves overlap values and appends new years."
+    ))
+  }
+  admin_pit_include_aux_validation_row(
+    row$source_id[[1L]],
+    row$country[[1L]],
+    row$dependency_id[[1L]],
+    "aux_validated_complete",
+    "info",
+    required,
+    available,
+    extension_years = available,
+    detail = "New wiki_minwage.csv has required coverage; no canonical overlap exists yet."
+  )
+}
+
+admin_pit_include_validate_aux_dependencies <- function(root, contract, aux_dependencies) {
+  if (!nrow(aux_dependencies)) return(data.frame(stringsAsFactors = FALSE))
+  keys <- unique(aux_dependencies[, c("source_id", "country", "dependency_id"), drop = FALSE])
+  rows <- lapply(seq_len(nrow(keys)), function(i) {
+    key <- keys[i, , drop = FALSE]
+    dep <- aux_dependencies[
+      aux_dependencies$source_id == key$source_id & aux_dependencies$country == key$country & aux_dependencies$dependency_id == key$dependency_id,
+      ,
+      drop = FALSE
+    ]
+    if (identical(key$dependency_id[[1L]], "bra-minwage")) {
+      return(admin_pit_include_validate_bra_minwage(root, contract, dep))
+    }
+    severity <- if (any(dep$severity == "blocked", na.rm = TRUE)) "blocked" else if (any(dep$severity == "warning", na.rm = TRUE)) "warning" else "info"
+    status <- if (severity == "blocked") {
+      dep$status[dep$severity == "blocked"][[1L]]
+    } else if (severity == "warning") {
+      dep$status[dep$severity == "warning"][[1L]]
+    } else {
+      "aux_validation_not_required"
+    }
+    admin_pit_include_aux_validation_row(
+      key$source_id[[1L]],
+      key$country[[1L]],
+      key$dependency_id[[1L]],
+      status,
+      severity,
+      detail = if (identical(key$dependency_id[[1L]], "chl-uta") && severity == "warning") "CHL UTA remains a legacy live auxiliary dependency for now." else "No additional aux validation is required."
+    )
+  })
+  admin_pit_include_bind(rows)
+}
+
+admin_pit_include_aux_dependency_summary <- function(aux_dependencies, aux_validation) {
+  if (!nrow(aux_dependencies) && !nrow(aux_validation)) return(data.frame(stringsAsFactors = FALSE))
+  keys <- unique(admin_pit_include_bind(
+    aux_dependencies[, intersect(c("source_id", "country", "dependency_id"), names(aux_dependencies)), drop = FALSE],
+    aux_validation[, intersect(c("source_id", "country", "dependency_id"), names(aux_validation)), drop = FALSE]
+  ))
+  rows <- lapply(seq_len(nrow(keys)), function(i) {
+    key <- keys[i, , drop = FALSE]
+    dep <- aux_dependencies[
+      aux_dependencies$source_id == key$source_id & aux_dependencies$country == key$country & aux_dependencies$dependency_id == key$dependency_id,
+      ,
+      drop = FALSE
+    ]
+    val <- aux_validation[
+      aux_validation$source_id == key$source_id & aux_validation$country == key$country & aux_validation$dependency_id == key$dependency_id,
+      ,
+      drop = FALSE
+    ]
+    severity <- if (nrow(val)) val$severity[[1L]] else if (any(dep$severity == "blocked", na.rm = TRUE)) "blocked" else if (any(dep$severity == "warning", na.rm = TRUE)) "warning" else "info"
+    status <- if (nrow(val)) val$status[[1L]] else dep$status[[1L]]
+    command <- if (nrow(val) && nzchar(val$next_command[[1L]] %||% "")) val$next_command[[1L]] else ""
+    data.frame(
+      source_id = key$source_id,
+      country = key$country,
+      dependency_id = key$dependency_id,
+      artifact_class = "aux_source",
+      stage_status = if (nrow(dep)) paste(unique(dep$status), collapse = ",") else "",
+      validation_status = status,
+      severity = severity,
+      next_command = command,
+      detail = if (nrow(val)) val$detail[[1L]] else "",
+      stringsAsFactors = FALSE
+    )
+  })
   admin_pit_include_bind(rows)
 }
 
@@ -499,7 +784,7 @@ admin_pit_include_cleaner_output_rows <- function(paths, contract, source_id) {
   admin_pit_include_bind(rows)
 }
 
-admin_pit_include_run_cleaners <- function(root, paths, contract, exploration, source_summary, cleaner_mode = NULL) {
+admin_pit_include_run_cleaners <- function(root, paths, contract, exploration, source_summary, cleaner_mode = NULL, static_dependencies = data.frame(), aux_dependencies = data.frame(), aux_validation = data.frame()) {
   mode <- cleaner_mode %||% contract$cleaners$mode %||% "real"
   source_ids <- admin_pit_include_supported_ids(contract)
   summaries <- list()
@@ -507,8 +792,14 @@ admin_pit_include_run_cleaners <- function(root, paths, contract, exploration, s
   for (source_id in source_ids) {
     country <- admin_pit_include_source_country(source_id)
     source_row <- source_summary[source_summary$source_id == source_id & source_summary$country == country, , drop = FALSE]
+    static <- static_dependencies[static_dependencies$source_id == source_id & static_dependencies$country == country & static_dependencies$severity == "blocked", , drop = FALSE]
+    aux <- aux_dependencies[aux_dependencies$source_id == source_id & aux_dependencies$country == country & aux_dependencies$severity == "blocked", , drop = FALSE]
+    aux_val <- aux_validation[aux_validation$source_id == source_id & aux_validation$country == country & aux_validation$severity == "blocked", , drop = FALSE]
+    dependency_blockers <- unique(c(static$status %||% character(), aux$status %||% character(), aux_val$status %||% character()))
     if (nrow(source_row) && identical(source_row$status[[1L]], "blocked")) {
       run <- list(status = "skipped", log = "", exit_status = NA_integer_, reason = "source_checks_blocked")
+    } else if (length(dependency_blockers)) {
+      run <- list(status = "skipped", log = "", exit_status = NA_integer_, reason = paste("blocked_dependency", paste(dependency_blockers, collapse = ","), sep = ":"))
     } else if (identical(mode, "mock")) {
       ok <- tryCatch(admin_pit_include_mock_cleaner(paths, contract, exploration, source_id), error = function(e) e)
       run <- if (isTRUE(ok)) list(status = "succeeded", log = "", exit_status = 0L, reason = "") else list(status = "failed", log = "", exit_status = 1L, reason = conditionMessage(ok))
@@ -574,8 +865,26 @@ admin_pit_include_prepare_staged_sources <- function(root, paths, exploration, c
 
 admin_pit_include_detail <- function(exploration, mappings, contract) {
   expectations <- exploration$year_expectations
-  if (!nrow(expectations)) return(data.frame(stringsAsFactors = FALSE))
-  rows <- lapply(seq_len(nrow(expectations)), function(i) {
+  rows <- list()
+  for (source_id in admin_pit_include_supported_ids(contract)) {
+    country <- admin_pit_include_source_country(source_id)
+    source_maps <- mappings[mappings$source_id == source_id & mappings$country == country & mappings$source_set == "new", , drop = FALSE]
+    source_expectations <- expectations[expectations$source_id == source_id & expectations$country == country, , drop = FALSE]
+    if (!nrow(source_maps) && !nrow(source_expectations)) {
+      rows[[length(rows) + 1L]] <- data.frame(
+        source_id = source_id,
+        country = country,
+        year = NA_integer_,
+        year_role = "missing_incoming_source",
+        structure_status = "",
+        status = "blocked_missing_incoming_source",
+        reason = "No incoming PIT source was found in the _new admin bucket.",
+        stringsAsFactors = FALSE
+      )
+    }
+  }
+  if (!nrow(expectations)) return(admin_pit_include_bind(rows))
+  expectation_rows <- lapply(seq_len(nrow(expectations)), function(i) {
     exp <- expectations[i, , drop = FALSE]
     structure_status <- exp$structure_status[[1L]] %||% ""
     incoming <- mappings[mappings$source_id == exp$source_id & mappings$country == exp$country & mappings$source_set == "new", , drop = FALSE]
@@ -598,10 +907,10 @@ admin_pit_include_detail <- function(exploration, mappings, contract) {
     }
     data.frame(source_id = exp$source_id, country = exp$country, year = as.integer(exp$year), year_role = exp$year_role, structure_status = structure_status, status = status, reason = reason, stringsAsFactors = FALSE)
   })
-  admin_pit_include_bind(rows)
+  admin_pit_include_bind(c(rows, expectation_rows))
 }
 
-admin_pit_include_summary <- function(detail, mappings, contract, cleaner_summary = data.frame(), static_dependencies = data.frame(), aux_dependencies = data.frame()) {
+admin_pit_include_summary <- function(detail, mappings, contract, cleaner_summary = data.frame(), static_dependencies = data.frame(), aux_dependencies = data.frame(), aux_validation = data.frame()) {
   if (!nrow(detail)) return(data.frame(stringsAsFactors = FALSE))
   blocked <- as.character(contract$statuses$blocked %||% c("blocked_structure_mismatch", "blocked_destination_missing", "blocked_missing_incoming_source"))
   warnings <- as.character(contract$statuses$warnings %||% c("warning_structure_review"))
@@ -613,9 +922,14 @@ admin_pit_include_summary <- function(detail, mappings, contract, cleaner_summar
     cleaner <- cleaner_summary[cleaner_summary$source_id == key$source_id & cleaner_summary$country == key$country, , drop = FALSE]
     static <- static_dependencies[static_dependencies$source_id == key$source_id & static_dependencies$country == key$country, , drop = FALSE]
     aux <- aux_dependencies[aux_dependencies$source_id == key$source_id & aux_dependencies$country == key$country, , drop = FALSE]
+    aux_val <- aux_validation[aux_validation$source_id == key$source_id & aux_validation$country == key$country, , drop = FALSE]
     cleaner_blocked <- nrow(cleaner) && any(cleaner$cleaner_status == "blocked", na.rm = TRUE)
-    dep_blocked <- (nrow(static) && any(static$severity == "blocked", na.rm = TRUE)) || (nrow(aux) && any(aux$severity == "blocked", na.rm = TRUE))
-    dep_warnings <- (if (nrow(static)) sum(static$severity == "warning", na.rm = TRUE) else 0L) + (if (nrow(aux)) sum(aux$severity == "warning", na.rm = TRUE) else 0L)
+    dep_blocked <- (nrow(static) && any(static$severity == "blocked", na.rm = TRUE)) ||
+      (nrow(aux) && any(aux$severity == "blocked", na.rm = TRUE)) ||
+      (nrow(aux_val) && any(aux_val$severity == "blocked", na.rm = TRUE))
+    dep_warnings <- (if (nrow(static)) sum(static$severity == "warning", na.rm = TRUE) else 0L) +
+      (if (nrow(aux)) sum(aux$severity == "warning", na.rm = TRUE) else 0L) +
+      (if (nrow(aux_val)) sum(aux_val$severity == "warning", na.rm = TRUE) else 0L)
     status <- if (any(rows$status %in% blocked) || cleaner_blocked || dep_blocked) {
       "blocked"
     } else if (any(rows$status %in% warnings) || dep_warnings > 0L) {
@@ -627,7 +941,7 @@ admin_pit_include_summary <- function(detail, mappings, contract, cleaner_summar
       source_id = key$source_id,
       country = key$country,
       status = status,
-      expected_years = length(unique(rows$year)),
+      expected_years = length(unique(rows$year[!is.na(rows$year)])),
       staged_sources = nrow(source_maps[source_maps$copy_status == "staged", , drop = FALSE]),
       clean_outputs = if (nrow(cleaner)) cleaner$outputs_found[[1L]] else 0L,
       dependency_warnings = dep_warnings,
@@ -669,7 +983,7 @@ admin_pit_include_source_fingerprints <- function(root, mappings) {
   admin_pit_include_bind(rows)
 }
 
-admin_pit_include_promotion_plan <- function(mappings, cleaner_outputs, aux_dependencies) {
+admin_pit_include_promotion_plan <- function(mappings, cleaner_outputs, aux_dependencies, aux_validation = data.frame()) {
   raw <- mappings[mappings$source_set == "new" & mappings$copy_status == "staged", , drop = FALSE]
   raw_plan <- if (nrow(raw)) {
     data.frame(source_id = raw$source_id, country = raw$country, artifact_type = "raw_source", from_rel = raw$staged_to, to_rel = raw$to_rel, promotion_scope = "promote", stringsAsFactors = FALSE)
@@ -679,6 +993,16 @@ admin_pit_include_promotion_plan <- function(mappings, cleaner_outputs, aux_depe
     data.frame(source_id = clean$source_id, country = clean$country, artifact_type = clean$artifact_type, from_rel = clean$staged_to, to_rel = clean$rel, promotion_scope = "promote", stringsAsFactors = FALSE)
   } else data.frame(stringsAsFactors = FALSE)
   aux <- aux_dependencies[aux_dependencies$promotion_scope == "promote" & aux_dependencies$status == "staged_new_aux", , drop = FALSE]
+  if (nrow(aux) && nrow(aux_validation)) {
+    blocked_keys <- paste(
+      aux_validation$source_id[aux_validation$severity == "blocked"],
+      aux_validation$country[aux_validation$severity == "blocked"],
+      aux_validation$dependency_id[aux_validation$severity == "blocked"],
+      sep = "\r"
+    )
+    aux_key <- paste(aux$source_id, aux$country, aux$dependency_id, sep = "\r")
+    aux <- aux[!(aux_key %in% blocked_keys), , drop = FALSE]
+  }
   aux_plan <- if (nrow(aux)) {
     data.frame(source_id = aux$dependency_id, country = aux$country, artifact_type = "aux_source", from_rel = aux$staged_to, to_rel = aux$to_rel, promotion_scope = "promote", stringsAsFactors = FALSE)
   } else data.frame(stringsAsFactors = FALSE)
@@ -742,22 +1066,26 @@ run_admin_pit_include <- function(
   dir.create(paths$tables, recursive = TRUE, showWarnings = FALSE)
   dir.create(paths$logs, recursive = TRUE, showWarnings = FALSE)
   dir.create(paths$staged_repo, recursive = TRUE, showWarnings = FALSE)
-  mappings <- admin_pit_include_prepare_staged_sources(root, paths, exploration, contract)
-  static_dependencies <- admin_pit_include_stage_static_dependencies(root, paths, contract)
   aux_dependencies <- admin_pit_include_stage_aux_dependencies(root, paths, contract)
+  aux_validation <- admin_pit_include_validate_aux_dependencies(root, contract, aux_dependencies)
+  aux_summary <- admin_pit_include_aux_dependency_summary(aux_dependencies, aux_validation)
+  static_dependencies <- admin_pit_include_stage_static_dependencies(root, paths, contract)
+  mappings <- admin_pit_include_prepare_staged_sources(root, paths, exploration, contract)
   source_fingerprints <- admin_pit_include_source_fingerprints(root, mappings)
   detail <- admin_pit_include_detail(exploration, mappings, contract)
-  source_summary <- admin_pit_include_summary(detail, mappings, contract)
-  cleaners <- admin_pit_include_run_cleaners(root, paths, contract, exploration, source_summary, cleaner_mode = cleaner_mode)
-  summary <- admin_pit_include_summary(detail, mappings, contract, cleaners$summary, static_dependencies, aux_dependencies)
+  source_summary <- admin_pit_include_summary(detail, mappings, contract, static_dependencies = static_dependencies, aux_dependencies = aux_dependencies, aux_validation = aux_validation)
+  cleaners <- admin_pit_include_run_cleaners(root, paths, contract, exploration, source_summary, cleaner_mode = cleaner_mode, static_dependencies = static_dependencies, aux_dependencies = aux_dependencies, aux_validation = aux_validation)
+  summary <- admin_pit_include_summary(detail, mappings, contract, cleaners$summary, static_dependencies, aux_dependencies, aux_validation)
   status <- admin_pit_include_overall_status(summary)
   manifest <- admin_pit_include_manifest(run_id, status, exploration$root, contract)
-  promotion_plan <- admin_pit_include_promotion_plan(mappings, cleaners$outputs, aux_dependencies)
+  promotion_plan <- admin_pit_include_promotion_plan(mappings, cleaners$outputs, aux_dependencies, aux_validation)
   promotion_fingerprints <- admin_pit_include_promotion_fingerprints(promotion_plan)
   outputs <- list(
     staged_source_mappings = mappings,
     static_dependency_report = static_dependencies,
     aux_dependency_report = aux_dependencies,
+    aux_validation_report = aux_validation,
+    aux_dependency_summary = aux_summary,
     include_detail = detail,
     include_summary = summary,
     cleaner_summary = cleaners$summary,

@@ -255,9 +255,9 @@ What this page is:
       output/experiments. Implemented for sna.
 
   dina sources include SOURCETYPE --dry-run
-      Uses the deterministic country-SNA include contract plus the latest
+      Uses the deterministic source include contract plus the latest
       exploration run to report all_good, check_following, or blocked. It does
-      not replace 01b or run the pipeline. Implemented for sna.
+      not replace pipeline tasks or run the pipeline. Implemented for sna and admin.
 
   dina sources table SOURCETYPE TABLE
       Previews explorer tables inline. Implemented for sna; variable
@@ -472,8 +472,8 @@ Examples:
 What it manages:
   Source registry, incoming `_new` buckets, fetchers, and baseline comparison.
   Supported fetches write directly to `input_data/_new`. Public source types are
-  sna, admin, admin-microdata, surveys, wid, and other. Only sna has
-  explore/include/table automation for now; it does not replace `01b`.
+  sna, admin, admin-microdata, surveys, wid, and other. SNA and PIT admin have
+  explore/include/table automation for now; they do not replace pipeline tasks.
 
 Subcommands:
   list                            Default compact registry view. Columns: id,
@@ -497,13 +497,13 @@ Subcommands:
                                   active update baseline. It does not validate
                                   data or manage incoming files.
   explore SOURCETYPE              Inventories incoming files for a source type.
-                                  Currently implemented for sna only.
+                                  Currently implemented for sna and admin.
   include SOURCETYPE              Consumes an exploration run and checks the
                                   deterministic include contract. Currently
-                                  implemented for sna only. Dry-run is the
-                                  default and stages files under the run.
+                                  implemented for sna and PIT admin. Dry-run is
+                                  the default and stages files under the run.
   table SOURCETYPE                Previews explore output tables inline.
-                                  Currently implemented for sna only.
+                                  Currently implemented for sna and admin.
   status                          Compatibility alias for compare.
   diff                            Compares current scan results with the active
                                   session baseline and classifies changes.
@@ -578,8 +578,12 @@ Examples:
   dina sources fetch chl-pit-total --dry-run
   dina sources compare
   dina sources explore sna
+  dina sources explore admin
   dina sources include sna --dry-run
+  dina sources include admin --dry-run
   dina sources table sna year_expectations
+  dina sources table admin
+  dina sources table admin year_expectations
 ",
     buckets = "Usage:
   dina buckets [detail|urls|uses|fetch] [OPTIONS]
@@ -1614,11 +1618,11 @@ dina_command_catalog <- function(year = format(Sys.Date(), "%Y")) {
         dina_command_entry("sources-list-guide", "Source guide", "Show where sources come from and where they land.", args = c("sources", "list", "guide")),
         dina_command_entry("sources-fetch-dry-run", "Preview fetch", "Preview supported source fetches into _new buckets.", args = c("sources", "fetch", "--dry-run")),
         dina_command_entry("sources-fetch-source", "Preview source fetch", "Preview one supported source fetch.", args = c("sources", "fetch", "{ID}", "--dry-run"), prompts = list(ID = list(label = "Source id", example = "chl-pit-total"))),
-        dina_command_entry("sources-explore-type", "Explore source type", "Inspect new files, likely years, structure evidence, and include expectations.", args = c("sources", "explore", "{SOURCETYPE}"), defaults = list(SOURCETYPE = "sna"), prompts = list(SOURCETYPE = list(label = "Source type", example = "sna")), help = "Currently implemented for sna; writes experiment outputs under output/experiments/country_sna_explore."),
-        dina_command_entry("sources-include-type", "Include source type dry-run", "Stage incoming sources and run deterministic inclusion checks.", args = c("sources", "include", "{SOURCETYPE}", "--dry-run"), defaults = list(SOURCETYPE = "sna"), prompts = list(SOURCETYPE = list(label = "Source type", example = "sna")), help = "Currently implemented for sna; writes a staged include run under output/experiments/country_sna_include/runs/. No production files are changed."),
-        dina_command_entry("sources-include-type-confirm", "Confirm source type", "Promote sources from a clean staged include run after writing backups.", args = c("sources", "include", "{SOURCETYPE}", "--confirm", "--include-run", "{RUN}"), defaults = list(SOURCETYPE = "sna"), prompts = list(SOURCETYPE = list(label = "Source type", example = "sna"), RUN = list(label = "Include run", example = "output/experiments/country_sna_include/runs/include-YYYYMMDD-HHMMSS")), mutating = TRUE, confirm = TRUE, help = "Currently implemented for sna. Does not run the pipeline. Use only after reviewing a clean include dry-run."),
+        dina_command_entry("sources-explore-type", "Explore source type", "Inspect new files, likely years, structure evidence, and include expectations.", args = c("sources", "explore", "{SOURCETYPE}"), defaults = list(SOURCETYPE = "sna"), prompts = list(SOURCETYPE = list(label = "Source type", example = "sna or admin")), help = "Currently implemented for sna and PIT admin; writes experiment outputs under output/experiments/."),
+        dina_command_entry("sources-include-type", "Include source type dry-run", "Stage incoming sources and run deterministic inclusion checks.", args = c("sources", "include", "{SOURCETYPE}", "--dry-run"), defaults = list(SOURCETYPE = "sna"), prompts = list(SOURCETYPE = list(label = "Source type", example = "sna or admin")), help = "Currently implemented for sna and PIT admin. No production files are changed."),
+        dina_command_entry("sources-include-type-confirm", "Confirm source type", "Promote sources from a clean staged include run after writing backups.", args = c("sources", "include", "{SOURCETYPE}", "--confirm", "--include-run", "{RUN}"), defaults = list(SOURCETYPE = "sna"), prompts = list(SOURCETYPE = list(label = "Source type", example = "sna or admin"), RUN = list(label = "Include run", example = "output/experiments/*/runs/RUN")), mutating = TRUE, confirm = TRUE, help = "Currently implemented for sna and PIT admin. Does not run the pipeline. Use only after reviewing a clean include dry-run."),
         dina_command_entry("sources-include-type-restore", "Restore source type", "Restore canonical sources from a confirm backup snapshot.", args = c("sources", "include", "{SOURCETYPE}", "--restore", "{CONFIRM_RUN}"), defaults = list(SOURCETYPE = "sna"), prompts = list(SOURCETYPE = list(label = "Source type", example = "sna"), CONFIRM_RUN = list(label = "Confirm run", example = "output/experiments/country_sna_include/confirms/confirm-YYYYMMDD-HHMMSS")), mutating = TRUE, confirm = TRUE),
-        dina_command_entry("sources-table-type", "Source type table preview", "Preview explore output tables inline.", args = c("sources", "table", "{SOURCETYPE}", "year_expectations"), defaults = list(SOURCETYPE = "sna"), prompts = list(SOURCETYPE = list(label = "Source type", example = "sna")), help = "Currently implemented for sna. Use --run PATH, --country ISO, and --limit N for a narrower preview."),
+        dina_command_entry("sources-table-type", "Source type table preview", "Preview explore output tables inline.", args = c("sources", "table", "{SOURCETYPE}", "year_expectations"), defaults = list(SOURCETYPE = "sna"), prompts = list(SOURCETYPE = list(label = "Source type", example = "sna or admin")), help = "Currently implemented for sna and PIT admin. Use --run PATH, --country ISO, and --limit N for a narrower preview."),
         dina_command_entry(
           "source-registry-diagnostics",
           "Source diagnostics",
@@ -4629,6 +4633,431 @@ dina_print_country_sna_restore <- function(result) {
   invisible(result)
 }
 
+dina_admin_pit_label <- function(x) {
+  x <- as.character(x %||% "")
+  x[is.na(x)] <- ""
+  gsub("_", " ", x, fixed = TRUE)
+}
+
+dina_admin_pit_year_label <- function(x, max_chars = 34L) {
+  x <- trimws(as.character(x %||% ""))
+  x[is.na(x) | !nzchar(x)] <- "-"
+  years <- suppressWarnings(as.integer(unlist(strsplit(x[[1L]], "[^0-9]+"))))
+  years <- sort(unique(years[!is.na(years) & years >= 1900L & years <= 2100L]))
+  if (!length(years)) {
+    label <- x[[1L]]
+    if (nchar(label) > max_chars) label <- paste0(substr(label, 1L, max_chars - 3L), "...")
+    return(label)
+  }
+  breaks <- c(TRUE, diff(years) != 1L)
+  groups <- split(years, cumsum(breaks))
+  spans <- vapply(groups, function(group) {
+    if (length(group) == 1L) {
+      as.character(group[[1L]])
+    } else {
+      sprintf("%s-%s", group[[1L]], group[[length(group)]])
+    }
+  }, character(1))
+  label <- paste(spans, collapse = ",")
+  if (length(years) > 1L) {
+    label <- sprintf("%s (%sy)", label, length(years))
+  }
+  if (nchar(label) > max_chars) {
+    label <- sprintf("%s...%s (%sy)", years[[1L]], years[[length(years)]], length(years))
+  }
+  label
+}
+
+dina_print_admin_pit_explore <- function(result, dry_run = FALSE) {
+  summary <- result$outputs$extension_summary
+  structure <- result$outputs$structure_summary
+  actions <- result$outputs$review_actions
+  manifest <- result$manifest
+  status <- if (nrow(manifest)) manifest$value[manifest$key == "status"][[1L]] else "check_following"
+  dina_cli_header("PIT Admin Explore")
+  dina_cli_cat(sprintf("Overall status: %s", status))
+  if (!nrow(summary)) {
+    dina_cli_alert("No supported PIT admin source rows were found.")
+  } else {
+    dina_cli_cat(dina_cli_row(c("source", "ctry", "current", "incoming", "extension", "result"), widths = c(18, 5, 22, 22, 18, 16), dim = TRUE))
+    for (i in seq_len(nrow(summary))) {
+      structure_row <- structure[structure$source_id == summary$source_id[[i]] & structure$country == summary$country[[i]], , drop = FALSE]
+      action_row <- actions[actions$source_id == summary$source_id[[i]] & actions$country == summary$country[[i]], , drop = FALSE]
+      dina_cli_cat(dina_cli_row(
+        c(
+          summary$source_id[[i]],
+          summary$country[[i]],
+          dina_admin_pit_year_label(summary$old_years[[i]], max_chars = 22L),
+          dina_admin_pit_year_label(summary$new_years[[i]], max_chars = 22L),
+          dina_admin_pit_year_label(summary$extension_years[[i]], max_chars = 18L),
+          dina_admin_pit_label(summary$status[[i]])
+        ),
+        widths = c(18, 5, 22, 22, 18, 16)
+      ))
+      dina_cli_cat(dina_cli_dim(sprintf(
+        "  review: structure=%s; action=%s",
+        dina_admin_pit_label(if (nrow(structure_row)) structure_row$structure_status[[1L]] else "-"),
+        dina_admin_pit_label(if (nrow(action_row)) action_row$action[[1L]] else "-")
+      )))
+    }
+  }
+  deps <- result$outputs$aux_dependency_summary %||% data.frame()
+  static <- result$outputs$static_dependency_report %||% data.frame()
+  static_attention <- if (nrow(static)) static[static$severity %in% c("blocked", "warning"), , drop = FALSE] else data.frame()
+  if (nrow(deps) || nrow(static_attention)) {
+    dina_cli_cat("")
+    dina_cli_cat("Dependency status:")
+    dina_cli_cat(dina_cli_row(c("source", "country", "dependency", "class", "status", "next"), widths = c(18, 8, 18, 18, 28, 36), dim = TRUE))
+    if (nrow(deps)) {
+      for (i in seq_len(nrow(deps))) {
+        dina_cli_cat(dina_cli_row(
+          c(
+            deps$source_id[[i]],
+            deps$country[[i]],
+            deps$dependency_id[[i]],
+            deps$artifact_class[[i]],
+            dina_admin_pit_label(deps$status[[i]]),
+            dina_refresh_shorten(deps$next_command[[i]] %||% "", 36L)
+          ),
+          widths = c(18, 8, 18, 18, 28, 36)
+        ))
+      }
+    }
+    if (nrow(static_attention)) {
+      static_keys <- unique(static_attention[, c("source_id", "country", "dependency_id", "artifact_class", "status", "next_command"), drop = FALSE])
+      for (i in seq_len(nrow(static_keys))) {
+        dina_cli_cat(dina_cli_row(
+          c(
+            static_keys$source_id[[i]],
+            static_keys$country[[i]],
+            dina_refresh_shorten(static_keys$dependency_id[[i]], 18L),
+            static_keys$artifact_class[[i]],
+            dina_admin_pit_label(static_keys$status[[i]]),
+            dina_refresh_shorten(static_keys$next_command[[i]] %||% "", 36L)
+          ),
+          widths = c(18, 8, 18, 18, 28, 36)
+        ))
+      }
+    }
+  }
+  if (isTRUE(dry_run)) {
+    dina_cli_alert("Dry-run only: review tables were not written.")
+  } else {
+    dina_cli_ok(sprintf("Explore output: %s", result$paths$root))
+    dina_cli_alert("List review tables with `dina sources table admin`; preview one with `dina sources table admin TABLE`.")
+    dina_cli_alert("Common tables: extension_summary, year_expectations, structure_summary, source_inventory, aux_dependency_summary, dependency_actions.")
+  }
+  invisible(result)
+}
+
+dina_admin_pit_table_run <- function(root, run = NULL) {
+  path <- run %||% file.path(root, "output", "experiments", "admin_pit_explore")
+  normalizePath(if (grepl("^/", path)) path else file.path(root, path), mustWork = FALSE)
+}
+
+dina_admin_pit_table_catalog <- function() {
+  data.frame(
+    table = c(
+      "extension_summary",
+      "year_expectations",
+      "structure_summary",
+      "source_inventory",
+      "review_actions",
+      "unsupported_sources",
+      "source_fingerprints",
+      "explore_manifest",
+      "include_summary",
+      "include_detail",
+      "staged_source_mappings",
+      "static_dependency_report",
+      "aux_dependency_report",
+      "aux_validation_report",
+      "aux_dependency_summary",
+      "aux_dependency_detail",
+      "dependency_actions",
+      "cleaner_summary",
+      "cleaner_outputs",
+      "promotion_plan",
+      "promotion_fingerprints",
+      "include_manifest"
+    ),
+    contents = c(
+      "old/new coverage, extension and overlap years",
+      "candidate file-year rows used by include",
+      "shallow country-specific structure checks",
+      "matched old/new files, destinations, and parsed years",
+      "review decision and next command per source",
+      "admin-family sources outside PIT v1",
+      "hashes and metadata for matched files",
+      "explore run metadata and effective config status",
+      "per-source include status",
+      "per-year source staging checks",
+      "raw source copy plan into staged repo",
+      "carried-forward or missing static inputs",
+      "staged, carried-forward, or missing aux inputs",
+      "semantic aux validation, including Brazil minimum wage overlap checks",
+      "compact aux dependency status by source",
+      "explore-time aux dependency inventory",
+      "suggested next command for blocked dependencies",
+      "candidate cleaner status and reasons",
+      "generated candidate clean output files",
+      "artifacts eligible for confirm promotion",
+      "hashes for staged promotion artifacts",
+      "include run metadata and status"
+    ),
+    stringsAsFactors = FALSE
+  )
+}
+
+dina_admin_pit_table_available <- function(root, run = NULL) {
+  run <- dina_admin_pit_table_run(root, run)
+  table_dir <- file.path(run, "tables")
+  if (!dir.exists(table_dir)) return(character())
+  tools::file_path_sans_ext(basename(Sys.glob(file.path(table_dir, "*.csv"))))
+}
+
+dina_print_admin_pit_tables <- function(root, run = NULL) {
+  run_path <- dina_admin_pit_table_run(root, run)
+  catalog <- dina_admin_pit_table_catalog()
+  available <- dina_admin_pit_table_available(root, run)
+  catalog$available <- ifelse(catalog$table %in% available, "yes", "no")
+  dina_cli_header("PIT Admin Tables")
+  dina_cli_alert(sprintf("Run: %s", run_path))
+  if (!length(available)) {
+    dina_cli_warn("No admin PIT tables found yet. Run `dina sources explore admin` first, or pass --run PATH.")
+  }
+  dina_print_data_frame_compact(catalog, limit = nrow(catalog))
+  if (!is.null(run)) {
+    dina_cli_alert(sprintf("Preview one table with `dina sources table admin TABLE --run %s`.", run_path))
+  } else {
+    dina_cli_alert("Preview one table with `dina sources table admin TABLE`.")
+  }
+  invisible(catalog)
+}
+
+dina_admin_pit_table_file <- function(root, table, run = NULL) {
+  table <- gsub("-", "_", table %||% "", fixed = TRUE)
+  run <- dina_admin_pit_table_run(root, run)
+  candidates <- c(
+    file.path(run, "tables", paste0(table, ".csv")),
+    file.path(root, "output", "experiments", "admin_pit_include", "runs", basename(run), "tables", paste0(table, ".csv"))
+  )
+  hit <- candidates[file.exists(candidates)]
+  if (!length(hit)) {
+    stop("Admin PIT table not found: ", table, call. = FALSE)
+  }
+  hit[[1L]]
+}
+
+dina_admin_pit_read_table <- function(root, table, run = NULL) {
+  utils::read.csv(dina_admin_pit_table_file(root, table, run), stringsAsFactors = FALSE)
+}
+
+dina_print_admin_pit_table <- function(root, table, run = NULL, country = NULL, limit = 20L) {
+  table <- gsub("-", "_", table %||% "", fixed = TRUE)
+  rows <- dina_admin_pit_read_table(root, table, run)
+  if (!is.null(country) && "country" %in% names(rows)) {
+    rows <- rows[toupper(rows$country) == toupper(country), , drop = FALSE]
+  }
+  dina_cli_header(sprintf("PIT Admin Table: %s", table))
+  dina_cli_alert(sprintf("Run: %s", dina_admin_pit_table_run(root, run)))
+  dina_print_data_frame_compact(rows, limit = limit)
+  invisible(rows)
+}
+
+dina_admin_pit_bind_rows <- function(rows) {
+  rows <- Filter(function(x) is.data.frame(x) && nrow(x) > 0L, rows)
+  if (!length(rows)) return(data.frame(stringsAsFactors = FALSE))
+  cols <- unique(unlist(lapply(rows, names), use.names = FALSE))
+  rows <- lapply(rows, function(x) {
+    missing <- setdiff(cols, names(x))
+    for (col in missing) x[[col]] <- NA
+    x[cols]
+  })
+  do.call(rbind, rows)
+}
+
+dina_admin_pit_blocker_rows <- function(result) {
+  outputs <- result$outputs
+  rows <- list()
+  detail <- outputs$include_detail %||% data.frame()
+  if (nrow(detail)) {
+    blocked <- detail[grepl("^blocked", detail$status %||% ""), , drop = FALSE]
+    if (nrow(blocked)) {
+      keys <- unique(blocked[, c("source_id", "country", "status", "reason"), drop = FALSE])
+      rows[[length(rows) + 1L]] <- data.frame(
+        source = keys$source_id,
+        country = keys$country,
+        blocker = dina_admin_pit_label(keys$status),
+        detail = keys$reason,
+        stringsAsFactors = FALSE
+      )
+    }
+  }
+  static <- outputs$static_dependency_report %||% data.frame()
+  if (nrow(static)) {
+    blocked <- static[static$severity == "blocked", , drop = FALSE]
+    if (nrow(blocked)) {
+      rows[[length(rows) + 1L]] <- data.frame(
+        source = blocked$source_id,
+        country = blocked$country,
+        blocker = "missing static input",
+        detail = blocked$from_rel,
+        stringsAsFactors = FALSE
+      )
+    }
+  }
+  aux <- outputs$aux_dependency_report %||% data.frame()
+  if (nrow(aux)) {
+    blocked <- aux[aux$severity == "blocked", , drop = FALSE]
+    aux_validation <- outputs$aux_validation_report %||% data.frame()
+    if (nrow(blocked) && nrow(aux_validation)) {
+      validation_keys <- paste(
+        aux_validation$source_id[aux_validation$severity == "blocked"],
+        aux_validation$country[aux_validation$severity == "blocked"],
+        aux_validation$dependency_id[aux_validation$severity == "blocked"],
+        sep = "\r"
+      )
+      blocked_keys <- paste(blocked$source_id, blocked$country, blocked$dependency_id, sep = "\r")
+      blocked <- blocked[!(blocked_keys %in% validation_keys), , drop = FALSE]
+    }
+    if (nrow(blocked)) {
+      commands <- vapply(blocked$dependency_id, function(id) {
+        if (identical(id, "bra-minwage")) "dina sources fetch bra-minwage" else ""
+      }, character(1))
+      detail <- ifelse(nzchar(commands), paste0(blocked$dependency_id, ": missing. Run: ", commands), paste0(blocked$dependency_id, ": not found in _new or canonical paths"))
+      rows[[length(rows) + 1L]] <- data.frame(
+        source = blocked$source_id,
+        country = blocked$country,
+        blocker = "missing aux input",
+        detail = detail,
+        stringsAsFactors = FALSE
+      )
+    }
+  }
+  aux_validation <- outputs$aux_validation_report %||% data.frame()
+  if (nrow(aux_validation)) {
+    blocked <- aux_validation[aux_validation$severity == "blocked", , drop = FALSE]
+    if (nrow(blocked)) {
+      detail <- blocked$detail
+      detail[!nzchar(detail %||% "")] <- blocked$status[!nzchar(detail %||% "")]
+      detail <- ifelse(nzchar(blocked$next_command %||% ""), paste0(blocked$dependency_id, ": missing. Run: ", blocked$next_command), detail)
+      rows[[length(rows) + 1L]] <- data.frame(
+        source = blocked$source_id,
+        country = blocked$country,
+        blocker = dina_admin_pit_label(blocked$status),
+        detail = detail,
+        stringsAsFactors = FALSE
+      )
+    }
+  }
+  cleaner <- outputs$cleaner_summary %||% data.frame()
+  if (nrow(cleaner)) {
+    blocked <- cleaner[cleaner$cleaner_status == "blocked", , drop = FALSE]
+    blocked <- blocked[!grepl("^blocked_dependency", blocked$reason %||% "") & !((blocked$reason %||% "") %in% "source_checks_blocked"), , drop = FALSE]
+    if (nrow(blocked)) {
+      detail <- blocked$reason
+      detail[!nzchar(detail %||% "")] <- sprintf("missing %s expected clean output(s)", blocked$missing_outputs[!nzchar(detail %||% "")])
+      rows[[length(rows) + 1L]] <- data.frame(
+        source = blocked$source_id,
+        country = blocked$country,
+        blocker = "cleaner blocked",
+        detail = detail,
+        stringsAsFactors = FALSE
+      )
+    }
+  }
+  out <- dina_admin_pit_bind_rows(rows)
+  if (!nrow(out)) return(out)
+  unique(out)
+}
+
+dina_print_admin_pit_blockers <- function(result, limit = 10L) {
+  blockers <- dina_admin_pit_blocker_rows(result)
+  if (!nrow(blockers)) return(invisible(blockers))
+  shown <- utils::head(blockers, limit)
+  dina_cli_cat("")
+  dina_cli_cat("Blocking items:")
+  dina_cli_cat(dina_cli_row(c("source", "country", "blocker", "detail"), widths = c(18, 8, 26, 72), dim = TRUE))
+  for (i in seq_len(nrow(shown))) {
+    dina_cli_cat(dina_cli_row(
+      c(
+        shown$source[[i]],
+        shown$country[[i]],
+        shown$blocker[[i]],
+        dina_refresh_shorten(shown$detail[[i]], 72L)
+      ),
+      widths = c(18, 8, 26, 72)
+    ))
+  }
+  if (nrow(blockers) > nrow(shown)) {
+    dina_cli_alert(sprintf("Showing %s of %s blocking items. Inspect static_dependency_report, aux_dependency_report, aux_validation_report, and cleaner_summary for the full list.", nrow(shown), nrow(blockers)))
+  }
+  invisible(blockers)
+}
+
+dina_print_admin_pit_include <- function(result) {
+  summary <- result$outputs$include_summary
+  cleaner_summary <- result$outputs$cleaner_summary %||% data.frame()
+  manifest <- result$manifest
+  status <- if (nrow(manifest)) manifest$value[manifest$key == "status"][[1L]] else "check_following"
+  dina_cli_header("PIT Admin Include")
+  dina_cli_cat(sprintf("Overall status: %s", status))
+  if (!nrow(summary)) {
+    dina_cli_alert("No explorer expectations were found. Run `dina sources explore admin` first.")
+  } else {
+    dina_cli_cat(dina_cli_row(c("source", "country", "status", "years", "staged", "clean", "warnings", "blocked"), widths = c(18, 8, 16, 8, 8, 8, 10, 10), dim = TRUE))
+    for (i in seq_len(nrow(summary))) {
+      dina_cli_cat(dina_cli_row(
+        c(
+          summary$source_id[[i]],
+          summary$country[[i]],
+          summary$status[[i]],
+          summary$expected_years[[i]],
+          summary$staged_sources[[i]],
+          if ("clean_outputs" %in% names(summary)) summary$clean_outputs[[i]] else 0L,
+          summary$warnings[[i]],
+          summary$blocked[[i]]
+        ),
+        widths = c(18, 8, 16, 8, 8, 8, 10, 10)
+      ))
+    }
+  }
+  if (nrow(cleaner_summary)) {
+    blocked <- cleaner_summary[cleaner_summary$cleaner_status == "blocked", , drop = FALSE]
+    if (nrow(blocked)) {
+      dina_cli_warn(sprintf("%s admin cleaner%s blocked. Inspect `dina sources table admin cleaner_summary --run %s`.", nrow(blocked), if (nrow(blocked) == 1L) "" else "s", result$paths$root))
+      dina_cli_alert("Dependency defaults: primary PIT files come from _new; static inputs are carried from canonical paths; aux inputs prefer _new and fall back to canonical.")
+      dina_print_admin_pit_blockers(result)
+    } else {
+      dina_cli_alert("Cleaner outputs were generated in the staged repo.")
+    }
+  }
+  dina_cli_ok(sprintf("Include dry-run output: %s", result$paths$root))
+  dina_cli_alert("No production files changed. Confirm only after reviewing a clean run.")
+  dina_cli_alert(sprintf("List include tables with `dina sources table admin --run %s`.", result$paths$root))
+  dina_cli_alert("Common include tables: include_summary, aux_dependency_summary, aux_validation_report, static_dependency_report, cleaner_summary.")
+  dina_cli_alert(sprintf("Confirm after a clean run: dina sources include admin --confirm --include-run %s", result$paths$root))
+  invisible(result)
+}
+
+dina_print_admin_pit_confirm <- function(result) {
+  report <- result$outputs$promote_report
+  dina_cli_header("PIT Admin Include Confirm")
+  dina_print_data_frame_compact(report, limit = 20L)
+  dina_cli_ok(sprintf("Confirm run: %s", result$paths$root))
+  dina_cli_alert(sprintf("Rollback: dina sources include admin --restore %s", result$paths$root))
+  invisible(result)
+}
+
+dina_print_admin_pit_restore <- function(result) {
+  report <- result$outputs$restore_report
+  dina_cli_header("PIT Admin Include Restore")
+  dina_print_data_frame_compact(report, limit = 20L)
+  dina_cli_ok(sprintf("Restore report: %s", result$paths$restore_report))
+  invisible(result)
+}
+
 dina_source_workflow_family <- function(target = NULL, command = "explore") {
   target <- target %||% "sna"
   normalized <- dina_source_norm(target)
@@ -4637,6 +5066,9 @@ dina_source_workflow_family <- function(target = NULL, command = "explore") {
       dina_cli_warn(sprintf("`%s` is deprecated here; use `sna`.", target))
     }
     return("sna")
+  }
+  if (identical(normalized, "admin")) {
+    return("admin")
   }
   if (normalized %in% dina_source_norm(dina_source_public_families())) {
     stop(
@@ -4765,23 +5197,41 @@ dina_cmd_sources <- function(root, args) {
     target <- dina_arg(flags$positional, 1L, "sna")
     table <- dina_arg(flags$positional, 2L, NULL)
     family <- dina_source_workflow_family(target, command = "table")
-    if (!identical(family, "sna") || is.null(table)) {
+    if (is.null(table)) {
+      if (identical(family, "admin")) {
+        dina_print_admin_pit_tables(root, run = flags$run %||% NULL)
+        return(invisible(NULL))
+      }
       stop("Usage: dina sources table SOURCETYPE TABLE [--run PATH] [--country ISO] [--limit N]", call. = FALSE)
     }
-    dina_print_country_sna_table(
-      root,
-      table,
-      run = flags$run %||% NULL,
-      country = flags$country %||% NULL,
-      limit = flags$limit %||% 20L
-    )
+    if (identical(family, "admin")) {
+      dina_print_admin_pit_table(
+        root,
+        table,
+        run = flags$run %||% NULL,
+        country = flags$country %||% NULL,
+        limit = flags$limit %||% 20L
+      )
+    } else {
+      dina_print_country_sna_table(
+        root,
+        table,
+        run = flags$run %||% NULL,
+        country = flags$country %||% NULL,
+        limit = flags$limit %||% 20L
+      )
+    }
   } else if (sub %in% c("explore", "include")) {
     flags <- dina_parse_flags(args[-1])
     target <- dina_arg(flags$positional, 1L, "sna")
     family <- dina_source_workflow_family(target, command = sub)
     country <- flags$country %||% NULL
     if (!is.null(country)) country <- toupper(country)
-    output_dir <- flags[["output-dir"]] %||% if (identical(sub, "explore")) {
+    output_dir <- flags[["output-dir"]] %||% if (identical(family, "admin") && identical(sub, "explore")) {
+      file.path(root, "output", "experiments", "admin_pit_explore")
+    } else if (identical(family, "admin")) {
+      file.path(root, "output", "experiments", "admin_pit_include")
+    } else if (identical(sub, "explore")) {
       file.path(root, "output", "experiments", "country_sna_explore")
     } else {
       file.path(root, "output", "experiments", "country_sna_include")
@@ -4789,7 +5239,32 @@ dina_cmd_sources <- function(root, args) {
     if (!grepl("^/", output_dir)) {
       output_dir <- file.path(root, output_dir)
     }
-    if (identical(sub, "explore")) {
+    if (identical(family, "admin") && identical(sub, "explore")) {
+      source(file.path(root, "code", "R", "source-diagnostics", "admin_pit_explorer.R"), local = TRUE)
+      result <- run_admin_pit_explorer(root = root, output_dir = output_dir, countries = country, write_outputs = !isTRUE(flags[["dry-run"]]))
+      dina_print_admin_pit_explore(result, dry_run = isTRUE(flags[["dry-run"]]))
+    } else if (identical(family, "admin")) {
+      source(file.path(root, "code", "R", "source-diagnostics", "admin_pit_include.R"), local = TRUE)
+      if (isTRUE(flags$confirm)) {
+        result <- admin_pit_include_confirm_sources(
+          root = root,
+          include_run = flags[["include-run"]] %||% NULL,
+          output_dir = flags[["output-dir"]] %||% NULL
+        )
+        dina_print_admin_pit_confirm(result)
+      } else if (!is.null(flags$restore)) {
+        result <- admin_pit_include_restore_sources(root = root, confirm_run = flags$restore)
+        dina_print_admin_pit_restore(result)
+      } else {
+        result <- run_admin_pit_include(
+          root = root,
+          output_dir = output_dir,
+          exploration_run = flags[["exploration-run"]] %||% NULL,
+          write_outputs = TRUE
+        )
+        dina_print_admin_pit_include(result)
+      }
+    } else if (identical(sub, "explore")) {
       source(file.path(root, "code", "R", "source-diagnostics", "country_sna_explorer.R"), local = TRUE)
       result <- run_country_sna_explorer(root = root, output_dir = output_dir, countries = country, write_outputs = !isTRUE(flags[["dry-run"]]))
       dina_print_country_sna_explore(result, dry_run = isTRUE(flags[["dry-run"]]))
