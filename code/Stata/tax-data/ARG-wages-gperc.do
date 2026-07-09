@@ -8,37 +8,20 @@
 clear
 
 //Import total population data into tabulations
+local pop_years "1996/2015"
 qui use "input_data/population/PopulationLatAm.dta", clear
-mkmat year totalpop adultpop, matrix(_mat_sum)
-
-scalar totalpop1996=_mat_sum[38, 2]
-scalar totalpop1997=_mat_sum[39, 2]
-scalar totalpop1998=_mat_sum[40, 2]
-scalar totalpop1999=_mat_sum[41, 2]
-scalar totalpop2000=_mat_sum[42, 2]
-scalar totalpop2001=_mat_sum[43, 2]
-scalar totalpop2002=_mat_sum[44, 2]	
-scalar totalpop2003=_mat_sum[45, 2]
-scalar totalpop2004=_mat_sum[46, 2]
-scalar totalpop2005=_mat_sum[47, 2]
-scalar totalpop2006=_mat_sum[48, 2]
-scalar totalpop2007=_mat_sum[49, 2]
-scalar totalpop2008=_mat_sum[50, 2]
-scalar totalpop2009=_mat_sum[51, 2]
-scalar totalpop2010=_mat_sum[52, 2]
-scalar totalpop2011=_mat_sum[53, 2]
-scalar totalpop2012=_mat_sum[54, 2]
-scalar totalpop2013=_mat_sum[55, 2]
-scalar totalpop2014=_mat_sum[56, 2]
-scalar totalpop2015=_mat_sum[57, 2]
-scalar totalpop2016=_mat_sum[58, 2]
-scalar totalpop2017=_mat_sum[59, 2]
-scalar totalpop2018=_mat_sum[60, 2]
-scalar totalpop2019=_mat_sum[61, 2]
+forvalues t = `pop_years' {
+	qui sum totalpop if strtrim(country) == "Argentina" & year == `t', meanonly
+	if r(N) != 1 {
+		di as error "Expected one Argentina population row for `t' in input_data/population/PopulationLatAm.dta"
+		exit 459
+	}
+	scalar totalpop`t' = r(mean)
+}
 
 // Estimate Distribution and Export
 
-forvalues t = 1996/2015 {
+forvalues t = `pop_years' {
 	
 	cap use "input_data/admin_data/ARG/Muestra-salarios/Muestra_remuneracion_`t'.dta", clear
 	
@@ -163,5 +146,4 @@ forvalues t = 1996/2015 {
 	export excel using "input_data/admin_data/ARG/wage_ARG_`t'.xlsx", /// 
 		firstrow(variables) keepcellfmt replace
 }
-
 

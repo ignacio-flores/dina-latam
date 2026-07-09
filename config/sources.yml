@@ -506,24 +506,27 @@ sources:
     notes: Local CEPAL price inputs.
 
   - id: population
-    family: population
+    family: wid
     country: MULTI
-    method: manual
+    method: wid
     urls:
-      - label: UN WPP download page
-        url: https://population.un.org/wpp/Download/Standard/Population/
+      - label: WID data portal
+        url: https://wid.world/
     canonical:
       - input_data/population/PopulationLatAm.dta
     inbox:
       - input_data/_new/other/population/PopulationLatAm.dta
     inbox_examples:
       - PopulationLatAm.dta
-      - UN WPP download files
     destination: input_data/population/{basename}
-    fetcher: code/R/manual-downloaders/fetch_population_wpp.R
+    fetcher: code/R/manual-downloaders/fetch_wid_population.R
     fetch_target: input_data/_new/other/population/PopulationLatAm.dta
-    transformer: code/Stata/02a-get-survey-populations.do
-    notes: UN WPP population input used by survey population preparation.
+    transformer:
+      - code/Stata/02b-prepare-admin-microdata.do
+      - code/Stata/02c-prepare-static-admin-data.do
+      - code/Stata/02d-prepare-updated-admin-data.do
+      - code/Stata/07d-export-results-to-wid.do
+    notes: WID npopul input for PopulationLatAm.dta. The fetcher uses age 999 as total population and age 992 as adult population, excludes French Guiana, Guadeloupe, and Martinique because WID has no npopul rows for them, and writes to _new for review before canonical promotion.
 
   - id: balance-sheet-imf
     family: balance_sheet

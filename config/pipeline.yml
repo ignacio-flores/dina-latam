@@ -96,6 +96,7 @@ tasks:
     inputs:
       - input_data/admin_data/MEX
       - input_data/admin_data/URY
+      - input_data/population/PopulationLatAm.dta
     outputs:
       - input_data/admin_data/MEX/_clean
       - input_data/admin_data/URY/_clean
@@ -110,6 +111,7 @@ tasks:
       - 02a-get-survey-populations
     inputs:
       - input_data/admin_data
+      - input_data/population/PopulationLatAm.dta
     outputs:
       - input_data/admin_data/*/_clean
 
@@ -123,6 +125,7 @@ tasks:
       - input_data/admin_data/CHL
       - input_data/admin_data/BRA
       - input_data/admin_data/COL
+      - input_data/population/PopulationLatAm.dta
       - code/R/02c_clean_admin_chl.R
       - code/R/02c_clean_admin_bra.R
     outputs:
@@ -340,5 +343,6 @@ tasks:
     inputs:
       - output/synthetic_microfiles
       - previous_series
+      - input_data/population/PopulationLatAm.dta
     outputs:
       - output/latest_wid_series

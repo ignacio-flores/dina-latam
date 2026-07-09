@@ -11,19 +11,20 @@ clear
 /////////////////////////////////////////////////////////////////////////////
 
 //Import adult population data into tabulations
+local pop_years "2009/2014"
 qui use "input_data/population/PopulationLatAm.dta", clear
-mkmat year totalpop adultpop, matrix(_mat_sum)
-
-scalar totalpop2009=_mat_sum[795, 2]
-scalar totalpop2010=_mat_sum[796, 2]
-scalar totalpop2011=_mat_sum[797, 2]
-scalar totalpop2012=_mat_sum[798, 2]
-scalar totalpop2013=_mat_sum[799, 2]
-scalar totalpop2014=_mat_sum[800, 2]
+forvalues t = `pop_years' {
+	qui sum totalpop if strtrim(country) == "Mexico" & year == `t', meanonly
+	if r(N) != 1 {
+		di as error "Expected one Mexico population row for `t' in input_data/population/PopulationLatAm.dta"
+		exit 459
+	}
+	scalar totalpop`t' = r(mean)
+}
 
 
 // define the range of years you have
-forvalues t = 2009/2014 { 
+forvalues t = `pop_years' { 
 		
 		di as result "working with Mexican admin data..." _continue
 		
