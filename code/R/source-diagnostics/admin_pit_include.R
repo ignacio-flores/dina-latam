@@ -242,21 +242,101 @@ admin_pit_include_source_country <- function(source_id) {
   switch(source_id, "chl-pit-total" = "CHL", "bra-pit-total" = "BRA", "col-pit-total" = "COL", "")
 }
 
+admin_pit_include_survey_pop_dependency <- function(rel, dependency_id = "") {
+  candidates <- gsub("\\\\", "/", c(rel %||% "", dependency_id %||% ""))
+  any(candidates == "intermediary_data/population/SurveyPop.dta")
+}
+
+admin_pit_include_survey_pop_status <- function(root, rel) {
+  survey_pop <- admin_pit_include_path(rel, root)
+  next_command <- "dina sources explore surveys"
+  guidance <- "Run `dina sources explore surveys`, then `dina sources include surveys --dry-run`, then confirm a clean surveys include run."
+  if (!file.exists(survey_pop)) {
+    return(list(
+      status = "missing_static_dependency",
+      severity = "blocked",
+      next_command = next_command,
+      detail = paste("Required SurveyPop.dta is missing.", guidance)
+    ))
+  }
+  inputs <- c(
+    Sys.glob(file.path(root, "input_data", "surveys_CEPAL", "*", "*.dta")),
+    file.path(root, "input_data", "population", "PopulationLatAm.dta"),
+    file.path(root, "config", "dina.yml"),
+    file.path(root, "config", "survey_population_include.yml"),
+    file.path(root, "code", "R", "source-diagnostics", "survey_population_include.R")
+  )
+  inputs <- inputs[file.exists(inputs)]
+  if (length(inputs)) {
+    latest_input <- max(file.info(inputs)$mtime, na.rm = TRUE)
+    output_mtime <- file.info(survey_pop)$mtime[[1L]]
+    if (!is.na(latest_input) && !is.na(output_mtime) && latest_input > output_mtime) {
+      return(list(
+        status = "stale_static_dependency",
+        severity = "blocked",
+        next_command = next_command,
+        detail = paste("SurveyPop.dta is older than survey-population inputs.", guidance)
+      ))
+    }
+  }
+  list(
+    status = "carried_forward",
+    severity = "info",
+    next_command = "",
+    detail = "Static dependency is available for carry-forward staging."
+  )
+}
+
+admin_pit_include_static_dependency_status <- function(root, rel, dependency_id, copy_status) {
+  if (admin_pit_include_survey_pop_dependency(rel, dependency_id)) {
+    return(admin_pit_include_survey_pop_status(root, "intermediary_data/population/SurveyPop.dta"))
+  }
+  if (identical(copy_status, "missing_dependency")) {
+    return(list(
+      status = "missing_dependency",
+      severity = "blocked",
+      next_command = "",
+      detail = "Required carry-forward dependency is missing from canonical paths."
+    ))
+  }
+  list(
+    status = if (identical(copy_status, "staged")) "carried_forward" else copy_status,
+    severity = "info",
+    next_command = "",
+    detail = "Static dependency is available for carry-forward staging."
+  )
+}
+
 admin_pit_include_stage_dependency_path <- function(root, paths, source_id, country, rel, dependency_type, dependency_id = "", promotion_scope = "carry_forward") {
   from <- admin_pit_include_path(rel, root)
   staged_to <- file.path(paths$staged_repo, rel)
   copy_status <- if (file.exists(from)) admin_pit_include_copy_path(from, staged_to) else "missing_dependency"
+  dependency_id <- dependency_id %||% ""
+  if (!nzchar(dependency_id)) dependency_id <- rel
+  dependency_status <- if (identical(dependency_type, "static_dependency")) {
+    admin_pit_include_static_dependency_status(root, rel, dependency_id, copy_status)
+  } else {
+    list(
+      status = if (identical(copy_status, "staged")) "carried_forward" else copy_status,
+      severity = if (identical(copy_status, "missing_dependency")) "blocked" else "info",
+      next_command = "",
+      detail = if (identical(copy_status, "missing_dependency")) "Required dependency is missing from canonical paths." else "Dependency is available for carry-forward staging."
+    )
+  }
   data.frame(
     source_id = source_id,
     country = country,
     dependency_id = dependency_id,
     dependency_type = dependency_type,
+    artifact_class = dependency_type,
     from_rel = rel,
     to_rel = rel,
     staged_to = if (identical(copy_status, "missing_dependency")) "" else staged_to,
-    status = if (identical(copy_status, "staged")) "carried_forward" else copy_status,
+    status = dependency_status$status,
     promotion_scope = promotion_scope,
-    severity = if (identical(copy_status, "missing_dependency")) "blocked" else "info",
+    severity = dependency_status$severity,
+    next_command = dependency_status$next_command,
+    detail = dependency_status$detail,
     stringsAsFactors = FALSE
   )
 }
@@ -271,10 +351,10 @@ admin_pit_include_stage_static_dependencies <- function(root, paths, contract) {
       matches <- Sys.glob(admin_pit_include_path(pattern, root))
       matches <- matches[file.exists(matches)]
       if (!length(matches)) {
-        rows[[length(rows) + 1L]] <- admin_pit_include_stage_dependency_path(root, paths, source_id, country, pattern, "static_dependency")
+        rows[[length(rows) + 1L]] <- admin_pit_include_stage_dependency_path(root, paths, source_id, country, pattern, "static_dependency", dependency_id = pattern)
       } else {
         for (match in sort(matches)) {
-          rows[[length(rows) + 1L]] <- admin_pit_include_stage_dependency_path(root, paths, source_id, country, admin_pit_include_relative_path(match, root), "static_dependency")
+          rows[[length(rows) + 1L]] <- admin_pit_include_stage_dependency_path(root, paths, source_id, country, admin_pit_include_relative_path(match, root), "static_dependency", dependency_id = pattern)
         }
       }
     }

@@ -901,6 +901,44 @@ admin_pit_explorer_compare_bra_minwage <- function(root, source_ids, years) {
   list(summary = summary, detail = detail)
 }
 
+admin_pit_explorer_survey_pop_status <- function(root, path) {
+  survey_pop <- admin_pit_explorer_path(path, root)
+  if (!file.exists(survey_pop)) {
+    return(list(
+      status = "missing_static_dependency",
+      severity = "blocked",
+      next_command = "dina sources explore surveys",
+      detail = "Required SurveyPop.dta is missing. Run `dina sources explore surveys`, then `dina sources include surveys --dry-run`, then confirm a clean surveys include run."
+    ))
+  }
+  inputs <- c(
+    Sys.glob(file.path(root, "input_data", "surveys_CEPAL", "*", "*.dta")),
+    file.path(root, "input_data", "population", "PopulationLatAm.dta"),
+    file.path(root, "config", "dina.yml"),
+    file.path(root, "config", "survey_population_include.yml"),
+    file.path(root, "code", "R", "source-diagnostics", "survey_population_include.R")
+  )
+  inputs <- inputs[file.exists(inputs)]
+  if (length(inputs)) {
+    latest_input <- max(file.info(inputs)$mtime, na.rm = TRUE)
+    output_mtime <- file.info(survey_pop)$mtime[[1L]]
+    if (!is.na(latest_input) && latest_input > output_mtime) {
+      return(list(
+        status = "stale_static_dependency",
+        severity = "blocked",
+        next_command = "dina sources explore surveys",
+        detail = "SurveyPop.dta is older than survey-population inputs. Run `dina sources explore surveys`, then `dina sources include surveys --dry-run`, then confirm a clean surveys include run."
+      ))
+    }
+  }
+  list(
+    status = "available_static_dependency",
+    severity = "info",
+    next_command = "",
+    detail = "Static dependency is available for carry-forward staging."
+  )
+}
+
 admin_pit_explorer_static_dependency_report <- function(root, include_contract, source_ids) {
   deps <- include_contract$cleaners$static_dependencies %||% list()
   rows <- list()
@@ -909,30 +947,50 @@ admin_pit_explorer_static_dependency_report <- function(root, include_contract, 
     for (pattern in unique(as.character(deps[[source_id]] %||% character()))) {
       matches <- admin_pit_explorer_existing_glob(pattern, root)
       if (!length(matches)) {
+        survey_status <- if (identical(pattern, "intermediary_data/population/SurveyPop.dta")) {
+          admin_pit_explorer_survey_pop_status(root, pattern)
+        } else {
+          list(
+            status = "missing_static_dependency",
+            severity = "blocked",
+            next_command = "",
+            detail = "Required carry-forward dependency is missing from canonical paths."
+          )
+        }
         rows[[length(rows) + 1L]] <- data.frame(
           source_id = source_id,
           country = country,
           dependency_id = pattern,
           artifact_class = "static_dependency",
           from_rel = pattern,
-          status = "missing_static_dependency",
-          severity = "blocked",
-          next_command = "",
-          detail = "Required carry-forward dependency is missing from canonical paths.",
+          status = survey_status$status,
+          severity = survey_status$severity,
+          next_command = survey_status$next_command,
+          detail = survey_status$detail,
           stringsAsFactors = FALSE
         )
       } else {
         for (path in matches) {
+          survey_status <- if (identical(pattern, "intermediary_data/population/SurveyPop.dta")) {
+            admin_pit_explorer_survey_pop_status(root, pattern)
+          } else {
+            list(
+              status = "available_static_dependency",
+              severity = "info",
+              next_command = "",
+              detail = "Static dependency is available for carry-forward staging."
+            )
+          }
           rows[[length(rows) + 1L]] <- data.frame(
             source_id = source_id,
             country = country,
             dependency_id = pattern,
             artifact_class = "static_dependency",
             from_rel = admin_pit_explorer_relative_path(path, root),
-            status = "available_static_dependency",
-            severity = "info",
-            next_command = "",
-            detail = "Static dependency is available for carry-forward staging.",
+            status = survey_status$status,
+            severity = survey_status$severity,
+            next_command = survey_status$next_command,
+            detail = survey_status$detail,
             stringsAsFactors = FALSE
           )
         }
@@ -991,8 +1049,8 @@ admin_pit_explorer_dependency_actions <- function(aux_summary, static_report, au
         dependency_id = blocked$dependency_id,
         artifact_class = blocked$artifact_class,
         status = blocked$status,
-        action = "provide_static_dependency",
-        next_command = "",
+        action = ifelse(nzchar(blocked$next_command %||% ""), "run_source_workflow", "provide_static_dependency"),
+        next_command = blocked$next_command %||% "",
         detail = blocked$detail,
         stringsAsFactors = FALSE
       )

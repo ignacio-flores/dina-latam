@@ -46,6 +46,10 @@ dina sources explore admin
 dina sources table admin year_expectations
 dina sources include admin --dry-run
 dina sources include admin --confirm --include-run RUN
+dina sources explore surveys
+dina sources table surveys survey_pop_status
+dina sources include surveys --dry-run
+dina sources include surveys --confirm --include-run RUN
 dina sources explore wid
 dina sources table wid overlap_summary
 dina sources include wid --dry-run
@@ -75,7 +79,20 @@ country-specific structure evidence, then `dina sources include admin --dry-run`
 to stage source/contract compatibility checks. Confirm and restore follow the
 same guarded snapshot pattern as SNA. This v1 does not run admin cleaners during
 include, and non-PIT admin families are reported as unsupported for this
-workflow.
+workflow. Admin PIT cleaners require `intermediary_data/population/SurveyPop.dta`;
+if admin explore/include reports it missing or stale, run
+`dina sources explore surveys`, review with `dina sources table surveys`, then
+`dina sources include surveys --dry-run` and confirm the clean surveys include
+run before returning to admin.
+
+The public `surveys` source type has a survey-population workflow for CEPAL
+survey inputs. Use `dina sources explore surveys` to inspect canonical and
+incoming survey files, required `_fep`/`edad` availability, country-year
+coverage, and whether `SurveyPop.dta` is missing or stale. Use
+`dina sources include surveys --dry-run` to stage a candidate
+`SurveyPop.dta` and audit it against the current artifact. Confirm only after
+review; the confirm step promotes approved survey inputs and writes
+`intermediary_data/population/SurveyPop.dta`.
 
 The public `wid` source type has a population-only v1 workflow for the registry
 source `population`. Use `dina sources fetch population` or

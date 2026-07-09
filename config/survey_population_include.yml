@@ -1,0 +1,13 @@
+version: 1
+source_type: surveys
+source_ids:
+  - surveys-cepal
+explore_output_root: output/experiments/survey_population_explore
+output_root: output/experiments/survey_population_include
+years:
+  from_config: config/dina.yml
+paths:
+  canonical_surveys: input_data/surveys_CEPAL
+  incoming_surveys: input_data/_new/surveys
+  population: input_data/population/PopulationLatAm.dta
+  survey_pop: intermediary_data/population/SurveyPop.dta

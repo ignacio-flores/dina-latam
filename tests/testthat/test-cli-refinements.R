@@ -263,10 +263,10 @@ test_that("public source type filters aggregate internal families including wid"
   expect_equal(compat$status, 0L)
   expect_match(compat$output, "wid-macro")
 
-  unsupported <- run_dina_cli(c("sources", "explore", "surveys"), root = root)
-  expect_true(unsupported$status != 0L)
-  expect_match(unsupported$output, "not implemented yet")
-  expect_match(unsupported$output, "dina sources list surveys")
+  surveys <- run_dina_cli(c("sources", "explore", "surveys"), root = root)
+  expect_equal(surveys$status, 0L)
+  expect_match(surveys$output, "Survey Population Explore")
+  expect_match(surveys$output, "SurveyPop.dta")
 
   wid_fetch <- run_dina_cli(c("sources", "fetch", "wid", "--dry-run"), root = root)
   expect_equal(wid_fetch$status, 0L)

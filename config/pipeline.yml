@@ -77,26 +77,28 @@ tasks:
   - id: 02a-get-survey-populations
     stage: preparation
     type: stata
+    active: false
     script: code/Stata/02a-get-survey-populations.do
-    deps:
-      - 01e-clean-survey-data
+    deps: []
     inputs:
       - input_data/surveys_CEPAL
-      - code/R/02a_get_survey_populations.R
+      - code/R/old/02a_get_survey_populations.R
     outputs:
       - intermediary_data/population/SurveyPop.dta
+    notes:
+      - Retired from the active pipeline. SurveyPop.dta is produced by `dina sources include surveys --confirm`.
 
   - id: 02b-prepare-admin-microdata
     stage: admin
     type: stata
     active: false
     script: code/Stata/02b-prepare-admin-microdata.do
-    deps:
-      - 02a-get-survey-populations
+    deps: []
     inputs:
       - input_data/admin_data/MEX
       - input_data/admin_data/URY
       - input_data/population/PopulationLatAm.dta
+      - intermediary_data/population/SurveyPop.dta
     outputs:
       - input_data/admin_data/MEX/_clean
       - input_data/admin_data/URY/_clean
@@ -107,11 +109,11 @@ tasks:
     stage: admin
     type: stata
     script: code/Stata/02c-prepare-static-admin-data.do
-    deps:
-      - 02a-get-survey-populations
+    deps: []
     inputs:
       - input_data/admin_data
       - input_data/population/PopulationLatAm.dta
+      - intermediary_data/population/SurveyPop.dta
     outputs:
       - input_data/admin_data/*/_clean
 
@@ -119,13 +121,13 @@ tasks:
     stage: admin
     type: stata
     script: code/Stata/02d-prepare-updated-admin-data.do
-    deps:
-      - 02a-get-survey-populations
+    deps: []
     inputs:
       - input_data/admin_data/CHL
       - input_data/admin_data/BRA
       - input_data/admin_data/COL
       - input_data/population/PopulationLatAm.dta
+      - intermediary_data/population/SurveyPop.dta
       - code/R/02c_clean_admin_chl.R
       - code/R/02c_clean_admin_bra.R
     outputs:

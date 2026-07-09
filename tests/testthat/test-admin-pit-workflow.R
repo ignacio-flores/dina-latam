@@ -123,8 +123,8 @@ admin_pit_fixture_repo <- function(block_col = FALSE, backup_overlap = FALSE, mi
   writeLines("year,uta\n2024,75981", file.path(root, "input_data", "_new", "admin", "CHL", "chl_uta_december.csv"))
   dir.create(file.path(root, "intermediary_data", "population"), recursive = TRUE)
   dir.create(file.path(root, "input_data", "population"), recursive = TRUE)
-  writeLines("survey-pop-fixture", file.path(root, "intermediary_data", "population", "SurveyPop.dta"))
   writeLines("latam-pop-fixture", file.path(root, "input_data", "population", "PopulationLatAm.dta"))
+  writeLines("survey-pop-fixture", file.path(root, "intermediary_data", "population", "SurveyPop.dta"))
   for (file in c("tab_gc_1991_2000.xls", "tab_gc_1963_1981.xlsx", "tab_gc_1998_2009.xlsx", "tab_gc_wage_1998_2009.xlsx", "Data_1998-2009sinKG.xlsx")) {
     writeLines("static fixture", file.path(root, "input_data", "admin_data", "CHL", file))
   }
@@ -457,5 +457,6 @@ test_that("main dina CLI dispatches admin PIT explore and table to isolated modu
   expect_match(include$output, "Blocking items:")
   expect_match(include$output, "missing static input")
   expect_match(include$output, "SurveyPop.dta")
+  expect_match(include$output, "dina sources explore surveys")
   admin_pit_expect_false(grepl("Experimental isolated source workflow", include$output, fixed = TRUE))
 })

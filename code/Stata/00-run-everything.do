@@ -18,7 +18,7 @@ clear all
 //list codes 
 ***********************************************************************
 global do_codes1 " "01a" "01b" "01c" "01d" "01e" "01f" "01g" " 
-global do_codes2 " "02a" "02c" "02d" "02e" " // "02b" is heavy static admin prep, inactive by default
+global do_codes2 " "02c" "02d" "02e" " // "02a" moved to sources surveys workflow; "02b" is heavy static admin prep, inactive by default
 global do_codes3 " "03a" "03b" "03c" "03d" "03e" " 
 global do_codes4 " "04a" "04b" "04c" " 
 global do_codes5 " "05a" "05b" "05c" "05d" " 

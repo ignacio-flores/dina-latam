@@ -58,6 +58,7 @@ mini_repo <- function() {
   dir.create(file.path(root, "config"), recursive = TRUE)
   dir.create(file.path(root, "code", "Stata"), recursive = TRUE)
   dir.create(file.path(root, "code", "R"), recursive = TRUE)
+  dir.create(file.path(root, "code", "R", "source-diagnostics"), recursive = TRUE)
   dir.create(file.path(root, "input_data"), recursive = TRUE)
   dir.create(file.path(root, "output"), recursive = TRUE)
   dir.create(file.path(root, "previous_series"), recursive = TRUE)
@@ -87,6 +88,16 @@ mini_repo <- function() {
     archives = list(default_dir = "output/archives", primary_paths = c("input_data", "previous_series")),
     dependencies = list(r_packages = c("cli", "yaml", "jsonlite"))
   ), file.path(root, "config", "dina.yml"))
+  file.copy(
+    file.path(repo_root_for_tests, "config", "survey_population_include.yml"),
+    file.path(root, "config", "survey_population_include.yml"),
+    overwrite = TRUE
+  )
+  file.copy(
+    file.path(repo_root_for_tests, "code", "R", "source-diagnostics", "survey_population_include.R"),
+    file.path(root, "code", "R", "source-diagnostics", "survey_population_include.R"),
+    overwrite = TRUE
+  )
 
   writeLines("display \"task 1\"", file.path(root, "code", "Stata", "01a.do"))
   writeLines("display \"task 2\"", file.path(root, "code", "Stata", "02a.do"))
