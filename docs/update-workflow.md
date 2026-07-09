@@ -46,6 +46,10 @@ dina sources explore admin
 dina sources table admin year_expectations
 dina sources include admin --dry-run
 dina sources include admin --confirm --include-run RUN
+dina sources explore wid
+dina sources table wid overlap_summary
+dina sources include wid --dry-run
+dina sources include wid --confirm --include-run RUN
 ```
 
 `dina sources list` is compact by default. In an interactive terminal it can
@@ -72,6 +76,18 @@ to stage source/contract compatibility checks. Confirm and restore follow the
 same guarded snapshot pattern as SNA. This v1 does not run admin cleaners during
 include, and non-PIT admin families are reported as unsupported for this
 workflow.
+
+The public `wid` source type has a population-only v1 workflow for the registry
+source `population`. Use `dina sources fetch population` or
+`dina sources fetch wid` to refresh the WID `npopul` candidate under `_new`,
+then `dina sources explore wid` to validate schema, country/year keys, missing
+values, required year coverage, and current-vs-incoming coverage differences.
+The overlap review tables report absolute and percentage differences for
+`totalpop` and `adultpop`; preview them with `dina sources table wid
+overlap_summary`, `overlap_year_summary`, or `overlap_differences`. Use
+`dina sources include wid --dry-run` to stage the incoming file for review,
+then confirm only after approval. The canonical path remains
+`input_data/population/PopulationLatAm.dta`.
 
 ## Compress Input Data
 

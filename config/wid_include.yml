@@ -1,0 +1,32 @@
+version: 1
+source_type: wid
+source_ids:
+  - population
+explore_output_root: output/experiments/wid_explore
+output_root: output/experiments/wid_include
+years:
+  first: 1990
+  from_config: config/dina.yml
+schema:
+  population:
+    required_columns:
+      - country
+      - region
+      - year
+      - totalpop
+      - adultpop
+    key_columns:
+      - country
+      - year
+    numeric_columns:
+      - totalpop
+      - adultpop
+statuses:
+  blocked:
+    - blocked_missing_incoming_source
+    - blocked_read_failed
+    - blocked_schema
+    - blocked_empty_source
+    - blocked_duplicate_keys
+    - blocked_missing_values
+    - blocked_missing_required_years

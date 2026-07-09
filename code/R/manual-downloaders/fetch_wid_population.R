@@ -165,7 +165,7 @@ area_map <- data.frame(
   stringsAsFactors = FALSE
 )
 
-# Do not collect all-missing WID output for these legacy WPP territories.
+# Do not collect all-missing WID output for these legacy population territories.
 excluded_areas <- c("GF", "GP", "MQ")
 area_map <- area_map[!area_map$area %in% excluded_areas, , drop = FALSE]
 area_map$order <- seq_len(nrow(area_map))
