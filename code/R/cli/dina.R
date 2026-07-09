@@ -5691,7 +5691,7 @@ dina_cmd_sources <- function(root, args) {
     table <- dina_arg(flags$positional, 2L, NULL)
     family <- dina_source_workflow_family(target, command = "table")
     if (identical(family, "wid")) {
-      source(file.path(root, "code", "R", "source-diagnostics", "wid_include.R"), local = FALSE)
+      source(file.path(root, "code", "R", "source-diagnostics", "wid_explorer.R"), local = FALSE)
     } else if (identical(family, "surveys")) {
       source(file.path(root, "code", "R", "source-diagnostics", "survey_sources_include.R"), local = FALSE)
     }
@@ -5812,7 +5812,7 @@ dina_cmd_sources <- function(root, args) {
         dina_print_admin_pit_include(result)
       }
     } else if (identical(family, "wid") && identical(sub, "explore")) {
-      source(file.path(root, "code", "R", "source-diagnostics", "wid_include.R"), local = FALSE)
+      source(file.path(root, "code", "R", "source-diagnostics", "wid_explorer.R"), local = FALSE)
       result <- run_wid_explorer(root = root, output_dir = output_dir, write_outputs = !isTRUE(flags[["dry-run"]]), dry_run = isTRUE(flags[["dry-run"]]))
       dina_print_wid_explore(result, dry_run = isTRUE(flags[["dry-run"]]))
     } else if (identical(family, "wid")) {

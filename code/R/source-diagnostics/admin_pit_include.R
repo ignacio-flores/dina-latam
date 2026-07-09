@@ -267,6 +267,8 @@ admin_pit_include_wid_population_status <- function(root, rel) {
   inputs <- c(
     file.path(root, "config", "dina.yml"),
     file.path(root, "config", "wid_include.yml"),
+    file.path(root, "code", "R", "source-diagnostics", "wid_common.R"),
+    file.path(root, "code", "R", "source-diagnostics", "wid_explorer.R"),
     file.path(root, "code", "R", "source-diagnostics", "wid_include.R")
   )
   inputs <- inputs[file.exists(inputs)]

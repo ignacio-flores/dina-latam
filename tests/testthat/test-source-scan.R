@@ -188,7 +188,7 @@ test_that("active code does not call WID directly outside the source workflow", 
     text <- paste(readLines(path, warn = FALSE), collapse = "\n")
     stata_call <- grepl("(^|\n)\\s*(qui|quietly|cap|capture)?\\s*wid\\s*,", text, perl = TRUE)
     r_call <- grepl("download_wid\\s*\\(", text, perl = TRUE)
-    (stata_call || r_call) && !grepl("code/R/source-diagnostics/wid_include\\.R$", path)
+    (stata_call || r_call) && !grepl("code/R/source-diagnostics/wid_common\\.R$", path)
   }, logical(1))
   expect_equal(active_rel[has_direct_wid], character())
 })

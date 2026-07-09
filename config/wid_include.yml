@@ -12,11 +12,171 @@ output_root: output/experiments/wid_include
 years:
   first: 1990
   from_config: config/dina.yml
+area_sets:
+  project_latam: [AR, BO, BR, CL, CO, CR, DO, EC, GT, HN, MX, NI, PA, PE, PY, SV, VE, UY]
+  export_countries: [AR, BR, CL, CO, CR, DO, EC, MX, PE, SV, UY]
+  population_legacy: [AG, AR, AW, BS, BB, BZ, BO, BR, CL, CO, CR, CU, CW, DO, EC, SV, GD, GT, GY, HT, HN, JM, MX, NI, PA, PY, PE, PR, LC, VC, SR, TT, VI, UY, VE]
+area_metadata:
+  - wid_area: AG
+    iso3: ATG
+    country_name: Antigua and Barbuda
+    region: Caribbean
+  - wid_area: AR
+    iso3: ARG
+    country_name: Argentina
+    region: South America
+  - wid_area: AW
+    iso3: ABW
+    country_name: Aruba
+    region: Caribbean
+  - wid_area: BS
+    iso3: BHS
+    country_name: Bahamas
+    region: Caribbean
+  - wid_area: BB
+    iso3: BRB
+    country_name: Barbados
+    region: Caribbean
+  - wid_area: BZ
+    iso3: BLZ
+    country_name: Belize
+    region: Central America
+  - wid_area: BO
+    iso3: BOL
+    country_name: Bolivia (Plurinational State of)
+    region: South America
+  - wid_area: BR
+    iso3: BRA
+    country_name: Brazil
+    region: South America
+  - wid_area: CL
+    iso3: CHL
+    country_name: Chile
+    region: South America
+  - wid_area: CO
+    iso3: COL
+    country_name: Colombia
+    region: South America
+  - wid_area: CR
+    iso3: CRI
+    country_name: Costa Rica
+    region: Central America
+  - wid_area: CU
+    iso3: CUB
+    country_name: Cuba
+    region: Caribbean
+  - wid_area: CW
+    iso3: CUW
+    country_name: Curacao
+    region: Caribbean
+  - wid_area: DO
+    iso3: DOM
+    country_name: Dominican Republic
+    region: Caribbean
+  - wid_area: EC
+    iso3: ECU
+    country_name: Ecuador
+    region: South America
+  - wid_area: SV
+    iso3: SLV
+    country_name: El Salvador
+    region: Central America
+  - wid_area: GF
+    iso3: GUF
+    country_name: French Guiana
+    region: South America
+  - wid_area: GD
+    iso3: GRD
+    country_name: Grenada
+    region: Caribbean
+  - wid_area: GP
+    iso3: GLP
+    country_name: Guadeloupe
+    region: Caribbean
+  - wid_area: GT
+    iso3: GTM
+    country_name: Guatemala
+    region: Central America
+  - wid_area: GY
+    iso3: GUY
+    country_name: Guyana
+    region: South America
+  - wid_area: HT
+    iso3: HTI
+    country_name: Haiti
+    region: Caribbean
+  - wid_area: HN
+    iso3: HND
+    country_name: Honduras
+    region: Central America
+  - wid_area: JM
+    iso3: JAM
+    country_name: Jamaica
+    region: Caribbean
+  - wid_area: MQ
+    iso3: MTQ
+    country_name: Martinique
+    region: Caribbean
+  - wid_area: MX
+    iso3: MEX
+    country_name: Mexico
+    region: Central America
+  - wid_area: NI
+    iso3: NIC
+    country_name: Nicaragua
+    region: Central America
+  - wid_area: PA
+    iso3: PAN
+    country_name: Panama
+    region: Central America
+  - wid_area: PY
+    iso3: PRY
+    country_name: Paraguay
+    region: South America
+  - wid_area: PE
+    iso3: PER
+    country_name: Peru
+    region: South America
+  - wid_area: PR
+    iso3: PRI
+    country_name: Puerto Rico
+    region: Caribbean
+  - wid_area: LC
+    iso3: LCA
+    country_name: Saint Lucia
+    region: Caribbean
+  - wid_area: VC
+    iso3: VCT
+    country_name: Saint Vincent and the Grenadines
+    region: Caribbean
+  - wid_area: SR
+    iso3: SUR
+    country_name: Suriname
+    region: South America
+  - wid_area: TT
+    iso3: TTO
+    country_name: Trinidad and Tobago
+    region: Caribbean
+  - wid_area: VI
+    iso3: VIR
+    country_name: United States Virgin Islands
+    region: Caribbean
+  - wid_area: UY
+    iso3: URY
+    country_name: Uruguay
+    region: South America
+  - wid_area: VE
+    iso3: VEN
+    country_name: Venezuela (Bolivarian Republic of)
+    region: South America
 artifacts:
   population:
     canonical: input_data/wid/population_total_adult_npopul.dta
     raw: input_data/wid/raw_population_npopul_ages_999_992.dta
     type: population_total_adult
+    output_map:
+      totalpop: npopul999i
+      adultpop: npopul992i
     request:
       indicators: [npopul]
       area_set: population_legacy
@@ -46,6 +206,16 @@ artifacts:
     canonical: input_data/wid/public_spending_gdp_shares.dta
     raw: input_data/wid/raw_public_spending_indicators.dta
     type: public_spending_gdp_shares
+    output_map:
+      denominator: mgdpro
+      shares:
+        con: mcongo
+        edu: meduge
+        exp: mexpgo
+        hea: mheage
+      source: WID_web
+    derive:
+      min_year: 2000
     request:
       indicators: [meduge, mheage, mexpgo, mcongo, mgdpro]
       area_set: project_latam
@@ -59,6 +229,9 @@ artifacts:
     canonical: input_data/wid/prices_deflator_ppp_eur.dta
     raw: input_data/wid/raw_prices_inyixx_xlceup.dta
     type: prices_deflator_ppp
+    output_map:
+      defl_xxxx: inyixx
+      xppp_eur: xlceup
     request:
       indicators: [inyixx, xlceup]
       area_set: project_latam
@@ -72,6 +245,11 @@ artifacts:
     canonical: input_data/wid/export_scaling_anninc_xrates.dta
     raw: input_data/wid/raw_export_anninc_xlceup_xlceux_p0p100.dta
     type: export_scaling
+    output_map:
+      anninc992i: [anninc992]
+      nninc_lcu_constc: [anninc999, anninc]
+      ppp_eur: [xlceup]
+      mer_eur: [xlceux]
     request:
       indicators: [anninc, xlceup, xlceux]
       area_set: export_countries
@@ -86,6 +264,14 @@ artifacts:
     canonical: input_data/wid/export_comparison_sptinc_p0p20.dta
     raw: input_data/wid/raw_export_sptinc_p0p20_age_992.dta
     type: export_sptinc_check
+    output_map:
+      country: country
+      year: year
+      widcode: variable
+      p: percentile
+      value_web: value
+    derive:
+      min_year: 2000
     request:
       indicators: [sptinc]
       area_set: export_countries

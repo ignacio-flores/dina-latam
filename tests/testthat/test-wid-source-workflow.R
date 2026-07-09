@@ -58,47 +58,63 @@ wid_fixture_contract <- function() {
     explore_output_root = "output/experiments/wid_explore",
     output_root = "output/experiments/wid_include",
     years = list(first = 2000L, from_config = "config/dina.yml"),
+    area_sets = list(
+      project_latam = c("AR", "MX"),
+      export_countries = c("AR", "MX"),
+      population_legacy = c("AR", "MX")
+    ),
+    area_metadata = list(
+      list(wid_area = "AR", iso3 = "ARG", country_name = "Argentina", region = "South America"),
+      list(wid_area = "MX", iso3 = "MEX", country_name = "Mexico", region = "Central America")
+    ),
     artifacts = list(
       population = list(
         canonical = "input_data/wid/population_total_adult_npopul.dta",
         raw = "input_data/wid/raw_population_npopul_ages_999_992.dta",
         type = "population_total_adult",
-        request = list(indicators = "npopul", area_set = "AR,MX", ages = c("999", "992"), pop = "i", first_year = 2000L),
+        output_map = list(totalpop = "npopul999i", adultpop = "npopul992i"),
+        request = list(indicators = "npopul", area_set = "population_legacy", ages = c("999", "992"), pop = "i", first_year = 2000L),
         schema = list(required_columns = c("country", "region", "year", "totalpop", "adultpop"), key_columns = c("country", "year"), numeric_columns = c("totalpop", "adultpop"), required_years = "config")
       ),
       `wid-macro` = list(
         canonical = "input_data/wid/macro_national_accounts_indicators.dta",
         raw = "input_data/wid/raw_macro_national_accounts_indicators_ages_999_992.dta",
         type = "raw_subset",
-        request = list(indicators = c("mnninc", "mgdpro", "npopul", "agninc"), area_set = "AR,MX", ages = c("999", "992"), first_year = 2000L),
+        request = list(indicators = c("mnninc", "mgdpro", "npopul", "agninc"), area_set = "project_latam", ages = c("999", "992"), first_year = 2000L),
         schema = list(required_columns = c("country", "variable", "year", "value"), key_columns = c("country", "variable", "year"), numeric_columns = "value", required_years = "config")
       ),
       `wid-public-spending` = list(
         canonical = "input_data/wid/public_spending_gdp_shares.dta",
         raw = "input_data/wid/raw_public_spending_indicators.dta",
         type = "public_spending_gdp_shares",
-        request = list(indicators = c("meduge", "mheage", "mexpgo", "mcongo", "mgdpro"), area_set = "AR,MX", first_year = 2000L),
+        output_map = list(denominator = "mgdpro", shares = list(con = "mcongo", edu = "meduge", exp = "mexpgo", hea = "mheage"), source = "WID_web"),
+        derive = list(min_year = 2000L),
+        request = list(indicators = c("meduge", "mheage", "mexpgo", "mcongo", "mgdpro"), area_set = "project_latam", first_year = 2000L),
         schema = list(required_columns = c("iso", "year", "source", "exp", "con", "hea", "edu"), key_columns = c("iso", "year"), numeric_columns = c("exp", "con", "hea", "edu"), required_years = "configured_window")
       ),
       `wid-prices-xrates` = list(
         canonical = "input_data/wid/prices_deflator_ppp_eur.dta",
         raw = "input_data/wid/raw_prices_inyixx_xlceup.dta",
         type = "prices_deflator_ppp",
-        request = list(indicators = c("inyixx", "xlceup"), area_set = "AR,MX", first_year = 2000L),
+        output_map = list(defl_xxxx = "inyixx", xppp_eur = "xlceup"),
+        request = list(indicators = c("inyixx", "xlceup"), area_set = "project_latam", first_year = 2000L),
         schema = list(required_columns = c("country", "countrycode", "year", "defl_xxxx", "xppp_eur"), key_columns = c("country", "year"), numeric_columns = c("defl_xxxx", "xppp_eur"), required_years = "configured_window")
       ),
       `wid-export-scaling` = list(
         canonical = "input_data/wid/export_scaling_anninc_xrates.dta",
         raw = "input_data/wid/raw_export_anninc_xlceup_xlceux_p0p100.dta",
         type = "export_scaling",
-        request = list(indicators = c("anninc", "xlceup", "xlceux"), area_set = "AR,MX", perc = "p0p100", first_year = 2000L),
+        output_map = list(anninc992i = "anninc992", nninc_lcu_constc = c("anninc999", "anninc"), ppp_eur = "xlceup", mer_eur = "xlceux"),
+        request = list(indicators = c("anninc", "xlceup", "xlceux"), area_set = "export_countries", perc = "p0p100", first_year = 2000L),
         schema = list(required_columns = c("iso", "year", "anninc992i", "nninc_lcu_constc", "ppp_eur", "mer_eur"), key_columns = c("iso", "year"), numeric_columns = c("anninc992i", "nninc_lcu_constc", "ppp_eur", "mer_eur"), required_years = "configured_window")
       ),
       `wid-export-sptinc-check` = list(
         canonical = "input_data/wid/export_comparison_sptinc_p0p20.dta",
         raw = "input_data/wid/raw_export_sptinc_p0p20_age_992.dta",
         type = "export_sptinc_check",
-        request = list(indicators = "sptinc", area_set = "AR,MX", perc = "p0p20", ages = "992", first_year = 2000L),
+        output_map = list(country = "country", year = "year", widcode = "variable", p = "percentile", value_web = "value"),
+        derive = list(min_year = 2000L),
+        request = list(indicators = "sptinc", area_set = "export_countries", perc = "p0p20", ages = "992", first_year = 2000L),
         schema = list(required_columns = c("country", "year", "widcode", "p", "value_web"), key_columns = c("country", "year", "widcode", "p"), numeric_columns = "value_web", required_years = "configured_window")
       )
     ),
@@ -139,11 +155,13 @@ wid_fixture_root <- function(current = FALSE, current_offset = 0, incoming_offse
   dir.create(file.path(root, "config"), recursive = TRUE, showWarnings = FALSE)
   dir.create(file.path(root, "code", "R", "source-diagnostics"), recursive = TRUE, showWarnings = FALSE)
   dir.create(file.path(root, "output"), recursive = TRUE, showWarnings = FALSE)
-  file.copy(
-    file.path(repo_root_for_tests, "code", "R", "source-diagnostics", "wid_include.R"),
-    file.path(root, "code", "R", "source-diagnostics", "wid_include.R"),
-    overwrite = TRUE
-  )
+  for (module in c("wid_common.R", "wid_explorer.R", "wid_include.R")) {
+    file.copy(
+      file.path(repo_root_for_tests, "code", "R", "source-diagnostics", module),
+      file.path(root, "code", "R", "source-diagnostics", module),
+      overwrite = TRUE
+    )
+  }
   writeLines("display \"fixture\"", file.path(root, "_config.do"))
   dina_write_yaml(list(
     project = list(name = "wid-mini"),
@@ -168,11 +186,40 @@ wid_fixture_root <- function(current = FALSE, current_offset = 0, incoming_offse
   root
 }
 
+test_that("WID split modules expose stable public functions", {
+  explorer_env <- new.env(parent = globalenv())
+  source(file.path(repo_root_for_tests, "code", "R", "source-diagnostics", "wid_explorer.R"), local = explorer_env)
+  expect_true(exists("run_wid_explorer", envir = explorer_env, mode = "function"))
+
+  include_env <- new.env(parent = globalenv())
+  source(file.path(repo_root_for_tests, "code", "R", "source-diagnostics", "wid_include.R"), local = include_env)
+  expect_true(exists("run_wid_explorer", envir = include_env, mode = "function"))
+  expect_true(exists("run_wid_include", envir = include_env, mode = "function"))
+  expect_true(exists("wid_include_confirm_sources", envir = include_env, mode = "function"))
+  expect_true(exists("wid_include_restore_sources", envir = include_env, mode = "function"))
+})
+
+test_that("WID area sets and output mappings are read from config", {
+  contract <- wid_fixture_contract()
+  expect_equal(wid_include_areas("project_latam", contract), c("AR", "MX"))
+  contract$area_sets$project_latam <- "ZZ"
+  expect_equal(wid_include_areas("project_latam", contract), "ZZ")
+
+  artifact <- wid_include_artifact(wid_fixture_contract(), "population")
+  expect_equal(wid_include_output_map(artifact)$totalpop, "npopul999i")
+  expect_match(wid_include_mapping_summary(wid_include_output_map(artifact)), "totalpop=npopul999i")
+})
+
 test_that("WID explorer reports missing artifacts without fetching", {
   root <- wid_fixture_root(current = FALSE)
   result <- run_wid_explorer(root = root, write_outputs = TRUE)
   expect_equal(result$status, "review")
   expect_true(all(result$outputs$wid_artifact_status$status == "missing_current_artifact"))
+  expect_true("wid_request_plan" %in% names(result$outputs))
+  expect_true(file.exists(file.path(root, "output", "experiments", "wid_explore", "tables", "wid_request_plan.csv")))
+  expect_equal(nrow(result$outputs$wid_request_plan), 6L)
+  expect_true(any(grepl("totalpop=npopul999i", result$outputs$wid_request_plan$mapping_summary, fixed = TRUE)))
+  expect_equal(result$outputs$wid_request_plan$area_set[result$outputs$wid_request_plan$source_id == "population"], "population_legacy")
   expect_true(any(result$outputs$review_actions$next_command == "dina sources include wid --dry-run"))
   expect_equal(nrow(result$outputs$unsupported_sources), 0L)
   expect_false(dir.exists(file.path(root, "output", "experiments", "wid_include")))
