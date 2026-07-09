@@ -9,5 +9,5 @@ years:
 paths:
   canonical_surveys: input_data/surveys_CEPAL
   incoming_surveys: input_data/_new/surveys
-  population: input_data/population/PopulationLatAm.dta
+  population: input_data/wid/population_total_adult_npopul.dta
   survey_pop: intermediary_data/population/SurveyPop.dta

@@ -12,11 +12,11 @@ clear
 
 //Import adult population data into tabulations
 local pop_years "2009/2014"
-qui use "input_data/population/PopulationLatAm.dta", clear
+qui use "input_data/wid/population_total_adult_npopul.dta", clear
 forvalues t = `pop_years' {
 	qui sum totalpop if strtrim(country) == "Mexico" & year == `t', meanonly
 	if r(N) != 1 {
-		di as error "Expected one Mexico population row for `t' in input_data/population/PopulationLatAm.dta"
+		di as error "Expected one Mexico population row for `t' in input_data/wid/population_total_adult_npopul.dta"
 		exit 459
 	}
 	scalar totalpop`t' = r(mean)

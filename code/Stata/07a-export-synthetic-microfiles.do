@@ -30,26 +30,15 @@ foreach u in $units {
 }
 
 
-//use wid command to get inflation rates 
-quietly wid, ind(${inflation_wid} ${xppp_eur}) ///
-	areas(${areas_wid_latam}) clear 
-quietly keep country variable year value 	
-reshape wide value, i(country year) j(variable) string	
-quietly rename (value${inflation_wid} value${xppp_eur} country) ///
-	(defl_xxxx xppp_eur countrycode)
+//use WID deflator and PPP rates fetched by `dina sources include wid`
+quietly use "input_data/wid/prices_deflator_ppp_eur.dta", clear
 qui sum year if defl_xxxx == 1 	
 local xppp_yr = r(mean)
 qui label var defl_xxxx "GDP deflator year `xppp_yr'"
 quietly drop if year < 2000 
-quietly kountry countrycode, from(iso2c) to(iso3c)
-quietly rename _ISO3C_ country
 qui order country countrycode year defl_xxxx xppp_eur	
 tempfile td_ixd 
 qui save `td_ixd'
-
-//save for input in other dofiles 
-quietly export excel "input_data/prices_WID/infl_xrates_wid_wb.xlsx", ///
-	firstrow(variables) sheet("inflation-xrates") sheetreplace keepcellfmt  
 
 //prepare file for long format 
 tempfile tf_lformat_detail tf_lformat_grouped tf_lformat_efftax 

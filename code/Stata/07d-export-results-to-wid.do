@@ -259,7 +259,7 @@ foreach s in `steps' {
 
 *merge with population data 
 preserve 
-	qui use "input_data/population/PopulationLatAm.dta", clear
+	qui use "input_data/wid/population_total_adult_npopul.dta", clear
 	qui kountry country, from(other) stuck marker
 	qui rename (_ISO3N_ country) (iso3n country_long)
 	qui kountry iso3n, from(iso3n) to(iso3c) 
@@ -457,14 +457,7 @@ qui levelsof iso, local(iso2_codes) clean
 
 *merge with national incomes from wid
 preserve 
-	wid, indicators(anninc xlceup xlceux) ///
-		areas("`iso2_codes'") perc(p0p100) clear 
-	keep country variable year value 
-	reshape wide value, i(country year) j(variable) string
-	qui rename value* *
-	qui rename *999i *
-	qui rename (country anninc xlceup xlceux) ///
-		(iso nninc_lcu_constc ppp_eur mer_eur)
+	qui use "input_data/wid/export_scaling_anninc_xrates.dta", clear
 	qui levelsof iso, local(c_wid) clean 
 	foreach x in "ppp" "mer" {
 		qui gen `x'_eur_`ly' = . 
@@ -738,15 +731,7 @@ foreach xxx in "sptinc992j" /*"sdiinc992j"*/ {
 	
 }
 preserve
-	wid, area(AR BR CL CO CR DO EC MX PE SV UY) ind(sptinc) perc(p0p20) clear 
-	kountry country, from(iso2c) to(iso3c)
-	qui drop country 
-	qui rename _ISO3C_ country
-	qui keep if year >= 2000 & age == "992"
-	qui drop pop age 
-	qui rename value value_web 
-	qui rename variable widcode
-	qui rename percentile p
+	qui use "input_data/wid/export_comparison_sptinc_p0p20.dta", clear
 	tempfile tf_wid 
 	qui save `tf_wid'
 restore 

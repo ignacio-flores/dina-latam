@@ -23,12 +23,12 @@ foreach c in "ARG" "BRA" "CRI" /*"DOM"*/ {
 	// bc it only represents urban areas 
 	if ("`c'"=="ARG") {
 		
-		wid, areas(AR) ind(npopul) ages(999 /*992*/) pop(i) clear
-		qui keep if year >= $first_y
+		qui use "input_data/wid/population_total_adult_npopul.dta", clear
+		qui keep if country == "Argentina" & year >= $first_y
 
 		//Loop over years
 		forvalues y = $first_y / $last_y {
-			qui levelsof value if year == `y', clean local(totalpop`y')
+			qui levelsof totalpop if year == `y', clean local(totalpop`y')
 		}
 		
 		forvalues year = $first_y / $last_y {

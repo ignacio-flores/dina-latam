@@ -22,26 +22,14 @@ qui do "code/Stata/auxiliar/aux_general.do"
 //define language 
 local lang $lang
 
-//use wid command for inflation rates 
-quietly wid, ind(${inflation_wid} ${xppp_eur}) ///
-	areas(${areas_wid_latam}) clear 
-	
-//clean and reshape 	
-quietly keep country variable year value 	
-reshape wide value, i(country year) j(variable) string	
-quietly rename (value${inflation_wid} value${xppp_eur} country) ///
-	(defl_xxxx xppp_eur countrycode)
+//use WID deflator and PPP rates fetched by `dina sources include wid`
+quietly use "input_data/wid/prices_deflator_ppp_eur.dta", clear
 qui sum year if defl_xxxx == 1 	
 local xppp_yr = r(mean)
 qui label var defl_xxxx "GDP deflator year `xppp_yr'"
 quietly drop if year < 2000 
-//harmonise country names 
-quietly kountry countrycode, from(iso2c) to(iso3c)
-quietly rename _ISO3C_ country
-
-//save for input in other dofiles 
-quietly export excel "input_data/prices_WID/infl_xrates_wid_wb.xlsx", firstrow(variables) ///
-	sheet("inflation-xrates") sheetreplace keepcellfmt  	
+tempfile tf_wid_prices
+qui save `tf_wid_prices', replace
 
 // 0. Get macro data  ----------------------------------------------------------
 tempfile tf_core 
@@ -66,8 +54,7 @@ foreach unit in $units {
 	qui save `tf_wid', replace 
 
 	*other inflation and xrates
-	qui import excel ///
-		"input_data/prices_WID/infl_xrates_wid_wb.xlsx", firstrow sheet("inflation-xrates") clear
+	qui use `tf_wid_prices', clear
 	//save xrates in memory 
 	quietly levelsof country, local(ctries_wid) clean
 	foreach c in `ctries_wid' {
@@ -408,4 +395,3 @@ foreach unit in $units {
 		}
 	}
 }
-

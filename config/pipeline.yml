@@ -7,7 +7,7 @@ tasks:
     inputs:
       - input_data/sna_UNDATA/_clean
       - input_data/balance_sheet
-      - input_data/prices_WID/infl_xrates_wid_wb.xlsx
+      - input_data/wid/macro_national_accounts_indicators.dta
     outputs:
       - intermediary_data/national_accounts/UNDATA-WID-OECD-Merged.dta
 
@@ -60,6 +60,7 @@ tasks:
       - 01e-clean-survey-data
     inputs:
       - intermediary_data/microdata/raw
+      - input_data/wid/population_total_adult_npopul.dta
     outputs:
       - intermediary_data/microdata/adjusted
 
@@ -71,6 +72,7 @@ tasks:
       - 01a-clean-macro-data
     inputs:
       - input_data/expenditure_durrer_gethin_fisherpost
+      - input_data/wid/public_spending_gdp_shares.dta
     outputs:
       - output/figures/spending
 
@@ -97,7 +99,7 @@ tasks:
     inputs:
       - input_data/admin_data/MEX
       - input_data/admin_data/URY
-      - input_data/population/PopulationLatAm.dta
+      - input_data/wid/population_total_adult_npopul.dta
       - intermediary_data/population/SurveyPop.dta
     outputs:
       - input_data/admin_data/MEX/_clean
@@ -112,7 +114,7 @@ tasks:
     deps: []
     inputs:
       - input_data/admin_data
-      - input_data/population/PopulationLatAm.dta
+      - input_data/wid/population_total_adult_npopul.dta
       - intermediary_data/population/SurveyPop.dta
     outputs:
       - input_data/admin_data/*/_clean
@@ -126,7 +128,7 @@ tasks:
       - input_data/admin_data/CHL
       - input_data/admin_data/BRA
       - input_data/admin_data/COL
-      - input_data/population/PopulationLatAm.dta
+      - input_data/wid/population_total_adult_npopul.dta
       - intermediary_data/population/SurveyPop.dta
       - code/R/02c_clean_admin_chl.R
       - code/R/02c_clean_admin_bra.R
@@ -296,6 +298,8 @@ tasks:
       - 06a-run-ineqstats
     inputs:
       - output/ineqstats
+      - input_data/prices_WB/inflation_latam.dta
+      - input_data/wid/prices_deflator_ppp_eur.dta
     outputs:
       - output/figures/ineqstats
 
@@ -307,6 +311,7 @@ tasks:
       - 06a-run-ineqstats
     inputs:
       - output/ineqstats
+      - input_data/wid/prices_deflator_ppp_eur.dta
     outputs:
       - output/synthetic_microfiles
 
@@ -345,6 +350,8 @@ tasks:
     inputs:
       - output/synthetic_microfiles
       - previous_series
-      - input_data/population/PopulationLatAm.dta
+      - input_data/wid/population_total_adult_npopul.dta
+      - input_data/wid/export_scaling_anninc_xrates.dta
+      - input_data/wid/export_comparison_sptinc_p0p20.dta
     outputs:
       - output/latest_wid_series

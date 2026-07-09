@@ -53,7 +53,7 @@ cleaners:
   static_dependencies:
     chl-pit-total:
       - intermediary_data/population/SurveyPop.dta
-      - input_data/population/PopulationLatAm.dta
+      - input_data/wid/population_total_adult_npopul.dta
       - input_data/admin_data/CHL/tab_gc_1991_2000.xls
       - input_data/admin_data/CHL/tab_gc_1963_1981.xlsx
       - input_data/admin_data/CHL/tab_gc_1998_2009.xlsx

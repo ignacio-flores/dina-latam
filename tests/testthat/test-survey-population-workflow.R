@@ -47,7 +47,7 @@ survey_pop_fixture_root <- function(existing_survey_pop = FALSE, incoming = FALS
     paths = list(
       canonical_surveys = "input_data/surveys_CEPAL",
       incoming_surveys = "input_data/_new/surveys",
-      population = "input_data/population/PopulationLatAm.dta",
+      population = "input_data/wid/population_total_adult_npopul.dta",
       survey_pop = "intermediary_data/population/SurveyPop.dta"
     )
   ), file.path(root, "config", "survey_population_include.yml"))
@@ -74,7 +74,7 @@ survey_pop_fixture_root <- function(existing_survey_pop = FALSE, incoming = FALS
     adultpop = c(800, 880, 1200, 1260),
     stringsAsFactors = FALSE
   )
-  survey_pop_fixture_write_dta(root, "input_data/population/PopulationLatAm.dta", pop)
+  survey_pop_fixture_write_dta(root, "input_data/wid/population_total_adult_npopul.dta", pop)
 
   arg <- data.frame(`_fep` = c(10, 10, 30), edad = c(30, 10, 40), id_hogar = c(1, 1, 2), check.names = FALSE)
   mex <- data.frame(`_fep` = c(100, 50), edad = c(25, 12), check.names = FALSE)

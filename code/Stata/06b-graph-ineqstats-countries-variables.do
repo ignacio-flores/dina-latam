@@ -47,19 +47,9 @@ qui keep country year cpi_`last_y'
 tempfile tf_cpi 
 qui save `tf_cpi', replace
 
-//use wid command 
-qui wid, ind(${inflation_wid} ${xppp_eur}) ///
-	areas(${areas_wid_latam}) clear 
-	
-//clean and reshape 	
-qui keep country variable year value 	
-reshape wide value, i(country year) j(variable) string	
-qui rename (value${inflation_wid} value${xppp_eur} country) ///
-	(defl_`last_y' xppp_eur countrycode)
-	
-//harmonise country names 
-qui kountry countrycode, from(iso2c) to(iso3c)
-qui rename _ISO3C_ country
+//use WID deflator and PPP rates fetched by `dina sources include wid`
+qui use "input_data/wid/prices_deflator_ppp_eur.dta", clear
+qui rename defl_xxxx defl_`last_y'
 
 //save xrates from `last_y' in memory 
 qui levelsof country, local(ctries_wid) clean 
@@ -78,18 +68,6 @@ qui drop if _merge != 3 & !inlist(country, "ARG", "CRI", "DOM")
 qui drop if year < $first_y 
 qui drop _merge 
 qui save `tf_infl', replace
-
-//create main folders 
-local dirpath "input_data/prices_WID"
-mata: st_numscalar("exists", direxists(st_local("dirpath")))
-if (scalar(exists) == 0) {
-	mkdir "`dirpath'"
-	display "Created directory: `dirpath'"
-} 
-
-//save for input in other dofiles 
-qui export excel "input_data/prices_WID/infl_xrates_wid_wb.xlsx", ///
-	firstrow(variables) sheet("inflation-xrates") sheetreplace keepcellfmt  	
 
 // PART 1: INCOME SHARES, AVERAGE AND INDEXES -------------------------------
 
@@ -684,4 +662,3 @@ global units "$unit_list"
 		}	
 	}
 }
-

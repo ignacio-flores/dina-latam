@@ -389,11 +389,11 @@ sources:
       - label: WID data portal
         url: https://wid.world/
     canonical:
-      - intermediary_data/national_accounts/UNDATA-WID-Merged.dta
-      - intermediary_data/national_accounts/UNDATA-WID-OECD-Merged.dta
+      - input_data/wid/macro_national_accounts_indicators.dta
+      - input_data/wid/raw_macro_national_accounts_indicators_ages_999_992.dta
     transformer: code/Stata/01a-clean-macro-data.do
-    integration: none
-    notes: Stata `wid` calls in 01a fetch WID macro indicators used in national accounts construction.
+    integration: sources_explore_include_wid
+    notes: WID macro indicators are fetched only by `dina sources include wid`; 01a consumes the local derived artifact.
 
   - id: wid-public-spending
     family: wid
@@ -403,12 +403,13 @@ sources:
       - label: WID data portal
         url: https://wid.world/
     canonical:
-      - input_data/sna-WID/gov_expenditure_*.dta
+      - input_data/wid/public_spending_gdp_shares.dta
+      - input_data/wid/raw_public_spending_indicators.dta
     transformer: code/Stata/01g-add-public-spending-data.do
-    integration: none
-    notes: 01g fetches WID public-spending indicators and merges them with local expenditure inputs.
+    integration: sources_explore_include_wid
+    notes: WID public-spending indicators are fetched only by `dina sources include wid`; 01g consumes the local GDP-share artifact.
 
-  - id: wid-export-checks
+  - id: wid-export-scaling
     family: wid
     country: MULTI
     method: wid
@@ -416,10 +417,25 @@ sources:
       - label: WID data portal
         url: https://wid.world/
     canonical:
-      - output/latest_wid_series
+      - input_data/wid/export_scaling_anninc_xrates.dta
+      - input_data/wid/raw_export_anninc_xlceup_xlceux_p0p100.dta
     transformer: code/Stata/07d-export-results-to-wid.do
-    integration: none
-    notes: 07d calls WID for final export comparisons. This is an online pipeline dependency to make visible before moving it out.
+    integration: sources_explore_include_wid
+    notes: WID export scaling inputs are fetched only by `dina sources include wid`; 07d consumes the local artifact.
+
+  - id: wid-export-sptinc-check
+    family: wid
+    country: MULTI
+    method: wid
+    urls:
+      - label: WID data portal
+        url: https://wid.world/
+    canonical:
+      - input_data/wid/export_comparison_sptinc_p0p20.dta
+      - input_data/wid/raw_export_sptinc_p0p20_age_992.dta
+    transformer: code/Stata/07d-export-results-to-wid.do
+    integration: sources_explore_include_wid
+    notes: WID sptinc comparison data are fetched only by `dina sources include wid`; 07d consumes the local comparison artifact.
 
   - id: wid-population-survey-adjustment
     family: wid
@@ -429,8 +445,9 @@ sources:
       - label: WID data portal
         url: https://wid.world/
     transformer: code/Stata/01f-adjust-country-survey-data.do
-    integration: none
-    notes: 01f has a targeted WID population call for Argentina survey adjustment.
+    integration: sources_explore_include_wid
+    covered_by: population
+    notes: 01f consumes the local WID population artifact produced by the `population` row in `dina sources include wid`.
 
   - id: wid-prices-xrates
     family: prices
@@ -440,13 +457,14 @@ sources:
       - label: WID data portal
         url: https://wid.world/
     canonical:
-      - input_data/prices_WID/infl_xrates_wid_wb.xlsx
+      - input_data/wid/prices_deflator_ppp_eur.dta
+      - input_data/wid/raw_prices_inyixx_xlceup.dta
     transformer:
       - code/Stata/06b-graph-ineqstats-countries-variables.do
       - code/Stata/06c-graph-ineqstats-by-step.do
       - code/Stata/07a-export-synthetic-microfiles.do
-    integration: none
-    notes: Several reporting/export tasks refresh this file through Stata `wid`; cataloged here as a side-effecting online dependency.
+    integration: sources_explore_include_wid
+    notes: WID deflator and PPP data are fetched only by `dina sources include wid`; World Bank CPI remains separate in input_data/prices_WB.
 
   - id: wb-xrates
     family: prices
@@ -513,20 +531,15 @@ sources:
       - label: WID data portal
         url: https://wid.world/
     canonical:
-      - input_data/population/PopulationLatAm.dta
-    inbox:
-      - input_data/_new/other/population/PopulationLatAm.dta
-    inbox_examples:
-      - PopulationLatAm.dta
-    destination: input_data/population/{basename}
-    fetcher: code/R/manual-downloaders/fetch_wid_population.R
-    fetch_target: input_data/_new/other/population/PopulationLatAm.dta
+      - input_data/wid/population_total_adult_npopul.dta
+      - input_data/wid/raw_population_npopul_ages_999_992.dta
     transformer:
       - code/Stata/02b-prepare-admin-microdata.do
       - code/Stata/02c-prepare-static-admin-data.do
       - code/Stata/02d-prepare-updated-admin-data.do
       - code/Stata/07d-export-results-to-wid.do
-    notes: WID npopul input for PopulationLatAm.dta. The fetcher uses age 999 as total population and age 992 as adult population, excludes French Guiana, Guadeloupe, and Martinique because WID has no npopul rows for them, and writes to _new for review before canonical promotion.
+    integration: sources_explore_include_wid
+    notes: WID npopul is fetched only by `dina sources include wid`; the derived local artifact uses age 999 as total population and age 992 as adult population.
 
   - id: balance-sheet-imf
     family: balance_sheet

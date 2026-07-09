@@ -125,8 +125,8 @@ global widvars mnninc mgdpro mnnfin mptfrr mptfrp inyixx npopul ///
 	mccshn mccmhn mcfcco mconfc mptfhr mgsmhn mgsrhn mgmxhn mprgco agninc
 clear
 
-// Download net national income figures (constant local currency) 
-qui wid, indicators(${widvars}) areas(${areas_wid_latam}) ages(999 992) clear
+// Load WID macro indicators fetched by `dina sources include wid`
+qui use "input_data/wid/macro_national_accounts_indicators.dta", clear
 qui rename country iso 
 
 //rename 

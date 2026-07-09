@@ -139,7 +139,7 @@ survey_pop_paths <- function(root, contract) {
   list(
     canonical_surveys = survey_pop_path(paths$canonical_surveys %||% "input_data/surveys_CEPAL", root),
     incoming_surveys = survey_pop_path(paths$incoming_surveys %||% "input_data/_new/surveys", root),
-    population = survey_pop_path(paths$population %||% "input_data/population/PopulationLatAm.dta", root),
+    population = survey_pop_path(paths$population %||% "input_data/wid/population_total_adult_npopul.dta", root),
     survey_pop = survey_pop_path(paths$survey_pop %||% "intermediary_data/population/SurveyPop.dta", root)
   )
 }
@@ -718,7 +718,7 @@ survey_pop_summarize_file <- function(path, country, year, pop_targets) {
     total_weight <- sum(weight, na.rm = TRUE)
     if (is.na(target) || target <= 0) {
       status <- "missing_arg_population_target"
-      detail <- "Argentina totalpop target is missing from PopulationLatAm.dta."
+      detail <- "Argentina totalpop target is missing from input_data/wid/population_total_adult_npopul.dta."
       weight <- rep(NA_real_, length(weight))
     } else if (!length(weight) || total_weight <= 0) {
       status <- "empty_arg_weight"

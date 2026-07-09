@@ -4,44 +4,14 @@
 
 clear all
 
-//0. General settings ----------------------------------------------------------
-local mode "local" //"update" 
-
-//which local version?
-if "`mode'" == "local" {
-	local date "12Aug2025"
-}
-
 //get list of paths 
 global aux_part " "preliminary" " 
 qui do "code/Stata/auxiliar/aux_general.do"
 global aux_part " "graph_basics" " 
 qui do "code/Stata/auxiliar/aux_general.do"
 
-*bring expenditures from wid 
-if ("`mode'" == "update") {
-	local date = subinstr("$S_DATE", " ", "", .)
-	local spenvars meduge mheage mexpgo mcongo
-	qui wid, areas(${areas_wid_latam}) ind(`spenvars' mgdpro)
-	qui keep country variable year value 
-	qui replace variable = subinstr(variable, "999i", "", .)
-	qui rename value v_
-	qui reshape wide v_, i(country year) j(variable) string
-	foreach v in `spenvars' {
-		qui rename v_`v' `v'
-		qui replace `v' = `v' / v_mgdpro * 100
-	}
-	qui drop v_mgdpro 
-	qui keep if year >= 2000
-	qui kountry country, from(iso2c) to(iso3c)
-	qui drop country 
-	qui rename _ISO3C_ iso
-	qui rename (`spenvars') (edu hea exp con)
-	qui gen source = "WID_web"
-	qui save "input_data/sna-WID/gov_expenditure_`date'.dta"
-}
-
-qui use "input_data/sna-WID/gov_expenditure_`date'.dta", clear
+*bring expenditures from the local WID source workflow artifact
+qui use "input_data/wid/public_spending_gdp_shares.dta", clear
 qui drop con 
 qui rename exp con 
 tempfile tfwid
@@ -130,4 +100,3 @@ qui drop *_wb
 
 //save dataset
 qui save "intermediary_data/national_accounts/UNDATA-WID-OECD-Merged.dta", replace
-

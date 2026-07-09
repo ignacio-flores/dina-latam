@@ -1,32 +1,110 @@
-version: 1
+version: 2
 source_type: wid
 source_ids:
   - population
+  - wid-macro
+  - wid-public-spending
+  - wid-prices-xrates
+  - wid-export-scaling
+  - wid-export-sptinc-check
 explore_output_root: output/experiments/wid_explore
 output_root: output/experiments/wid_include
 years:
   first: 1990
   from_config: config/dina.yml
-schema:
+artifacts:
   population:
-    required_columns:
-      - country
-      - region
-      - year
-      - totalpop
-      - adultpop
-    key_columns:
-      - country
-      - year
-    numeric_columns:
-      - totalpop
-      - adultpop
+    canonical: input_data/wid/population_total_adult_npopul.dta
+    raw: input_data/wid/raw_population_npopul_ages_999_992.dta
+    type: population_total_adult
+    request:
+      indicators: [npopul]
+      area_set: population_legacy
+      ages: ["999", "992"]
+      pop: i
+      first_year: 1990
+    schema:
+      required_columns: [country, region, year, totalpop, adultpop]
+      key_columns: [country, year]
+      numeric_columns: [totalpop, adultpop]
+      required_years: config
+  wid-macro:
+    canonical: input_data/wid/macro_national_accounts_indicators.dta
+    raw: input_data/wid/raw_macro_national_accounts_indicators_ages_999_992.dta
+    type: raw_subset
+    request:
+      indicators: [mnninc, mgdpro, mnnfin, mptfrr, mptfrp, inyixx, npopul, mccshn, mccmhn, mcfcco, mconfc, mptfhr, mgsmhn, mgsrhn, mgmxhn, mprgco, agninc]
+      area_set: project_latam
+      ages: ["999", "992"]
+      first_year: 1990
+    schema:
+      required_columns: [country, variable, year, value]
+      key_columns: [country, variable, year]
+      numeric_columns: [value]
+      required_years: config
+  wid-public-spending:
+    canonical: input_data/wid/public_spending_gdp_shares.dta
+    raw: input_data/wid/raw_public_spending_indicators.dta
+    type: public_spending_gdp_shares
+    request:
+      indicators: [meduge, mheage, mexpgo, mcongo, mgdpro]
+      area_set: project_latam
+      first_year: 1990
+    schema:
+      required_columns: [iso, year, source, exp, con, hea, edu]
+      key_columns: [iso, year]
+      numeric_columns: [exp, con, hea, edu]
+      required_years: configured_window
+  wid-prices-xrates:
+    canonical: input_data/wid/prices_deflator_ppp_eur.dta
+    raw: input_data/wid/raw_prices_inyixx_xlceup.dta
+    type: prices_deflator_ppp
+    request:
+      indicators: [inyixx, xlceup]
+      area_set: project_latam
+      first_year: 1990
+    schema:
+      required_columns: [country, countrycode, year, defl_xxxx, xppp_eur]
+      key_columns: [country, year]
+      numeric_columns: [defl_xxxx, xppp_eur]
+      required_years: configured_window
+  wid-export-scaling:
+    canonical: input_data/wid/export_scaling_anninc_xrates.dta
+    raw: input_data/wid/raw_export_anninc_xlceup_xlceux_p0p100.dta
+    type: export_scaling
+    request:
+      indicators: [anninc, xlceup, xlceux]
+      area_set: export_countries
+      perc: [p0p100]
+      first_year: 1990
+    schema:
+      required_columns: [iso, year, anninc992i, nninc_lcu_constc, ppp_eur, mer_eur]
+      key_columns: [iso, year]
+      numeric_columns: [anninc992i, nninc_lcu_constc, ppp_eur, mer_eur]
+      required_years: configured_window
+  wid-export-sptinc-check:
+    canonical: input_data/wid/export_comparison_sptinc_p0p20.dta
+    raw: input_data/wid/raw_export_sptinc_p0p20_age_992.dta
+    type: export_sptinc_check
+    request:
+      indicators: [sptinc]
+      area_set: export_countries
+      perc: [p0p20]
+      ages: ["992"]
+      first_year: 2000
+    schema:
+      required_columns: [country, year, widcode, p, value_web]
+      key_columns: [country, year, widcode, p]
+      numeric_columns: [value_web]
+      required_years: configured_window
 statuses:
   blocked:
-    - blocked_missing_incoming_source
+    - blocked_fetch_failed
     - blocked_read_failed
     - blocked_schema
     - blocked_empty_source
     - blocked_duplicate_keys
     - blocked_missing_values
     - blocked_missing_required_years
+    - blocked_derivation_failed
+    - blocked_copy_failed

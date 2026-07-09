@@ -473,7 +473,7 @@ What it manages:
   Source registry, incoming `_new` buckets, fetchers, and baseline comparison.
   Supported fetches write directly to `input_data/_new`. Public source types are
   sna, admin, admin-microdata, surveys, wid, and other. SNA, PIT admin, surveys,
-  and WID population have explore/include/table automation for now; they do not
+  and WID have explore/include/table automation for now; they do not
   replace pipeline tasks except for generated source artifacts such as
   SurveyPop.dta.
 
@@ -504,7 +504,7 @@ Subcommands:
   include SOURCETYPE              Consumes an exploration run and checks the
                                   deterministic include contract. Currently
                                   implemented for sna, PIT admin, surveys, and
-                                  WID population. Dry-run is the default and
+                                  WID. Dry-run is the default and
                                   stages files under the run.
   table SOURCETYPE                Previews explore output tables inline.
                                   Currently implemented for sna, admin,
@@ -568,7 +568,7 @@ Methods:
   zip                             Direct archive URL fetchable by `sources fetch`.
   script                          Custom acquisition script or fetcher exists.
   manual                          Human-curated input or URL index.
-  wid                             Data currently acquired through Stata/WID calls.
+  wid                             Data acquired through the WID source workflow.
 
 Examples:
   dina sources list
@@ -594,7 +594,7 @@ Examples:
   dina sources table admin
   dina sources table admin year_expectations
   dina sources table surveys survey_pop_status
-  dina sources table wid overlap_summary
+  dina sources table wid wid_artifact_comparison
 ",
     buckets = "Usage:
   dina buckets [detail|urls|uses|fetch] [OPTIONS]
@@ -1629,11 +1629,11 @@ dina_command_catalog <- function(year = format(Sys.Date(), "%Y")) {
         dina_command_entry("sources-list-guide", "Source guide", "Show where sources come from and where they land.", args = c("sources", "list", "guide")),
         dina_command_entry("sources-fetch-dry-run", "Preview fetch", "Preview supported source fetches into _new buckets.", args = c("sources", "fetch", "--dry-run")),
         dina_command_entry("sources-fetch-source", "Preview source fetch", "Preview one supported source fetch.", args = c("sources", "fetch", "{ID}", "--dry-run"), prompts = list(ID = list(label = "Source id", example = "chl-pit-total"))),
-        dina_command_entry("sources-explore-type", "Explore source type", "Inspect new files, likely years, structure evidence, and include expectations.", args = c("sources", "explore", "{SOURCETYPE}"), defaults = list(SOURCETYPE = "sna"), prompts = list(SOURCETYPE = list(label = "Source type", example = "sna, admin, surveys, or wid")), help = "Currently implemented for sna, PIT admin, surveys, and WID population; writes experiment outputs under output/experiments/."),
-        dina_command_entry("sources-include-type", "Include source type dry-run", "Stage incoming sources and run deterministic inclusion checks.", args = c("sources", "include", "{SOURCETYPE}", "--dry-run"), defaults = list(SOURCETYPE = "sna"), prompts = list(SOURCETYPE = list(label = "Source type", example = "sna, admin, surveys, or wid")), help = "Currently implemented for sna, PIT admin, surveys, and WID population. No production files are changed."),
-        dina_command_entry("sources-include-type-confirm", "Confirm source type", "Promote sources from a clean staged include run after writing backups.", args = c("sources", "include", "{SOURCETYPE}", "--confirm", "--include-run", "{RUN}"), defaults = list(SOURCETYPE = "sna"), prompts = list(SOURCETYPE = list(label = "Source type", example = "sna, admin, surveys, or wid"), RUN = list(label = "Include run", example = "output/experiments/*/runs/RUN")), mutating = TRUE, confirm = TRUE, help = "Currently implemented for sna, PIT admin, surveys, and WID population. Does not run the pipeline. Use only after reviewing a clean include dry-run."),
+        dina_command_entry("sources-explore-type", "Explore source type", "Inspect new files, likely years, structure evidence, and include expectations.", args = c("sources", "explore", "{SOURCETYPE}"), defaults = list(SOURCETYPE = "sna"), prompts = list(SOURCETYPE = list(label = "Source type", example = "sna, admin, surveys, or wid")), help = "Currently implemented for sna, PIT admin, surveys, and WID; writes experiment outputs under output/experiments/."),
+        dina_command_entry("sources-include-type", "Include source type dry-run", "Stage incoming sources and run deterministic inclusion checks.", args = c("sources", "include", "{SOURCETYPE}", "--dry-run"), defaults = list(SOURCETYPE = "sna"), prompts = list(SOURCETYPE = list(label = "Source type", example = "sna, admin, surveys, or wid")), help = "Currently implemented for sna, PIT admin, surveys, and WID. No production files are changed."),
+        dina_command_entry("sources-include-type-confirm", "Confirm source type", "Promote sources from a clean staged include run after writing backups.", args = c("sources", "include", "{SOURCETYPE}", "--confirm", "--include-run", "{RUN}"), defaults = list(SOURCETYPE = "sna"), prompts = list(SOURCETYPE = list(label = "Source type", example = "sna, admin, surveys, or wid"), RUN = list(label = "Include run", example = "output/experiments/*/runs/RUN")), mutating = TRUE, confirm = TRUE, help = "Currently implemented for sna, PIT admin, surveys, and WID. Does not run the pipeline. Use only after reviewing a clean include dry-run."),
         dina_command_entry("sources-include-type-restore", "Restore source type", "Restore canonical sources from a confirm backup snapshot.", args = c("sources", "include", "{SOURCETYPE}", "--restore", "{CONFIRM_RUN}"), defaults = list(SOURCETYPE = "sna"), prompts = list(SOURCETYPE = list(label = "Source type", example = "sna, admin, surveys, or wid"), CONFIRM_RUN = list(label = "Confirm run", example = "output/experiments/country_sna_include/confirms/confirm-YYYYMMDD-HHMMSS")), mutating = TRUE, confirm = TRUE),
-        dina_command_entry("sources-table-type", "Source type table preview", "Preview explore output tables inline.", args = c("sources", "table", "{SOURCETYPE}", "year_expectations"), defaults = list(SOURCETYPE = "sna"), prompts = list(SOURCETYPE = list(label = "Source type", example = "sna, admin, surveys, or wid")), help = "Currently implemented for sna, PIT admin, surveys, and WID population. Use --run PATH, --country ISO, and --limit N for a narrower preview."),
+        dina_command_entry("sources-table-type", "Source type table preview", "Preview explore output tables inline.", args = c("sources", "table", "{SOURCETYPE}", "year_expectations"), defaults = list(SOURCETYPE = "sna"), prompts = list(SOURCETYPE = list(label = "Source type", example = "sna, admin, surveys, or wid")), help = "Currently implemented for sna, PIT admin, surveys, and WID. Use --run PATH, --country ISO, and --limit N for a narrower preview."),
         dina_command_entry(
           "source-registry-diagnostics",
           "Source diagnostics",
@@ -5271,7 +5271,7 @@ dina_print_wid_explore <- function(result, dry_run = FALSE) {
     dina_cli_alert("Dry-run only: review tables were not written.")
   } else {
     dina_cli_ok(sprintf("Explore output: %s", result$paths$root))
-    dina_cli_alert("Review percentage-difference tables with `dina sources table wid overlap_summary` or `dina sources table wid overlap_differences`.")
+    dina_cli_alert("Review artifact comparisons with `dina sources table wid wid_artifact_comparison` or `dina sources table wid wid_numeric_comparison`.")
   }
   invisible(result)
 }
@@ -5343,7 +5343,7 @@ dina_print_wid_include <- function(result) {
   dina_cli_ok(sprintf("Include dry-run output: %s", result$paths$root))
   dina_cli_alert("No production files changed. Confirm only after reviewing a clean run.")
   dina_cli_alert(sprintf("List include tables with `dina sources table wid --run %s`.", result$paths$root))
-  dina_cli_alert("Common review tables: overlap_summary, overlap_year_summary, overlap_differences, coverage_differences.")
+  dina_cli_alert("Common review tables: wid_artifact_comparison, wid_numeric_comparison, validation_report, promotion_plan.")
   if (identical(status, "all_good")) {
     dina_cli_alert(sprintf("Confirm after review: dina sources include wid --confirm --include-run %s", result$paths$root))
   }

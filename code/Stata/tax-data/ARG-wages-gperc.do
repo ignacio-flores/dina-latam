@@ -9,11 +9,11 @@ clear
 
 //Import total population data into tabulations
 local pop_years "1996/2015"
-qui use "input_data/population/PopulationLatAm.dta", clear
+qui use "input_data/wid/population_total_adult_npopul.dta", clear
 forvalues t = `pop_years' {
 	qui sum totalpop if strtrim(country) == "Argentina" & year == `t', meanonly
 	if r(N) != 1 {
-		di as error "Expected one Argentina population row for `t' in input_data/population/PopulationLatAm.dta"
+		di as error "Expected one Argentina population row for `t' in input_data/wid/population_total_adult_npopul.dta"
 		exit 459
 	}
 	scalar totalpop`t' = r(mean)
@@ -146,4 +146,3 @@ forvalues t = `pop_years' {
 	export excel using "input_data/admin_data/ARG/wage_ARG_`t'.xlsx", /// 
 		firstrow(variables) keepcellfmt replace
 }
-

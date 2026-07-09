@@ -247,6 +247,49 @@ admin_pit_include_survey_pop_dependency <- function(rel, dependency_id = "") {
   any(candidates == "intermediary_data/population/SurveyPop.dta")
 }
 
+admin_pit_include_wid_population_dependency <- function(rel, dependency_id = "") {
+  candidates <- gsub("\\\\", "/", c(rel %||% "", dependency_id %||% ""))
+  any(candidates == "input_data/wid/population_total_adult_npopul.dta")
+}
+
+admin_pit_include_wid_population_status <- function(root, rel) {
+  population <- admin_pit_include_path(rel, root)
+  next_command <- "dina sources explore wid"
+  guidance <- "Run `dina sources explore wid`, then `dina sources include wid --dry-run`, then confirm a clean WID include run."
+  if (!file.exists(population)) {
+    return(list(
+      status = "missing_static_dependency",
+      severity = "blocked",
+      next_command = next_command,
+      detail = paste("Required WID population artifact is missing.", guidance)
+    ))
+  }
+  inputs <- c(
+    file.path(root, "config", "dina.yml"),
+    file.path(root, "config", "wid_include.yml"),
+    file.path(root, "code", "R", "source-diagnostics", "wid_include.R")
+  )
+  inputs <- inputs[file.exists(inputs)]
+  if (length(inputs)) {
+    latest_input <- max(file.info(inputs)$mtime, na.rm = TRUE)
+    output_mtime <- file.info(population)$mtime[[1L]]
+    if (!is.na(latest_input) && !is.na(output_mtime) && latest_input > output_mtime) {
+      return(list(
+        status = "stale_static_dependency",
+        severity = "blocked",
+        next_command = next_command,
+        detail = paste("WID population artifact is older than the WID source workflow contract/code.", guidance)
+      ))
+    }
+  }
+  list(
+    status = "carried_forward",
+    severity = "info",
+    next_command = "",
+    detail = "WID population artifact is available for carry-forward staging."
+  )
+}
+
 admin_pit_include_survey_pop_status <- function(root, rel) {
   survey_pop <- admin_pit_include_path(rel, root)
   next_command <- "dina sources explore surveys"
@@ -261,7 +304,7 @@ admin_pit_include_survey_pop_status <- function(root, rel) {
   }
   inputs <- c(
     Sys.glob(file.path(root, "input_data", "surveys_CEPAL", "*", "*.dta")),
-    file.path(root, "input_data", "population", "PopulationLatAm.dta"),
+    file.path(root, "input_data", "wid", "population_total_adult_npopul.dta"),
     file.path(root, "config", "dina.yml"),
     file.path(root, "config", "survey_population_include.yml"),
     file.path(root, "code", "R", "source-diagnostics", "survey_sources_include.R")
@@ -290,6 +333,9 @@ admin_pit_include_survey_pop_status <- function(root, rel) {
 admin_pit_include_static_dependency_status <- function(root, rel, dependency_id, copy_status) {
   if (admin_pit_include_survey_pop_dependency(rel, dependency_id)) {
     return(admin_pit_include_survey_pop_status(root, "intermediary_data/population/SurveyPop.dta"))
+  }
+  if (admin_pit_include_wid_population_dependency(rel, dependency_id)) {
+    return(admin_pit_include_wid_population_status(root, "input_data/wid/population_total_adult_npopul.dta"))
   }
   if (identical(copy_status, "missing_dependency")) {
     return(list(

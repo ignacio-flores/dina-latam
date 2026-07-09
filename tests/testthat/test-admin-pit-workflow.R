@@ -122,8 +122,8 @@ admin_pit_fixture_repo <- function(block_col = FALSE, backup_overlap = FALSE, mi
   }
   writeLines("year,uta\n2024,75981", file.path(root, "input_data", "_new", "admin", "CHL", "chl_uta_december.csv"))
   dir.create(file.path(root, "intermediary_data", "population"), recursive = TRUE)
-  dir.create(file.path(root, "input_data", "population"), recursive = TRUE)
-  writeLines("latam-pop-fixture", file.path(root, "input_data", "population", "PopulationLatAm.dta"))
+  dir.create(file.path(root, "input_data", "wid"), recursive = TRUE)
+  writeLines("latam-pop-fixture", file.path(root, "input_data", "wid", "population_total_adult_npopul.dta"))
   writeLines("survey-pop-fixture", file.path(root, "intermediary_data", "population", "SurveyPop.dta"))
   for (file in c("tab_gc_1991_2000.xls", "tab_gc_1963_1981.xlsx", "tab_gc_1998_2009.xlsx", "tab_gc_wage_1998_2009.xlsx", "Data_1998-2009sinKG.xlsx")) {
     writeLines("static fixture", file.path(root, "input_data", "admin_data", "CHL", file))
@@ -459,4 +459,19 @@ test_that("main dina CLI dispatches admin PIT explore and table to isolated modu
   expect_match(include$output, "SurveyPop.dta")
   expect_match(include$output, "dina sources explore surveys")
   admin_pit_expect_false(grepl("Experimental isolated source workflow", include$output, fixed = TRUE))
+})
+
+test_that("admin static dependency guidance points WID population to WID workflow", {
+  root <- admin_pit_fixture_repo(minwage = "canonical")
+  unlink(file.path(root, "input_data", "wid", "population_total_adult_npopul.dta"))
+
+  explore <- run_dina_cli(c("sources", "explore", "admin"), root = root)
+  expect_equal(explore$status, 0L)
+  expect_match(explore$output, "dina sources explore wid")
+
+  include <- run_dina_cli(c("sources", "include", "admin"), root = root)
+  expect_equal(include$status, 0L)
+  expect_match(include$output, "Overall status: blocked")
+  expect_match(include$output, "population_total_adult_npopul")
+  expect_match(include$output, "dina sources explore wid")
 })

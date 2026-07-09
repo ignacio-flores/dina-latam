@@ -180,7 +180,7 @@ admin_pit_candidate_clean_chl <- function(
     dplyr::mutate(freq = personas / totpop_ie, p = 1 - cumsum(freq), cum = cumsum(freq)) |>
     dplyr::arrange(year, thr)
 
-  chl_pop1999 <- haven::read_dta(file.path(input_root, "input_data", "population", "PopulationLatAm.dta"))
+  chl_pop1999 <- haven::read_dta(file.path(input_root, "input_data", "wid", "population_total_adult_npopul.dta"))
   chl_pop1999 <- chl_pop1999 |>
     janitor::clean_names() |>
     dplyr::filter(stringr::str_detect(country, "Chile"), year == 1999) |>

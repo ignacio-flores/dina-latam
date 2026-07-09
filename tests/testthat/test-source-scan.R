@@ -125,6 +125,8 @@ test_that("project source registry is a complete readable catalog", {
     "bra-admin-thresholds",
     "bra-pit-total",
     "wid-prices-xrates",
+    "wid-export-scaling",
+    "wid-export-sptinc-check",
     "wb-xrates",
     "wb-inflation"
   ) %in% ids))
@@ -173,4 +175,20 @@ test_that("project source registry is a complete readable catalog", {
   script_paths <- script_paths[nzchar(script_paths)]
   expect_true(all(file.exists(file.path(repo_root_for_tests, script_paths))))
   expect_false(any(grepl("code/R/functions/bra_.*downloader|code/R/.*/[0-9]{2}[a-z]_download|code/R/01b_import|code/R/02b_clean_admin_chl|code/R/03a_interpolate", script_paths)))
+})
+
+test_that("active code does not call WID directly outside the source workflow", {
+  files <- list.files(file.path(repo_root_for_tests, "code"), recursive = TRUE, full.names = TRUE)
+  files <- files[grepl("\\.(R|do|ado|sthlp)$", files)]
+  rel <- sub(paste0("^", normalizePath(repo_root_for_tests), "/"), "", normalizePath(files, mustWork = FALSE))
+  legacy <- grepl("(^|/)(old|legacy)(/|$)|\\.sthlp$", rel)
+  active <- files[!legacy]
+  active_rel <- rel[!legacy]
+  has_direct_wid <- vapply(active, function(path) {
+    text <- paste(readLines(path, warn = FALSE), collapse = "\n")
+    stata_call <- grepl("(^|\n)\\s*(qui|quietly|cap|capture)?\\s*wid\\s*,", text, perl = TRUE)
+    r_call <- grepl("download_wid\\s*\\(", text, perl = TRUE)
+    (stata_call || r_call) && !grepl("code/R/source-diagnostics/wid_include\\.R$", path)
+  }, logical(1))
+  expect_equal(active_rel[has_direct_wid], character())
 })

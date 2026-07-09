@@ -913,7 +913,7 @@ admin_pit_explorer_survey_pop_status <- function(root, path) {
   }
   inputs <- c(
     Sys.glob(file.path(root, "input_data", "surveys_CEPAL", "*", "*.dta")),
-    file.path(root, "input_data", "population", "PopulationLatAm.dta"),
+    file.path(root, "input_data", "wid", "population_total_adult_npopul.dta"),
     file.path(root, "config", "dina.yml"),
     file.path(root, "config", "survey_population_include.yml"),
     file.path(root, "code", "R", "source-diagnostics", "survey_sources_include.R")
@@ -939,6 +939,44 @@ admin_pit_explorer_survey_pop_status <- function(root, path) {
   )
 }
 
+admin_pit_explorer_wid_population_status <- function(root, path) {
+  population <- admin_pit_explorer_path(path, root)
+  next_command <- "dina sources explore wid"
+  guidance <- "Run `dina sources explore wid`, then `dina sources include wid --dry-run`, then confirm a clean WID include run."
+  if (!file.exists(population)) {
+    return(list(
+      status = "missing_static_dependency",
+      severity = "blocked",
+      next_command = next_command,
+      detail = paste("Required WID population artifact is missing.", guidance)
+    ))
+  }
+  inputs <- c(
+    file.path(root, "config", "dina.yml"),
+    file.path(root, "config", "wid_include.yml"),
+    file.path(root, "code", "R", "source-diagnostics", "wid_include.R")
+  )
+  inputs <- inputs[file.exists(inputs)]
+  if (length(inputs)) {
+    latest_input <- max(file.info(inputs)$mtime, na.rm = TRUE)
+    output_mtime <- file.info(population)$mtime[[1L]]
+    if (!is.na(latest_input) && latest_input > output_mtime) {
+      return(list(
+        status = "stale_static_dependency",
+        severity = "blocked",
+        next_command = next_command,
+        detail = paste("WID population artifact is older than the WID source workflow contract/code.", guidance)
+      ))
+    }
+  }
+  list(
+    status = "available_static_dependency",
+    severity = "info",
+    next_command = "",
+    detail = "WID population artifact is available for carry-forward staging."
+  )
+}
+
 admin_pit_explorer_static_dependency_report <- function(root, include_contract, source_ids) {
   deps <- include_contract$cleaners$static_dependencies %||% list()
   rows <- list()
@@ -949,6 +987,8 @@ admin_pit_explorer_static_dependency_report <- function(root, include_contract, 
       if (!length(matches)) {
         survey_status <- if (identical(pattern, "intermediary_data/population/SurveyPop.dta")) {
           admin_pit_explorer_survey_pop_status(root, pattern)
+        } else if (identical(pattern, "input_data/wid/population_total_adult_npopul.dta")) {
+          admin_pit_explorer_wid_population_status(root, pattern)
         } else {
           list(
             status = "missing_static_dependency",
@@ -973,6 +1013,8 @@ admin_pit_explorer_static_dependency_report <- function(root, include_contract, 
         for (path in matches) {
           survey_status <- if (identical(pattern, "intermediary_data/population/SurveyPop.dta")) {
             admin_pit_explorer_survey_pop_status(root, pattern)
+          } else if (identical(pattern, "input_data/wid/population_total_adult_npopul.dta")) {
+            admin_pit_explorer_wid_population_status(root, pattern)
           } else {
             list(
               status = "available_static_dependency",

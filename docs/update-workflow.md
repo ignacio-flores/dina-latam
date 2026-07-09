@@ -95,17 +95,16 @@ surveys --dry-run` to stage approved raw survey files under normalized active
 candidate `SurveyPop.dta`. Confirm only after review; the confirm step promotes
 approved survey inputs and writes `intermediary_data/population/SurveyPop.dta`.
 
-The public `wid` source type has a population-only v1 workflow for the registry
-source `population`. Use `dina sources fetch population` or
-`dina sources fetch wid` to refresh the WID `npopul` candidate under `_new`,
-then `dina sources explore wid` to validate schema, country/year keys, missing
-values, required year coverage, and current-vs-incoming coverage differences.
-The overlap review tables report absolute and percentage differences for
-`totalpop` and `adultpop`; preview them with `dina sources table wid
-overlap_summary`, `overlap_year_summary`, or `overlap_differences`. Use
-`dina sources include wid --dry-run` to stage the incoming file for review,
-then confirm only after approval. The canonical path remains
-`input_data/population/PopulationLatAm.dta`.
+The public `wid` source type owns WID fetching for the active pipeline. Run
+`dina sources explore wid` to review the local artifact inventory without
+network calls, then `dina sources include wid --dry-run` to fetch raw WID
+extracts into a staged run, derive local `.dta` artifacts, and compare them
+with any existing files. Confirm only after review. The canonical WID files live
+flat in `input_data/wid/`, including `population_total_adult_npopul.dta`,
+`macro_national_accounts_indicators.dta`, `public_spending_gdp_shares.dta`,
+`prices_deflator_ppp_eur.dta`, and export comparison/scaling artifacts. World
+Bank price inputs remain separate under `input_data/prices_WB/`; any combined
+WID/WB price object is a pipeline temporary, not a WID source artifact.
 
 ## Compress Input Data
 

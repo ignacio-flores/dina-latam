@@ -85,7 +85,7 @@ chl_tabs <- full_join(raw_tabs, uta, by = "year") %>%
   arrange(year, thr) 
 
 #Prepare tabulation from 1999 to adjust for deductions 
-chl_pop1999 <- read_dta("input_data/population/PopulationLatAm.dta")
+chl_pop1999 <- read_dta("input_data/wid/population_total_adult_npopul.dta")
 chl_pop1999 %<>% clean_names() %>% 
   filter(str_detect(country, "Chile"), year == 1999) %>% 
   select(totalpop) %>% 
