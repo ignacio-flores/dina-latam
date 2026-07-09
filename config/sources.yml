@@ -619,11 +619,12 @@ sources:
     inbox:
       - input_data/_new/surveys/*
     inbox_examples:
-      - country survey .dta files
+      - PAN_2024N.dta
+      - PAN_2024N1.dta
       - survey metadata spreadsheets
     destination: input_data/surveys_CEPAL/{relative}
     transformer:
-      - code/R/source-diagnostics/survey_population_include.R
+      - code/R/source-diagnostics/survey_sources_include.R
       - code/Stata/01e-clean-survey-data.do
     derived_outputs:
       - intermediary_data/population/SurveyPop.dta

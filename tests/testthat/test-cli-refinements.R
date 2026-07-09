@@ -265,7 +265,7 @@ test_that("public source type filters aggregate internal families including wid"
 
   surveys <- run_dina_cli(c("sources", "explore", "surveys"), root = root)
   expect_equal(surveys$status, 0L)
-  expect_match(surveys$output, "Survey Population Explore")
+  expect_match(surveys$output, "Survey Sources Explore")
   expect_match(surveys$output, "SurveyPop.dta")
 
   wid_fetch <- run_dina_cli(c("sources", "fetch", "wid", "--dry-run"), root = root)

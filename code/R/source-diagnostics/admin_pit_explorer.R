@@ -916,7 +916,7 @@ admin_pit_explorer_survey_pop_status <- function(root, path) {
     file.path(root, "input_data", "population", "PopulationLatAm.dta"),
     file.path(root, "config", "dina.yml"),
     file.path(root, "config", "survey_population_include.yml"),
-    file.path(root, "code", "R", "source-diagnostics", "survey_population_include.R")
+    file.path(root, "code", "R", "source-diagnostics", "survey_sources_include.R")
   )
   inputs <- inputs[file.exists(inputs)]
   if (length(inputs)) {
@@ -927,7 +927,7 @@ admin_pit_explorer_survey_pop_status <- function(root, path) {
         status = "stale_static_dependency",
         severity = "blocked",
         next_command = "dina sources explore surveys",
-        detail = "SurveyPop.dta is older than survey-population inputs. Run `dina sources explore surveys`, then `dina sources include surveys --dry-run`, then confirm a clean surveys include run."
+        detail = "SurveyPop.dta is older than survey-source inputs. Run `dina sources explore surveys`, then `dina sources include surveys --dry-run`, then confirm a clean surveys include run."
       ))
     }
   }

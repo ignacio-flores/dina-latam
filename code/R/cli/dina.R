@@ -5370,11 +5370,32 @@ dina_print_wid_restore <- function(result) {
 dina_print_survey_pop_explore <- function(result, dry_run = FALSE) {
   coverage <- result$outputs$year_coverage
   status <- result$outputs$survey_pop_status
+  source_summary <- result$outputs$survey_source_summary %||% data.frame()
   actions <- result$outputs$review_actions
   manifest <- result$manifest
   overall <- if (nrow(manifest)) manifest$value[manifest$key == "status"][[1L]] else "check_following"
-  dina_cli_header("Survey Population Explore")
+  dina_cli_header("Survey Sources Explore")
   dina_cli_cat(sprintf("Overall status: %s", overall))
+  if (nrow(source_summary)) {
+    dina_cli_cat("")
+    dina_cli_cat("Survey source status:")
+    dina_cli_cat(dina_cli_row(c("source", "status", "new", "retro", "changed", "variants", "unknown", "blocked"), widths = c(18, 12, 6, 7, 8, 9, 8, 8), dim = TRUE))
+    for (i in seq_len(nrow(source_summary))) {
+      dina_cli_cat(dina_cli_row(
+        c(
+          source_summary$source_id[[i]],
+          source_summary$status[[i]],
+          source_summary$new_years[[i]],
+          source_summary$retroactive_overlaps[[i]],
+          source_summary$changed_overlaps[[i]],
+          source_summary$filename_variants[[i]],
+          source_summary$unknown_files[[i]],
+          source_summary$blocked[[i]]
+        ),
+        widths = c(18, 12, 6, 7, 8, 9, 8, 8)
+      ))
+    }
+  }
   if (nrow(coverage)) {
     dina_cli_cat(dina_cli_row(c("country", "canonical", "incoming", "effective", "missing"), widths = c(8, 22, 22, 22, 22), dim = TRUE))
     for (i in seq_len(nrow(coverage))) {
@@ -5425,7 +5446,7 @@ dina_print_survey_pop_table <- function(root, table, run = NULL, country = NULL,
   if (!is.null(country) && "country" %in% names(rows)) {
     rows <- rows[toupper(rows$country) == toupper(country), , drop = FALSE]
   }
-  dina_cli_header(sprintf("Survey Population Table: %s", table))
+  dina_cli_header(sprintf("Survey Sources Table: %s", table))
   if (isTRUE(show_run)) dina_cli_alert(sprintf("Run: %s", survey_pop_table_run(root, run)))
   dina_print_data_frame_compact(rows, limit = limit)
   invisible(rows)
@@ -5436,10 +5457,10 @@ dina_print_survey_pop_tables <- function(root, run = NULL, country = NULL, limit
   catalog <- survey_pop_table_catalog()
   available <- survey_pop_table_available(root, run)
   ordered <- c(catalog$table[catalog$table %in% available], sort(setdiff(available, catalog$table)))
-  dina_cli_header("Survey Population Tables")
+  dina_cli_header("Survey Sources Tables")
   dina_cli_alert(sprintf("Run: %s", run_path))
   if (!length(ordered)) {
-    dina_cli_warn("No survey population tables found yet. Run `dina sources explore surveys` first, or pass --run PATH.")
+    dina_cli_warn("No survey source tables found yet. Run `dina sources explore surveys` first, or pass --run PATH.")
     return(invisible(character()))
   }
   for (table in ordered) {
@@ -5450,10 +5471,29 @@ dina_print_survey_pop_tables <- function(root, run = NULL, country = NULL, limit
 
 dina_print_survey_pop_include <- function(result) {
   summary <- result$outputs$include_summary
+  source_summary <- result$outputs$survey_source_summary %||% data.frame()
   manifest <- result$manifest
   status <- if (nrow(manifest)) manifest$value[manifest$key == "status"][[1L]] else "check_following"
-  dina_cli_header("Survey Population Include")
+  dina_cli_header("Survey Sources Include")
   dina_cli_cat(sprintf("Overall status: %s", status))
+  if (nrow(source_summary)) {
+    dina_cli_cat(dina_cli_row(c("source", "status", "new", "retro", "changed", "variants", "unknown", "blocked"), widths = c(18, 12, 6, 7, 8, 9, 8, 8), dim = TRUE))
+    for (i in seq_len(nrow(source_summary))) {
+      dina_cli_cat(dina_cli_row(
+        c(
+          source_summary$source_id[[i]],
+          source_summary$status[[i]],
+          source_summary$new_years[[i]],
+          source_summary$retroactive_overlaps[[i]],
+          source_summary$changed_overlaps[[i]],
+          source_summary$filename_variants[[i]],
+          source_summary$unknown_files[[i]],
+          source_summary$blocked[[i]]
+        ),
+        widths = c(18, 12, 6, 7, 8, 9, 8, 8)
+      ))
+    }
+  }
   if (!nrow(summary)) {
     dina_cli_alert("No survey include summary rows were produced. Run `dina sources explore surveys` first.")
   } else {
@@ -5481,7 +5521,7 @@ dina_print_survey_pop_include <- function(result) {
   dina_cli_ok(sprintf("Include dry-run output: %s", result$paths$root))
   dina_cli_alert("No production files changed. Confirm only after reviewing a clean run.")
   dina_cli_alert(sprintf("List include tables with `dina sources table surveys --run %s`.", result$paths$root))
-  dina_cli_alert("Common review tables: survey_pop_comparison, candidate_source_status, year_coverage, variable_report.")
+  dina_cli_alert("Common review tables: survey_source_summary, survey_source_comparison, survey_source_candidates, survey_pop_comparison.")
   if (identical(status, "all_good")) {
     dina_cli_alert(sprintf("Confirm after review: dina sources include surveys --confirm --include-run %s", result$paths$root))
   }
@@ -5490,7 +5530,7 @@ dina_print_survey_pop_include <- function(result) {
 
 dina_print_survey_pop_confirm <- function(result) {
   report <- result$outputs$promote_report
-  dina_cli_header("Survey Population Include Confirm")
+  dina_cli_header("Survey Sources Include Confirm")
   dina_print_data_frame_compact(report, limit = 20L)
   dina_cli_ok(sprintf("Confirm run: %s", result$paths$root))
   dina_cli_alert(sprintf("Rollback: dina sources include surveys --restore %s", result$paths$root))
@@ -5499,7 +5539,7 @@ dina_print_survey_pop_confirm <- function(result) {
 
 dina_print_survey_pop_restore <- function(result) {
   report <- result$outputs$restore_report
-  dina_cli_header("Survey Population Include Restore")
+  dina_cli_header("Survey Sources Include Restore")
   dina_print_data_frame_compact(report, limit = 20L)
   dina_cli_ok(sprintf("Restore report: %s", result$paths$restore_report))
   invisible(result)
@@ -5653,7 +5693,7 @@ dina_cmd_sources <- function(root, args) {
     if (identical(family, "wid")) {
       source(file.path(root, "code", "R", "source-diagnostics", "wid_include.R"), local = FALSE)
     } else if (identical(family, "surveys")) {
-      source(file.path(root, "code", "R", "source-diagnostics", "survey_population_include.R"), local = FALSE)
+      source(file.path(root, "code", "R", "source-diagnostics", "survey_sources_include.R"), local = FALSE)
     }
     if (is.null(table)) {
       if (identical(family, "admin")) {
@@ -5800,14 +5840,14 @@ dina_cmd_sources <- function(root, args) {
         dina_print_wid_include(result)
       }
     } else if (identical(family, "surveys") && identical(sub, "explore")) {
-      source(file.path(root, "code", "R", "source-diagnostics", "survey_population_include.R"), local = FALSE)
+      source(file.path(root, "code", "R", "source-diagnostics", "survey_sources_include.R"), local = FALSE)
       result <- run_survey_pop_explorer(root = root, output_dir = output_dir, countries = country, write_outputs = !isTRUE(flags[["dry-run"]]), dry_run = isTRUE(flags[["dry-run"]]))
       dina_print_survey_pop_explore(result, dry_run = isTRUE(flags[["dry-run"]]))
     } else if (identical(family, "surveys")) {
       if (isTRUE(flags$apply)) {
         stop("Use `--confirm`; promotion now requires a staged include run and backup snapshot.", call. = FALSE)
       }
-      source(file.path(root, "code", "R", "source-diagnostics", "survey_population_include.R"), local = FALSE)
+      source(file.path(root, "code", "R", "source-diagnostics", "survey_sources_include.R"), local = FALSE)
       if (isTRUE(flags$confirm)) {
         result <- survey_pop_confirm_sources(
           root = root,

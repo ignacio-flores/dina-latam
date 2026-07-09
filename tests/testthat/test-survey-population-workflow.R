@@ -1,4 +1,4 @@
-source(file.path(repo_root_for_tests, "code", "R", "source-diagnostics", "survey_population_include.R"))
+source(file.path(repo_root_for_tests, "code", "R", "source-diagnostics", "survey_sources_include.R"))
 
 survey_pop_fixture_write_dta <- function(root, rel, data) {
   path <- file.path(root, rel)
@@ -21,6 +21,11 @@ survey_pop_fixture_root <- function(existing_survey_pop = FALSE, incoming = FALS
   dir.create(file.path(root, "input_data", "_new", "surveys"), recursive = TRUE, showWarnings = FALSE)
   dir.create(file.path(root, "input_data", "population"), recursive = TRUE, showWarnings = FALSE)
   dir.create(file.path(root, "output"), recursive = TRUE, showWarnings = FALSE)
+  file.copy(
+    file.path(repo_root_for_tests, "code", "R", "source-diagnostics", "survey_sources_include.R"),
+    file.path(root, "code", "R", "source-diagnostics", "survey_sources_include.R"),
+    overwrite = TRUE
+  )
   file.copy(
     file.path(repo_root_for_tests, "code", "R", "source-diagnostics", "survey_population_include.R"),
     file.path(root, "code", "R", "source-diagnostics", "survey_population_include.R"),
@@ -54,7 +59,7 @@ survey_pop_fixture_root <- function(existing_survey_pop = FALSE, incoming = FALS
     canonical = c("input_data/surveys_CEPAL/*/*.dta"),
     inbox = c("input_data/_new/surveys/*"),
     destination = "input_data/surveys_CEPAL/{relative}",
-    transformer = c("code/R/source-diagnostics/survey_population_include.R"),
+    transformer = c("code/R/source-diagnostics/survey_sources_include.R"),
     integration = "survey_population",
     notes = "Tiny survey fixture."
   ))), file.path(root, "config", "sources.yml"))
@@ -87,11 +92,19 @@ survey_pop_fixture_root <- function(existing_survey_pop = FALSE, incoming = FALS
   root
 }
 
+test_that("legacy survey_population_include wrapper loads the survey workflow", {
+  env <- new.env(parent = globalenv())
+  source(file.path(repo_root_for_tests, "code", "R", "source-diagnostics", "survey_population_include.R"), local = env)
+  expect_true(exists("run_survey_pop_explorer", envir = env, mode = "function"))
+  expect_true(exists("run_survey_pop_include", envir = env, mode = "function"))
+})
+
 test_that("survey explorer reports missing and stale SurveyPop.dta", {
   root <- survey_pop_fixture_root()
   missing <- run_survey_pop_explorer(root = root, write_outputs = FALSE)
   expect_equal(missing$outputs$survey_pop_status$status, "missing")
   expect_equal(missing$outputs$survey_pop_status$next_command, "dina sources include surveys --dry-run")
+  expect_equal(missing$outputs$survey_source_summary$status, "all_good")
 
   stale_root <- survey_pop_fixture_root(existing_survey_pop = TRUE)
   stale <- run_survey_pop_explorer(root = stale_root, write_outputs = FALSE)
@@ -106,6 +119,8 @@ test_that("survey include dry-run stages candidate SurveyPop without promoting",
   expect_false(file.exists(file.path(root, "intermediary_data", "population", "SurveyPop.dta")))
   expect_true(any(include$outputs$promotion_plan$artifact_type == "survey_population"))
   expect_true(any(include$outputs$promotion_plan$artifact_type == "survey_source"))
+  expect_true(any(include$outputs$survey_source_comparison$comparison_status == "new_year"))
+  expect_true(any(include$outputs$staged_source_mappings$to_rel == "input_data/surveys_CEPAL/MEX/MEX_2001N.dta"))
 })
 
 test_that("survey confirm writes SurveyPop and can restore it", {
@@ -123,19 +138,75 @@ test_that("survey confirm writes SurveyPop and can restore it", {
   expect_false(file.exists(survey_pop))
 })
 
+test_that("incoming N1 survey variant stages and promotes as canonical N", {
+  root <- survey_pop_fixture_root()
+  incoming_mex <- data.frame(`_fep` = c(300, 150), edad = c(45, 9), check.names = FALSE)
+  survey_pop_fixture_write_dta(root, "input_data/_new/surveys/MEX_2001N1.dta", incoming_mex)
+
+  include <- run_survey_pop_include(root = root, write_outputs = TRUE, run_id = "survey-variant")
+  expect_equal(survey_pop_manifest_value(include$manifest, "status"), "all_good")
+  expect_equal(include$outputs$survey_source_summary$filename_variants, 1L)
+  expect_true(any(include$outputs$survey_source_candidates$original_basename == "MEX_2001N1.dta"))
+  expect_true(any(include$outputs$survey_source_candidates$destination == "input_data/surveys_CEPAL/MEX/MEX_2001N.dta"))
+  expect_true(any(include$outputs$staged_source_mappings$from_rel == "input_data/_new/surveys/MEX_2001N1.dta"))
+  expect_true(any(include$outputs$staged_source_mappings$to_rel == "input_data/surveys_CEPAL/MEX/MEX_2001N.dta"))
+
+  survey_pop_confirm_sources(root = root, include_run = include$paths$root)
+  expect_true(file.exists(file.path(root, "input_data", "surveys_CEPAL", "MEX", "MEX_2001N.dta")))
+  expect_false(file.exists(file.path(root, "input_data", "surveys_CEPAL", "MEX", "MEX_2001N1.dta")))
+})
+
+test_that("retroactive overlap changes are reported without blocking", {
+  root <- survey_pop_fixture_root()
+  changed_mex <- data.frame(`_fep` = c(500, 25), edad = c(25, 12), check.names = FALSE)
+  survey_pop_fixture_write_dta(root, "input_data/_new/surveys/MEX_2000N.dta", changed_mex)
+
+  include <- run_survey_pop_include(root = root, write_outputs = TRUE, run_id = "survey-retro")
+  expect_equal(survey_pop_manifest_value(include$manifest, "status"), "all_good")
+  expect_equal(include$outputs$survey_source_summary$retroactive_overlaps, 1L)
+  expect_equal(include$outputs$survey_source_summary$changed_overlaps, 1L)
+  expect_true(any(include$outputs$survey_source_comparison$comparison_status == "retro_overlap_changed"))
+})
+
+test_that("multiple incoming primary variants for one country-year block as ambiguous", {
+  root <- survey_pop_fixture_root()
+  incoming_mex <- data.frame(`_fep` = c(300, 150), edad = c(45, 9), check.names = FALSE)
+  survey_pop_fixture_write_dta(root, "input_data/_new/surveys/MEX_2001N.dta", incoming_mex)
+  survey_pop_fixture_write_dta(root, "input_data/_new/surveys/MEX_2001N1.dta", incoming_mex)
+
+  include <- run_survey_pop_include(root = root, write_outputs = TRUE, run_id = "survey-ambiguous")
+  expect_equal(survey_pop_manifest_value(include$manifest, "status"), "blocked")
+  expect_equal(include$outputs$survey_source_summary$ambiguous_incoming, 1L)
+  expect_true(any(include$outputs$survey_source_candidates$blocker == "ambiguous_incoming_primary"))
+  expect_true(all(grepl("^blocked_ambiguous_incoming_primary$", include$outputs$staged_source_mappings$copy_status)))
+})
+
+test_that("incoming survey missing minimum variables blocks include", {
+  root <- survey_pop_fixture_root()
+  missing_fep <- data.frame(edad = c(45, 9), check.names = FALSE)
+  survey_pop_fixture_write_dta(root, "input_data/_new/surveys/MEX_2001N.dta", missing_fep)
+
+  include <- run_survey_pop_include(root = root, write_outputs = TRUE, run_id = "survey-missing-required")
+  expect_equal(survey_pop_manifest_value(include$manifest, "status"), "blocked")
+  expect_equal(include$outputs$survey_source_summary$missing_required, 1L)
+  expect_true(any(include$outputs$survey_source_candidates$blocker == "missing_required_columns"))
+  expect_true(any(include$outputs$staged_source_mappings$copy_status == "blocked_missing_required_columns"))
+})
+
 test_that("main dina CLI dispatches survey explore, include, and table", {
   root <- survey_pop_fixture_root(incoming = TRUE)
   explore <- run_dina_cli(c("sources", "explore", "surveys"), root = root)
   expect_equal(explore$status, 0L)
-  expect_match(explore$output, "Survey Population Explore")
+  expect_match(explore$output, "Survey Sources Explore")
+  expect_match(explore$output, "Survey source status")
   expect_match(explore$output, "dina sources include surveys --dry-run")
 
-  table <- run_dina_cli(c("sources", "table", "surveys", "survey_pop_status"), root = root)
+  table <- run_dina_cli(c("sources", "table", "surveys", "survey_source_summary"), root = root)
   expect_equal(table$status, 0L)
-  expect_match(table$output, "Survey Population Table: survey_pop_status")
+  expect_match(table$output, "Survey Sources Table: survey_source_summary")
 
   include <- run_dina_cli(c("sources", "include", "surveys", "--dry-run"), root = root)
   expect_equal(include$status, 0L)
-  expect_match(include$output, "Survey Population Include")
+  expect_match(include$output, "Survey Sources Include")
   expect_match(include$output, "No production files changed")
 })

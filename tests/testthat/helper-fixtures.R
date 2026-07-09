@@ -94,6 +94,11 @@ mini_repo <- function() {
     overwrite = TRUE
   )
   file.copy(
+    file.path(repo_root_for_tests, "code", "R", "source-diagnostics", "survey_sources_include.R"),
+    file.path(root, "code", "R", "source-diagnostics", "survey_sources_include.R"),
+    overwrite = TRUE
+  )
+  file.copy(
     file.path(repo_root_for_tests, "code", "R", "source-diagnostics", "survey_population_include.R"),
     file.path(root, "code", "R", "source-diagnostics", "survey_population_include.R"),
     overwrite = TRUE

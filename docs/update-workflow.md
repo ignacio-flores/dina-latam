@@ -85,14 +85,15 @@ if admin explore/include reports it missing or stale, run
 `dina sources include surveys --dry-run` and confirm the clean surveys include
 run before returning to admin.
 
-The public `surveys` source type has a survey-population workflow for CEPAL
+The public `surveys` source type has a survey-source workflow for CEPAL
 survey inputs. Use `dina sources explore surveys` to inspect canonical and
-incoming survey files, required `_fep`/`edad` availability, country-year
-coverage, and whether `SurveyPop.dta` is missing or stale. Use
-`dina sources include surveys --dry-run` to stage a candidate
-`SurveyPop.dta` and audit it against the current artifact. Confirm only after
-review; the confirm step promotes approved survey inputs and writes
-`intermediary_data/population/SurveyPop.dta`.
+incoming survey files, filename variants such as `N1`, required `_fep`/`edad`
+availability, new years, retroactive overlap candidates, country-year coverage,
+and whether `SurveyPop.dta` is missing or stale. Use `dina sources include
+surveys --dry-run` to stage approved raw survey files under normalized active
+`COUNTRY_YEARN.dta` names, write light raw-source comparison tables, and build a
+candidate `SurveyPop.dta`. Confirm only after review; the confirm step promotes
+approved survey inputs and writes `intermediary_data/population/SurveyPop.dta`.
 
 The public `wid` source type has a population-only v1 workflow for the registry
 source `population`. Use `dina sources fetch population` or
