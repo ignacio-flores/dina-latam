@@ -143,7 +143,6 @@ Source data:
   `sources explore SOURCETYPE`        [writes experiment] inspect _new files
   `sources include SOURCETYPE`        [writes experiment] stage/check inclusion
   `sources table SOURCETYPE [TABLE]`  [read-only] preview explore tables
-  `sources status`                    [read-only] alias for sources compare
   `sources diff`                      [read-only] detailed source baseline diff
   `sources fields`                    [read-only] source option cheat sheet
 
@@ -232,45 +231,43 @@ What this page is:
 
 2. Work from sources
   dina sources list
-      Shows compact rows with id, source type, country, method, URL hint,
-      bucket, destination, transformer, and expected influence. Interactive
-      terminals get a short dismissible follow-up menu.
+      Find source ids, URLs, incoming buckets, canonical destinations,
+      transformers, and likely task users. Interactive terminals get a short
+      dismissible follow-up menu.
 
   dina sources list detail ID --urls
   dina sources list guide ID --urls
   dina sources list SOURCETYPE
-      Shows where a source comes from, where it lands, what transforms it, and
-      what tasks likely consume it.
+      Drill into one source, acquisition reminders, or one source type.
 
   dina sources fetch [ID|SOURCETYPE|--all] [--dry-run]
-      Fetches supported sources directly into `input_data/_new` buckets.
-
-  dina sources compare [--metadata-only] [--hash-all] [--deep]
-      Compares configured source files against the active update baseline. This
-      does not validate data or manage incoming files.
+      Preview supported URL/ZIP/script fetches into `input_data/_new` buckets.
+      Manual sources should be placed in the matching `_new` bucket.
 
   dina sources explore SOURCETYPE [--dry-run]
-      Inventories new files, likely extension years, overlap years,
-      structure evidence, and broad include expectations under
-      output/experiments. Implemented for sna, admin, surveys, and wid.
-
-  dina sources include SOURCETYPE --dry-run
-      Uses the deterministic source include contract plus the latest
-      exploration run to report all_good, check_following, or blocked. It does
-      not replace pipeline tasks or run the pipeline. Implemented for sna,
-      admin, surveys, and wid.
+      Inventory incoming files and write review outputs under
+      `output/experiments`. Implemented for sna, admin, surveys, and wid.
+      For WID, use `dina sources explore wid --fetch` when configured artifacts
+      are missing or stale.
 
   dina sources table SOURCETYPE [TABLE]
-      Previews explorer/include tables inline. Without TABLE, prints compact
-      previews of all available tables for that source workflow.
+      Review explore/include tables inline.
+
+  dina sources include SOURCETYPE --dry-run
+      Stage accepted candidates and check the include contract without
+      promotion. Implemented for sna, admin, surveys, and wid.
 
   dina sources include SOURCETYPE --confirm --include-run RUN
-      Promotes approved `_new` files from a clean staged include run only after
+      Promote approved `_new` files from a clean staged include run after
       writing a backup snapshot. It does not run the pipeline.
 
   dina sources include SOURCETYPE --restore CONFIRM_RUN
-      Restores canonical source files from the backup snapshot written by
+      Restore canonical source files from the backup snapshot written by
       confirm.
+
+  dina sources compare
+      Advanced baseline check for configured source files; use it when you need
+      to compare against the active update start state.
 
 3. Run the pipeline
   dina run list
@@ -451,156 +448,90 @@ Examples:
   dina update resume
 ",
     sources = "Usage:
-  dina sources list [SOURCETYPE] [--country ISO] [--urls] [--no-menu]
+  dina sources list [SOURCETYPE] [--country ISO] [--urls]
   dina sources list detail ID [--urls]
   dina sources list guide [ID|SOURCETYPE] [--urls]
-  dina sources list workflow [SOURCETYPE] [--urls]
-  dina sources list paths [SOURCETYPE] [--urls]
-  dina sources list urls [SOURCETYPE|ID]
   dina sources fetch [ID|SOURCETYPE|--all] [--dry-run]
-  dina sources compare [--metadata-only] [--hash-all] [--deep]
-  dina sources explore SOURCETYPE [--dry-run] [--output-dir PATH] [--country ISO]
-  dina sources include SOURCETYPE [--dry-run] [--exploration-run PATH] [--output-dir PATH]
+  dina sources explore SOURCETYPE [--dry-run] [--country ISO]
+  dina sources table SOURCETYPE [TABLE] [--run PATH] [--limit N]
+  dina sources include SOURCETYPE --dry-run
   dina sources include SOURCETYPE --confirm --include-run RUN
   dina sources include SOURCETYPE --restore CONFIRM_RUN
-  dina sources table SOURCETYPE [TABLE] [--run PATH] [--country ISO] [--limit N]
-  dina sources status [--metadata-only] [--hash-all] [--deep]
-  dina sources diff [--deep] [--hash]
-  dina sources fields
-  dina sources methods
 
-What it manages:
-  Source registry, incoming `_new` buckets, fetchers, and baseline comparison.
-  Supported fetches write directly to `input_data/_new`. Public source types are
-  sna, admin, admin-microdata, surveys, wid, and other. SNA, PIT admin, surveys,
-  and WID have explore/include/table automation for now; they do not
-  replace pipeline tasks except for generated source artifacts such as
-  SurveyPop.dta.
+Purpose:
+  Source commands help an updater find inputs, stage incoming files in `_new`,
+  review supported source-type workflows, and promote accepted source files.
+  They do not run the pipeline. After source promotion, run the affected
+  pipeline tasks explicitly with `dina run`.
 
-Subcommands:
-  list                            Default compact registry view. Columns: id,
-                                  type, country, method, URL hint, bucket,
-                                  destination, transformer, and influence.
-                                  Interactive terminals show a short menu unless
-                                  --no-menu is passed.
-  list detail ID                  Sectioned single-source card: identity,
-                                  acquisition, incoming bucket, destination,
-                                  processing code, notes, usage, and URLs when
-                                  requested.
-  list guide                      Human-friendly reminder for where to get a
-                                  source, where it lands, what code transforms
-                                  it, and what task likely consumes it.
-  list workflow|paths|urls        Discoverable list views. `--view` remains a
-                                  compatibility spelling.
-  fetch                           Runs configured fetchers or direct URL/ZIP
-                                  downloads into primary `_new` buckets. If no
-                                  safe target exists, prints manual guidance.
-  compare                         Compares configured source files with the
-                                  active update baseline. It does not validate
-                                  data or manage incoming files.
-  explore SOURCETYPE              Inventories incoming files for a source type.
-                                  Currently implemented for sna, admin,
-                                  surveys, and wid.
-  include SOURCETYPE              Consumes an exploration run and checks the
-                                  deterministic include contract. Currently
-                                  implemented for sna, PIT admin, surveys, and
-                                  WID. Dry-run is the default and
-                                  stages files under the run.
-  table SOURCETYPE                Previews explore output tables inline.
-                                  Currently implemented for sna, admin,
-                                  surveys, and wid.
-  status                          Compatibility alias for compare.
-  diff                            Compares current scan results with the active
-                                  session baseline and classifies changes.
-  fields                          Cheat sheet for filters, views, registry
-                                  fields, and method labels.
-  methods                         Explains acquisition method labels.
+Core source workflow:
+  1. list
+     `dina sources list [SOURCETYPE]` shows source ids, countries, methods,
+     URLs, incoming buckets, canonical destinations, transformers, and task
+     links. Use `list detail ID --urls` for one source and `list guide` for
+     acquisition reminders.
 
-Options:
-  --view VIEW                     Compatibility spelling for list views:
-                                  compact, workflow, paths, all.
-  --no-menu                       Suppress the interactive follow-up menu.
-  --source ID                     Compatibility spelling for ID on fetch.
-  --all                           For fetch, process every eligible matching
-                                  source.
-  SOURCETYPE                      Keep a public source type: sna, admin,
-                                  admin-microdata, surveys, wid, other.
-                                  Internal family names also work as
-                                  compatibility selectors.
-  --country ISO                   For list, keep one ISO country plus broad
-                                  country sources.
-  country ISO                     Friendly form of --country ISO for list.
-  --urls                          Print or expand source URLs.
-  --deep                          Inspect workbook sheets when possible.
-  --hash                          Compute file hashes during scan/diff.
-  --metadata-only                 For compare/status, compare only paths, size, and
-                                  timestamps; do not compute hashes.
-  --hash-all                      For compare/status, hash all source files.
-  --dry-run                       For fetch, preview targets only. For explore,
-                                  compute summaries without writing outputs.
-                                  For include, perform the default no-promotion
-                                  assessment.
-  --fetch                         For `sources explore wid`, fetch missing or
-                                  stale WID artifacts into input_data/_new/wid
-                                  before writing review tables.
-  --no-fetch                      For `sources explore wid`, never fetch or
-                                  prompt; write review/guidance tables only.
-  --confirm                       For include, promote approved `_new` files
-                                  from a clean staged include run.
-  --include-run RUN               Staged include run path or id required by
-                                  --confirm.
-  --restore CONFIRM_RUN           Restore canonical source files from a confirm
-                                  backup snapshot.
-  --apply                         Retired. Use --confirm.
-  --run PATH                      For table, use a specific explore run.
-  --limit N                       For table, limit preview rows.
-  --exploration-run PATH          For include, use a specific explore output
-                                  folder instead of the default latest folder.
-  --output-dir PATH               For explore/include, write experiment outputs
-                                  somewhere other than the default experiment
-                                  folder.
+  2. fetch/place
+     `dina sources fetch [ID|SOURCETYPE] --dry-run` previews automatic fetches.
+     Supported URL/ZIP/script fetches write to `input_data/_new/<bucket>`.
+     Manual sources must be placed in the matching `_new` bucket shown by list
+     or guide.
 
-Gotcha:
+  3. explore/review
+     `dina sources explore SOURCETYPE` inventories incoming files and writes
+     review outputs under `output/experiments`. Use `dina sources table
+     SOURCETYPE [TABLE]` to inspect those outputs inline. WID can fetch missing
+     or stale artifacts during explore with `--fetch`.
+
+  4. include
+     `dina sources include SOURCETYPE --dry-run` stages accepted candidates and
+     checks the include contract. Confirm only after reviewing a clean dry-run:
+     `dina sources include SOURCETYPE --confirm --include-run RUN`. Restore from
+     the confirm backup with `--restore CONFIRM_RUN`.
+
+Source-type support:
+  type             list   fetch/place   explore/review   include
+  sna              yes    yes           yes              yes
+  admin            yes    yes           PIT v1           PIT v1
+  surveys          yes    manual        yes              yes
+  wid              yes    explore       yes              yes
+  admin-microdata  yes    manual        no               no
+  other            yes    yes/manual    no               no
+
+Advanced checks:
+  `dina sources compare` compares configured source files with the active update
+  baseline. `fields`, `methods`, `scan`, `diff`, and `inbox` are diagnostic
+  helpers for registry and baseline investigation.
+
+Options by family:
+  list:      --country ISO, --urls, --no-menu; extra views live under
+             `list workflow`, `list paths`, and `list urls`.
+  fetch:     --dry-run, --all.
+  explore:   --dry-run, --country ISO, --output-dir PATH, WID-only --fetch and
+             --no-fetch.
+  table:     --run PATH, --country ISO, --limit N.
+  include:   --dry-run, --exploration-run PATH, --output-dir PATH, --confirm
+             --include-run RUN, --restore CONFIRM_RUN.
+
+Rules to remember:
   Source coverage is independent of update year. A 2026 update may discover
   newly available 2024 data or historical backfills.
-  URL presence does not mean automatic download. Manual, script, and WID sources
-  can have URLs that you inspect, download from, or use for verification.
-  `_new` folders are incoming source buckets. Pipeline scripts consume canonical
-  paths only, never `_new` directly.
-
-Methods:
-  url                             Direct URL fetchable by `sources fetch`.
-  zip                             Direct archive URL fetchable by `sources fetch`.
-  script                          Custom acquisition script or fetcher exists.
-  manual                          Human-curated input or URL index.
-  wid                             Data acquired through the WID source workflow.
+  URL presence does not mean automatic download; it may be a manual reference.
+  `_new` folders are incoming buckets. Pipeline scripts consume canonical paths
+  only, never `_new` directly.
 
 Examples:
   dina sources list
   dina sources list sna
-  dina sources list workflow
-  dina sources list urls wid
-  dina sources list country CHL --urls
-  dina sources fields
-  dina sources list guide chl-pit-total --urls
   dina sources list detail country-sna-bra --urls
-  dina sources fetch --dry-run
+  dina sources list guide wid --urls
   dina sources fetch chl-pit-total --dry-run
-  dina sources compare
   dina sources explore sna
-  dina sources explore admin
-  dina sources explore surveys
-  dina sources explore wid
-  dina sources explore wid --fetch
-  dina sources include sna --dry-run
-  dina sources include admin --dry-run
-  dina sources include surveys --dry-run
-  dina sources include wid --dry-run
   dina sources table sna year_expectations
-  dina sources table admin
-  dina sources table admin year_expectations
-  dina sources table surveys survey_pop_status
-  dina sources table wid wid_artifact_comparison
+  dina sources include sna --dry-run
+  dina sources include sna --confirm --include-run RUN
+  dina sources explore wid --fetch
+  dina sources include wid --dry-run
 ",
     buckets = "Usage:
   dina buckets [detail|urls|uses|fetch] [OPTIONS]
@@ -5669,6 +5600,10 @@ dina_cmd_sources_list <- function(root, args) {
   }
 
   rest <- args[-1]
+  if (identical(action, "show")) {
+    stop("`dina sources list show` was removed. Use `dina sources list detail ID`.", call. = FALSE)
+  }
+
   if (action %in% c("detail", "show")) {
     flags <- dina_parse_flags(rest)
     id <- dina_arg(flags$positional, 1L, NULL)
@@ -5719,15 +5654,9 @@ dina_cmd_sources <- function(root, args) {
   if (identical(sub, "list")) {
     dina_cmd_sources_list(root, args[-1])
   } else if (identical(sub, "show")) {
-    dina_cli_warn("`dina sources show` is deprecated; use `dina sources list detail ID`.")
-    flags <- dina_parse_flags(args[-1])
-    id <- dina_arg(flags$positional, 1L, NULL)
-    if (is.null(id)) stop("Usage: dina sources list detail ID [--urls]", call. = FALSE)
-    dina_print_source_show(root, id, include_urls = isTRUE(flags$urls), view = flags$view %||% "all")
+    stop("`dina sources show` was removed. Use `dina sources list detail ID`.", call. = FALSE)
   } else if (identical(sub, "guide")) {
-    dina_cli_warn("`dina sources guide` is deprecated; use `dina sources list guide`.")
-    flags <- dina_parse_flags(args[-1])
-    dina_print_sources_guide(root, flags)
+    stop("`dina sources guide` was removed. Use `dina sources list guide`.", call. = FALSE)
   } else if (identical(sub, "fields")) {
     dina_print_source_fields()
   } else if (identical(sub, "methods")) {
@@ -5744,12 +5673,11 @@ dina_cmd_sources <- function(root, args) {
     } else {
       stop("Usage: dina sources inbox guide [--family FAMILY] [--urls]\n       dina sources inbox init [--dry-run]", call. = FALSE)
     }
-  } else if (sub %in% c("compare", "status")) {
+  } else if (identical(sub, "status")) {
+    stop("`dina sources status` was removed. Use `dina sources compare`.", call. = FALSE)
+  } else if (identical(sub, "compare")) {
     session <- dina_load_session(root = root)
     if (is.null(session)) stop("No active update.", call. = FALSE)
-    if (identical(sub, "status")) {
-      dina_cli_warn("`dina sources status` is deprecated; use `dina sources compare`.")
-    }
     flags <- dina_parse_flags(args[-1])
     hash_mode <- if (isTRUE(flags[["metadata-only"]])) {
       "none"
@@ -5861,6 +5789,9 @@ dina_cmd_sources <- function(root, args) {
     if (!grepl("^/", output_dir)) {
       output_dir <- file.path(root, output_dir)
     }
+    if (identical(sub, "include") && isTRUE(flags$apply)) {
+      stop("`--apply` was removed. Use `--confirm --include-run RUN`; promotion now requires a staged include run and backup snapshot.", call. = FALSE)
+    }
     if (identical(family, "admin") && identical(sub, "explore")) {
       source(file.path(root, "code", "R", "source-diagnostics", "admin_pit_explorer.R"), local = TRUE)
       result <- run_admin_pit_explorer(root = root, output_dir = output_dir, countries = country, write_outputs = !isTRUE(flags[["dry-run"]]))
@@ -5910,9 +5841,6 @@ dina_cmd_sources <- function(root, args) {
       }
       dina_print_wid_explore(result, dry_run = isTRUE(flags[["dry-run"]]))
     } else if (identical(family, "wid")) {
-      if (isTRUE(flags$apply)) {
-        stop("Use `--confirm`; promotion now requires a staged include run and backup snapshot.", call. = FALSE)
-      }
       source(file.path(root, "code", "R", "source-diagnostics", "wid_include.R"), local = FALSE)
       if (isTRUE(flags$confirm)) {
         result <- wid_include_confirm_sources(
@@ -5938,9 +5866,6 @@ dina_cmd_sources <- function(root, args) {
       result <- run_survey_pop_explorer(root = root, output_dir = output_dir, countries = country, write_outputs = !isTRUE(flags[["dry-run"]]), dry_run = isTRUE(flags[["dry-run"]]))
       dina_print_survey_pop_explore(result, dry_run = isTRUE(flags[["dry-run"]]))
     } else if (identical(family, "surveys")) {
-      if (isTRUE(flags$apply)) {
-        stop("Use `--confirm`; promotion now requires a staged include run and backup snapshot.", call. = FALSE)
-      }
       source(file.path(root, "code", "R", "source-diagnostics", "survey_sources_include.R"), local = FALSE)
       if (isTRUE(flags$confirm)) {
         result <- survey_pop_confirm_sources(
@@ -5966,9 +5891,6 @@ dina_cmd_sources <- function(root, args) {
       result <- run_country_sna_explorer(root = root, output_dir = output_dir, countries = country, write_outputs = !isTRUE(flags[["dry-run"]]))
       dina_print_country_sna_explore(result, dry_run = isTRUE(flags[["dry-run"]]))
     } else {
-      if (isTRUE(flags$apply)) {
-        stop("Use `--confirm`; promotion now requires a staged include run and backup snapshot.", call. = FALSE)
-      }
       source(file.path(root, "code", "R", "source-diagnostics", "country_sna_include.R"), local = TRUE)
       if (isTRUE(flags$confirm)) {
         result <- country_sna_include_confirm_sources(
@@ -6027,7 +5949,9 @@ dina_cmd_sources <- function(root, args) {
     }
   } else if (identical(sub, "review")) {
     dina_stop_retired_source_workflow("review")
-  } else if (sub %in% c("fetch", "refresh")) {
+  } else if (identical(sub, "refresh")) {
+    stop("`dina sources refresh` was removed. Use `dina sources fetch`.", call. = FALSE)
+  } else if (identical(sub, "fetch")) {
     flags <- dina_parse_flags(args[-1])
     selector <- dina_arg(flags$positional %||% character(), 1L, NULL)
     family <- flags$family %||% NULL

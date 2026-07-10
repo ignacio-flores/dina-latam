@@ -85,21 +85,31 @@ test_that("help describes the new workflow and omits retired command families", 
 
   sources <- run_dina_cli(c("help", "sources"))
   expect_equal(sources$status, 0L)
+  expect_match(sources$output, "Core source workflow:")
+  expect_match(sources$output, "1\\. list")
+  expect_match(sources$output, "2\\. fetch/place")
+  expect_match(sources$output, "3\\. explore/review")
+  expect_match(sources$output, "4\\. include")
+  expect_match(sources$output, "Source-type support:")
+  expect_match(sources$output, "sna[[:space:]]+yes[[:space:]]+yes[[:space:]]+yes[[:space:]]+yes")
+  expect_match(sources$output, "admin[[:space:]]+yes[[:space:]]+yes[[:space:]]+PIT v1[[:space:]]+PIT v1")
+  expect_match(sources$output, "admin-microdata[[:space:]]+yes[[:space:]]+manual[[:space:]]+no[[:space:]]+no")
+  expect_match(sources$output, "other[[:space:]]+yes[[:space:]]+yes/manual[[:space:]]+no[[:space:]]+no")
+  expect_match(sources$output, "Advanced checks:")
   expect_match(sources$output, "dina sources list \\[SOURCETYPE\\] \\[--country ISO\\] \\[--urls\\]")
   expect_match(sources$output, "dina sources list detail ID")
   expect_match(sources$output, "dina sources list guide")
-  expect_match(sources$output, "dina sources list workflow")
   expect_match(sources$output, "dina sources fetch \\[ID\\|SOURCETYPE\\|--all\\] \\[--dry-run\\]")
-  expect_match(sources$output, "dina sources compare \\[--metadata-only\\] \\[--hash-all\\] \\[--deep\\]")
   expect_match(sources$output, "dina sources explore SOURCETYPE")
   expect_match(sources$output, "dina sources include SOURCETYPE")
   expect_match(sources$output, "dina sources table SOURCETYPE")
   expect_match(sources$output, "--confirm")
   expect_match(sources$output, "--restore")
-  expect_match(sources$output, "Source registry, incoming `_new` buckets, fetchers, and baseline comparison")
-  expect_match(sources$output, "sna, admin, admin-microdata, surveys")
+  expect_match(sources$output, "WID can fetch missing")
   expect_false(grepl("dina sources show ID", sources$output, fixed = TRUE))
   expect_false(grepl("dina sources guide [ID", sources$output, fixed = TRUE))
+  expect_false(grepl("dina sources status", sources$output, fixed = TRUE))
+  expect_false(grepl("--apply", sources$output, fixed = TRUE))
   expect_false(grepl("dina sources review", sources$output, fixed = TRUE))
   expect_false(grepl("dina sources integrate", sources$output, fixed = TRUE))
   expect_false(grepl("dina sources diagnose country-sna", sources$output, fixed = TRUE))
@@ -356,7 +366,7 @@ test_that("source list follow-up menu is dismissible and routes views", {
   expect_match(paste(detail_output, collapse = "\n"), "transformer:")
 })
 
-test_that("source list detail, guide, compatibility aliases, fields, compare, and retired commands use the source model", {
+test_that("source list detail, guide, removed aliases, fields, compare, and retired commands use the source model", {
   root <- mini_repo()
   show <- run_dina_cli(c("sources", "list", "detail", "source-a", "--urls"), root = root)
   expect_equal(show$status, 0L)
@@ -375,12 +385,19 @@ test_that("source list detail, guide, compatibility aliases, fields, compare, an
   expect_match(guide$output, "tasks:")
 
   old_show <- run_dina_cli(c("sources", "show", "source-a", "--urls"), root = root)
-  expect_equal(old_show$status, 0L)
-  expect_match(old_show$output, "deprecated")
+  expect_true(old_show$status != 0L)
+  expect_match(old_show$output, "removed")
+  expect_match(old_show$output, "dina sources list detail ID")
+
+  old_list_show <- run_dina_cli(c("sources", "list", "show", "source-a", "--urls"), root = root)
+  expect_true(old_list_show$status != 0L)
+  expect_match(old_list_show$output, "removed")
+  expect_match(old_list_show$output, "dina sources list detail ID")
 
   old_guide <- run_dina_cli(c("sources", "guide", "source-a"), root = root)
-  expect_equal(old_guide$status, 0L)
-  expect_match(old_guide$output, "deprecated")
+  expect_true(old_guide$status != 0L)
+  expect_match(old_guide$output, "removed")
+  expect_match(old_guide$output, "dina sources list guide")
 
   fields <- run_dina_cli(c("sources", "fields"), root = root)
   expect_equal(fields$status, 0L)
@@ -389,6 +406,11 @@ test_that("source list detail, guide, compatibility aliases, fields, compare, an
   expect_match(fields$output, "Public source type")
   expect_match(fields$output, "Filters:")
   expect_match(fields$output, "Methods:")
+
+  methods <- run_dina_cli(c("sources", "methods"), root = root)
+  expect_equal(methods$status, 0L)
+  expect_match(methods$output, "wid[[:space:]]+no[[:space:]]+Acquired and promoted through the WID source workflow")
+  expect_false(grepl("Stata/WID calls in pipeline scripts", methods$output, fixed = TRUE))
 
   dina_update_start("2026", root = root)
   dir.create(file.path(root, "input_data", "_new", "fixture"), recursive = TRUE, showWarnings = FALSE)
@@ -412,7 +434,12 @@ test_that("source list detail, guide, compatibility aliases, fields, compare, an
 
   apply <- run_dina_cli(c("sources", "include", "country-sna", "--apply"), root = root)
   expect_true(apply$status != 0L)
-  expect_match(apply$output, "Use `--confirm`")
+  expect_match(apply$output, "`--apply` was removed")
+  expect_match(apply$output, "--confirm --include-run RUN")
+
+  admin_apply <- run_dina_cli(c("sources", "include", "admin", "--apply"), root = root)
+  expect_true(admin_apply$status != 0L)
+  expect_match(admin_apply$output, "`--apply` was removed")
 
   compare <- run_dina_cli(c("sources", "compare"), root = root)
   expect_equal(compare$status, 0L)
@@ -421,10 +448,14 @@ test_that("source list detail, guide, compatibility aliases, fields, compare, an
   expect_false(grepl("Source Status", compare$output, fixed = TRUE))
 
   status <- run_dina_cli(c("sources", "status"), root = root)
-  expect_equal(status$status, 0L)
-  expect_match(status$output, "deprecated")
+  expect_true(status$status != 0L)
+  expect_match(status$output, "removed")
   expect_match(status$output, "dina sources compare")
-  expect_match(status$output, "Source Compare")
+
+  refresh <- run_dina_cli(c("sources", "refresh", "--dry-run"), root = root)
+  expect_true(refresh$status != 0L)
+  expect_match(refresh$output, "removed")
+  expect_match(refresh$output, "dina sources fetch")
 })
 
 test_that("sources fetch previews direct URL targets under _new", {

@@ -259,7 +259,7 @@ dina_source_method_glossary <- function() {
       "Direct archive URL that dina sources fetch can copy into input_data/_new.",
       "Custom acquisition script exists; not a simple direct URL fetch.",
       "Human-curated/manual input or URL index.",
-      "Currently acquired through Stata/WID calls in pipeline scripts."
+      "Acquired and promoted through the WID source workflow."
     ),
     refresh = c("yes", "yes", "no", "no", "no"),
     stringsAsFactors = FALSE

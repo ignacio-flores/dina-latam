@@ -25,91 +25,59 @@ runs, unchecked todos, config override presence, and repo changes.
 
 ## Sources
 
-Use `dina sources` as the home for the source registry, buckets, fetchers, and
-baseline comparison.
+Use `dina sources` to find inputs, stage incoming files in `_new`, review
+supported source workflows, and promote accepted source files. Source commands
+do not run the pipeline.
 
 ```bash
 dina sources list
 dina sources list sna
-dina sources list workflow
-dina sources list urls wid
 dina sources list detail SOURCE --urls
 dina sources list guide SOURCE --urls
 dina sources fetch SOURCE --dry-run
-dina sources compare
 dina sources explore sna
 dina sources table sna year_expectations
 dina sources include sna --dry-run
 dina sources include sna --confirm --include-run RUN
-dina sources explore admin
-dina sources table admin year_expectations
-dina sources include admin --dry-run
-dina sources include admin --confirm --include-run RUN
-dina sources explore surveys
-dina sources table surveys survey_pop_status
-dina sources include surveys --dry-run
-dina sources include surveys --confirm --include-run RUN
-dina sources explore wid
 dina sources explore wid --fetch
-dina sources table wid overlap_summary
 dina sources include wid --dry-run
-dina sources include wid --confirm --include-run RUN
 ```
 
-`dina sources list` is compact by default. In an interactive terminal it can
-offer a dismissible follow-up menu for details, workflow view, paths, or URLs.
-Use `--no-menu` in scripts.
+Work by command family:
 
-Fetches write directly to `input_data/_new/<bucket>`.
+- `list`: find source ids, URLs, expected `_new` buckets, canonical
+  destinations, transformers, and likely task users.
+- `fetch/place`: preview supported fetches with `--dry-run`; put manual inputs
+  in the matching `input_data/_new/<bucket>` folder.
+- `explore/review`: run `dina sources explore SOURCETYPE`; inspect review tables
+  with `dina sources table SOURCETYPE [TABLE]`.
+- `include`: run `dina sources include SOURCETYPE --dry-run`; confirm only a
+  reviewed clean run with `--confirm --include-run RUN`. Use `--restore` for the
+  confirm backup snapshot.
 
-The public `sna` source type has an active experimental source workflow. Use
-`dina sources explore sna` to inspect `_new/country_sna` files,
-available years, likely extensions, and structure evidence. Then use
-`dina sources include sna --dry-run` to check the deterministic include contract
-against the latest exploration run. Use `dina sources table sna
-year_expectations` to preview explorer tables inline. Confirm is a separate
-guarded promotion step that writes a backup snapshot first; restore uses that
-snapshot if the source promotion needs to be undone. These commands do not
-replace `01b` or run the pipeline.
+Support matrix:
 
-The public `admin` source type has a PIT-only v1 workflow for Chile
-`chl-pit-total`, Brazil `bra-pit-total`, and Colombia `col-pit-total`. Use
-`dina sources explore admin` to inspect incoming PIT files and shallow
-country-specific structure evidence, then `dina sources include admin --dry-run`
-to stage source/contract compatibility checks. Confirm and restore follow the
-same guarded snapshot pattern as SNA. This v1 does not run admin cleaners during
-include, and non-PIT admin families are reported as unsupported for this
-workflow. Admin PIT cleaners require `intermediary_data/population/SurveyPop.dta`;
-if admin explore/include reports it missing or stale, run
-`dina sources explore surveys`, review with `dina sources table surveys`, then
-`dina sources include surveys --dry-run` and confirm the clean surveys include
-run before returning to admin.
+| type | list | fetch/place | explore/review | include |
+|---|---|---|---|---|
+| `sna` | yes | yes | yes | yes |
+| `admin` | yes | yes | PIT v1 | PIT v1 |
+| `surveys` | yes | manual | yes | yes |
+| `wid` | yes | `explore --fetch` | yes | yes |
+| `admin-microdata` | yes | manual | no | no |
+| `other` | yes | yes/manual | no | no |
 
-The public `surveys` source type has a survey-source workflow for CEPAL
-survey inputs. Use `dina sources explore surveys` to inspect canonical and
-incoming survey files, filename variants such as `N1`, required `_fep`/`edad`
-availability, new years, retroactive overlap candidates, country-year coverage,
-and whether `SurveyPop.dta` is missing or stale. Use `dina sources include
-surveys --dry-run` to stage approved raw survey files under normalized active
-`COUNTRY_YEARN.dta` names, write light raw-source comparison tables, and build a
-candidate `SurveyPop.dta`. Confirm only after review; the confirm step promotes
-approved survey inputs and writes `intermediary_data/population/SurveyPop.dta`.
+Keep these source-type exceptions in mind:
 
-The public `wid` source type owns WID fetching for the active pipeline. Run
-`dina sources explore wid` to review the local artifact inventory. If configured
-WID artifacts are missing or stale, interactive explore offers to fetch them;
-scripts can use `dina sources explore wid --fetch`. The fetch writes raw WID
-extracts and derived `.dta` candidates into the flat incoming bucket
-`input_data/_new/wid/`, then reruns exploration so review tables compare the
-incoming candidates with any existing files. After reviewing a clean fetch, use
-`dina sources include wid --dry-run` to stage the `_new/wid` candidates for
-promotion, then confirm only after review. The canonical WID files live flat in
-`input_data/wid/`, including
-`population_total_adult_npopul.dta`, `macro_national_accounts_indicators.dta`,
-`public_spending_gdp_shares.dta`, `prices_deflator_ppp_eur.dta`, and export
-comparison/scaling artifacts. World Bank price inputs remain separate under
-`input_data/prices_WB/`; any combined WID/WB price object is a pipeline
-temporary, not a WID source artifact.
+- WID fetching belongs to `dina sources explore wid --fetch`; it writes incoming
+  candidates to `input_data/_new/wid/`, then `include wid --dry-run` stages them
+  for promotion.
+- Survey include can generate `intermediary_data/population/SurveyPop.dta`; admin
+  PIT workflows depend on that file and may ask you to run the surveys workflow
+  first.
+- Admin source workflow support is PIT-only v1. Non-PIT admin families remain
+  registry/fetch inputs until a workflow is added.
+- `compare`, `fields`, `methods`, `scan`, `diff`, and `inbox` are advanced
+  checks for registry or baseline investigation, not the main updater path.
 
 ## Compress Input Data
 
