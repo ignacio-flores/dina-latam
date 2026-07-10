@@ -393,7 +393,7 @@ sources:
       - input_data/wid/raw_macro_national_accounts_indicators_ages_999_992.dta
     transformer: code/Stata/01a-clean-macro-data.do
     integration: sources_explore_include_wid
-    notes: WID macro indicators are fetched only by `dina sources include wid`; 01a consumes the local derived artifact.
+    notes: WID macro indicators are fetched only by `dina sources explore wid --fetch`; 01a consumes the local derived artifact after a confirmed WID include.
 
   - id: wid-public-spending
     family: wid
@@ -407,7 +407,7 @@ sources:
       - input_data/wid/raw_public_spending_indicators.dta
     transformer: code/Stata/01g-add-public-spending-data.do
     integration: sources_explore_include_wid
-    notes: WID public-spending indicators are fetched only by `dina sources include wid`; 01g consumes the local GDP-share artifact.
+    notes: WID public-spending indicators are fetched only by `dina sources explore wid --fetch`; 01g consumes the local GDP-share artifact after a confirmed WID include.
 
   - id: wid-export-scaling
     family: wid
@@ -421,7 +421,7 @@ sources:
       - input_data/wid/raw_export_anninc_xlceup_xlceux_p0p100.dta
     transformer: code/Stata/07d-export-results-to-wid.do
     integration: sources_explore_include_wid
-    notes: WID export scaling inputs are fetched only by `dina sources include wid`; 07d consumes the local artifact.
+    notes: WID export scaling inputs are fetched only by `dina sources explore wid --fetch`; 07d consumes the local artifact after a confirmed WID include.
 
   - id: wid-export-sptinc-check
     family: wid
@@ -435,7 +435,7 @@ sources:
       - input_data/wid/raw_export_sptinc_p0p20_age_992.dta
     transformer: code/Stata/07d-export-results-to-wid.do
     integration: sources_explore_include_wid
-    notes: WID sptinc comparison data are fetched only by `dina sources include wid`; 07d consumes the local comparison artifact.
+    notes: WID sptinc comparison data are fetched only by `dina sources explore wid --fetch`; 07d consumes the local comparison artifact after a confirmed WID include.
 
   - id: wid-population-survey-adjustment
     family: wid
@@ -447,7 +447,7 @@ sources:
     transformer: code/Stata/01f-adjust-country-survey-data.do
     integration: sources_explore_include_wid
     covered_by: population
-    notes: 01f consumes the local WID population artifact produced by the `population` row in `dina sources include wid`.
+    notes: 01f consumes the local WID population artifact produced by the `population` row after `dina sources explore wid --fetch` and a confirmed WID include.
 
   - id: wid-prices-xrates
     family: prices
@@ -464,7 +464,7 @@ sources:
       - code/Stata/06c-graph-ineqstats-by-step.do
       - code/Stata/07a-export-synthetic-microfiles.do
     integration: sources_explore_include_wid
-    notes: WID deflator and PPP data are fetched only by `dina sources include wid`; World Bank CPI remains separate in input_data/prices_WB.
+    notes: WID deflator and PPP data are fetched only by `dina sources explore wid --fetch`; World Bank CPI remains separate in input_data/prices_WB.
 
   - id: wb-xrates
     family: prices
@@ -520,8 +520,8 @@ sources:
     inbox:
       - input_data/_new/other/prices/*.xlsx
     destination: input_data/prices_CEPAL/{basename}
-    transformer: code/Stata/05b-rescale-and-impute.do
-    notes: Local CEPAL price inputs.
+    transformer: code/Stata/01e-clean-survey-data.do
+    notes: Local CEPAL price inputs used to annualize Argentina survey income variables.
 
   - id: population
     family: wid
@@ -539,7 +539,7 @@ sources:
       - code/Stata/02d-prepare-updated-admin-data.do
       - code/Stata/07d-export-results-to-wid.do
     integration: sources_explore_include_wid
-    notes: WID npopul is fetched only by `dina sources include wid`; the derived local artifact uses age 999 as total population and age 992 as adult population.
+    notes: WID npopul is fetched only by `dina sources explore wid --fetch`; the derived local artifact uses age 999 as total population and age 992 as adult population.
 
   - id: balance-sheet-imf
     family: balance_sheet

@@ -540,6 +540,11 @@ Options:
                                   compute summaries without writing outputs.
                                   For include, perform the default no-promotion
                                   assessment.
+  --fetch                         For `sources explore wid`, fetch missing or
+                                  stale WID artifacts into input_data/_new/wid
+                                  before writing review tables.
+  --no-fetch                      For `sources explore wid`, never fetch or
+                                  prompt; write review/guidance tables only.
   --confirm                       For include, promote approved `_new` files
                                   from a clean staged include run.
   --include-run RUN               Staged include run path or id required by
@@ -586,6 +591,7 @@ Examples:
   dina sources explore admin
   dina sources explore surveys
   dina sources explore wid
+  dina sources explore wid --fetch
   dina sources include sna --dry-run
   dina sources include admin --dry-run
   dina sources include surveys --dry-run
@@ -4266,7 +4272,7 @@ dina_bucket_fetch_followup_messages <- function(fetch_rows) {
   if ("wid" %in% source_types) {
     messages <- c(
       messages,
-      "WID fetch targets land in input_data/_new. Review with `dina sources explore wid`, then validate with `dina sources include wid --dry-run`."
+      "WID API fetches are owned by `dina sources explore wid --fetch`; validate reviewed WID candidates with `dina sources include wid --dry-run`."
     )
   }
   unsupported <- setdiff(source_types, c("admin", "sna", "wid"))
@@ -5224,24 +5230,62 @@ dina_print_wid_explore <- function(result, dry_run = FALSE) {
   if (!nrow(inventory)) {
     dina_cli_alert("No supported WID source rows were found.")
   } else {
-    dina_cli_cat(dina_cli_row(c("source", "set", "rows", "countries", "years", "status"), widths = c(18, 10, 8, 10, 18, 28), dim = TRUE))
-    for (i in seq_len(nrow(inventory))) {
-      years <- if (!is.na(inventory$first_year[[i]]) && !is.na(inventory$last_year[[i]])) {
-        sprintf("%s-%s", inventory$first_year[[i]], inventory$last_year[[i]])
+    year_label <- function(rows, i) {
+      if (!is.na(rows$first_year[[i]]) && !is.na(rows$last_year[[i]])) {
+        sprintf("%s-%s", rows$first_year[[i]], rows$last_year[[i]])
       } else {
         "-"
       }
-      dina_cli_cat(dina_cli_row(
-        c(
-          inventory$source_id[[i]],
-          inventory$source_set[[i]],
-          inventory$rows[[i]],
-          inventory$countries[[i]],
-          years,
-          dina_admin_pit_label(inventory$status[[i]])
-        ),
-        widths = c(18, 10, 8, 10, 18, 28)
-      ))
+    }
+    current <- inventory[inventory$source_set == "current" & inventory$artifact_type == "derived", , drop = FALSE]
+    incoming <- inventory[inventory$source_set %in% c("_new", "candidate") & inventory$artifact_type == "derived", , drop = FALSE]
+    incoming_raw <- inventory[inventory$source_set %in% c("_new", "candidate") & inventory$artifact_type == "raw", , drop = FALSE]
+    if (nrow(incoming)) {
+      dina_cli_alert("Fetched files are in input_data/_new/wid. Canonical input_data/wid changes only after include confirm.")
+      dina_cli_cat("Incoming WID candidates:")
+      dina_cli_cat(dina_cli_row(c("source", "rows", "countries", "years", "candidate", "canonical"), widths = c(26, 8, 10, 14, 12, 22), dim = TRUE))
+      for (i in seq_len(nrow(incoming))) {
+        current_match <- current[current$source_id == incoming$source_id[[i]], , drop = FALSE]
+        candidate_status <- if (identical(incoming$status[[i]], "present")) "ready" else dina_admin_pit_label(incoming$status[[i]])
+        canonical_status <- if (nrow(current_match) && identical(current_match$status[[1L]], "missing_current_artifact") && identical(candidate_status, "ready")) {
+          "not promoted yet"
+        } else if (nrow(current_match)) {
+          dina_admin_pit_label(current_match$status[[1L]])
+        } else {
+          "not checked"
+        }
+        dina_cli_cat(dina_cli_row(
+          c(
+            incoming$source_id[[i]],
+            incoming$rows[[i]],
+            incoming$countries[[i]],
+            year_label(incoming, i),
+            candidate_status,
+            canonical_status
+          ),
+          widths = c(26, 8, 10, 14, 12, 22)
+        ))
+      }
+      raw_ready <- sum(incoming_raw$status == "present", na.rm = TRUE)
+      dina_cli_alert(sprintf("Raw WID extracts present for %s/%s candidate artifacts; inspect `dina sources table wid source_inventory` for file-level detail.", raw_ready, nrow(incoming)))
+    } else {
+      dina_cli_cat("Canonical WID artifacts:")
+      dina_cli_cat(dina_cli_row(c("source", "rows", "countries", "years", "status"), widths = c(26, 8, 10, 14, 28), dim = TRUE))
+      for (i in seq_len(nrow(current))) {
+        dina_cli_cat(dina_cli_row(
+          c(
+            current$source_id[[i]],
+            current$rows[[i]],
+            current$countries[[i]],
+            year_label(current, i),
+            dina_admin_pit_label(current$status[[i]])
+          ),
+          widths = c(26, 8, 10, 14, 28)
+        ))
+      }
+    }
+    if (!nrow(current) && !nrow(incoming)) {
+      dina_cli_alert("No canonical or incoming WID artifacts were found.")
     }
   }
   blocked <- if (nrow(validation)) validation[validation$severity == "blocked", , drop = FALSE] else data.frame()
@@ -5262,7 +5306,12 @@ dina_print_wid_explore <- function(result, dry_run = FALSE) {
     }
   }
   if (nrow(actions)) {
-    next_commands <- unique(actions$next_command[nzchar(actions$next_command %||% "")])
+    action_rows <- if ("severity" %in% names(actions) && any(actions$severity == "blocked", na.rm = TRUE)) {
+      actions[actions$severity == "blocked", , drop = FALSE]
+    } else {
+      actions
+    }
+    next_commands <- unique(action_rows$next_command[nzchar(action_rows$next_command %||% "")])
     if (length(next_commands)) {
       dina_cli_alert(sprintf("Next likely command: %s", next_commands[[1L]]))
     }
@@ -5274,6 +5323,27 @@ dina_print_wid_explore <- function(result, dry_run = FALSE) {
     dina_cli_alert("Review artifact comparisons with `dina sources table wid wid_artifact_comparison` or `dina sources table wid wid_numeric_comparison`.")
   }
   invisible(result)
+}
+
+dina_wid_explore_needs_fetch <- function(result) {
+  inventory <- result$outputs$source_inventory %||% data.frame()
+  has_current_need <- nrow(inventory) &&
+    "source_set" %in% names(inventory) &&
+    "status" %in% names(inventory) &&
+    any(inventory$source_set == "current" & inventory$status %in% c("missing_current_artifact", "stale"), na.rm = TRUE)
+  if (!isTRUE(has_current_need)) return(FALSE)
+  promotion_plan <- result$outputs$promotion_plan %||% data.frame()
+  current_sources <- unique(inventory$source_id[inventory$source_set == "current"])
+  ready_sources <- if (nrow(promotion_plan) && "source_id" %in% names(promotion_plan)) unique(promotion_plan$source_id) else character()
+  !all(current_sources %in% ready_sources)
+}
+
+dina_wid_explore_has_missing_or_stale <- function(result) {
+  inventory <- result$outputs$source_inventory %||% data.frame()
+  nrow(inventory) &&
+    "source_set" %in% names(inventory) &&
+    "status" %in% names(inventory) &&
+    any(inventory$source_set == "current" & inventory$status %in% c("missing_current_artifact", "stale"), na.rm = TRUE)
 }
 
 dina_print_wid_table <- function(root, table, run = NULL, country = NULL, limit = 20L, show_run = TRUE) {
@@ -5314,7 +5384,7 @@ dina_print_wid_include <- function(result) {
   if (!nrow(summary)) {
     dina_cli_alert("No WID include summary rows were produced. Run `dina sources explore wid` first.")
   } else {
-    dina_cli_cat(dina_cli_row(c("source", "status", "rows", "countries", "years", "staged", "blocked"), widths = c(18, 14, 8, 10, 18, 8, 8), dim = TRUE))
+    dina_cli_cat(dina_cli_row(c("source", "status", "rows", "countries", "years", "staged", "warn", "blocked"), widths = c(18, 14, 8, 10, 18, 8, 6, 8), dim = TRUE))
     for (i in seq_len(nrow(summary))) {
       years <- if (!is.na(summary$incoming_first_year[[i]]) && !is.na(summary$incoming_last_year[[i]])) {
         sprintf("%s-%s", summary$incoming_first_year[[i]], summary$incoming_last_year[[i]])
@@ -5329,9 +5399,10 @@ dina_print_wid_include <- function(result) {
           summary$incoming_countries[[i]],
           years,
           summary$staged_sources[[i]],
+          summary$warnings[[i]],
           summary$blocked[[i]]
         ),
-        widths = c(18, 14, 8, 10, 18, 8, 8)
+        widths = c(18, 14, 8, 10, 18, 8, 6, 8)
       ))
     }
   }
@@ -5339,6 +5410,10 @@ dina_print_wid_include <- function(result) {
   blocked <- if (nrow(detail)) detail[detail$severity == "blocked", , drop = FALSE] else data.frame()
   if (nrow(blocked)) {
     dina_cli_warn("WID include is blocked. Inspect `dina sources table wid include_detail --run RUN` for details.")
+    next_commands <- unique(blocked$next_command[nzchar(blocked$next_command %||% "")])
+    if (length(next_commands)) {
+      dina_cli_alert(sprintf("Next likely command: %s", next_commands[[1L]]))
+    }
   }
   dina_cli_ok(sprintf("Include dry-run output: %s", result$paths$root))
   dina_cli_alert("No production files changed. Confirm only after reviewing a clean run.")
@@ -5813,7 +5888,26 @@ dina_cmd_sources <- function(root, args) {
       }
     } else if (identical(family, "wid") && identical(sub, "explore")) {
       source(file.path(root, "code", "R", "source-diagnostics", "wid_explorer.R"), local = FALSE)
-      result <- run_wid_explorer(root = root, output_dir = output_dir, write_outputs = !isTRUE(flags[["dry-run"]]), dry_run = isTRUE(flags[["dry-run"]]))
+      dry_run <- isTRUE(flags[["dry-run"]])
+      result <- run_wid_explorer(root = root, output_dir = output_dir, write_outputs = FALSE, dry_run = dry_run, fetch = FALSE)
+      needs_fetch <- dina_wid_explore_needs_fetch(result)
+      has_missing_or_stale <- dina_wid_explore_has_missing_or_stale(result)
+      should_fetch <- FALSE
+      if (isTRUE(flags$fetch) && isTRUE(dry_run)) {
+        dina_cli_warn("Dry-run only: WID fetch was not run.")
+      } else if (isTRUE(flags$fetch) && isTRUE(has_missing_or_stale)) {
+        should_fetch <- TRUE
+      } else if (isTRUE(flags$fetch) && !isTRUE(has_missing_or_stale)) {
+        dina_cli_alert("No missing or stale WID artifacts were found; fetch was not run.")
+      } else if (!isTRUE(flags[["no-fetch"]]) && isTRUE(needs_fetch) && !isTRUE(dry_run)) {
+        should_fetch <- dina_prompt_yes_no("WID artifacts are missing or stale. Fetch now? [y/N] ", default = FALSE, is_terminal = isatty(stdin()))
+      }
+      if (isTRUE(should_fetch)) {
+        dina_cli_alert("Fetching WID artifacts into input_data/_new/wid.")
+        result <- run_wid_explorer(root = root, output_dir = output_dir, write_outputs = !dry_run, dry_run = dry_run, fetch = TRUE)
+      } else if (!isTRUE(dry_run)) {
+        result <- run_wid_explorer(root = root, output_dir = output_dir, write_outputs = TRUE, dry_run = dry_run, fetch = FALSE)
+      }
       dina_print_wid_explore(result, dry_run = isTRUE(flags[["dry-run"]]))
     } else if (identical(family, "wid")) {
       if (isTRUE(flags$apply)) {

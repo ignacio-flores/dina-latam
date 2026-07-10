@@ -14,30 +14,91 @@ wid_include_module_file <- local({
 wid_include_module_dir <- if (nzchar(wid_include_module_file)) dirname(wid_include_module_file) else file.path(getwd(), "code", "R", "source-diagnostics")
 source(file.path(wid_include_module_dir, "wid_explorer.R"), local = environment())
 
-wid_include_prepare_one <- function(root, contract, paths, artifact) {
+wid_include_stage_from_exploration_one <- function(root, contract, paths, artifact, exploration) {
   source_id <- artifact$source_id
-  years <- wid_include_years(root, contract, artifact)
   required_years <- wid_include_required_years(root, contract, artifact)
+  source_paths <- wid_include_incoming_artifact_paths(root, artifact)
   stage_paths <- wid_include_artifact_paths(root, artifact, staged_repo = paths$staged_repo)
   prod_paths <- wid_include_artifact_paths(root, artifact)
-  result <- tryCatch({
-    raw <- wid_include_fetch_raw(root, contract, artifact, stage_paths$raw)
-    candidate <- wid_include_derive_artifact(raw, artifact, years)
-    wid_include_write_dta(candidate, stage_paths$canonical)
-    validation <- wid_include_validate_candidate(source_id, artifact, candidate, required_years)
-    comparison <- wid_include_compare_artifact(source_id, artifact, stage_paths$canonical, prod_paths$canonical, candidate)
-    list(ok = !any(validation$severity == "blocked", na.rm = TRUE), raw = raw, candidate = candidate, validation = validation, comparison = comparison, error = "")
-  }, error = function(e) {
-    validation <- data.frame(source_id = source_id, check = "derive_or_fetch", status = if (grepl("WID download failed|WID returned", conditionMessage(e))) "blocked_fetch_failed" else "blocked_derivation_failed", severity = "blocked", detail = conditionMessage(e), next_command = "dina sources include wid --dry-run", stringsAsFactors = FALSE)
-    list(ok = FALSE, raw = data.frame(stringsAsFactors = FALSE), candidate = data.frame(stringsAsFactors = FALSE), validation = validation, comparison = list(artifact = data.frame(stringsAsFactors = FALSE), numeric = data.frame(stringsAsFactors = FALSE)), error = conditionMessage(e))
-  })
+  fetch_validation <- exploration$validation_report %||% data.frame(stringsAsFactors = FALSE)
+  if (nrow(fetch_validation) && all(c("source_id", "severity") %in% names(fetch_validation))) {
+    fetch_blockers <- fetch_validation[fetch_validation$source_id == source_id & fetch_validation$severity == "blocked", , drop = FALSE]
+    if (nrow(fetch_blockers)) {
+      candidate_read <- wid_include_read_dta(source_paths$canonical)
+      raw_read <- wid_include_read_dta(source_paths$raw)
+      inventory <- wid_include_bind(
+        wid_include_dataset_status(source_id, "derived", "_new", source_paths$canonical, source_paths$canonical_rel, source_paths$canonical_destination_rel, candidate_read$data, candidate_read$ok, candidate_read$error),
+        wid_include_dataset_status(source_id, "raw", "_new", source_paths$raw, source_paths$raw_rel, source_paths$raw_destination_rel, raw_read$data, raw_read$ok, raw_read$error)
+      )
+      return(list(source_id = source_id, ok = FALSE, validation = fetch_blockers, inventory = inventory, comparison = data.frame(stringsAsFactors = FALSE), numeric = data.frame(stringsAsFactors = FALSE), promotion_plan = data.frame(source_id = character(), artifact_type = character(), from_rel = character(), to_rel = character(), promotion_scope = character(), stringsAsFactors = FALSE)))
+    }
+  }
+  validation_rows <- list()
+  add_block <- function(check, status, detail) {
+    validation_rows[[length(validation_rows) + 1L]] <<- data.frame(
+      source_id = source_id,
+      check = check,
+      status = status,
+      severity = "blocked",
+      detail = detail,
+      next_command = "dina sources explore wid --fetch",
+      stringsAsFactors = FALSE
+    )
+  }
+  expected <- exploration$promotion_fingerprints %||% data.frame(stringsAsFactors = FALSE)
+  if (!all(c("source_id", "artifact_type", "to_rel", "hash") %in% names(expected))) {
+    expected <- data.frame(source_id = character(), artifact_type = character(), to_rel = character(), hash = character(), stringsAsFactors = FALSE)
+  }
+  copies <- list(
+    derived = list(from = source_paths$canonical, to = stage_paths$canonical, to_rel = stage_paths$canonical_rel),
+    raw = list(from = source_paths$raw, to = stage_paths$raw, to_rel = stage_paths$raw_rel)
+  )
+  for (artifact_type in names(copies)) {
+    copy <- copies[[artifact_type]]
+    expected_row <- expected[expected$source_id == source_id & expected$artifact_type == artifact_type & expected$to_rel == copy$to_rel, , drop = FALSE]
+    if (!nrow(expected_row)) {
+      add_block("incoming_candidate", "blocked_missing_fetch_fingerprint", sprintf("No reviewed WID _new fingerprint found for %s. Run `dina sources explore wid --fetch` first.", copy$to_rel))
+      next
+    }
+    if (!file.exists(copy$from) || dir.exists(copy$from)) {
+      add_block("incoming_candidate", "blocked_missing_fetched_candidate", sprintf("Reviewed WID _new candidate is missing: %s", copy$from))
+      next
+    }
+    current_hash <- wid_include_hash_path(copy$from)
+    if (!identical(as.character(expected_row$hash[[1L]]), as.character(current_hash))) {
+      add_block("incoming_candidate", "blocked_fetch_fingerprint_mismatch", sprintf("Reviewed WID _new candidate changed after exploration: %s", copy$from))
+      next
+    }
+    copy_status <- wid_include_copy_path(copy$from, copy$to)
+    if (!identical(copy_status, "staged")) {
+      add_block("copy", "blocked_copy_failed", sprintf("Could not stage reviewed WID _new candidate %s: %s", copy$from, copy_status))
+    }
+  }
   candidate_read <- wid_include_read_dta(stage_paths$canonical)
   raw_read <- wid_include_read_dta(stage_paths$raw)
   inventory <- wid_include_bind(
     wid_include_dataset_status(source_id, "derived", "candidate", stage_paths$canonical, wid_include_relative_path(stage_paths$canonical, root), artifact$canonical, candidate_read$data, candidate_read$ok, candidate_read$error),
     wid_include_dataset_status(source_id, "raw", "candidate", stage_paths$raw, wid_include_relative_path(stage_paths$raw, root), artifact$raw, raw_read$data, raw_read$ok, raw_read$error)
   )
-  promotions <- if (isTRUE(result$ok)) {
+  validation <- wid_include_bind(validation_rows)
+  comparison <- list(artifact = data.frame(stringsAsFactors = FALSE), numeric = data.frame(stringsAsFactors = FALSE))
+  if (!nrow(validation) && isTRUE(candidate_read$ok)) {
+    candidate_validation <- wid_include_validate_candidate(source_id, artifact, candidate_read$data, required_years)
+    validation <- wid_include_bind(validation, candidate_validation)
+    comparison <- wid_include_compare_artifact(source_id, artifact, stage_paths$canonical, prod_paths$canonical, candidate_read$data)
+  } else if (!nrow(validation)) {
+    validation <- data.frame(
+      source_id = source_id,
+      check = "candidate_read",
+      status = "blocked_read_failed",
+      severity = "blocked",
+      detail = candidate_read$error %||% "Candidate WID artifact is unreadable.",
+      next_command = "dina sources explore wid --fetch",
+      stringsAsFactors = FALSE
+    )
+  }
+  ok <- !any(validation$severity == "blocked", na.rm = TRUE)
+  promotions <- if (isTRUE(ok)) {
     wid_include_bind(
       data.frame(source_id = source_id, artifact_type = "derived", from_rel = stage_paths$canonical, to_rel = stage_paths$canonical_rel, promotion_scope = "promote", stringsAsFactors = FALSE),
       data.frame(source_id = source_id, artifact_type = "raw", from_rel = stage_paths$raw, to_rel = stage_paths$raw_rel, promotion_scope = "promote", stringsAsFactors = FALSE)
@@ -45,7 +106,7 @@ wid_include_prepare_one <- function(root, contract, paths, artifact) {
   } else {
     data.frame(source_id = character(), artifact_type = character(), from_rel = character(), to_rel = character(), promotion_scope = character(), stringsAsFactors = FALSE)
   }
-  list(source_id = source_id, ok = result$ok, validation = result$validation, inventory = inventory, comparison = result$comparison$artifact, numeric = result$comparison$numeric, promotion_plan = promotions)
+  list(source_id = source_id, ok = ok, validation = validation, inventory = inventory, comparison = comparison$artifact, numeric = comparison$numeric, promotion_plan = promotions)
 }
 
 wid_include_read_exploration <- function(root, contract, exploration_run = NULL) {
@@ -62,6 +123,9 @@ wid_include_read_exploration <- function(root, contract, exploration_run = NULL)
     wid_numeric_comparison = wid_include_read_csv(file.path(tables, "wid_numeric_comparison.csv")),
     review_actions = wid_include_read_csv(file.path(tables, "review_actions.csv")),
     unsupported_sources = wid_include_read_csv(file.path(tables, "unsupported_sources.csv")),
+    promotion_plan = wid_include_read_csv(file.path(tables, "promotion_plan.csv")),
+    source_fingerprints = wid_include_read_csv(file.path(tables, "source_fingerprints.csv")),
+    promotion_fingerprints = wid_include_read_csv(file.path(tables, "promotion_fingerprints.csv")),
     explore_manifest = wid_include_read_csv(file.path(logs, "explore_manifest.csv"))
   )
 }
@@ -100,6 +164,7 @@ wid_include_summary <- function(prepared, promotion_plan) {
   rows <- lapply(prepared, function(item) {
     inv <- item$inventory[item$inventory$artifact_type == "derived", , drop = FALSE]
     blocked <- if (nrow(item$validation)) sum(item$validation$severity == "blocked", na.rm = TRUE) else 0L
+    warnings <- if (nrow(item$validation)) sum(item$validation$severity == "warning", na.rm = TRUE) else 0L
     promos <- promotion_plan[promotion_plan$source_id == item$source_id, , drop = FALSE]
     data.frame(
       source_id = item$source_id,
@@ -112,7 +177,7 @@ wid_include_summary <- function(prepared, promotion_plan) {
       promotions = nrow(promos),
       overlap_rows = NA_integer_,
       coverage_differences = NA_integer_,
-      warnings = 0L,
+      warnings = warnings,
       blocked = blocked,
       stringsAsFactors = FALSE
     )
@@ -145,9 +210,13 @@ run_wid_include <- function(
     fresh <- run_wid_explorer(root = root, contract_path = contract_path, write_outputs = FALSE, dry_run = TRUE)
     exploration <- c(list(root = fresh$paths$root), fresh$outputs)
   }
-  prepared <- lapply(wid_include_artifacts(contract), function(artifact) wid_include_prepare_one(root, contract, paths, artifact))
+  prepared <- lapply(wid_include_artifacts(contract), function(artifact) wid_include_stage_from_exploration_one(root, contract, paths, artifact, exploration))
   validation <- wid_include_bind(lapply(prepared, `[[`, "validation"))
-  inventory <- wid_include_bind(exploration$source_inventory, lapply(prepared, `[[`, "inventory"))
+  current_inventory <- exploration$source_inventory
+  if (nrow(current_inventory) && "source_set" %in% names(current_inventory)) {
+    current_inventory <- current_inventory[current_inventory$source_set == "current", , drop = FALSE]
+  }
+  inventory <- wid_include_bind(current_inventory, lapply(prepared, `[[`, "inventory"))
   comparison <- wid_include_bind(lapply(prepared, `[[`, "comparison"))
   numeric <- wid_include_bind(lapply(prepared, `[[`, "numeric"))
   promotion_plan <- wid_include_bind(lapply(prepared, `[[`, "promotion_plan"))

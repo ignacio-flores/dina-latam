@@ -36,7 +36,6 @@ dina sources list urls wid
 dina sources list detail SOURCE --urls
 dina sources list guide SOURCE --urls
 dina sources fetch SOURCE --dry-run
-dina sources fetch wid --dry-run
 dina sources compare
 dina sources explore sna
 dina sources table sna year_expectations
@@ -51,6 +50,7 @@ dina sources table surveys survey_pop_status
 dina sources include surveys --dry-run
 dina sources include surveys --confirm --include-run RUN
 dina sources explore wid
+dina sources explore wid --fetch
 dina sources table wid overlap_summary
 dina sources include wid --dry-run
 dina sources include wid --confirm --include-run RUN
@@ -96,15 +96,20 @@ candidate `SurveyPop.dta`. Confirm only after review; the confirm step promotes
 approved survey inputs and writes `intermediary_data/population/SurveyPop.dta`.
 
 The public `wid` source type owns WID fetching for the active pipeline. Run
-`dina sources explore wid` to review the local artifact inventory without
-network calls, then `dina sources include wid --dry-run` to fetch raw WID
-extracts into a staged run, derive local `.dta` artifacts, and compare them
-with any existing files. Confirm only after review. The canonical WID files live
-flat in `input_data/wid/`, including `population_total_adult_npopul.dta`,
-`macro_national_accounts_indicators.dta`, `public_spending_gdp_shares.dta`,
-`prices_deflator_ppp_eur.dta`, and export comparison/scaling artifacts. World
-Bank price inputs remain separate under `input_data/prices_WB/`; any combined
-WID/WB price object is a pipeline temporary, not a WID source artifact.
+`dina sources explore wid` to review the local artifact inventory. If configured
+WID artifacts are missing or stale, interactive explore offers to fetch them;
+scripts can use `dina sources explore wid --fetch`. The fetch writes raw WID
+extracts and derived `.dta` candidates into the flat incoming bucket
+`input_data/_new/wid/`, then reruns exploration so review tables compare the
+incoming candidates with any existing files. After reviewing a clean fetch, use
+`dina sources include wid --dry-run` to stage the `_new/wid` candidates for
+promotion, then confirm only after review. The canonical WID files live flat in
+`input_data/wid/`, including
+`population_total_adult_npopul.dta`, `macro_national_accounts_indicators.dta`,
+`public_spending_gdp_shares.dta`, `prices_deflator_ppp_eur.dta`, and export
+comparison/scaling artifacts. World Bank price inputs remain separate under
+`input_data/prices_WB/`; any combined WID/WB price object is a pipeline
+temporary, not a WID source artifact.
 
 ## Compress Input Data
 

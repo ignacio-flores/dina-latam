@@ -255,7 +255,7 @@ admin_pit_include_wid_population_dependency <- function(rel, dependency_id = "")
 admin_pit_include_wid_population_status <- function(root, rel) {
   population <- admin_pit_include_path(rel, root)
   next_command <- "dina sources explore wid"
-  guidance <- "Run `dina sources explore wid`, then `dina sources include wid --dry-run`, then confirm a clean WID include run."
+  guidance <- "Run `dina sources explore wid --fetch` if WID artifacts are missing or stale, then `dina sources include wid --dry-run`, then confirm a clean WID include run."
   if (!file.exists(population)) {
     return(list(
       status = "missing_static_dependency",

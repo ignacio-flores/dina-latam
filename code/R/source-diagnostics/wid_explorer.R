@@ -27,21 +27,42 @@ wid_include_current_status <- function(root, contract, artifact) {
   status
 }
 
-wid_include_review_actions <- function(status) {
+wid_include_review_actions <- function(status, validation = data.frame(stringsAsFactors = FALSE)) {
   if (!nrow(status)) return(data.frame(stringsAsFactors = FALSE))
+  candidate <- status[status$source_set %in% c("_new", "candidate"), , drop = FALSE]
+  blocked_candidates <- candidate$source_id[candidate$status %in% c("missing_candidate", "read_failed")]
+  if (nrow(validation) && all(c("source_id", "severity") %in% names(validation))) {
+    blocked_candidates <- unique(c(blocked_candidates, validation$source_id[validation$severity == "blocked"]))
+  }
+  incoming_sources <- unique(candidate$source_id)
   rows <- lapply(unique(status$source_id), function(source_id) {
     part <- status[status$source_id == source_id, , drop = FALSE]
-    needs <- part$status %in% c("missing_current_artifact", "stale", "read_failed")
+    current <- part[part$source_set == "current", , drop = FALSE]
+    needs_fetch <- current$status %in% c("missing_current_artifact", "stale")
+    incoming <- source_id %in% incoming_sources
+    blocked <- source_id %in% blocked_candidates
     data.frame(
       source_id = source_id,
-      action = if (any(needs)) "review_include" else "no_action",
-      severity = "info",
-      next_command = if (any(needs)) "dina sources include wid --dry-run" else "",
-      detail = if (any(needs)) "WID artifact is missing, unreadable, or older than WID workflow inputs." else "WID artifact is present.",
+      action = if (isTRUE(blocked)) "fetch_blocked" else if (isTRUE(incoming)) "review_include" else if (any(needs_fetch)) "fetch_wid" else "no_action",
+      severity = if (isTRUE(blocked)) "blocked" else "info",
+      next_command = if (isTRUE(blocked) || any(needs_fetch) && !isTRUE(incoming)) "dina sources explore wid --fetch" else if (isTRUE(incoming)) "dina sources include wid --dry-run" else "",
+      detail = if (isTRUE(blocked)) {
+        "Incoming WID candidate is missing or unreadable; rerun the WID fetch."
+      } else if (isTRUE(incoming)) {
+        "Incoming WID candidate in input_data/_new/wid is ready for include review."
+      } else if (any(needs_fetch)) {
+        "WID artifact is missing or older than WID workflow inputs; fetch through the WID explorer."
+      } else {
+        "WID artifact is present."
+      },
       stringsAsFactors = FALSE
     )
   })
   wid_include_bind(rows)
+}
+
+wid_include_fetch_needed <- function(inventory) {
+  nrow(inventory) && any(inventory$source_set == "current" & inventory$status %in% c("missing_current_artifact", "stale"), na.rm = TRUE)
 }
 
 wid_include_unsupported_sources <- function(root, contract) {
@@ -97,36 +118,73 @@ run_wid_explorer <- function(
   contract_path = file.path(root, "config", "wid_include.yml"),
   output_dir = NULL,
   write_outputs = TRUE,
-  dry_run = FALSE
+  dry_run = FALSE,
+  fetch = FALSE
 ) {
   contract <- wid_include_read_contract(root, contract_path)
   paths <- wid_include_explore_paths(root, contract, output_dir)
   artifacts <- wid_include_artifacts(contract)
   request_plan <- wid_include_request_plan(root, contract)
-  inventory <- wid_include_bind(lapply(artifacts, function(artifact) wid_include_current_status(root, contract, artifact)))
+  current_inventory <- wid_include_bind(lapply(artifacts, function(artifact) wid_include_current_status(root, contract, artifact)))
+  needs_fetch <- wid_include_fetch_needed(current_inventory)
+  incoming <- lapply(artifacts, function(artifact) wid_include_inspect_incoming_one(root, contract, artifact, require_candidate = FALSE))
+  fetch_validation <- data.frame(stringsAsFactors = FALSE)
+  publish_report <- data.frame(stringsAsFactors = FALSE)
+  fetch_attempted <- isTRUE(fetch) && isTRUE(needs_fetch) && !isTRUE(dry_run)
+  if (isTRUE(fetch_attempted)) {
+    dir.create(paths$fetch_tmp, recursive = TRUE, showWarnings = FALSE)
+    prepared <- lapply(artifacts, function(artifact) wid_include_prepare_candidate_one(root, contract, paths, artifact))
+    fetch_validation <- wid_include_bind(lapply(prepared, `[[`, "validation"))
+    if (!any(fetch_validation$severity == "blocked", na.rm = TRUE)) {
+      publish_report <- wid_include_publish_fetch_to_incoming(root, prepared)
+      fetch_validation <- wid_include_publish_validation(publish_report)
+    }
+    if (!any(fetch_validation$severity == "blocked", na.rm = TRUE)) {
+      incoming <- lapply(artifacts, function(artifact) wid_include_inspect_incoming_one(root, contract, artifact, require_candidate = FALSE))
+      fetch_validation <- data.frame(stringsAsFactors = FALSE)
+    }
+  }
+  candidate_inventory <- wid_include_bind(lapply(incoming, `[[`, "inventory"))
+  inventory <- wid_include_bind(current_inventory, candidate_inventory)
+  validation <- wid_include_bind(lapply(incoming, `[[`, "validation"), fetch_validation)
+  comparison <- wid_include_bind(lapply(incoming, `[[`, "comparison"))
+  numeric <- wid_include_bind(lapply(incoming, `[[`, "numeric"))
+  promotion_plan <- wid_include_bind(lapply(incoming, `[[`, "promotion_plan"))
+  source_fingerprints <- wid_include_source_fingerprints(promotion_plan)
+  promotion_fingerprints <- wid_include_promotion_fingerprints(promotion_plan)
   artifact_status <- data.frame(
-    source_id = inventory$source_id,
-    artifact = inventory$destination,
-    exists = inventory$exists,
-    status = inventory$status,
-    rows = inventory$rows,
-    first_year = inventory$first_year,
-    last_year = inventory$last_year,
-    next_command = ifelse(inventory$status %in% c("missing_current_artifact", "stale", "read_failed"), "dina sources include wid --dry-run", ""),
+    source_id = current_inventory$source_id,
+    artifact = current_inventory$destination,
+    exists = current_inventory$exists,
+    status = current_inventory$status,
+    rows = current_inventory$rows,
+    first_year = current_inventory$first_year,
+    last_year = current_inventory$last_year,
+    next_command = ifelse(current_inventory$status %in% c("missing_current_artifact", "stale"), "dina sources explore wid --fetch", ""),
     stringsAsFactors = FALSE
   )
-  actions <- wid_include_review_actions(inventory)
+  actions <- wid_include_review_actions(inventory, validation)
   unsupported <- wid_include_unsupported_sources(root, contract)
-  overall <- if (any(inventory$status == "read_failed", na.rm = TRUE)) "blocked" else "review"
+  overall <- if (any(validation$severity == "blocked", na.rm = TRUE) || any(inventory$status == "read_failed", na.rm = TRUE)) {
+    "blocked"
+  } else if (isTRUE(fetch_attempted)) {
+    "fetched"
+  } else {
+    "review"
+  }
   tables <- list(
     wid_request_plan = request_plan,
     source_inventory = inventory,
     wid_artifact_status = artifact_status,
-    validation_report = data.frame(stringsAsFactors = FALSE),
-    wid_artifact_comparison = data.frame(stringsAsFactors = FALSE),
-    wid_numeric_comparison = data.frame(stringsAsFactors = FALSE),
+    validation_report = validation,
+    wid_artifact_comparison = comparison,
+    wid_numeric_comparison = numeric,
     review_actions = actions,
     unsupported_sources = unsupported,
+    promotion_plan = promotion_plan,
+    source_fingerprints = source_fingerprints,
+    promotion_fingerprints = promotion_fingerprints,
+    fetch_publish_report = publish_report,
     explore_manifest = wid_include_manifest("explore", overall, contract, dry_run = dry_run)
   )
   if (isTRUE(write_outputs)) {

@@ -90,7 +90,7 @@ wid_fixture_contract <- function() {
         output_map = list(denominator = "mgdpro", shares = list(con = "mcongo", edu = "meduge", exp = "mexpgo", hea = "mheage"), source = "WID_web"),
         derive = list(min_year = 2000L),
         request = list(indicators = c("meduge", "mheage", "mexpgo", "mcongo", "mgdpro"), area_set = "project_latam", first_year = 2000L),
-        schema = list(required_columns = c("iso", "year", "source", "exp", "con", "hea", "edu"), key_columns = c("iso", "year"), numeric_columns = c("exp", "con", "hea", "edu"), required_years = "configured_window")
+        schema = list(required_columns = c("iso", "year", "source", "exp", "con", "hea", "edu"), key_columns = c("iso", "year"), numeric_columns = c("exp", "con", "hea", "edu"), required_years = "configured_window", allow_missing_numeric = TRUE)
       ),
       `wid-prices-xrates` = list(
         canonical = "input_data/wid/prices_deflator_ppp_eur.dta",
@@ -139,6 +139,18 @@ wid_fixture_write_current_artifacts <- function(root, offset = 0) {
     wid_fixture_write_dta(root, artifact$canonical, candidate)
     wid_fixture_write_dta(root, artifact$raw, raw_set[[source_id]])
   }
+}
+
+wid_fixture_mark_current_stale <- function(root) {
+  contract <- wid_include_read_contract(root)
+  for (artifact in wid_include_artifacts(contract)) {
+    path <- file.path(root, artifact$canonical)
+    if (file.exists(path)) Sys.setFileTime(path, as.POSIXct("2001-01-01", tz = "UTC"))
+  }
+}
+
+wid_fixture_fetch_explore <- function(root) {
+  run_wid_explorer(root = root, write_outputs = TRUE, fetch = TRUE)
 }
 
 wid_fixture_root <- function(current = FALSE, current_offset = 0, incoming_offset = 100, invalid = NULL) {
@@ -220,9 +232,10 @@ test_that("WID explorer reports missing artifacts without fetching", {
   expect_equal(nrow(result$outputs$wid_request_plan), 6L)
   expect_true(any(grepl("totalpop=npopul999i", result$outputs$wid_request_plan$mapping_summary, fixed = TRUE)))
   expect_equal(result$outputs$wid_request_plan$area_set[result$outputs$wid_request_plan$source_id == "population"], "population_legacy")
-  expect_true(any(result$outputs$review_actions$next_command == "dina sources include wid --dry-run"))
+  expect_true(any(result$outputs$review_actions$next_command == "dina sources explore wid --fetch"))
   expect_equal(nrow(result$outputs$unsupported_sources), 0L)
   expect_false(dir.exists(file.path(root, "output", "experiments", "wid_include")))
+  expect_false(dir.exists(file.path(root, "output", "experiments", "wid_explore", "staged_repo")))
 })
 
 test_that("WID explorer reports stale local artifacts", {
@@ -232,13 +245,34 @@ test_that("WID explorer reports stale local artifacts", {
   result <- run_wid_explorer(root = root, write_outputs = FALSE)
   population_status <- result$outputs$wid_artifact_status[result$outputs$wid_artifact_status$source_id == "population", , drop = FALSE]
   expect_true("stale" %in% population_status$status)
-  expect_true(any(result$outputs$review_actions$source_id == "population" & result$outputs$review_actions$next_command == "dina sources include wid --dry-run"))
+  expect_true(any(result$outputs$review_actions$source_id == "population" & result$outputs$review_actions$next_command == "dina sources explore wid --fetch"))
 })
 
-test_that("WID include dry-run stages first-time artifacts without promoting", {
+test_that("WID explorer fetch fills _new first-time artifacts without promoting", {
   root <- wid_fixture_root(current = FALSE, incoming_offset = 100)
   canonical <- file.path(root, "input_data", "wid", "population_total_adult_npopul.dta")
+  incoming <- file.path(root, "input_data", "_new", "wid", "population_total_adult_npopul.dta")
   expect_false(file.exists(canonical))
+  expect_false(file.exists(incoming))
+  fetch <- wid_fixture_fetch_explore(root)
+  expect_equal(wid_include_manifest_value(fetch$manifest, "status"), "fetched")
+  expect_false(file.exists(canonical))
+  expect_true(file.exists(incoming))
+  expect_equal(sum(fetch$outputs$promotion_plan$artifact_type == "derived"), 6L)
+  expect_equal(sum(fetch$outputs$promotion_plan$artifact_type == "raw"), 6L)
+  expect_true(all(fetch$outputs$wid_artifact_comparison$comparison_status == "no_current_artifact"))
+  expect_true(file.exists(file.path(root, "input_data", "_new", "wid", "prices_deflator_ppp_eur.dta")))
+  expect_true(any(fetch$outputs$source_inventory$source_set == "_new"))
+  expect_false(dir.exists(file.path(root, "output", "experiments", "wid_explore", "staged_repo")))
+})
+
+test_that("WID include dry-run consumes _new WID artifacts without promoting", {
+  root <- wid_fixture_root(current = FALSE, incoming_offset = 100)
+  canonical <- file.path(root, "input_data", "wid", "population_total_adult_npopul.dta")
+  incoming <- file.path(root, "input_data", "_new", "wid", "population_total_adult_npopul.dta")
+  expect_false(file.exists(canonical))
+  wid_fixture_fetch_explore(root)
+  expect_true(file.exists(incoming))
   include <- run_wid_include(root = root, write_outputs = TRUE, run_id = "wid-first")
   expect_equal(wid_include_manifest_value(include$manifest, "status"), "all_good")
   expect_false(file.exists(canonical))
@@ -250,6 +284,7 @@ test_that("WID include dry-run stages first-time artifacts without promoting", {
 
 test_that("WID confirm promotes first-time artifacts and restore removes them", {
   root <- wid_fixture_root(current = FALSE, incoming_offset = 100)
+  wid_fixture_fetch_explore(root)
   include <- run_wid_include(root = root, write_outputs = TRUE, run_id = "wid-confirmable")
   confirm <- wid_include_confirm_sources(root = root, include_run = include$paths$root)
   promoted <- file.path(root, "input_data", "wid", "population_total_adult_npopul.dta")
@@ -262,6 +297,8 @@ test_that("WID confirm promotes first-time artifacts and restore removes them", 
 
 test_that("Later WID include compares candidates against existing artifacts", {
   root <- wid_fixture_root(current = TRUE, current_offset = 0, incoming_offset = 100)
+  wid_fixture_mark_current_stale(root)
+  wid_fixture_fetch_explore(root)
   include <- run_wid_include(root = root, write_outputs = TRUE, run_id = "wid-later")
   expect_equal(wid_include_manifest_value(include$manifest, "status"), "all_good")
   expect_true(all(include$outputs$wid_artifact_comparison$comparison_status == "compared"))
@@ -278,14 +315,30 @@ test_that("WID include blocks malformed source responses and invalid derived art
   )
   for (scenario in names(scenarios)) {
     root <- wid_fixture_root(current = FALSE, invalid = scenario)
+    fetch <- wid_fixture_fetch_explore(root)
+    expect_equal(wid_include_manifest_value(fetch$manifest, "status"), "blocked", info = scenario)
     include <- run_wid_include(root = root, write_outputs = TRUE, run_id = paste0("wid-", scenario))
     expect_equal(wid_include_manifest_value(include$manifest, "status"), "blocked", info = scenario)
     expect_true(scenarios[[scenario]] %in% include$outputs$include_detail$status, info = scenario)
   }
 })
 
+test_that("WID fetch failure leaves existing _new artifacts unchanged", {
+  root <- wid_fixture_root(current = FALSE, incoming_offset = 100)
+  first <- wid_fixture_fetch_explore(root)
+  expect_equal(wid_include_manifest_value(first$manifest, "status"), "fetched")
+  incoming <- file.path(root, "input_data", "_new", "wid", "prices_deflator_ppp_eur.dta")
+  before_hash <- wid_include_hash_path(incoming)
+
+  wid_fixture_write_raw_fixtures(Sys.getenv("DINA_WID_FIXTURE_DIR"), wid_fixture_raw_set(offset = 999, invalid = "missing_indicator"))
+  failed <- wid_fixture_fetch_explore(root)
+  expect_equal(wid_include_manifest_value(failed$manifest, "status"), "blocked")
+  expect_equal(wid_include_hash_path(incoming), before_hash)
+})
+
 test_that("WID confirm refuses changed staged artifacts", {
   root <- wid_fixture_root(current = FALSE, incoming_offset = 100)
+  wid_fixture_fetch_explore(root)
   include <- run_wid_include(root = root, write_outputs = TRUE, run_id = "wid-fingerprint")
   staged <- include$outputs$promotion_plan$from_rel[include$outputs$promotion_plan$artifact_type == "derived"][[1L]]
   staged_data <- haven::read_dta(staged)
@@ -304,7 +357,21 @@ test_that("main dina CLI dispatches WID explore, include, and table previews", {
   expect_equal(explore$status, 0L)
   expect_match(explore$output, "WID Explore")
   expect_match(explore$output, "population")
-  expect_match(explore$output, "dina sources include wid --dry-run")
+  expect_match(explore$output, "dina sources explore wid --fetch")
+
+  include <- run_dina_cli(c("sources", "include", "wid", "--dry-run"), root = root)
+  expect_equal(include$status, 0L)
+  expect_match(include$output, "WID Include")
+  expect_match(include$output, "dina sources explore wid --fetch")
+
+  fetched <- run_dina_cli(c("sources", "explore", "wid", "--fetch"), root = root)
+  expect_equal(fetched$status, 0L)
+  expect_match(fetched$output, "Overall status: fetched")
+  expect_match(fetched$output, "Incoming WID candidates")
+  expect_match(fetched$output, "not promoted yet")
+  expect_match(fetched$output, "Raw WID extracts present")
+  expect_false(grepl("wid-macro\\s+raw\\s+_new", fetched$output))
+  expect_match(fetched$output, "dina sources include wid --dry-run")
 
   include <- run_dina_cli(c("sources", "include", "wid", "--dry-run"), root = root)
   expect_equal(include$status, 0L)

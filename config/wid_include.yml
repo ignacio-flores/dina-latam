@@ -225,6 +225,7 @@ artifacts:
       key_columns: [iso, year]
       numeric_columns: [exp, con, hea, edu]
       required_years: configured_window
+      allow_missing_numeric: true
   wid-prices-xrates:
     canonical: input_data/wid/prices_deflator_ppp_eur.dta
     raw: input_data/wid/raw_prices_inyixx_xlceup.dta

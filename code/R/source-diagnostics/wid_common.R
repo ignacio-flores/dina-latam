@@ -144,7 +144,8 @@ wid_include_schema <- function(artifact) {
     required_columns = as.character(schema$required_columns %||% character()),
     key_columns = as.character(schema$key_columns %||% character()),
     numeric_columns = as.character(schema$numeric_columns %||% character()),
-    required_years = as.character(schema$required_years %||% "none")
+    required_years = as.character(schema$required_years %||% "none"),
+    allow_missing_numeric = isTRUE(schema$allow_missing_numeric)
   )
 }
 
@@ -188,7 +189,7 @@ wid_include_output_root <- function(root, contract, output_dir = NULL, explore =
 
 wid_include_explore_paths <- function(root, contract, output_dir = NULL) {
   out <- wid_include_output_root(root, contract, output_dir, explore = TRUE)
-  list(root = out, tables = file.path(out, "tables"), logs = file.path(out, "logs"))
+  list(root = out, tables = file.path(out, "tables"), logs = file.path(out, "logs"), fetch_tmp = file.path(out, "fetch_tmp"))
 }
 
 wid_include_output_paths_for_run <- function(root, contract, output_dir = NULL, run_id = NULL) {
@@ -578,6 +579,24 @@ wid_include_artifact_paths <- function(root, artifact, staged_repo = NULL) {
   )
 }
 
+wid_include_incoming_rel <- function(path) {
+  file.path("input_data", "_new", "wid", basename(path %||% ""))
+}
+
+wid_include_incoming_artifact_paths <- function(root, artifact) {
+  prod <- wid_include_artifact_paths(root, artifact)
+  canonical_rel <- wid_include_incoming_rel(prod$canonical_rel)
+  raw_rel <- wid_include_incoming_rel(prod$raw_rel)
+  list(
+    canonical_rel = canonical_rel,
+    raw_rel = raw_rel,
+    canonical = file.path(root, canonical_rel),
+    raw = file.path(root, raw_rel),
+    canonical_destination_rel = prod$canonical_rel,
+    raw_destination_rel = prod$raw_rel
+  )
+}
+
 wid_include_dataset_status <- function(source_id, artifact_type, source_set, path, rel, destination, data = NULL, read_ok = NULL, read_error = "") {
   exists <- file.exists(path) && !dir.exists(path)
   if (is.null(data) || is.null(read_ok)) {
@@ -621,7 +640,7 @@ wid_include_validate_candidate <- function(source_id, artifact, data, years) {
   schema <- wid_include_schema(artifact)
   rows <- list()
   add <- function(check, status, severity, detail) {
-    rows[[length(rows) + 1L]] <<- data.frame(source_id = source_id, check = check, status = status, severity = severity, detail = detail, next_command = if (identical(severity, "blocked")) "dina sources include wid --dry-run" else "", stringsAsFactors = FALSE)
+    rows[[length(rows) + 1L]] <<- data.frame(source_id = source_id, check = check, status = status, severity = severity, detail = detail, next_command = if (identical(severity, "blocked")) "dina sources explore wid --fetch" else "", stringsAsFactors = FALSE)
   }
   if (!nrow(data)) {
     add("rows", "blocked_empty_source", "blocked", "Candidate WID artifact has no rows.")
@@ -636,8 +655,18 @@ wid_include_validate_candidate <- function(source_id, artifact, data, years) {
     dup <- sum(duplicated(key), na.rm = TRUE)
     if (dup > 0L) add("keys", "blocked_duplicate_keys", "blocked", sprintf("%s duplicate key rows.", dup))
     numeric_cols <- intersect(schema$numeric_columns, names(data))
-    missing_values <- sum(!stats::complete.cases(data[numeric_cols]))
-    if (missing_values > 0L) add("values", "blocked_missing_values", "blocked", sprintf("%s rows have missing numeric values.", missing_values))
+    if (length(numeric_cols)) {
+      missing_rows <- sum(!stats::complete.cases(data[numeric_cols]))
+      missing_cells <- sum(is.na(data[numeric_cols]))
+      fully_missing_cols <- numeric_cols[vapply(data[numeric_cols], function(col) all(is.na(col)), logical(1L))]
+      if (length(fully_missing_cols)) {
+        add("values", "blocked_missing_values", "blocked", paste("Required numeric columns are entirely missing:", paste(fully_missing_cols, collapse = ",")))
+      } else if (missing_cells > 0L && isTRUE(schema$allow_missing_numeric)) {
+        add("values", "warning_missing_values", "warning", sprintf("%s numeric cells across %s rows are missing; treated as WID coverage gaps.", missing_cells, missing_rows))
+      } else if (missing_cells > 0L) {
+        add("values", "blocked_missing_values", "blocked", sprintf("%s numeric cells across %s rows are missing.", missing_cells, missing_rows))
+      }
+    }
     if ("year" %in% names(data) && length(years)) {
       missing_years <- setdiff(years, sort(unique(suppressWarnings(as.integer(data$year)))))
       if (length(missing_years)) {
@@ -646,6 +675,191 @@ wid_include_validate_candidate <- function(source_id, artifact, data, years) {
     }
   }
   if (!length(rows)) add("candidate", "ok", "info", "Candidate WID artifact passed blocking checks.")
+  wid_include_bind(rows)
+}
+
+wid_include_prepare_candidate_one <- function(root, contract, paths, artifact) {
+  source_id <- artifact$source_id
+  years <- wid_include_years(root, contract, artifact)
+  required_years <- wid_include_required_years(root, contract, artifact)
+  fetch_base <- paths$fetch_tmp %||% paths$staged_repo
+  if (is.null(fetch_base) || !nzchar(fetch_base)) {
+    stop("WID fetch requires a temporary output directory.", call. = FALSE)
+  }
+  stage_paths <- wid_include_artifact_paths(root, artifact, staged_repo = fetch_base)
+  prod_paths <- wid_include_artifact_paths(root, artifact)
+  result <- tryCatch({
+    raw <- wid_include_fetch_raw(root, contract, artifact, stage_paths$raw)
+    candidate <- wid_include_derive_artifact(raw, artifact, years)
+    wid_include_write_dta(candidate, stage_paths$canonical)
+    validation <- wid_include_validate_candidate(source_id, artifact, candidate, required_years)
+    comparison <- wid_include_compare_artifact(source_id, artifact, stage_paths$canonical, prod_paths$canonical, candidate)
+    list(ok = !any(validation$severity == "blocked", na.rm = TRUE), raw = raw, candidate = candidate, validation = validation, comparison = comparison, error = "")
+  }, error = function(e) {
+    validation <- data.frame(
+      source_id = source_id,
+      check = "derive_or_fetch",
+      status = if (grepl("WID download failed|WID returned", conditionMessage(e))) "blocked_fetch_failed" else "blocked_derivation_failed",
+      severity = "blocked",
+      detail = conditionMessage(e),
+      next_command = "dina sources explore wid --fetch",
+      stringsAsFactors = FALSE
+    )
+    list(ok = FALSE, raw = data.frame(stringsAsFactors = FALSE), candidate = data.frame(stringsAsFactors = FALSE), validation = validation, comparison = list(artifact = data.frame(stringsAsFactors = FALSE), numeric = data.frame(stringsAsFactors = FALSE)), error = conditionMessage(e))
+  })
+  candidate_read <- wid_include_read_dta(stage_paths$canonical)
+  raw_read <- wid_include_read_dta(stage_paths$raw)
+  inventory <- wid_include_bind(
+    wid_include_dataset_status(source_id, "derived", "candidate", stage_paths$canonical, wid_include_relative_path(stage_paths$canonical, root), artifact$canonical, candidate_read$data, candidate_read$ok, candidate_read$error),
+    wid_include_dataset_status(source_id, "raw", "candidate", stage_paths$raw, wid_include_relative_path(stage_paths$raw, root), artifact$raw, raw_read$data, raw_read$ok, raw_read$error)
+  )
+  promotions <- if (isTRUE(result$ok)) {
+    wid_include_bind(
+      data.frame(source_id = source_id, artifact_type = "derived", from_rel = stage_paths$canonical, to_rel = stage_paths$canonical_rel, promotion_scope = "promote", stringsAsFactors = FALSE),
+      data.frame(source_id = source_id, artifact_type = "raw", from_rel = stage_paths$raw, to_rel = stage_paths$raw_rel, promotion_scope = "promote", stringsAsFactors = FALSE)
+    )
+  } else {
+    data.frame(source_id = character(), artifact_type = character(), from_rel = character(), to_rel = character(), promotion_scope = character(), stringsAsFactors = FALSE)
+  }
+  list(source_id = source_id, artifact = artifact, ok = result$ok, paths = stage_paths, validation = result$validation, inventory = inventory, comparison = result$comparison$artifact, numeric = result$comparison$numeric, promotion_plan = promotions)
+}
+
+wid_include_copy_path <- function(from, to) {
+  if (!file.exists(from)) return("missing_source")
+  if (dir.exists(from)) return("unsupported_directory_source")
+  dir.create(dirname(to), recursive = TRUE, showWarnings = FALSE)
+  if (isTRUE(file.copy(from, to, overwrite = TRUE, copy.date = TRUE))) "staged" else "copy_failed"
+}
+
+wid_include_publish_fetch_to_incoming <- function(root, prepared) {
+  if (!length(prepared)) return(data.frame(stringsAsFactors = FALSE))
+  rows <- lapply(prepared, function(item) {
+    source_id <- item$source_id
+    artifact <- item$artifact
+    incoming <- wid_include_incoming_artifact_paths(root, artifact)
+    copies <- list(
+      derived = list(from = item$paths$canonical, to = incoming$canonical, to_rel = incoming$canonical_rel),
+      raw = list(from = item$paths$raw, to = incoming$raw, to_rel = incoming$raw_rel)
+    )
+    wid_include_bind(lapply(names(copies), function(artifact_type) {
+      copy <- copies[[artifact_type]]
+      status <- wid_include_copy_path(copy$from, copy$to)
+      data.frame(
+        source_id = source_id,
+        artifact_type = artifact_type,
+        from = copy$from,
+        to = copy$to_rel,
+        status = status,
+        stringsAsFactors = FALSE
+      )
+    }))
+  })
+  wid_include_bind(rows)
+}
+
+wid_include_publish_validation <- function(publish_report) {
+  if (!nrow(publish_report)) return(data.frame(stringsAsFactors = FALSE))
+  bad <- publish_report[publish_report$status != "staged", , drop = FALSE]
+  if (!nrow(bad)) return(data.frame(stringsAsFactors = FALSE))
+  wid_include_bind(lapply(seq_len(nrow(bad)), function(i) {
+    row <- bad[i, , drop = FALSE]
+    data.frame(
+      source_id = row$source_id,
+      check = "publish_new_bucket",
+      status = "blocked_copy_failed",
+      severity = "blocked",
+      detail = sprintf("Could not publish fetched WID %s artifact to %s: %s", row$artifact_type, row$to, row$status),
+      next_command = "dina sources explore wid --fetch",
+      stringsAsFactors = FALSE
+    )
+  }))
+}
+
+wid_include_inspect_incoming_one <- function(root, contract, artifact, require_candidate = FALSE) {
+  source_id <- artifact$source_id
+  required_years <- wid_include_required_years(root, contract, artifact)
+  incoming <- wid_include_incoming_artifact_paths(root, artifact)
+  prod <- wid_include_artifact_paths(root, artifact)
+  candidate_read <- wid_include_read_dta(incoming$canonical)
+  raw_read <- wid_include_read_dta(incoming$raw)
+  has_candidate <- file.exists(incoming$canonical) && !dir.exists(incoming$canonical)
+  has_raw <- file.exists(incoming$raw) && !dir.exists(incoming$raw)
+  has_any <- isTRUE(has_candidate) || isTRUE(has_raw)
+  empty_plan <- data.frame(source_id = character(), artifact_type = character(), from_rel = character(), to_rel = character(), promotion_scope = character(), stringsAsFactors = FALSE)
+  if (!has_any && !isTRUE(require_candidate)) {
+    return(list(source_id = source_id, ok = FALSE, validation = data.frame(stringsAsFactors = FALSE), inventory = data.frame(stringsAsFactors = FALSE), comparison = data.frame(stringsAsFactors = FALSE), numeric = data.frame(stringsAsFactors = FALSE), promotion_plan = empty_plan))
+  }
+  inventory <- wid_include_bind(
+    wid_include_dataset_status(source_id, "derived", "_new", incoming$canonical, incoming$canonical_rel, incoming$canonical_destination_rel, candidate_read$data, candidate_read$ok, candidate_read$error),
+    wid_include_dataset_status(source_id, "raw", "_new", incoming$raw, incoming$raw_rel, incoming$raw_destination_rel, raw_read$data, raw_read$ok, raw_read$error)
+  )
+  validation_rows <- list()
+  add_block <- function(check, status, detail) {
+    validation_rows[[length(validation_rows) + 1L]] <<- data.frame(
+      source_id = source_id,
+      check = check,
+      status = status,
+      severity = "blocked",
+      detail = detail,
+      next_command = "dina sources explore wid --fetch",
+      stringsAsFactors = FALSE
+    )
+  }
+  if (!isTRUE(has_candidate)) {
+    add_block("incoming_candidate", "blocked_missing_incoming_candidate", sprintf("Missing WID candidate in input_data/_new/wid: %s", basename(incoming$canonical)))
+  } else if (!isTRUE(candidate_read$ok)) {
+    add_block("incoming_candidate", "blocked_read_failed", candidate_read$error %||% "Incoming WID candidate is unreadable.")
+  }
+  if (!isTRUE(has_raw)) {
+    add_block("incoming_raw", "blocked_missing_incoming_raw", sprintf("Missing raw WID extract in input_data/_new/wid: %s", basename(incoming$raw)))
+  } else if (!isTRUE(raw_read$ok)) {
+    add_block("incoming_raw", "blocked_read_failed", raw_read$error %||% "Incoming raw WID extract is unreadable.")
+  }
+  validation <- wid_include_bind(validation_rows)
+  comparison <- list(artifact = data.frame(stringsAsFactors = FALSE), numeric = data.frame(stringsAsFactors = FALSE))
+  if (isTRUE(candidate_read$ok)) {
+    validation <- wid_include_bind(validation, wid_include_validate_candidate(source_id, artifact, candidate_read$data, required_years))
+    comparison <- wid_include_compare_artifact(source_id, artifact, incoming$canonical, prod$canonical, candidate_read$data)
+  }
+  ok <- isTRUE(has_candidate) && isTRUE(has_raw) && isTRUE(candidate_read$ok) && isTRUE(raw_read$ok) && !any(validation$severity == "blocked", na.rm = TRUE)
+  promotions <- if (isTRUE(ok)) {
+    wid_include_bind(
+      data.frame(source_id = source_id, artifact_type = "derived", from_rel = incoming$canonical, to_rel = incoming$canonical_destination_rel, promotion_scope = "promote", stringsAsFactors = FALSE),
+      data.frame(source_id = source_id, artifact_type = "raw", from_rel = incoming$raw, to_rel = incoming$raw_destination_rel, promotion_scope = "promote", stringsAsFactors = FALSE)
+    )
+  } else {
+    empty_plan
+  }
+  list(source_id = source_id, ok = ok, validation = validation, inventory = inventory, comparison = comparison$artifact, numeric = comparison$numeric, promotion_plan = promotions)
+}
+
+wid_include_promotion_fingerprints <- function(promotion_plan) {
+  if (!nrow(promotion_plan)) {
+    return(data.frame(source_id = character(), artifact_type = character(), from_rel = character(), to_rel = character(), exists = logical(), kind = character(), hash_algorithm = character(), hash = character(), stringsAsFactors = FALSE))
+  }
+  algo <- wid_include_hash_algorithm()
+  rows <- lapply(seq_len(nrow(promotion_plan)), function(i) {
+    row <- promotion_plan[i, , drop = FALSE]
+    from <- row$from_rel[[1L]]
+    exists <- file.exists(from) && !dir.exists(from)
+    data.frame(source_id = row$source_id, artifact_type = row$artifact_type, from_rel = from, to_rel = row$to_rel, exists = exists, kind = if (exists) "file" else "missing", hash_algorithm = algo, hash = if (exists) wid_include_hash_path(from) else NA_character_, stringsAsFactors = FALSE)
+  })
+  wid_include_bind(rows)
+}
+
+wid_include_source_fingerprints <- function(promotion_plan) {
+  staged_raw <- promotion_plan[promotion_plan$artifact_type == "raw", , drop = FALSE]
+  if (!nrow(staged_raw)) {
+    return(data.frame(source_id = character(), source_set = character(), rel = character(), exists = logical(), kind = character(), hash_algorithm = character(), hash = character(), stringsAsFactors = FALSE))
+  }
+  algo <- wid_include_hash_algorithm()
+  rows <- lapply(seq_len(nrow(staged_raw)), function(i) {
+    row <- staged_raw[i, , drop = FALSE]
+    path <- row$from_rel[[1L]]
+    exists <- file.exists(path) && !dir.exists(path)
+    source_set <- if (grepl(paste0("input_data", .Platform$file.sep, "_new", .Platform$file.sep, "wid"), normalizePath(path, mustWork = FALSE), fixed = TRUE)) "_new_raw" else "staged_raw"
+    data.frame(source_id = row$source_id, source_set = source_set, rel = path, exists = exists, kind = if (exists) "file" else "missing", hash_algorithm = algo, hash = if (exists) wid_include_hash_path(path) else NA_character_, stringsAsFactors = FALSE)
+  })
   wid_include_bind(rows)
 }
 
@@ -765,8 +979,8 @@ wid_include_read_table <- function(root, table, run = NULL) {
 
 wid_include_table_catalog <- function() {
   data.frame(
-    table = c("wid_request_plan", "source_inventory", "wid_artifact_status", "validation_report", "review_actions", "unsupported_sources", "explore_manifest", "include_summary", "include_detail", "promotion_plan", "source_fingerprints", "promotion_fingerprints", "wid_artifact_comparison", "wid_numeric_comparison", "include_manifest", "promote_report", "restore_report"),
-    contents = c("configured WID request, area set, raw/derived outputs, and output mappings", "current and staged WID artifact inventory", "current WID artifact missing/stale status", "blocking validation checks", "review action and next command per WID source", "registry WID rows not included in the workflow", "explore run metadata", "include dry-run summary", "include dry-run validation detail", "staged WID raw and derived artifacts eligible for confirm", "staged raw WID fingerprints", "staged promotion artifact fingerprints", "candidate versus current artifact file/schema/key comparison", "candidate versus current numeric aggregate comparison", "include run metadata", "confirm promotion report", "restore report"),
+    table = c("wid_request_plan", "source_inventory", "wid_artifact_status", "validation_report", "review_actions", "unsupported_sources", "promotion_plan", "source_fingerprints", "promotion_fingerprints", "wid_artifact_comparison", "wid_numeric_comparison", "fetch_publish_report", "explore_manifest", "include_summary", "include_detail", "include_manifest", "promote_report", "restore_report"),
+    contents = c("configured WID request, area set, raw/derived outputs, and output mappings", "current and _new WID artifact inventory", "current WID artifact missing/stale status", "blocking validation checks", "review action and next command per WID source", "registry WID rows not included in the workflow", "WID raw and derived artifacts eligible for include", "raw WID fingerprints", "promotion artifact fingerprints", "candidate versus current artifact file/schema/key comparison", "candidate versus current numeric aggregate comparison", "fetch publish status into input_data/_new/wid", "explore run metadata", "include dry-run summary", "include dry-run validation detail", "include run metadata", "confirm promotion report", "restore report"),
     stringsAsFactors = FALSE
   )
 }
