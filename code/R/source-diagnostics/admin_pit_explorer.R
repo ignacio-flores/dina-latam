@@ -169,7 +169,12 @@ admin_pit_explorer_registry <- function(root) {
 
 admin_pit_explorer_registry_source <- function(root, source_id) {
   registry <- admin_pit_explorer_registry(root)
-  matches <- Filter(function(source) identical(source$id %||% "", source_id), registry)
+  norm <- function(x) gsub("-", "_", tolower(trimws(as.character(x))), fixed = TRUE)
+  source_id_norm <- norm(source_id)
+  matches <- Filter(function(source) {
+    ids <- c(source$id %||% "", as.character(source$aliases %||% character()))
+    source_id_norm %in% norm(ids)
+  }, registry)
   if (!length(matches)) NULL else matches[[1L]]
 }
 
@@ -280,7 +285,7 @@ admin_pit_explorer_workbook_years <- function(path, rule) {
 
 admin_pit_explorer_years_for_path <- function(source_id, path, rule) {
   if (!file.exists(path)) return(integer())
-  if (identical(source_id, "col-pit-total")) {
+  if (identical(source_id, "col-pit")) {
     return(admin_pit_explorer_col_years(path, rule))
   }
   workbook_years <- admin_pit_explorer_workbook_years(path, rule)
@@ -330,10 +335,10 @@ admin_pit_explorer_structure_for_path <- function(source_id, path, years, rule) 
   if (!file.exists(path)) {
     return(list(status = "no_file", evidence = "source_not_present"))
   }
-  if (identical(source_id, "chl-pit-total")) {
+  if (identical(source_id, "chl-pit")) {
     return(admin_pit_explorer_excel_sheet_status(path, as.character(rule$expected_sheets %||% "Datos")))
   }
-  if (identical(source_id, "bra-pit-total")) {
+  if (identical(source_id, "bra-pit")) {
     if (!length(years)) {
       return(list(status = "structure_review_needed", evidence = "year_not_detected"))
     }
@@ -345,7 +350,7 @@ admin_pit_explorer_structure_for_path <- function(source_id, path, years, rule) 
     sheet$evidence <- paste(sheet$evidence, paste0("layout_year:", max(years)), sep = ";")
     return(sheet)
   }
-  if (identical(source_id, "col-pit-total")) {
+  if (identical(source_id, "col-pit")) {
     if (!dir.exists(path) || !length(years)) {
       return(list(status = "blocked_structure_mismatch", evidence = "folder_span_missing"))
     }
@@ -605,7 +610,7 @@ admin_pit_explorer_aux_dependency_detail <- function(root, include_contract, sou
 }
 
 admin_pit_explorer_source_country <- function(source_id) {
-  switch(source_id, "chl-pit-total" = "CHL", "bra-pit-total" = "BRA", "col-pit-total" = "COL", "")
+  switch(source_id, "chl-pit" = "CHL", "bra-pit" = "BRA", "col-pit" = "COL", "")
 }
 
 admin_pit_explorer_aux_dependency_summary <- function(detail) {

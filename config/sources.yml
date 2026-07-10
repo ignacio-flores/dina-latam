@@ -1,5 +1,7 @@
 sources:
-  - id: chl-pit-total
+  - id: chl-pit
+    aliases:
+      - chl-pit-total
     family: admin_tax
     country: CHL
     method: url
@@ -21,7 +23,9 @@ sources:
     transformer: code/R/02c_clean_admin_chl.R
     notes: Chile PIT source. The cleaner is a pipeline transform; its update-mode download hook is not the preferred source workflow.
 
-  - id: bra-pit-total
+  - id: bra-pit
+    aliases:
+      - bra-pit-total
     family: admin_tax
     country: BRA
     method: script
@@ -41,7 +45,7 @@ sources:
     notes: Old acquisition helper downloads selected Receita Excel files. Legacy direct files are not renewal targets; start current updates from the landing page.
 
   - id: bra-minwage
-    family: admin_tax_aux
+    family: admin_aux
     country: BRA
     method: script
     urls:
@@ -63,7 +67,7 @@ sources:
     notes: Scrapes the minimum wage table used by the Brazil admin cleaner.
 
   - id: bra-admin-thresholds
-    family: admin_tax_aux
+    family: admin_aux
     country: BRA
     method: script
     urls:
@@ -89,7 +93,7 @@ sources:
     notes: CSV-backed Brazil social-security, IRPF, and unemployment-insurance thresholds used by adjustment scripts.
 
   - id: chl-uta
-    family: admin_tax_aux
+    family: admin_aux
     country: CHL
     method: script
     urls:
@@ -143,7 +147,9 @@ sources:
     transformer: code/Stata/02b-prepare-admin-microdata.do
     notes: Heavy static Uruguay admin microdata consumed by inactive task 02b; excluded from input compression by default.
 
-  - id: col-pit-total
+  - id: col-pit
+    aliases:
+      - col-pit-total
     family: admin_tax
     country: COL
     method: manual

@@ -525,7 +525,7 @@ Examples:
   dina sources list sna
   dina sources list detail country-sna-bra --urls
   dina sources list guide wid --urls
-  dina sources fetch chl-pit-total --dry-run
+  dina sources fetch chl-pit --dry-run
   dina sources explore sna
   dina sources table sna year_expectations
   dina sources include sna --dry-run
@@ -1562,10 +1562,10 @@ dina_command_catalog <- function(year = format(Sys.Date(), "%Y")) {
       "Inspect, fetch, and compare source data.",
       children = list(
         dina_command_entry("sources-list", "Source registry", "List compact source rows.", args = c("sources", "list")),
-        dina_command_entry("sources-list-detail", "Source detail", "Inspect one source registry entry.", args = c("sources", "list", "detail", "{ID}"), prompts = list(ID = list(label = "Source id", example = "chl-pit-total")), help = "Use `dina sources list` first if you do not know the id."),
+        dina_command_entry("sources-list-detail", "Source detail", "Inspect one source registry entry.", args = c("sources", "list", "detail", "{ID}"), prompts = list(ID = list(label = "Source id", example = "chl-pit")), help = "Use `dina sources list` first if you do not know the id."),
         dina_command_entry("sources-list-guide", "Source guide", "Show where sources come from and where they land.", args = c("sources", "list", "guide")),
         dina_command_entry("sources-fetch-dry-run", "Preview fetch", "Preview supported source fetches into _new buckets.", args = c("sources", "fetch", "--dry-run")),
-        dina_command_entry("sources-fetch-source", "Preview source fetch", "Preview one supported source fetch.", args = c("sources", "fetch", "{ID}", "--dry-run"), prompts = list(ID = list(label = "Source id", example = "chl-pit-total"))),
+        dina_command_entry("sources-fetch-source", "Preview source fetch", "Preview one supported source fetch.", args = c("sources", "fetch", "{ID}", "--dry-run"), prompts = list(ID = list(label = "Source id", example = "chl-pit"))),
         dina_command_entry("sources-explore-type", "Explore source type", "Inspect new files, likely years, structure evidence, and include expectations.", args = c("sources", "explore", "{SOURCETYPE}"), defaults = list(SOURCETYPE = "sna"), prompts = list(SOURCETYPE = list(label = "Source type", example = "sna, admin, surveys, or wid")), help = "Currently implemented for sna, PIT admin, surveys, and WID; writes experiment outputs under output/experiments/."),
         dina_command_entry("sources-include-type", "Include source type dry-run", "Stage incoming sources and run deterministic inclusion checks.", args = c("sources", "include", "{SOURCETYPE}", "--dry-run"), defaults = list(SOURCETYPE = "sna"), prompts = list(SOURCETYPE = list(label = "Source type", example = "sna, admin, surveys, or wid")), help = "Currently implemented for sna, PIT admin, surveys, and WID. No production files are changed."),
         dina_command_entry("sources-include-type-confirm", "Confirm source type", "Promote sources from a clean staged include run after writing backups.", args = c("sources", "include", "{SOURCETYPE}", "--confirm", "--include-run", "{RUN}"), defaults = list(SOURCETYPE = "sna"), prompts = list(SOURCETYPE = list(label = "Source type", example = "sna, admin, surveys, or wid"), RUN = list(label = "Include run", example = "output/experiments/*/runs/RUN")), mutating = TRUE, confirm = TRUE, help = "Currently implemented for sna, PIT admin, surveys, and WID. Does not run the pipeline. Use only after reviewing a clean include dry-run."),
@@ -3696,12 +3696,16 @@ dina_source_ids <- function(root = dina_repo_root()) {
   vapply(dina_sources(root)$sources, function(source) source$id %||% "", character(1))
 }
 
+dina_source_id_tokens <- function(root = dina_repo_root()) {
+  unique(unlist(lapply(dina_sources(root)$sources, dina_source_id_values), use.names = FALSE))
+}
+
 dina_parse_source_guide_flags <- function(root, args) {
   flags <- dina_parse_flags(args)
   positional <- flags$positional %||% character()
   if (length(positional) == 1L) {
     candidate <- positional[[1]]
-    if (!(candidate %in% dina_source_ids(root)) && dina_source_token_resolves_family(candidate, root)) {
+    if (!(candidate %in% dina_source_id_tokens(root)) && dina_source_token_resolves_family(candidate, root)) {
       flags$family <- candidate
       flags$positional <- character()
     }
@@ -4188,7 +4192,7 @@ dina_bucket_fetch_followup_messages <- function(fetch_rows) {
   source_types <- sort(unique(vapply(active$family, dina_source_public_family_for_internal, character(1))))
   source_types <- source_types[nzchar(source_types)]
   messages <- character()
-  if ("admin" %in% source_types) {
+  if (any(source_types %in% c("admin", "admin_aux"))) {
     messages <- c(
       messages,
       "Admin fetch targets land in input_data/_new/admin. Review with `dina sources explore admin`, then validate with `dina sources include admin --dry-run`."
@@ -4206,7 +4210,7 @@ dina_bucket_fetch_followup_messages <- function(fetch_rows) {
       "WID API fetches are owned by `dina sources explore wid --fetch`; validate reviewed WID candidates with `dina sources include wid --dry-run`."
     )
   }
-  unsupported <- setdiff(source_types, c("admin", "sna", "wid"))
+  unsupported <- setdiff(source_types, c("admin", "admin_aux", "sna", "wid"))
   if (length(unsupported)) {
     messages <- c(
       messages,
@@ -5957,10 +5961,10 @@ dina_cmd_sources <- function(root, args) {
     family <- flags$family %||% NULL
     source_id <- flags$source %||% NULL
     if (!is.null(selector) && nzchar(selector)) {
-      if (is.null(source_id) && selector %in% dina_source_ids(root)) {
+      if (is.null(source_id) && selector %in% dina_source_id_tokens(root)) {
         source_id <- selector
         selector <- NULL
-      } else if (!(selector %in% dina_source_ids(root)) && dina_source_token_resolves_family(selector, root)) {
+      } else if (!(selector %in% dina_source_id_tokens(root)) && dina_source_token_resolves_family(selector, root)) {
         family <- selector
         selector <- NULL
       }

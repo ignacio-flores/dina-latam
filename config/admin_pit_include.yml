@@ -13,9 +13,9 @@ years:
   use_active_update_override: true
 
 source_ids:
-  - chl-pit-total
-  - bra-pit-total
-  - col-pit-total
+  - chl-pit
+  - bra-pit
+  - col-pit
 
 statuses:
   clean:
@@ -43,15 +43,15 @@ fingerprints:
 cleaners:
   mode: real
   expected_outputs:
-    chl-pit-total:
+    chl-pit:
       - input_data/admin_data/CHL/_clean/total-pre-CHL.xlsx
       - input_data/admin_data/CHL/_clean/total-pos-CHL.xlsx
-    bra-pit-total:
+    bra-pit:
       - input_data/admin_data/BRA/_clean/total-pre-BRA.xlsx
-    col-pit-total:
+    col-pit:
       - input_data/admin_data/COL/_clean/total-pos-COL.xlsx
   static_dependencies:
-    chl-pit-total:
+    chl-pit:
       - intermediary_data/population/SurveyPop.dta
       - input_data/wid/population_total_adult_npopul.dta
       - input_data/admin_data/CHL/tab_gc_1991_2000.xls
@@ -59,12 +59,12 @@ cleaners:
       - input_data/admin_data/CHL/tab_gc_1998_2009.xlsx
       - input_data/admin_data/CHL/tab_gc_wage_1998_2009.xlsx
       - input_data/admin_data/CHL/Data_1998-2009sinKG.xlsx
-    bra-pit-total:
+    bra-pit:
       - intermediary_data/population/SurveyPop.dta
       - input_data/admin_data/BRA/ptot_*.xlsx
   auxiliary_sources:
-    chl-pit-total:
+    chl-pit:
       - chl-uta
-    bra-pit-total:
+    bra-pit:
       - bra-minwage
       - bra-admin-thresholds

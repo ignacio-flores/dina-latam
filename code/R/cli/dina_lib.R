@@ -292,7 +292,8 @@ dina_source_filter_label <- function(kind, requested, resolved) {
 dina_source_public_family_map <- function() {
   list(
     sna = c("macro_sna", "country_sna"),
-    admin = c("admin_tax", "admin_tax_aux"),
+    admin = c("admin_tax", "admin_aux"),
+    admin_aux = c("admin_aux"),
     `admin-microdata` = c("admin_microdata"),
     surveys = c("surveys"),
     wid = c("wid"),
@@ -315,6 +316,9 @@ dina_source_public_families <- function() {
 
 dina_source_public_family_for_internal <- function(family) {
   family <- dina_source_norm(family %||% "")
+  if (identical(family, "admin_aux")) {
+    return("admin_aux")
+  }
   for (public in names(dina_source_public_family_map())) {
     if (family %in% dina_source_norm(dina_source_public_family_map()[[public]])) {
       return(public)
@@ -337,6 +341,7 @@ dina_source_resolve_family_filter <- function(value, root = dina_repo_root()) {
   alias <- if (length(public_match)) public_map[[public_match[[1L]]]] else switch(
     normalized,
     admin_data = public_map$admin,
+    admin_tax_aux = "admin_aux",
     country_sna = "country_sna",
     country_sna_sources = "country_sna",
     normalized
@@ -501,9 +506,17 @@ dina_source_registry_warnings <- function(registry, root = dina_repo_root()) {
   do.call(rbind, rows)
 }
 
+dina_source_id_values <- function(source) {
+  unique(c(dina_source_field(source, "id", ""), dina_source_values(dina_source_field(source, "aliases"))))
+}
+
+dina_source_id_matches <- function(source, id) {
+  dina_source_norm(id) %in% dina_source_norm(dina_source_id_values(source))
+}
+
 dina_source_by_id <- function(id, root = dina_repo_root()) {
   registry <- dina_sources(root)$sources
-  matches <- registry[vapply(registry, function(source) identical(dina_source_field(source, "id", ""), id), logical(1))]
+  matches <- registry[vapply(registry, dina_source_id_matches, logical(1), id = id)]
   if (!length(matches)) {
     stop("Unknown source id: ", id, call. = FALSE)
   }
@@ -1281,7 +1294,7 @@ dina_bucket_select_sources <- function(root = dina_repo_root(), family = NULL, s
     bucket <- dina_source_inbox_bucket_rel(source)
     folders <- dina_source_inbox_dirs(source)
     any(c(
-      source$id %||% "",
+      dina_source_id_values(source),
       source$family %||% "",
       bucket,
       basename(bucket),

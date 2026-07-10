@@ -70,7 +70,7 @@ test_that("project source registry is a complete readable catalog", {
   explorer_text <- paste(readLines(file.path(repo_root_for_tests, "config", "country_sna_explorer.yml"), warn = FALSE), collapse = "\n")
   retired_inboxes <- c(
     "input_data/_new/admin_tax",
-    "input_data/_new/admin_tax_aux",
+    "input_data/_new/admin_aux",
     "input_data/_new/country_sna",
     "input_data/_new/survey_inputs",
     "input_data/_new/macro",
@@ -119,11 +119,11 @@ test_that("project source registry is a complete readable catalog", {
   expect_equal(missing_locators, character())
 
   expect_true(all(c(
-    "col-pit-total",
+    "col-pit",
     "col-admin-wealth",
     "chl-uta",
     "bra-admin-thresholds",
-    "bra-pit-total",
+    "bra-pit",
     "wid-prices-xrates",
     "wid-export-scaling",
     "wid-export-sptinc-check",
@@ -142,10 +142,10 @@ test_that("project source registry is a complete readable catalog", {
   expect_true(all(na.omit(top_level_url_methods) %in% c("url", "zip")))
 
   registry_by_id <- stats::setNames(registry, ids)
-  expect_match(paste(dina_source_urls(registry_by_id[["col-pit-total"]]), collapse = "\n"), "TributosDIAN")
+  expect_match(paste(dina_source_urls(registry_by_id[["col-pit"]]), collapse = "\n"), "TributosDIAN")
   expect_match(paste(dina_source_urls(registry_by_id[["col-admin-wealth"]]), collapse = "\n"), "TributosDIAN")
   expect_match(paste(dina_source_urls(registry_by_id[["chl-uta"]]), collapse = "\n"), "utm\\{year\\}\\.htm")
-  bra_urls <- paste(dina_source_urls(registry_by_id[["bra-pit-total"]]), collapse = "\n")
+  bra_urls <- paste(dina_source_urls(registry_by_id[["bra-pit"]]), collapse = "\n")
   expect_match(bra_urls, "dados-abertos")
   expect_false(grepl("legacy direct file|gn-irpf-ac-\\{year\\}", bra_urls))
   expect_match(paste(dina_source_urls(registry_by_id[["bra-minwage"]]), collapse = "\n"), "salario_minimo")

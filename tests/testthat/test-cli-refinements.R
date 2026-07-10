@@ -169,7 +169,7 @@ test_that("sources list is compact by default and exposes richer views", {
 test_that("source inbox displays use normalized public buckets", {
   retired_inboxes <- c(
     "input_data/_new/admin_tax",
-    "input_data/_new/admin_tax_aux",
+    "input_data/_new/admin_aux",
     "input_data/_new/country_sna",
     "input_data/_new/survey_inputs",
     "input_data/_new/macro",
@@ -230,14 +230,14 @@ test_that("public source type filters aggregate internal families including wid"
     list(id = "sna-macro", family = "macro_sna", method = "manual", notes = "macro SNA"),
     list(id = "sna-country", family = "country_sna", method = "manual", notes = "country SNA"),
     list(id = "admin-tax", family = "admin_tax", method = "manual", notes = "admin"),
-    list(id = "admin-aux", family = "admin_tax_aux", method = "manual", notes = "admin aux"),
+    list(id = "admin-aux", family = "admin_aux", method = "manual", notes = "admin aux"),
     list(id = "survey-cepal", family = "surveys", method = "manual", notes = "survey"),
     list(id = "wid-macro", family = "wid", method = "wid", notes = "wid"),
     list(id = "price-index", family = "prices", method = "manual", notes = "other")
   )), file.path(root, "config", "sources.yml"))
 
   expect_equal(sort(dina_source_resolve_family_filter("sna", root)), c("country_sna", "macro_sna"))
-  expect_equal(sort(dina_source_resolve_family_filter("admin", root)), c("admin_tax", "admin_tax_aux"))
+  expect_equal(sort(dina_source_resolve_family_filter("admin", root)), c("admin_aux", "admin_tax"))
   expect_equal(dina_source_resolve_family_filter("surveys", root), "surveys")
   expect_equal(dina_source_resolve_family_filter("wid", root), "wid")
   expect_equal(dina_source_resolve_family_filter("other", root), "prices")

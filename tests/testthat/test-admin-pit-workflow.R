@@ -116,12 +116,12 @@ admin_pit_fixture_repo <- function(block_col = FALSE, backup_overlap = FALSE, mi
   dina_write_yaml(list(years = list(last = 2024L)), file.path(root, "output", "updates", "fixture-update", "config.override.yml"))
 
   dina_write_yaml(list(sources = list(
-    list(id = "chl-pit-total", family = "admin_tax", country = "CHL", method = "manual", canonical = "input_data/admin_data/CHL/PUB_Total_*.xlsx", inbox = "input_data/_new/admin/CHL/PUB_Total_*.xlsx", destination = "input_data/admin_data/CHL/{basename}", notes = "Chile PIT fixture."),
-    list(id = "bra-pit-total", family = "admin_tax", country = "BRA", method = "manual", canonical = "input_data/admin_data/BRA/gn-irpf-ac*.xlsx", inbox = "input_data/_new/admin/BRA/gn-irpf-ac*.xlsx", destination = "input_data/admin_data/BRA/{basename}", notes = "Brazil PIT fixture."),
-    list(id = "col-pit-total", family = "admin_tax", country = "COL", method = "manual", canonical = "input_data/admin_data/COL/1_Cuantiles_Ingreso_Bruto_Naturales_2014-*", inbox = "input_data/_new/admin/COL/1_Cuantiles_Ingreso_Bruto_Naturales_2014-*", destination = "input_data/admin_data/COL/{basename}", notes = "Colombia PIT fixture."),
-    list(id = "bra-minwage", family = "admin_tax_aux", country = "BRA", method = "manual", canonical = "input_data/admin_data/BRA/downloads/wiki_minwage.csv", inbox = "input_data/_new/admin/BRA/wiki_minwage*.csv", destination = "input_data/admin_data/BRA/downloads/{basename}", fetcher = "code/R/manual-downloaders/fetch_bra_minwage.R", notes = "Brazil min wage fixture."),
-    list(id = "bra-admin-thresholds", family = "admin_tax_aux", country = "BRA", method = "script", canonical = "input_data/admin_data/BRA/downloads/admin_thresholds.csv", inbox = "input_data/_new/admin/BRA/admin_thresholds*.csv", destination = "input_data/admin_data/BRA/downloads/{basename}", fetcher = "code/R/manual-downloaders/fetch_bra_admin_thresholds.R", notes = "Brazil thresholds fixture."),
-    list(id = "chl-uta", family = "admin_tax_aux", country = "CHL", method = "script", canonical = "input_data/admin_data/CHL/uta_december.csv", inbox = "input_data/_new/admin/CHL/chl_uta_december.csv", destination = "input_data/admin_data/CHL/uta_december.csv", fetcher = "code/R/manual-downloaders/fetch_chl_uta.R", notes = "Chile UTA fixture."),
+    list(id = "chl-pit", family = "admin_tax", country = "CHL", method = "manual", canonical = "input_data/admin_data/CHL/PUB_Total_*.xlsx", inbox = "input_data/_new/admin/CHL/PUB_Total_*.xlsx", destination = "input_data/admin_data/CHL/{basename}", notes = "Chile PIT fixture."),
+    list(id = "bra-pit", family = "admin_tax", country = "BRA", method = "manual", canonical = "input_data/admin_data/BRA/gn-irpf-ac*.xlsx", inbox = "input_data/_new/admin/BRA/gn-irpf-ac*.xlsx", destination = "input_data/admin_data/BRA/{basename}", notes = "Brazil PIT fixture."),
+    list(id = "col-pit", family = "admin_tax", country = "COL", method = "manual", canonical = "input_data/admin_data/COL/1_Cuantiles_Ingreso_Bruto_Naturales_2014-*", inbox = "input_data/_new/admin/COL/1_Cuantiles_Ingreso_Bruto_Naturales_2014-*", destination = "input_data/admin_data/COL/{basename}", notes = "Colombia PIT fixture."),
+    list(id = "bra-minwage", family = "admin_aux", country = "BRA", method = "manual", canonical = "input_data/admin_data/BRA/downloads/wiki_minwage.csv", inbox = "input_data/_new/admin/BRA/wiki_minwage*.csv", destination = "input_data/admin_data/BRA/downloads/{basename}", fetcher = "code/R/manual-downloaders/fetch_bra_minwage.R", notes = "Brazil min wage fixture."),
+    list(id = "bra-admin-thresholds", family = "admin_aux", country = "BRA", method = "script", canonical = "input_data/admin_data/BRA/downloads/admin_thresholds.csv", inbox = "input_data/_new/admin/BRA/admin_thresholds*.csv", destination = "input_data/admin_data/BRA/downloads/{basename}", fetcher = "code/R/manual-downloaders/fetch_bra_admin_thresholds.R", notes = "Brazil thresholds fixture."),
+    list(id = "chl-uta", family = "admin_aux", country = "CHL", method = "script", canonical = "input_data/admin_data/CHL/uta_december.csv", inbox = "input_data/_new/admin/CHL/chl_uta_december.csv", destination = "input_data/admin_data/CHL/uta_december.csv", fetcher = "code/R/manual-downloaders/fetch_chl_uta.R", notes = "Chile UTA fixture."),
     list(id = "mex-admin-microdata", family = "admin_microdata", country = "MEX", method = "manual", canonical = "input_data/admin_data/MEX", notes = "Unsupported admin microdata fixture.")
   )), file.path(root, "config", "sources.yml"))
 
@@ -183,7 +183,7 @@ test_that("admin source registry uses public admin buckets only", {
   skip_if_not_installed("yaml")
   registry_text <- paste(readLines(file.path(repo_root_for_tests, "config", "sources.yml"), warn = FALSE), collapse = "\n")
   admin_pit_expect_false(grepl("input_data/_new/admin_tax", registry_text, fixed = TRUE))
-  admin_pit_expect_false(grepl("input_data/_new/admin_tax_aux", registry_text, fixed = TRUE))
+  admin_pit_expect_false(grepl("input_data/_new/admin_aux", registry_text, fixed = TRUE))
   admin_pit_expect_true(grepl("input_data/_new/admin/CHL/PUB_Total_", registry_text, fixed = TRUE))
   admin_pit_expect_true(grepl("input_data/_new/admin/BRA/gn-irpf-ac", registry_text, fixed = TRUE))
   admin_pit_expect_true(grepl("input_data/_new/admin/BRA/wiki_minwage", registry_text, fixed = TRUE))
@@ -205,12 +205,12 @@ test_that("isolated PIT admin explorer detects supported sources, years, unsuppo
   root <- admin_pit_fixture_repo()
   result <- run_admin_pit_explorer(root = root, write_outputs = FALSE)
 
-  expect_equal(admin_pit_explorer_supported_ids(result$contract), c("chl-pit-total", "bra-pit-total", "col-pit-total"))
+  expect_equal(admin_pit_explorer_supported_ids(result$contract), c("chl-pit", "bra-pit", "col-pit"))
   expect_equal(result$manifest$value[result$manifest$key == "year_last"], "2024")
   admin_pit_expect_true(all(result$outputs$structure_summary$structure_status == "structure_evidence_available"))
-  admin_pit_expect_true(any(result$outputs$extension_summary$source_id == "chl-pit-total" & result$outputs$extension_summary$old_years == paste(2005:2022, collapse = ",")))
-  admin_pit_expect_true(any(result$outputs$extension_summary$source_id == "chl-pit-total" & result$outputs$extension_summary$extension_years == "2023,2024"))
-  admin_pit_expect_true(any(result$outputs$extension_summary$source_id == "col-pit-total" & result$outputs$extension_summary$extension_years == "2023"))
+  admin_pit_expect_true(any(result$outputs$extension_summary$source_id == "chl-pit" & result$outputs$extension_summary$old_years == paste(2005:2022, collapse = ",")))
+  admin_pit_expect_true(any(result$outputs$extension_summary$source_id == "chl-pit" & result$outputs$extension_summary$extension_years == "2023,2024"))
+  admin_pit_expect_true(any(result$outputs$extension_summary$source_id == "col-pit" & result$outputs$extension_summary$extension_years == "2023"))
   admin_pit_expect_true(all(c("bra-minwage", "mex-admin-microdata") %in% result$outputs$unsupported_sources$source_id))
 })
 
@@ -335,7 +335,7 @@ test_that("isolated PIT admin explorer blocks missing expected Colombia files", 
   skip_if_not_installed("openxlsx")
   root <- admin_pit_fixture_repo(block_col = TRUE)
   result <- run_admin_pit_explorer(root = root, write_outputs = FALSE)
-  col <- result$outputs$structure_summary[result$outputs$structure_summary$source_id == "col-pit-total", , drop = FALSE]
+  col <- result$outputs$structure_summary[result$outputs$structure_summary$source_id == "col-pit", , drop = FALSE]
   expect_equal(col$structure_status, "blocked_structure_mismatch")
   expect_match(col$structure_evidence, "missing_expected_files")
 })
@@ -379,9 +379,9 @@ test_that("PIT admin include validates Brazil minimum-wage aux before cleaners",
   missing_explore <- run_admin_pit_explorer(root = missing_root, write_outputs = TRUE)
   missing_include <- run_admin_pit_include(root = missing_root, exploration_run = missing_explore$paths$root, write_outputs = TRUE, cleaner_mode = "mock")
   expect_equal(missing_include$manifest$value[missing_include$manifest$key == "status"], "blocked")
-  bra <- missing_include$outputs$include_summary[missing_include$outputs$include_summary$source_id == "bra-pit-total", , drop = FALSE]
-  chl <- missing_include$outputs$include_summary[missing_include$outputs$include_summary$source_id == "chl-pit-total", , drop = FALSE]
-  col <- missing_include$outputs$include_summary[missing_include$outputs$include_summary$source_id == "col-pit-total", , drop = FALSE]
+  bra <- missing_include$outputs$include_summary[missing_include$outputs$include_summary$source_id == "bra-pit", , drop = FALSE]
+  chl <- missing_include$outputs$include_summary[missing_include$outputs$include_summary$source_id == "chl-pit", , drop = FALSE]
+  col <- missing_include$outputs$include_summary[missing_include$outputs$include_summary$source_id == "col-pit", , drop = FALSE]
   expect_equal(bra$status, "blocked")
   expect_equal(chl$status, "all_good")
   expect_equal(col$status, "all_good")
@@ -421,7 +421,7 @@ test_that("isolated PIT admin include reports aux sources without configured fil
   dina_write_yaml(sources, sources_path)
 
   paths <- list(staged_repo = file.path(root, "stage"))
-  aux <- admin_pit_include_stage_one_aux(root, paths, "chl-pit-total", "chl-uta")
+  aux <- admin_pit_include_stage_one_aux(root, paths, "chl-pit", "chl-uta")
   expect_equal(aux$status, "missing_aux_dependency")
   expect_equal(aux$severity, "blocked")
 })
@@ -577,7 +577,7 @@ test_that("main dina CLI dispatches admin PIT explore and table to isolated modu
   explore <- run_dina_cli(c("sources", "explore", "admin"), root = root)
   expect_equal(explore$status, 0L)
   expect_match(explore$output, "PIT Admin Explore")
-  expect_match(explore$output, "chl-pit-total")
+  expect_match(explore$output, "chl-pit")
   expect_match(explore$output, "2005-2022 \\(18y\\)")
   expect_match(explore$output, "Aux source coverage:")
   expect_match(explore$output, "bra-minwage")
@@ -602,7 +602,7 @@ test_that("main dina CLI dispatches admin PIT explore and table to isolated modu
   table <- run_dina_cli(c("sources", "table", "admin", "year_expectations", "--country", "CHL"), root = root)
   expect_equal(table$status, 0L)
   expect_match(table$output, "PIT Admin Table")
-  expect_match(table$output, "chl-pit-total")
+  expect_match(table$output, "chl-pit")
 
   unlink(file.path(root, "intermediary_data", "population", "SurveyPop.dta"))
   include <- run_dina_cli(c("sources", "include", "admin"), root = root)

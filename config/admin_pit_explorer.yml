@@ -12,15 +12,15 @@ years:
 
 source_discovery:
   source_ids:
-    - chl-pit-total
-    - bra-pit-total
-    - col-pit-total
+    - chl-pit
+    - bra-pit
+    - col-pit
   unsupported_admin_families:
     - admin_tax
-    - admin_tax_aux
+    - admin_aux
     - admin_microdata
   structure_checks:
-    chl-pit-total:
+    chl-pit:
       type: workbook_sheet
       expected_sheets: [Datos]
       filename_year_span_max: 2
@@ -29,7 +29,7 @@ source_discovery:
         range: A8:A5000
         min: 1900
         max: 2099
-    bra-pit-total:
+    bra-pit:
       type: workbook_sheet_by_year
       filename_year_span_max: 2
       known_layout_years:
@@ -47,7 +47,7 @@ source_discovery:
           sheet: Tab9_Fx Rend Total
         - years: {min: 2021}
           sheet: Tab8
-    col-pit-total:
+    col-pit:
       type: folder_year_files
       folder_span_regex: "2014-([0-9]{4})"
       first_year: 2014

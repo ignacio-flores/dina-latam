@@ -201,7 +201,12 @@ admin_pit_include_registry <- function(root) {
 
 admin_pit_include_registry_source <- function(root, source_id) {
   registry <- admin_pit_include_registry(root)
-  matches <- Filter(function(source) identical(source$id %||% "", source_id), registry)
+  norm <- function(x) gsub("-", "_", tolower(trimws(as.character(x))), fixed = TRUE)
+  source_id_norm <- norm(source_id)
+  matches <- Filter(function(source) {
+    ids <- c(source$id %||% "", as.character(source$aliases %||% character()))
+    source_id_norm %in% norm(ids)
+  }, registry)
   if (!length(matches)) NULL else matches[[1L]]
 }
 
@@ -239,7 +244,7 @@ admin_pit_include_expected_outputs <- function(contract, source_id) {
 }
 
 admin_pit_include_source_country <- function(source_id) {
-  switch(source_id, "chl-pit-total" = "CHL", "bra-pit-total" = "BRA", "col-pit-total" = "COL", "")
+  switch(source_id, "chl-pit" = "CHL", "bra-pit" = "BRA", "col-pit" = "COL", "")
 }
 
 admin_pit_include_survey_pop_dependency <- function(rel, dependency_id = "") {
@@ -764,7 +769,7 @@ admin_pit_include_years_for_source <- function(exploration, source_id) {
 
 admin_pit_include_col_years <- function(exploration) {
   inventory <- exploration$source_inventory
-  rows <- inventory[inventory$source_id == "col-pit-total" & inventory$source_set == "new" & inventory$status == "matched", , drop = FALSE]
+  rows <- inventory[inventory$source_id == "col-pit" & inventory$source_set == "new" & inventory$status == "matched", , drop = FALSE]
   if (!nrow(rows)) return(integer())
   years <- unique(unlist(lapply(rows$years, function(x) suppressWarnings(as.integer(unlist(strsplit(as.character(x), "[^0-9]+"))))), use.names = FALSE))
   sort(years[!is.na(years)])
@@ -772,7 +777,7 @@ admin_pit_include_col_years <- function(exploration) {
 
 admin_pit_include_col_source_dir <- function(paths, exploration) {
   inventory <- exploration$source_inventory
-  rows <- inventory[inventory$source_id == "col-pit-total" & inventory$source_set == "new" & inventory$status == "matched", , drop = FALSE]
+  rows <- inventory[inventory$source_id == "col-pit" & inventory$source_set == "new" & inventory$status == "matched", , drop = FALSE]
   if (!nrow(rows)) return("")
   row <- rows[order(rows$year_end, decreasing = TRUE), , drop = FALSE][1L, , drop = FALSE]
   dest <- row$destination[[1L]] %||% row$rel[[1L]]
@@ -785,7 +790,7 @@ admin_pit_include_mock_cleaner <- function(paths, contract, exploration, source_
   admin_pit_include_need("openxlsx")
   outputs <- admin_pit_include_expected_outputs(contract, source_id)
   years <- admin_pit_include_years_for_source(exploration, source_id)
-  if (identical(source_id, "col-pit-total")) {
+  if (identical(source_id, "col-pit")) {
     col_years <- admin_pit_include_col_years(exploration)
     if (length(col_years)) years <- col_years
   }
@@ -916,9 +921,9 @@ admin_pit_include_run_cleaners <- function(root, paths, contract, exploration, s
     } else if (identical(mode, "mock")) {
       ok <- tryCatch(admin_pit_include_mock_cleaner(paths, contract, exploration, source_id), error = function(e) e)
       run <- if (isTRUE(ok)) list(status = "succeeded", log = "", exit_status = 0L, reason = "") else list(status = "failed", log = "", exit_status = 1L, reason = conditionMessage(ok))
-    } else if (source_id %in% c("chl-pit-total", "bra-pit-total")) {
+    } else if (source_id %in% c("chl-pit", "bra-pit")) {
       run <- admin_pit_include_run_r_candidate_cleaner(root, paths, contract, source_id, country)
-    } else if (identical(source_id, "col-pit-total")) {
+    } else if (identical(source_id, "col-pit")) {
       run <- admin_pit_include_run_col_cleaner(root, paths, contract, exploration)
     } else {
       run <- list(status = "failed", log = "", exit_status = 1L, reason = "unsupported_cleaner")
