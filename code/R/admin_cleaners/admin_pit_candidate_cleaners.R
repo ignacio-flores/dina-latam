@@ -102,30 +102,17 @@ admin_pit_candidate_write_sheeted_workbook <- function(path, tables, sheet_names
 }
 
 admin_pit_candidate_read_chl_uta <- function(input_root, years) {
-  admin_pit_candidate_load(c("readr", "dplyr", "stringr", "rvest", "janitor", "glue"))
-  materialized <- file.path(input_root, "input_data", "admin_data", "CHL", "uta_december.csv")
-  if (file.exists(materialized)) {
-    uta <- readr::read_csv(materialized, show_col_types = FALSE)
-    names(uta) <- tolower(names(uta))
-    if (!all(c("year", "uta") %in% names(uta))) {
-      stop("Materialized Chile UTA input must contain year and uta columns: ", materialized, call. = FALSE)
-    }
-    return(uta[uta$year %in% years, c("uta", "year")])
+  helper_paths <- c(
+    file.path(input_root, "code", "R", "source-helpers", "chl_uta.R"),
+    file.path(getwd(), "code", "R", "source-helpers", "chl_uta.R")
+  )
+  helper_paths <- helper_paths[file.exists(helper_paths)]
+  if (!length(helper_paths)) {
+    stop("Missing Chile UTA helper code/R/source-helpers/chl_uta.R.", call. = FALSE)
   }
-  uta <- NULL
-  web <- "https://www.sii.cl"
-  for (year in years) {
-    webit <- if (year < 2013) "pagina/valores" else "valores_y_fechas"
-    content <- rvest::read_html(file.path(web, webit, glue::glue("utm/utm{year}.htm#")))
-    tables <- rvest::html_table(content, fill = TRUE, dec = ",")
-    uta_table <- janitor::clean_names(tables[[1]])
-    uta_table <- uta_table[stringr::str_detect(uta_table[, paste0("x", year), drop = TRUE], "Diciembre"), ]
-    uta_table <- dplyr::rename(uta_table, uta = 3)
-    uta_table <- dplyr::select(uta_table, 3)
-    uta_table$year <- year
-    uta <- dplyr::bind_rows(uta, uta_table)
-  }
-  uta
+  source(helper_paths[[1L]], local = TRUE)
+  uta <- chl_uta_load(input_root = input_root, years = years, allow_fetch = FALSE)
+  uta[, c("uta", "year")]
 }
 
 admin_pit_candidate_clean_chl <- function(

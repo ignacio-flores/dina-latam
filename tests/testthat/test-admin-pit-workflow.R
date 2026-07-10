@@ -50,6 +50,30 @@ admin_pit_write_minwage <- function(path, years, changed_year = NULL) {
   utils::write.csv(data.frame(year = as.integer(years), minwage = as.numeric(values)), path, row.names = FALSE)
 }
 
+admin_pit_write_thresholds <- function(path, years, changed_year = NULL) {
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+  values <- data.frame(
+    year = as.integer(years),
+    avg_ui = as.numeric(years) / 1000,
+    maxlimit_inss = as.numeric(years) * 20,
+    exempt_dirpf = as.numeric(years) * 15,
+    stringsAsFactors = FALSE
+  )
+  if (!is.null(changed_year)) {
+    values$maxlimit_inss[values$year %in% changed_year] <- values$maxlimit_inss[values$year %in% changed_year] + 1
+  }
+  utils::write.csv(values, path, row.names = FALSE)
+}
+
+admin_pit_write_uta <- function(path, years, changed_year = NULL) {
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+  values <- years * 100
+  if (!is.null(changed_year)) {
+    values[years %in% changed_year] <- values[years %in% changed_year] + 1
+  }
+  utils::write.csv(data.frame(year = as.integer(years), uta = as.numeric(values)), path, row.names = FALSE)
+}
+
 admin_pit_fixture_repo <- function(block_col = FALSE, backup_overlap = FALSE, minwage = c("new", "canonical", "missing", "changed_overlap", "missing_history", "missing_required", "ambiguous")) {
   minwage <- match.arg(minwage)
   root <- tempfile("admin-pit-fixture-")
@@ -60,6 +84,7 @@ admin_pit_fixture_repo <- function(block_col = FALSE, backup_overlap = FALSE, mi
   dir.create(file.path(root, "config"), recursive = TRUE)
   dir.create(file.path(root, "code", "R", "source-diagnostics"), recursive = TRUE)
   dir.create(file.path(root, "code", "R", "admin_cleaners"), recursive = TRUE)
+  dir.create(file.path(root, "code", "R", "source-helpers"), recursive = TRUE)
   dir.create(file.path(root, "code", "Stata", "tax-data"), recursive = TRUE)
   file.copy(
     file.path(repo_root_for_tests, "code", "R", "source-diagnostics", c("admin_pit_explorer.R", "admin_pit_include.R", "admin_pit_cli.R")),
@@ -69,6 +94,11 @@ admin_pit_fixture_repo <- function(block_col = FALSE, backup_overlap = FALSE, mi
   file.copy(
     file.path(repo_root_for_tests, "code", "R", "admin_cleaners", "admin_pit_candidate_cleaners.R"),
     file.path(root, "code", "R", "admin_cleaners"),
+    overwrite = TRUE
+  )
+  file.copy(
+    file.path(repo_root_for_tests, "code", "R", "source-helpers", "chl_uta.R"),
+    file.path(root, "code", "R", "source-helpers"),
     overwrite = TRUE
   )
   file.copy(
@@ -89,8 +119,9 @@ admin_pit_fixture_repo <- function(block_col = FALSE, backup_overlap = FALSE, mi
     list(id = "chl-pit-total", family = "admin_tax", country = "CHL", method = "manual", canonical = "input_data/admin_data/CHL/PUB_Total_*.xlsx", inbox = "input_data/_new/admin/CHL/PUB_Total_*.xlsx", destination = "input_data/admin_data/CHL/{basename}", notes = "Chile PIT fixture."),
     list(id = "bra-pit-total", family = "admin_tax", country = "BRA", method = "manual", canonical = "input_data/admin_data/BRA/gn-irpf-ac*.xlsx", inbox = "input_data/_new/admin/BRA/gn-irpf-ac*.xlsx", destination = "input_data/admin_data/BRA/{basename}", notes = "Brazil PIT fixture."),
     list(id = "col-pit-total", family = "admin_tax", country = "COL", method = "manual", canonical = "input_data/admin_data/COL/1_Cuantiles_Ingreso_Bruto_Naturales_2014-*", inbox = "input_data/_new/admin/COL/1_Cuantiles_Ingreso_Bruto_Naturales_2014-*", destination = "input_data/admin_data/COL/{basename}", notes = "Colombia PIT fixture."),
-    list(id = "bra-minwage", family = "admin_tax_aux", country = "BRA", method = "manual", canonical = "input_data/admin_data/BRA/downloads/wiki_minwage.csv", inbox = "input_data/_new/admin/BRA/wiki_minwage*.csv", destination = "input_data/admin_data/BRA/downloads/{basename}", notes = "Brazil min wage fixture."),
-    list(id = "chl-uta", family = "admin_tax_aux", country = "CHL", method = "manual", canonical = "input_data/admin_data/CHL/uta_december.csv", inbox = "input_data/_new/admin/CHL/chl_uta_december.csv", destination = "input_data/admin_data/CHL/uta_december.csv", notes = "Chile UTA fixture."),
+    list(id = "bra-minwage", family = "admin_tax_aux", country = "BRA", method = "manual", canonical = "input_data/admin_data/BRA/downloads/wiki_minwage.csv", inbox = "input_data/_new/admin/BRA/wiki_minwage*.csv", destination = "input_data/admin_data/BRA/downloads/{basename}", fetcher = "code/R/manual-downloaders/fetch_bra_minwage.R", notes = "Brazil min wage fixture."),
+    list(id = "bra-admin-thresholds", family = "admin_tax_aux", country = "BRA", method = "script", canonical = "input_data/admin_data/BRA/downloads/admin_thresholds.csv", inbox = "input_data/_new/admin/BRA/admin_thresholds*.csv", destination = "input_data/admin_data/BRA/downloads/{basename}", fetcher = "code/R/manual-downloaders/fetch_bra_admin_thresholds.R", notes = "Brazil thresholds fixture."),
+    list(id = "chl-uta", family = "admin_tax_aux", country = "CHL", method = "script", canonical = "input_data/admin_data/CHL/uta_december.csv", inbox = "input_data/_new/admin/CHL/chl_uta_december.csv", destination = "input_data/admin_data/CHL/uta_december.csv", fetcher = "code/R/manual-downloaders/fetch_chl_uta.R", notes = "Chile UTA fixture."),
     list(id = "mex-admin-microdata", family = "admin_microdata", country = "MEX", method = "manual", canonical = "input_data/admin_data/MEX", notes = "Unsupported admin microdata fixture.")
   )), file.path(root, "config", "sources.yml"))
 
@@ -120,7 +151,10 @@ admin_pit_fixture_repo <- function(block_col = FALSE, backup_overlap = FALSE, mi
     admin_pit_write_minwage(file.path(root, "input_data", "_new", "admin", "BRA", "wiki_minwage.csv"), 2007:2024)
     admin_pit_write_minwage(file.path(root, "input_data", "_new", "admin", "BRA", "wiki_minwage_alt.csv"), 2007:2024)
   }
-  writeLines("year,uta\n2024,75981", file.path(root, "input_data", "_new", "admin", "CHL", "chl_uta_december.csv"))
+  admin_pit_write_thresholds(file.path(root, "input_data", "admin_data", "BRA", "downloads", "admin_thresholds.csv"), 2007:2023)
+  admin_pit_write_thresholds(file.path(root, "input_data", "_new", "admin", "BRA", "admin_thresholds.csv"), 2007:2024)
+  admin_pit_write_uta(file.path(root, "input_data", "admin_data", "CHL", "uta_december.csv"), 2005:2023)
+  admin_pit_write_uta(file.path(root, "input_data", "_new", "admin", "CHL", "chl_uta_december.csv"), 2005:2024)
   dir.create(file.path(root, "intermediary_data", "population"), recursive = TRUE)
   dir.create(file.path(root, "input_data", "wid"), recursive = TRUE)
   writeLines("latam-pop-fixture", file.path(root, "input_data", "wid", "population_total_adult_npopul.dta"))
@@ -153,11 +187,17 @@ test_that("admin source registry uses public admin buckets only", {
   admin_pit_expect_true(grepl("input_data/_new/admin/CHL/PUB_Total_", registry_text, fixed = TRUE))
   admin_pit_expect_true(grepl("input_data/_new/admin/BRA/gn-irpf-ac", registry_text, fixed = TRUE))
   admin_pit_expect_true(grepl("input_data/_new/admin/BRA/wiki_minwage", registry_text, fixed = TRUE))
+  admin_pit_expect_true(grepl("input_data/_new/admin/BRA/admin_thresholds", registry_text, fixed = TRUE))
+  admin_pit_expect_true(grepl("input_data/_new/admin/CHL/chl_uta_december", registry_text, fixed = TRUE))
   admin_pit_expect_true(grepl("input_data/_new/admin/COL/1_Cuantiles_Ingreso_Bruto_Naturales_2014-", registry_text, fixed = TRUE))
 
   sources <- yaml::read_yaml(file.path(repo_root_for_tests, "config", "sources.yml"))$sources
   minwage <- Filter(function(source) identical(source$id, "bra-minwage"), sources)[[1L]]
   expect_equal(minwage$fetch_target, "input_data/_new/admin/BRA/wiki_minwage.csv")
+  thresholds <- Filter(function(source) identical(source$id, "bra-admin-thresholds"), sources)[[1L]]
+  expect_equal(thresholds$fetch_target, "input_data/_new/admin/BRA/admin_thresholds.csv")
+  uta <- Filter(function(source) identical(source$id, "chl-uta"), sources)[[1L]]
+  expect_equal(uta$fetch_target, "input_data/_new/admin/CHL/chl_uta_december.csv")
 })
 
 test_that("isolated PIT admin explorer detects supported sources, years, unsupported rows, and active override", {
@@ -202,7 +242,7 @@ test_that("PIT admin explorer reports Brazil min-wage dependency actions", {
   expect_equal(cmp$extension_years, "2024")
   expect_equal(cmp$overlap_years, paste(2007:2023, collapse = ","))
   detail <- candidate$outputs$aux_comparison_detail[candidate$outputs$aux_comparison_detail$dependency_id == "bra-minwage", , drop = FALSE]
-  expect_equal(detail$value_status[detail$year == 2024L], "extension")
+  expect_equal(detail$value_status[detail$year == 2024L & detail$value_column == "minwage"], "extension")
 })
 
 test_that("PIT admin explorer blocks invalid Brazil min-wage comparison states", {
@@ -228,6 +268,52 @@ test_that("PIT admin explorer blocks invalid Brazil min-wage comparison states",
   ambiguous_cmp <- ambiguous$outputs$aux_comparison_summary[ambiguous$outputs$aux_comparison_summary$dependency_id == "bra-minwage", , drop = FALSE]
   expect_equal(ambiguous_cmp$status, "blocked_aux_ambiguous_candidates")
   expect_match(ambiguous_cmp$detail, "More than one incoming")
+})
+
+test_that("PIT admin explorer validates Brazil thresholds and Chile UTA auxiliary CSVs", {
+  skip_if_not_installed("openxlsx")
+
+  root <- admin_pit_fixture_repo()
+  result <- run_admin_pit_explorer(root = root, write_outputs = FALSE)
+  thresholds <- result$outputs$aux_comparison_summary[result$outputs$aux_comparison_summary$dependency_id == "bra-admin-thresholds", , drop = FALSE]
+  expect_equal(thresholds$status, "aux_validated_append_only")
+  expect_equal(thresholds$extension_years, "2024")
+  threshold_detail <- result$outputs$aux_comparison_detail[result$outputs$aux_comparison_detail$dependency_id == "bra-admin-thresholds", , drop = FALSE]
+  expect_equal(
+    threshold_detail$value_status[threshold_detail$year == 2024L & threshold_detail$value_column == "maxlimit_inss"],
+    "extension"
+  )
+  uta <- result$outputs$aux_comparison_summary[result$outputs$aux_comparison_summary$dependency_id == "chl-uta", , drop = FALSE]
+  expect_equal(uta$status, "aux_validated_append_only")
+  expect_equal(uta$required_years, paste(2005:2024, collapse = ","))
+
+  changed_root <- admin_pit_fixture_repo()
+  admin_pit_write_thresholds(file.path(changed_root, "input_data", "_new", "admin", "BRA", "admin_thresholds.csv"), 2007:2024, changed_year = 2023L)
+  changed <- run_admin_pit_explorer(root = changed_root, write_outputs = FALSE)
+  changed_cmp <- changed$outputs$aux_comparison_summary[changed$outputs$aux_comparison_summary$dependency_id == "bra-admin-thresholds", , drop = FALSE]
+  expect_equal(changed_cmp$status, "blocked_aux_overlap_changed")
+  expect_equal(changed_cmp$changed_overlap_years, "2023")
+
+  missing_root <- admin_pit_fixture_repo()
+  admin_pit_write_thresholds(file.path(missing_root, "input_data", "_new", "admin", "BRA", "admin_thresholds.csv"), 2007:2023)
+  missing <- run_admin_pit_explorer(root = missing_root, write_outputs = FALSE)
+  missing_cmp <- missing$outputs$aux_comparison_summary[missing$outputs$aux_comparison_summary$dependency_id == "bra-admin-thresholds", , drop = FALSE]
+  expect_equal(missing_cmp$status, "blocked_aux_missing_required_years")
+  expect_equal(missing_cmp$missing_required_years, "2024")
+
+  bootstrap_root <- admin_pit_fixture_repo()
+  unlink(file.path(bootstrap_root, "input_data", "admin_data", "CHL", "uta_december.csv"))
+  bootstrap <- run_admin_pit_explorer(root = bootstrap_root, write_outputs = FALSE)
+  bootstrap_cmp <- bootstrap$outputs$aux_comparison_summary[bootstrap$outputs$aux_comparison_summary$dependency_id == "chl-uta", , drop = FALSE]
+  expect_equal(bootstrap_cmp$status, "aux_validated_complete")
+
+  missing_uta_root <- admin_pit_fixture_repo()
+  unlink(file.path(missing_uta_root, "input_data", "admin_data", "CHL", "uta_december.csv"))
+  unlink(file.path(missing_uta_root, "input_data", "_new", "admin", "CHL", "chl_uta_december.csv"))
+  missing_uta <- run_admin_pit_explorer(root = missing_uta_root, write_outputs = FALSE)
+  missing_uta_cmp <- missing_uta$outputs$aux_comparison_summary[missing_uta$outputs$aux_comparison_summary$dependency_id == "chl-uta", , drop = FALSE]
+  expect_equal(missing_uta_cmp$status, "blocked_missing_aux")
+  expect_equal(missing_uta_cmp$next_command, "dina sources fetch chl-uta")
 })
 
 test_that("PIT admin explorer ignores old admin_tax inbox paths", {
@@ -336,8 +422,8 @@ test_that("isolated PIT admin include reports aux sources without configured fil
 
   paths <- list(staged_repo = file.path(root, "stage"))
   aux <- admin_pit_include_stage_one_aux(root, paths, "chl-pit-total", "chl-uta")
-  expect_equal(aux$status, "legacy_live_aux")
-  expect_equal(aux$severity, "warning")
+  expect_equal(aux$status, "missing_aux_dependency")
+  expect_equal(aux$severity, "blocked")
 })
 
 test_that("Brazil minimum-wage fetcher parses generic historical table columns", {
@@ -370,6 +456,74 @@ test_that("Brazil minimum-wage fetcher parses generic historical table columns",
   out <- utils::read.csv(target)
   expect_equal(out$year, c(2023L, 2024L, 2025L))
   expect_equal(out$minwage, c(1100, 1212, 1320))
+})
+
+test_that("Brazil admin-threshold fetcher parses canonical table columns", {
+  skip_if_not_installed("rvest")
+  html <- tempfile("bra-thresholds-", fileext = ".html")
+  target <- tempfile("admin-thresholds-", fileext = ".csv")
+  writeLines(c(
+    "<html><body>",
+    "<table>",
+    "<tr><th>year</th><th>avg_ui</th><th>maxlimit_inss</th><th>exempt_dirpf</th></tr>",
+    "<tr><td>2023</td><td>1.28</td><td>7507</td><td>2112</td></tr>",
+    "<tr><td>2024</td><td>1.28</td><td>7786</td><td>2259</td></tr>",
+    "</table>",
+    "</body></html>"
+  ), html)
+  fetcher <- file.path(repo_root_for_tests, "code", "R", "manual-downloaders", "fetch_bra_admin_thresholds.R")
+  status <- system2(
+    file.path(R.home("bin"), "Rscript"),
+    args = c(fetcher, "--target", target, "--repo-root", repo_root_for_tests),
+    env = paste0("DINA_FETCH_BRA_ADMIN_THRESHOLDS_URL=", shQuote(html)),
+    stdout = TRUE,
+    stderr = TRUE
+  )
+  expect_null(attr(status, "status"))
+  out <- utils::read.csv(target)
+  expect_equal(out$year, c(2023L, 2024L))
+  expect_equal(out$maxlimit_inss, c(7507, 7786))
+})
+
+test_that("Chile UTA fetcher parses local SII HTML fixtures", {
+  skip_if_not_installed("rvest")
+  dir <- tempfile("chl-uta-fixtures-")
+  dir.create(dir, recursive = TRUE)
+  target <- tempfile("chl-uta-", fileext = ".csv")
+  for (year in 2023:2024) {
+    writeLines(c(
+      "<html><body><table>",
+      "<tr><th>Mes</th><th>UTM</th><th>UTA</th><th>IPC</th></tr>",
+      sprintf("<tr><th>Diciembre</th><td>64.216</td><td>%s</td><td>130,05</td></tr>", if (year == 2023L) "770.592" else "800.000"),
+      "</table></body></html>"
+    ), file.path(dir, sprintf("utm%s.htm", year)))
+  }
+  fetcher <- file.path(repo_root_for_tests, "code", "R", "manual-downloaders", "fetch_chl_uta.R")
+  status <- system2(
+    file.path(R.home("bin"), "Rscript"),
+    args = c(fetcher, "--target", target, "--repo-root", repo_root_for_tests),
+    env = c(
+      "DINA_FETCH_CHL_UTA_FIRST_YEAR=2023",
+      "DINA_FETCH_CHL_UTA_LAST_YEAR=2024",
+      paste0("DINA_FETCH_CHL_UTA_URL_TEMPLATE=", shQuote(file.path(dir, "utm{year}.htm")))
+    ),
+    stdout = TRUE,
+    stderr = TRUE
+  )
+  expect_null(attr(status, "status"))
+  out <- utils::read.csv(target)
+  expect_equal(out$year, c(2023L, 2024L))
+  expect_equal(out$uta, c(770592, 800000))
+})
+
+test_that("Brazil threshold locals and direct Chile UTA scrape are not duplicated in active cleaners", {
+  stata <- unlist(lapply(file.path(repo_root_for_tests, "code", "Stata", "BRA", c("svy_adj_BRA.do", "BRA_impute_socsec_contribs.do", "BRA_test_adj.do")), readLines, warn = FALSE), use.names = FALSE)
+  expect_false(any(grepl("local\\s+maxlimitINSS[0-9]", stata)))
+  expect_false(any(grepl("local\\s+exemptDIRPF[0-9]", stata)))
+  expect_false(any(grepl("local\\s+minwage[0-9]", stata)))
+  chl_lines <- readLines(file.path(repo_root_for_tests, "code", "R", "02c_clean_admin_chl.R"), warn = FALSE)
+  expect_false(any(grepl("read_html", chl_lines, fixed = TRUE)))
+  expect_false(any(grepl("utm/utm", chl_lines, fixed = TRUE)))
 })
 
 test_that("isolated PIT admin confirm refuses changed incoming source fingerprints", {

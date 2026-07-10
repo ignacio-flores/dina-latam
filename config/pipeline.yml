@@ -49,6 +49,8 @@ tasks:
     deps: []
     inputs:
       - input_data/surveys_CEPAL
+      - input_data/admin_data/BRA/downloads/wiki_minwage.csv
+      - input_data/admin_data/BRA/downloads/admin_thresholds.csv
     outputs:
       - intermediary_data/microdata/raw
 
@@ -61,6 +63,8 @@ tasks:
     inputs:
       - intermediary_data/microdata/raw
       - input_data/wid/population_total_adult_npopul.dta
+      - input_data/admin_data/BRA/downloads/wiki_minwage.csv
+      - input_data/admin_data/BRA/downloads/admin_thresholds.csv
     outputs:
       - intermediary_data/microdata/adjusted
 
@@ -131,6 +135,7 @@ tasks:
       - input_data/wid/population_total_adult_npopul.dta
       - intermediary_data/population/SurveyPop.dta
       - code/R/02c_clean_admin_chl.R
+      - code/R/source-helpers/chl_uta.R
       - code/R/02c_clean_admin_bra.R
     outputs:
       - input_data/admin_data/CHL/_clean

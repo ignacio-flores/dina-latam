@@ -5015,7 +5015,7 @@ dina_admin_pit_blocker_rows <- function(result) {
     }
     if (nrow(blocked)) {
       commands <- vapply(blocked$dependency_id, function(id) {
-        if (identical(id, "bra-minwage")) "dina sources fetch bra-minwage" else ""
+        if (id %in% c("bra-minwage", "bra-admin-thresholds", "chl-uta")) sprintf("dina sources fetch %s", id) else ""
       }, character(1))
       detail <- ifelse(nzchar(commands), paste0(blocked$dependency_id, ": missing. Run: ", commands), paste0(blocked$dependency_id, ": not found in _new or canonical paths"))
       rows[[length(rows) + 1L]] <- data.frame(

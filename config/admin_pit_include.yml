@@ -67,3 +67,4 @@ cleaners:
       - chl-uta
     bra-pit-total:
       - bra-minwage
+      - bra-admin-thresholds

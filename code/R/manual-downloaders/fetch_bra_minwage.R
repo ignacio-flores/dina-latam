@@ -8,6 +8,7 @@ arg_value <- function(flag, default = "") {
 }
 
 target <- arg_value("--target")
+repo_root <- arg_value("--repo-root", getwd())
 if (!nzchar(target)) {
   stop("Missing --target.", call. = FALSE)
 }
@@ -91,6 +92,27 @@ if (!nrow(out)) {
 }
 out <- out[order(out$year, out$row_id), , drop = FALSE]
 out <- aggregate(minwage ~ year, data = out, FUN = function(x) tail(x[!is.na(x)], 1L))
+
+preserve <- Sys.getenv("DINA_FETCH_BRA_MINWAGE_PRESERVE_CANONICAL", unset = "auto")
+target_rel <- gsub("\\\\", "/", normalizePath(target, mustWork = FALSE))
+preserve_auto <- identical(preserve, "auto") && grepl("input_data/_new/.*/wiki_minwage[.]csv$", target_rel)
+if (identical(preserve, "1") || isTRUE(preserve_auto)) {
+  canonical <- file.path(repo_root, "input_data", "admin_data", "BRA", "downloads", "wiki_minwage.csv")
+  if (file.exists(canonical)) {
+    current <- utils::read.csv(canonical, stringsAsFactors = FALSE)
+    names(current) <- tolower(names(current))
+    if (all(c("year", "minwage") %in% names(current))) {
+      current <- data.frame(
+        year = suppressWarnings(as.integer(current$year)),
+        minwage = suppressWarnings(as.numeric(current$minwage)),
+        stringsAsFactors = FALSE
+      )
+      current <- current[!is.na(current$year) & !is.na(current$minwage), , drop = FALSE]
+      out <- rbind(current[!(current$year %in% out$year), , drop = FALSE], out)
+      out <- out[order(out$year), , drop = FALSE]
+    }
+  }
+}
 
 dir.create(dirname(target), recursive = TRUE, showWarnings = FALSE)
 utils::write.csv(out, target, row.names = FALSE, na = "")

@@ -9,86 +9,19 @@ variables.
 *=============================================================================*/
 set more off
 
+quietly do "code/Stata/BRA/aux_bra_admin_thresholds.do"
+
 local year "2001 2002 2003 2004 2005 2006 2007 2008 2009 2010 2011 2012 2013 2014 2015 2016 2017"
 
 		*------------------------------------------------------------------------------*
 		* Step 0: assigning current MW, UI, INSS and DIRPF thresholds					
 		*------------------------------------------------------------------------------*
 			
-		local minwage2001 = 180
-		local minwage2002 = 200
-		local minwage2003 = 240
-		local minwage2004 = 260
-		local minwage2005 = 300
-		local minwage2006 = 350
-		local minwage2007 = 380
-		local minwage2008 = 415
-		local minwage2009 = 465
-		local minwage2010 = 510
-		local minwage2011 = 545
-		local minwage2012 = 622
-		local minwage2013 = 678
-		local minwage2014 = 724
-		local minwage2015 = 788
-		local minwage2016 = 880
-		local minwage2017 = 937
-		
-		local avgUI2001	= 1.48
-		local avgUI2002	= 1.42
-		local avgUI2003	= 1.38
-		local avgUI2004	= 1.39
-		local avgUI2005	= 1.36
-		local avgUI2006	= 1.31
-		local avgUI2007	= 1.29
-		local avgUI2008	= 1.28
-		local avgUI2009	= 1.28
-		local avgUI2010	= 1.26
-		local avgUI2011	= 1.29
-		local avgUI2012	= 1.28
-		local avgUI2013	= 1.28
-		local avgUI2014	= 1.30
-		local avgUI2015	= 1.30
-		local avgUI2016	= 1.29
-		local avgUI2017	= 1.28
-		
-		local maxlimitINSS2001	=	1430
-		local maxlimitINSS2002	=	1562
-		local maxlimitINSS2003	=	1869
-		local maxlimitINSS2004	=	2509
-		local maxlimitINSS2005	=	2668
-		local maxlimitINSS2006	=	2802
-		local maxlimitINSS2007	=	2894
-		local maxlimitINSS2008	=	3039
-		local maxlimitINSS2009	=	3219
-		local maxlimitINSS2011	=	3692
-		local maxlimitINSS2012	=	3916
-		local maxlimitINSS2013	=	4159
-		local maxlimitINSS2014	=	4390
-		local maxlimitINSS2015	=	4664
-		local maxlimitINSS2016	=	5190
-		local maxlimitINSS2017	=	5531
-			
-		local exemptDIRPF2001	=	900
-		local exemptDIRPF2002	=	1058
-		local exemptDIRPF2003	=	1058
-		local exemptDIRPF2004	=	1058
-		local exemptDIRPF2005	=	1164
-		local exemptDIRPF2006	=	1249
-		local exemptDIRPF2007	=	1314
-		local exemptDIRPF2008	=	1373
-		local exemptDIRPF2009	=	1435
-		local exemptDIRPF2011	=	1567
-		local exemptDIRPF2012	=	1637
-		local exemptDIRPF2013	=	1711
-		local exemptDIRPF2014	=	1788
-		local exemptDIRPF2015	=	1904
-		local exemptDIRPF2016	=	1904
-		local exemptDIRPF2017	=	1904
-		
-		local minwage = `minwage`year'' 
-		local avgUI = `avgUI`year''
-		local maxlimitINSS = `maxlimitINSS`year''
-		local exemptDIRPF = `exemptDIRPF`year''
+		bra_admin_thresholds, year(`year') require("minwage avg_ui maxlimit_inss exempt_dirpf")
+		local minwage = r(minwage)
+		local avgUI = r(avg_ui)
+		local maxlimitINSS = r(maxlimit_inss)
+		local exemptDIRPF = r(exempt_dirpf)
 		
 		*---------------------------------------------------------------------------
 		*Step 1: Moving financial incomes from non-classifiable to capital income

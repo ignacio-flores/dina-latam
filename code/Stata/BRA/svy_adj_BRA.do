@@ -10,6 +10,7 @@ variables.
 
 global aux_part  ""preliminary"" 
 quietly quietly do "code/Stata/auxiliar/aux_general.do"  
+quietly do "code/Stata/BRA/aux_bra_admin_thresholds.do"
 local prefix "pre"
 
 forvalues y = $first_y / $last_y {
@@ -25,153 +26,11 @@ forvalues y = $first_y / $last_y {
 		* Step 1: assigning current MW, UI, INSS and DIRPF thresholds					
 		*------------------------------------------------------------------------------*
 		
-		* For minwage check (valor Mensal): http://www.guiatrabalhista.com.br/guia/salario_minimo.htm
-		local minwage1990 =	6056
-		local minwage1992 =	522187
-		local minwage1993 =	9606
-		local minwage1995 =	100
-		local minwage1996 =	112
-		local minwage1997 =	120
-		local minwage1998 =	130
-		local minwage1999 =	136
-		local minwage2001 = 180
-		local minwage2002 = 200
-		local minwage2003 = 240
-		local minwage2004 = 260
-		local minwage2005 = 300
-		local minwage2006 = 350
-		local minwage2007 = 380
-		local minwage2008 = 415
-		local minwage2009 = 465
-		local minwage2010 = 510
-		local minwage2011 = 545
-		local minwage2012 = 622
-		local minwage2013 = 678
-		local minwage2014 = 724
-		local minwage2015 = 788
-		local minwage2016 = 880
-		local minwage2017 = 937
-		local minwage2018 = 954
-		local minwage2019 = 998
-		local minwage2020 = 1045
-		local minwage2021 = 1100 
-		local minwage2022 = 1212
-		local minwage2023 = 1320 
-		local minwage2024 = 1412
-		local minwage2025 = 1518
-		
-		*NOTE: avgUI does not need to be updated after 2015.
-		local avgUI1990	= 1.75
-		local avgUI1991	= 1.83
-		local avgUI1992	= 1.69
-		local avgUI1993	= 1.41
-		local avgUI1994	= 1.55
-		local avgUI1995	= 1.54
-		local avgUI1996	= 1.56
-		local avgUI1997	= 1.57
-		local avgUI1998	= 1.56
-		local avgUI1999	= 1.55
-		local avgUI2000	= 1.51
-		local avgUI2001	= 1.48
-		local avgUI2002	= 1.42
-		local avgUI2003	= 1.38
-		local avgUI2004	= 1.39
-		local avgUI2005	= 1.36
-		local avgUI2006	= 1.31
-		local avgUI2007	= 1.29
-		local avgUI2008	= 1.28
-		local avgUI2009	= 1.28
-		local avgUI2010	= 1.26
-		local avgUI2011	= 1.29
-		local avgUI2012	= 1.28
-		local avgUI2013	= 1.28
-		local avgUI2014	= 1.30
-		local avgUI2015	= 1.30
-		local avgUI2016	= 1.29
-		local avgUI2017	= 1.28
-		local avgUI2018	= 1.28
-		local avgUI2019	= 1.28
-		local avgUI2020	= 1.28
-		local avgUI2021	= 1.28
-		local avgUI2022	= 1.28
-		local avgUI2023	= 1.28
-		local avgUI2024	= 1.28
-		local avgUI2025 = 1.28
-		
-		* For INSS top threshold check: https://www.gov.br/inss/pt-br/saiba-mais/seus-direitos-e-deveres/calculo-da-guia-da-previdencia-social-gps/tabela-de-contribuicao-mensal/tabela-de-contribuicao-historico
-		* or https://www.gov.br/inss/pt-br/direitos-e-deveres/inscricao-e-contribuicao/tabela-de-contribuicao-mensal
-		local maxlimitINSS1990	=	45288
-		local maxlimitINSS1992	=	4780863
-		local maxlimitINSS1993	=	86415
-		local maxlimitINSS1995	=	833
-		local maxlimitINSS1996	=	958
-		local maxlimitINSS1997	=	1032
-		local maxlimitINSS1998	=	1081
-		local maxlimitINSS1999	=	1255
-		local maxlimitINSS2001	=	1430
-		local maxlimitINSS2002	=	1562
-		local maxlimitINSS2003	=	1869
-		local maxlimitINSS2004	=	2509
-		local maxlimitINSS2005	=	2668
-		local maxlimitINSS2006	=	2802
-		local maxlimitINSS2007	=	2894
-		local maxlimitINSS2008	=	3039
-		local maxlimitINSS2009	=	3219
-		local maxlimitINSS2011	=	3692
-		local maxlimitINSS2012	=	3916
-		local maxlimitINSS2013	=	4159
-		local maxlimitINSS2014	=	4390
-		local maxlimitINSS2015	=	4664
-		local maxlimitINSS2016	=	5190
-		local maxlimitINSS2017	=	5531
-		local maxlimitINSS2018	=	5645
-		local maxlimitINSS2019	=	5839
-		local maxlimitINSS2020	=	6101
-		local maxlimitINSS2021  =   6433
-		local maxlimitINSS2022  =   7087
-		local maxlimitINSS2023  =   7507
-		local maxlimitINSS2024  =   7786
-		local maxlimitINSS2025  =   8157
-		
-		* For DIRPF min threshold check: https://www.gov.br/receitafederal/pt-br/assuntos/orientacao-tributaria/tributos/irpf-imposto-de-renda-pessoa-fisica#calculo_mensal_IRPF
-		local exemptDIRPF1990	=	27385
-		local exemptDIRPF1992	=	3135620
-		local exemptDIRPF1993	=	56480
-		local exemptDIRPF1995	=	756
-		local exemptDIRPF1996	=	900
-		local exemptDIRPF1997	=	900
-		local exemptDIRPF1998	=	900
-		local exemptDIRPF1999	=	900
-		local exemptDIRPF2000	=	900
-		local exemptDIRPF2001	=	900
-		local exemptDIRPF2002	=	1058
-		local exemptDIRPF2003	=	1058
-		local exemptDIRPF2004	=	1058
-		local exemptDIRPF2005	=	1164
-		local exemptDIRPF2006	=	1249
-		local exemptDIRPF2007	=	1314
-		local exemptDIRPF2008	=	1373
-		local exemptDIRPF2009	=	1435
-		local exemptDIRPF2011	=	1567
-		local exemptDIRPF2012	=	1637
-		local exemptDIRPF2013	=	1711
-		local exemptDIRPF2014	=	1788
-		local exemptDIRPF2015	=	1904
-		local exemptDIRPF2016	=	1904
-		local exemptDIRPF2017	=	1904
-		local exemptDIRPF2018	=	1904
-		local exemptDIRPF2019	=	1904
-		local exemptDIRPF2020	=	1904
-		local exemptDIRPF2021	=	1904
-		local exemptDIRPF2022	=	1904
-		local exemptDIRPF2023	=	2112
-		local exemptDIRPF2024	=	2259
-		local exemptDIRPF2025	=	2259
-	
-		local minwage = `minwage`y'' 
-		local avgUI = `avgUI`y''
-		local maxlimitINSS = `maxlimitINSS`y''
-		local exemptDIRPF = `exemptDIRPF`y''
+		bra_admin_thresholds, year(`y') require("minwage avg_ui maxlimit_inss exempt_dirpf")
+		local minwage = r(minwage)
+		local avgUI = r(avg_ui)
+		local maxlimitINSS = r(maxlimit_inss)
+		local exemptDIRPF = r(exempt_dirpf)
 	
 		*---------------------------------------------------------------------------
 		*Step 2: Imputing missing income variables

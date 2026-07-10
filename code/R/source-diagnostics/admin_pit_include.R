@@ -471,9 +471,9 @@ admin_pit_include_stage_one_aux <- function(root, paths, source_id, aux_id) {
     from_rel = paste(c(admin_pit_include_source_values(source$inbox), admin_pit_include_source_values(source$canonical)), collapse = ", "),
     to_rel = "",
     staged_to = "",
-    status = if (identical(aux_id, "chl-uta")) "legacy_live_aux" else "missing_aux_dependency",
+    status = "missing_aux_dependency",
     promotion_scope = "none",
-    severity = if (identical(aux_id, "chl-uta")) "warning" else "blocked",
+    severity = "blocked",
     stringsAsFactors = FALSE
   )
 }
@@ -489,46 +489,13 @@ admin_pit_include_stage_aux_dependencies <- function(root, paths, contract) {
   admin_pit_include_bind(rows)
 }
 
-admin_pit_include_required_bra_minwage_years <- function(root, contract) {
+admin_pit_include_required_aux_years <- function(root, contract, aux_id) {
+  admin_pit_include_load_explorer(root)
   config <- admin_pit_include_effective_config(root, contract)
+  first <- suppressWarnings(as.integer(config$years$first))
   last <- suppressWarnings(as.integer(config$years$last))
-  if (is.na(last) || last < 2007L) return(integer())
-  seq.int(2007L, last)
-}
-
-admin_pit_include_read_minwage <- function(path) {
-  if (!file.exists(path) || dir.exists(path)) {
-    return(list(ok = FALSE, data = data.frame(stringsAsFactors = FALSE), status = "blocked_aux_file_missing", detail = "wiki_minwage.csv file is missing."))
-  }
-  data <- tryCatch(utils::read.csv(path, stringsAsFactors = FALSE), error = function(e) e)
-  if (inherits(data, "error")) {
-    return(list(ok = FALSE, data = data.frame(stringsAsFactors = FALSE), status = "blocked_aux_read_failed", detail = conditionMessage(data)))
-  }
-  names(data) <- tolower(names(data))
-  missing <- setdiff(c("year", "minwage"), names(data))
-  if (length(missing)) {
-    return(list(ok = FALSE, data = data.frame(stringsAsFactors = FALSE), status = "blocked_aux_schema", detail = paste("Missing required columns:", paste(missing, collapse = ","))))
-  }
-  out <- data.frame(
-    year = suppressWarnings(as.integer(data$year)),
-    minwage = suppressWarnings(as.numeric(data$minwage)),
-    stringsAsFactors = FALSE
-  )
-  if (!nrow(out)) {
-    return(list(ok = FALSE, data = out, status = "blocked_aux_empty", detail = "wiki_minwage.csv has no rows."))
-  }
-  if (any(is.na(out$year)) || any(is.na(out$minwage))) {
-    return(list(ok = FALSE, data = out, status = "blocked_aux_non_numeric", detail = "Columns year and minwage must be numeric."))
-  }
-  if (any(out$minwage <= 0, na.rm = TRUE)) {
-    return(list(ok = FALSE, data = out, status = "blocked_aux_non_positive", detail = "Minimum-wage values must be positive."))
-  }
-  duplicated_years <- unique(out$year[duplicated(out$year)])
-  if (length(duplicated_years)) {
-    return(list(ok = FALSE, data = out, status = "blocked_aux_duplicate_years", detail = paste("Duplicate years:", paste(duplicated_years, collapse = ","))))
-  }
-  out <- out[order(out$year), , drop = FALSE]
-  list(ok = TRUE, data = out, status = "ok", detail = "")
+  if (is.na(first) || is.na(last) || first > last) return(integer())
+  admin_pit_explorer_aux_required_years(aux_id, seq.int(first, last))
 }
 
 admin_pit_include_aux_fetch_command <- function(root, aux_id) {
@@ -560,31 +527,48 @@ admin_pit_include_aux_validation_row <- function(source_id, country, dependency_
   )
 }
 
-admin_pit_include_validate_bra_minwage <- function(root, contract, aux_rows) {
+admin_pit_include_validate_csv_aux <- function(root, contract, aux_rows) {
+  admin_pit_include_load_explorer(root)
   if (!nrow(aux_rows)) return(data.frame(stringsAsFactors = FALSE))
   row <- aux_rows[1L, , drop = FALSE]
-  required <- admin_pit_include_required_bra_minwage_years(root, contract)
-  fetch <- admin_pit_include_aux_fetch_command(root, "bra-minwage")
+  aux_id <- row$dependency_id[[1L]]
+  schema <- admin_pit_explorer_aux_schema(aux_id)
+  if (is.null(schema)) return(data.frame(stringsAsFactors = FALSE))
+  required <- admin_pit_include_required_aux_years(root, contract, aux_id)
+  fetch <- admin_pit_include_aux_fetch_command(root, aux_id)
+  staged <- aux_rows[aux_rows$status == "staged_new_aux", , drop = FALSE]
+  if (nrow(staged) > 1L) {
+    return(admin_pit_include_aux_validation_row(
+      row$source_id[[1L]],
+      row$country[[1L]],
+      aux_id,
+      "blocked_aux_ambiguous_candidates",
+      "blocked",
+      required,
+      next_command = fetch,
+      detail = paste("More than one incoming", schema$file_label, "candidate was staged; keep exactly one file in _new.")
+    ))
+  }
   if (identical(row$severity[[1L]], "blocked")) {
     return(admin_pit_include_aux_validation_row(
       row$source_id[[1L]],
       row$country[[1L]],
-      row$dependency_id[[1L]],
+      aux_id,
       "blocked_missing_aux",
       "blocked",
       required,
       integer(),
       next_command = fetch,
-      detail = "Brazil minimum-wage aux file is missing in both _new and canonical paths."
+      detail = paste(schema$label, "aux file is missing in both _new and canonical paths.")
     ))
   }
-  candidate_path <- row$staged_to[[1L]]
-  candidate <- admin_pit_include_read_minwage(candidate_path)
+  candidate_path <- if (nrow(staged)) staged$staged_to[[1L]] else row$staged_to[[1L]]
+  candidate <- admin_pit_explorer_read_aux_csv(candidate_path, aux_id)
   if (!isTRUE(candidate$ok)) {
     return(admin_pit_include_aux_validation_row(
       row$source_id[[1L]],
       row$country[[1L]],
-      row$dependency_id[[1L]],
+      aux_id,
       candidate$status,
       "blocked",
       required,
@@ -599,37 +583,37 @@ admin_pit_include_validate_bra_minwage <- function(root, contract, aux_rows) {
     return(admin_pit_include_aux_validation_row(
       row$source_id[[1L]],
       row$country[[1L]],
-      row$dependency_id[[1L]],
+      aux_id,
       "blocked_aux_missing_required_years",
       "blocked",
       required,
       available,
       missing_required_years = missing_required,
       next_command = fetch,
-      detail = paste("wiki_minwage.csv is missing required years:", paste(missing_required, collapse = ","))
+      detail = paste(schema$file_label, "is missing required years:", paste(missing_required, collapse = ","))
     ))
   }
-  if (!identical(row$status[[1L]], "staged_new_aux")) {
+  if (!nrow(staged)) {
     return(admin_pit_include_aux_validation_row(
       row$source_id[[1L]],
       row$country[[1L]],
-      row$dependency_id[[1L]],
+      aux_id,
       "aux_carried_forward_valid",
       "info",
       required,
       available,
-      detail = "Canonical wiki_minwage.csv covers required years and is carried forward."
+      detail = paste("Canonical", schema$file_label, "covers required years and is carried forward.")
     ))
   }
-  source <- admin_pit_include_registry_source(root, "bra-minwage")
+  source <- admin_pit_include_registry_source(root, aux_id)
   canonical_paths <- if (is.null(source)) character() else admin_pit_include_existing_glob(source$canonical, root)
   if (length(canonical_paths)) {
-    canonical <- admin_pit_include_read_minwage(canonical_paths[[1L]])
+    canonical <- admin_pit_explorer_read_aux_csv(canonical_paths[[1L]], aux_id)
     if (!isTRUE(canonical$ok)) {
       return(admin_pit_include_aux_validation_row(
         row$source_id[[1L]],
         row$country[[1L]],
-        row$dependency_id[[1L]],
+        aux_id,
         "blocked_aux_canonical_invalid",
         "blocked",
         required,
@@ -640,13 +624,13 @@ admin_pit_include_validate_bra_minwage <- function(root, contract, aux_rows) {
     }
     missing_canonical <- setdiff(canonical$data$year, candidate$data$year)
     overlap <- intersect(canonical$data$year, candidate$data$year)
-    changed <- overlap[abs(candidate$data$minwage[match(overlap, candidate$data$year)] - canonical$data$minwage[match(overlap, canonical$data$year)]) > 1e-9]
+    changed <- admin_pit_explorer_aux_changed_years(canonical$data, candidate$data, overlap, schema$value_cols)
     extension <- setdiff(candidate$data$year, canonical$data$year)
     if (length(changed)) {
       return(admin_pit_include_aux_validation_row(
         row$source_id[[1L]],
         row$country[[1L]],
-        row$dependency_id[[1L]],
+        aux_id,
         "blocked_aux_overlap_changed",
         "blocked",
         required,
@@ -655,14 +639,14 @@ admin_pit_include_validate_bra_minwage <- function(root, contract, aux_rows) {
         extension_years = extension,
         changed_overlap_years = changed,
         next_command = fetch,
-        detail = paste("Overlapping minimum-wage values changed for years:", paste(changed, collapse = ","))
+        detail = paste("Overlapping", schema$label, "values changed for years:", paste(changed, collapse = ","))
       ))
     }
     if (length(missing_canonical)) {
       return(admin_pit_include_aux_validation_row(
         row$source_id[[1L]],
         row$country[[1L]],
-        row$dependency_id[[1L]],
+        aux_id,
         "blocked_aux_missing_canonical_years",
         "blocked",
         required,
@@ -671,32 +655,32 @@ admin_pit_include_validate_bra_minwage <- function(root, contract, aux_rows) {
         extension_years = extension,
         missing_canonical_years = missing_canonical,
         next_command = fetch,
-        detail = paste("New wiki_minwage.csv omits canonical historical years:", paste(missing_canonical, collapse = ","))
+        detail = paste("New", schema$file_label, "omits canonical historical years:", paste(missing_canonical, collapse = ","))
       ))
     }
     return(admin_pit_include_aux_validation_row(
       row$source_id[[1L]],
       row$country[[1L]],
-      row$dependency_id[[1L]],
+      aux_id,
       "aux_validated_append_only",
       "info",
       required,
       available,
       overlap_years = overlap,
       extension_years = extension,
-      detail = "New wiki_minwage.csv preserves overlap values and appends new years."
+      detail = paste("New", schema$file_label, "preserves overlap values and appends new years.")
     ))
   }
   admin_pit_include_aux_validation_row(
     row$source_id[[1L]],
     row$country[[1L]],
-    row$dependency_id[[1L]],
+    aux_id,
     "aux_validated_complete",
     "info",
     required,
     available,
     extension_years = available,
-    detail = "New wiki_minwage.csv has required coverage; no canonical overlap exists yet."
+    detail = paste("New", schema$file_label, "has required coverage; no canonical overlap exists yet.")
   )
 }
 
@@ -710,8 +694,9 @@ admin_pit_include_validate_aux_dependencies <- function(root, contract, aux_depe
       ,
       drop = FALSE
     ]
-    if (identical(key$dependency_id[[1L]], "bra-minwage")) {
-      return(admin_pit_include_validate_bra_minwage(root, contract, dep))
+    admin_pit_include_load_explorer(root)
+    if (!is.null(admin_pit_explorer_aux_schema(key$dependency_id[[1L]]))) {
+      return(admin_pit_include_validate_csv_aux(root, contract, dep))
     }
     severity <- if (any(dep$severity == "blocked", na.rm = TRUE)) "blocked" else if (any(dep$severity == "warning", na.rm = TRUE)) "warning" else "info"
     status <- if (severity == "blocked") {
@@ -727,7 +712,7 @@ admin_pit_include_validate_aux_dependencies <- function(root, contract, aux_depe
       key$dependency_id[[1L]],
       status,
       severity,
-      detail = if (identical(key$dependency_id[[1L]], "chl-uta") && severity == "warning") "CHL UTA remains a legacy live auxiliary dependency for now." else "No additional aux validation is required."
+      detail = "No additional aux validation is required."
     )
   })
   admin_pit_include_bind(rows)

@@ -2,6 +2,8 @@
 Goal: imputation of Social Security contributions to CEPAL's PNAD data 
 *=============================================================================*/
 
+quietly do "code/Stata/BRA/aux_bra_admin_thresholds.do"
+
 forvalues year = $first_y / $last_y {
 
 	clear 
@@ -19,78 +21,9 @@ forvalues year = $first_y / $last_y {
 		*-------------------------------------------------------------------*
 		* Current MW and INSS thresholds									*
 		*-------------------------------------------------------------------*
-		* For minwage check: http://www.guiatrabalhista.com.br/guia/salario_minimo.htm
-
-		local	minwage1990	=	6056
-		local	minwage1992	=	522187
-		local	minwage1993	=	9606
-		local	minwage1995	=	100
-		local	minwage1996	=	112
-		local	minwage1997	=	120
-		local	minwage1998	=	130
-		local	minwage1999	=	136
-		local	minwage2001	=	180
-		local	minwage2002	=	200
-		local	minwage2003	=	240
-		local	minwage2004	=	260
-		local	minwage2005	=	300
-		local	minwage2006	=	350
-		local	minwage2007	=	380
-		local	minwage2008	=	415
-		local	minwage2009	=	465
-		local	minwage2011	=	545
-		local	minwage2012	=	622
-		local	minwage2013	=	678
-		local	minwage2014	=	724
-		local	minwage2015	=	788
-		local 	minwage2016 = 	880
-		local 	minwage2017 = 	937
-		local 	minwage2018 = 	954
-		local 	minwage2019 = 	998
-		local 	minwage2020 = 	1045
-		local   minwage2021 = 	1100
-		local   minwage2022 =   1212
-		local 	minwage2023 = 	1320 
-		local 	minwage2024 = 	1412
-		local 	minwage2025 = 	1518
-		
-		* For INSS top threshold check: https://www.gov.br/inss/pt-br/saiba-mais/seus-direitos-e-deveres/calculo-da-guia-da-previdencia-social-gps/tabela-de-contribuicao-mensal/tabela-de-contribuicao-historico
-		* or https://www.gov.br/inss/pt-br/direitos-e-deveres/inscricao-e-contribuicao/tabela-de-contribuicao-mensal
-		local maxlimitINSS1990	=	45288
-		local maxlimitINSS1992	=	4780863
-		local maxlimitINSS1993	=	86415
-		local maxlimitINSS1995	=	833
-		local maxlimitINSS1996	=	958
-		local maxlimitINSS1997	=	1032
-		local maxlimitINSS1998	=	1081
-		local maxlimitINSS1999	=	1255
-		local maxlimitINSS2001	=	1430
-		local maxlimitINSS2002	=	1562
-		local maxlimitINSS2003	=	1869
-		local maxlimitINSS2004	=	2509
-		local maxlimitINSS2005	=	2668
-		local maxlimitINSS2006	=	2802
-		local maxlimitINSS2007	=	2894
-		local maxlimitINSS2008	=	3039
-		local maxlimitINSS2009	=	3219
-		local maxlimitINSS2011	=	3692
-		local maxlimitINSS2012	=	3916
-		local maxlimitINSS2013	=	4159
-		local maxlimitINSS2014	=	4390
-		local maxlimitINSS2015	=	4664
-		local maxlimitINSS2016	=	5190
-		local maxlimitINSS2017	=	5531
-		local maxlimitINSS2018	=	5645
-		local maxlimitINSS2019	=	5839
-		local maxlimitINSS2020	=	6101
-		local maxlimitINSS2021  =   6433
-		local maxlimitINSS2022  =   7087
-		local maxlimitINSS2023  =   7507
-		local maxlimitINSS2024  =   7786
-		local maxlimitINSS2025  =   8157
-		
-		local minwage = `minwage`year''
-		local maxlimitINSS = `maxlimitINSS`year''
+		bra_admin_thresholds, year(`year') require("minwage maxlimit_inss")
+		local minwage = r(minwage)
+		local maxlimitINSS = r(maxlimit_inss)
 		//local alt_annualization = `alt_annualization`year''
 		
 		*-------------------------------------------------------------------*
@@ -267,5 +200,4 @@ forvalues year = $first_y / $last_y {
 	}
 	
 }
-
 

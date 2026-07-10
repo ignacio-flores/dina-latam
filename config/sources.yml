@@ -65,7 +65,7 @@ sources:
   - id: bra-admin-thresholds
     family: admin_tax_aux
     country: BRA
-    method: manual
+    method: script
     urls:
       - label: INSS historical contribution table
         url: https://www.gov.br/inss/pt-br/saiba-mais/seus-direitos-e-deveres/calculo-da-guia-da-previdencia-social-gps/tabela-de-contribuicao-mensal/tabela-de-contribuicao-historico
@@ -73,11 +73,20 @@ sources:
         url: https://www.gov.br/inss/pt-br/direitos-e-deveres/inscricao-e-contribuicao/tabela-de-contribuicao-mensal
       - label: IRPF monthly calculation reference
         url: https://www.gov.br/receitafederal/pt-br/assuntos/orientacao-tributaria/tributos/irpf-imposto-de-renda-pessoa-fisica#calculo_mensal_IRPF
+    canonical:
+      - input_data/admin_data/BRA/downloads/admin_thresholds.csv
+    inbox:
+      - input_data/_new/admin/BRA/admin_thresholds*.csv
+    inbox_examples:
+      - admin_thresholds.csv
+    destination: input_data/admin_data/BRA/downloads/{basename}
+    fetcher: code/R/manual-downloaders/fetch_bra_admin_thresholds.R
+    fetch_target: input_data/_new/admin/BRA/admin_thresholds.csv
     transformer:
+      - code/Stata/BRA/aux_bra_admin_thresholds.do
       - code/Stata/BRA/BRA_impute_socsec_contribs.do
       - code/Stata/BRA/svy_adj_BRA.do
-    integration: none
-    notes: Reference URLs for hard-coded Brazil social-security and IRPF thresholds used by adjustment scripts.
+    notes: CSV-backed Brazil social-security, IRPF, and unemployment-insurance thresholds used by adjustment scripts.
 
   - id: chl-uta
     family: admin_tax_aux
@@ -88,9 +97,19 @@ sources:
         url: https://www.sii.cl/valores_y_fechas/utm/utm{year}.htm
       - label: SII UTM/UTA page template before 2013
         url: https://www.sii.cl/pagina/valores/utm/utm{year}.htm
-    transformer: code/R/02c_clean_admin_chl.R
-    integration: none
-    notes: The Chile admin cleaner scrapes December UTA values while transforming PIT data; this should eventually become an explicit local input.
+    canonical:
+      - input_data/admin_data/CHL/uta_december.csv
+    inbox:
+      - input_data/_new/admin/CHL/chl_uta_december.csv
+    inbox_examples:
+      - chl_uta_december.csv
+    destination: input_data/admin_data/CHL/uta_december.csv
+    fetcher: code/R/manual-downloaders/fetch_chl_uta.R
+    fetch_target: input_data/_new/admin/CHL/chl_uta_december.csv
+    transformer:
+      - code/R/source-helpers/chl_uta.R
+      - code/R/02c_clean_admin_chl.R
+    notes: CSV-backed December UTA values scraped from SII and consumed by Chile PIT cleaners.
 
   - id: admin-tax-static
     family: admin_tax

@@ -4,7 +4,7 @@ mode <- "local"
 
 #load packages
 suppressMessages(suppressPackageStartupMessages({
-  required_packages <- c("openxlsx","readxl", "xlsx", "ggplot2", "haven", "magrittr", "dplyr", "readr", "janitor", "glue","tidyr", "rvest", "stringr")
+  required_packages <- c("openxlsx","readxl", "xlsx", "ggplot2", "haven", "magrittr", "dplyr", "readr", "janitor", "glue","tidyr", "stringr")
   options(repos = c(CRAN = "https://cloud.r-project.org"))
   for (pkg in required_packages) {
     if (!suppressWarnings(require(pkg, character.only = TRUE, quietly = TRUE))) {
@@ -16,6 +16,7 @@ suppressMessages(suppressPackageStartupMessages({
 
 # Read the effective DINA YAML config, including a session override under `dina run`.
 source("code/R/functions/read_dina_config.R")
+source("code/R/source-helpers/chl_uta.R")
 config <- read_dina_config()
 config$last_year <- as.integer(config$last_y)
 
@@ -56,22 +57,8 @@ raw_tabs <- openxlsx::read.xlsx(tfile, startRow = 8, cols = 0:11, sheet = "Datos
   select(c("year", "tramo_uta", "personas", "renta", "impuesto")) %>% 
   mutate(tramo_uta = str_replace_all(tramo_uta, "UTA [:punct:]T", ""))
 
-#download UTA (Unidad Tributaria Anual) values 
-uta = NULL
-web <- "https://www.sii.cl"
-print("Listing UTA (Dec.)")
-for(t in 2005:last_y) {
-  print(t)
-  if(t < 2013) webit <- "pagina/valores"
-  else webit <- "valores_y_fechas"
-  content <- read_html(file.path(web, webit, glue("utm/utm{t}.htm#")))
-  tables <- content %>% html_table(fill = TRUE, dec = ",")
-  uta_table <- tables[[1]] %>% 
-    clean_names() 
-  uta_table <- uta_table[str_detect(uta_table[, paste0("x", t), drop = TRUE], "Diciembre"), ] %>% 
-    rename(uta = 3) %>% select(3) %>% mutate(year = t) 
-  uta %<>% bind_rows(uta_table)
-}
+# Load December UTA (Unidad Tributaria Anual) values materialized by `dina sources fetch chl-uta`.
+uta <- chl_uta_load(input_root = ".", years = 2005:last_y, allow_fetch = FALSE)
 
 #merge PIT, UTA and population data
 chl_tabs <- full_join(raw_tabs, uta, by = "year") %>% 

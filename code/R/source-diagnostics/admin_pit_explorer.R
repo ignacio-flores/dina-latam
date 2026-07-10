@@ -444,19 +444,49 @@ admin_pit_explorer_csv_years <- function(path, year_col = "year") {
 }
 
 admin_pit_explorer_aux_years <- function(aux_id, path) {
-  if (identical(aux_id, "bra-minwage")) {
-    return(admin_pit_explorer_csv_years(path, "year"))
-  }
   admin_pit_explorer_csv_years(path, "year")
 }
 
 admin_pit_explorer_aux_required_years <- function(aux_id, years) {
-  if (identical(aux_id, "bra-minwage")) {
+  if (aux_id %in% c("bra-minwage", "bra-admin-thresholds")) {
     last <- max(as.integer(years), na.rm = TRUE)
     if (is.infinite(last) || is.na(last) || last < 2007L) return(integer())
     return(seq.int(2007L, last))
   }
+  if (identical(aux_id, "chl-uta")) {
+    last <- max(as.integer(years), na.rm = TRUE)
+    if (is.infinite(last) || is.na(last) || last < 2005L) return(integer())
+    return(seq.int(2005L, last))
+  }
   integer()
+}
+
+admin_pit_explorer_aux_schema <- function(aux_id) {
+  switch(
+    aux_id,
+    "bra-minwage" = list(
+      value_cols = "minwage",
+      required_cols = c("year", "minwage"),
+      file_label = "wiki_minwage.csv",
+      label = "Brazil minimum-wage",
+      allow_missing_values = FALSE
+    ),
+    "bra-admin-thresholds" = list(
+      value_cols = c("avg_ui", "maxlimit_inss", "exempt_dirpf"),
+      required_cols = c("year", "avg_ui", "maxlimit_inss", "exempt_dirpf"),
+      file_label = "admin_thresholds.csv",
+      label = "Brazil admin-threshold",
+      allow_missing_values = TRUE
+    ),
+    "chl-uta" = list(
+      value_cols = "uta",
+      required_cols = c("year", "uta"),
+      file_label = "uta_december.csv",
+      label = "Chile UTA",
+      allow_missing_values = FALSE
+    ),
+    NULL
+  )
 }
 
 admin_pit_explorer_fetch_command <- function(source, aux_id) {
@@ -562,16 +592,12 @@ admin_pit_explorer_aux_dependency_detail <- function(root, include_contract, sou
         "missing",
         missing_patterns,
         "",
-        if (identical(aux_id, "chl-uta")) "legacy_live_aux" else "blocked_missing_aux",
-        if (identical(aux_id, "chl-uta")) "warning" else "blocked",
+        "blocked_missing_aux",
+        "blocked",
         integer(),
         required_years,
-        if (identical(aux_id, "chl-uta")) "" else fetch,
-        if (identical(aux_id, "chl-uta")) {
-          "No materialized UTA aux source is configured; current legacy live behavior is noted for review."
-        } else {
-          "Aux source is missing in both _new and canonical paths."
-        }
+        fetch,
+        "Aux source is missing in both _new and canonical paths."
       )
     }
   }
@@ -622,32 +648,36 @@ admin_pit_explorer_aux_dependency_summary <- function(detail) {
   admin_pit_explorer_bind(rows)
 }
 
-admin_pit_explorer_read_minwage <- function(path) {
-  if (!file.exists(path) || dir.exists(path)) {
-    return(list(ok = FALSE, data = data.frame(stringsAsFactors = FALSE), status = "blocked_aux_file_missing", detail = "wiki_minwage.csv file is missing."))
+admin_pit_explorer_read_aux_csv <- function(path, aux_id) {
+  schema <- admin_pit_explorer_aux_schema(aux_id)
+  if (is.null(schema)) {
+    return(list(ok = FALSE, data = data.frame(stringsAsFactors = FALSE), status = "blocked_aux_schema", detail = paste("No CSV aux schema is configured for", aux_id)))
   }
-  data <- tryCatch(utils::read.csv(path, stringsAsFactors = FALSE), error = function(e) e)
+  if (!file.exists(path) || dir.exists(path)) {
+    return(list(ok = FALSE, data = data.frame(stringsAsFactors = FALSE), status = "blocked_aux_file_missing", detail = paste(schema$file_label, "file is missing.")))
+  }
+  data <- tryCatch(utils::read.csv(path, stringsAsFactors = FALSE, na.strings = c("", "NA")), error = function(e) e)
   if (inherits(data, "error")) {
     return(list(ok = FALSE, data = data.frame(stringsAsFactors = FALSE), status = "blocked_aux_read_failed", detail = conditionMessage(data)))
   }
   names(data) <- tolower(names(data))
-  missing <- setdiff(c("year", "minwage"), names(data))
+  missing <- setdiff(schema$required_cols, names(data))
   if (length(missing)) {
     return(list(ok = FALSE, data = data.frame(stringsAsFactors = FALSE), status = "blocked_aux_schema", detail = paste("Missing required columns:", paste(missing, collapse = ","))))
   }
-  out <- data.frame(
-    year = suppressWarnings(as.integer(data$year)),
-    minwage = suppressWarnings(as.numeric(data$minwage)),
-    stringsAsFactors = FALSE
-  )
+  out <- data.frame(year = suppressWarnings(as.integer(data$year)), stringsAsFactors = FALSE)
+  for (col in schema$value_cols) {
+    out[[col]] <- suppressWarnings(as.numeric(data[[col]]))
+  }
   if (!nrow(out)) {
-    return(list(ok = FALSE, data = out, status = "blocked_aux_empty", detail = "wiki_minwage.csv has no rows."))
+    return(list(ok = FALSE, data = out, status = "blocked_aux_empty", detail = paste(schema$file_label, "has no rows.")))
   }
-  if (any(is.na(out$year)) || any(is.na(out$minwage))) {
-    return(list(ok = FALSE, data = out, status = "blocked_aux_non_numeric", detail = "Columns year and minwage must be numeric."))
+  if (any(is.na(out$year)) || (!isTRUE(schema$allow_missing_values) && any(is.na(out[schema$value_cols])))) {
+    return(list(ok = FALSE, data = out, status = "blocked_aux_non_numeric", detail = paste("Columns", paste(schema$required_cols, collapse = ", "), "must be numeric.")))
   }
-  if (any(out$minwage <= 0, na.rm = TRUE)) {
-    return(list(ok = FALSE, data = out, status = "blocked_aux_non_positive", detail = "Minimum-wage values must be positive."))
+  values <- unlist(out[schema$value_cols], use.names = FALSE)
+  if (any(values <= 0, na.rm = TRUE)) {
+    return(list(ok = FALSE, data = out, status = "blocked_aux_non_positive", detail = paste(schema$label, "values must be positive when present.")))
   }
   duplicated_years <- unique(out$year[duplicated(out$year)])
   if (length(duplicated_years)) {
@@ -658,9 +688,9 @@ admin_pit_explorer_read_minwage <- function(path) {
 }
 
 admin_pit_explorer_aux_compare_summary_row <- function(
-  source_id = "bra-pit-total",
-  country = "BRA",
-  dependency_id = "bra-minwage",
+  source_id = "",
+  country = "",
+  dependency_id = "",
   current_rel = "",
   incoming_rel = "",
   current_years = integer(),
@@ -700,63 +730,92 @@ admin_pit_explorer_aux_compare_summary_row <- function(
 }
 
 admin_pit_explorer_aux_compare_detail <- function(source_id, country, dependency_id, current, incoming, required_years, current_ok = FALSE, incoming_ok = FALSE) {
-  current_data <- if (isTRUE(current_ok)) current$data else data.frame(year = integer(), minwage = numeric())
-  incoming_data <- if (isTRUE(incoming_ok)) incoming$data else data.frame(year = integer(), minwage = numeric())
+  schema <- admin_pit_explorer_aux_schema(dependency_id)
+  if (is.null(schema)) return(data.frame(stringsAsFactors = FALSE))
+  empty <- data.frame(year = integer(), stringsAsFactors = FALSE)
+  for (col in schema$value_cols) empty[[col]] <- numeric()
+  current_data <- if (isTRUE(current_ok)) current$data else empty
+  incoming_data <- if (isTRUE(incoming_ok)) incoming$data else empty
   years <- sort(unique(c(required_years, current_data$year, incoming_data$year)))
   if (!length(years)) return(data.frame(stringsAsFactors = FALSE))
   rows <- lapply(years, function(year) {
-    current_hit <- match(year, current_data$year)
-    incoming_hit <- match(year, incoming_data$year)
-    has_current <- !is.na(current_hit)
-    has_incoming <- !is.na(incoming_hit)
-    current_value <- if (has_current) current_data$minwage[[current_hit]] else NA_real_
-    incoming_value <- if (has_incoming) incoming_data$minwage[[incoming_hit]] else NA_real_
-    role <- if (has_current && has_incoming) {
-      "overlap"
-    } else if (has_incoming) {
-      "incoming_only"
-    } else if (has_current) {
-      "current_only"
-    } else {
-      "required_missing"
-    }
-    value_status <- if (has_current && has_incoming) {
-      if (abs(current_value - incoming_value) > 1e-9) "changed_overlap" else "same_overlap"
-    } else if (has_incoming) {
-      "extension"
-    } else if (year %in% required_years) {
-      "missing_required"
-    } else {
-      "dropped_current"
-    }
-    data.frame(
-      source_id = source_id,
-      country = country,
-      dependency_id = dependency_id,
-      year = as.integer(year),
-      role = role,
-      current_minwage = current_value,
-      incoming_minwage = incoming_value,
-      value_status = value_status,
-      stringsAsFactors = FALSE
-    )
+    lapply(schema$value_cols, function(value_col) {
+      current_hit <- match(year, current_data$year)
+      incoming_hit <- match(year, incoming_data$year)
+      has_current <- !is.na(current_hit)
+      has_incoming <- !is.na(incoming_hit)
+      current_value <- if (has_current) current_data[[value_col]][[current_hit]] else NA_real_
+      incoming_value <- if (has_incoming) incoming_data[[value_col]][[incoming_hit]] else NA_real_
+      role <- if (has_current && has_incoming) {
+        "overlap"
+      } else if (has_incoming) {
+        "incoming_only"
+      } else if (has_current) {
+        "current_only"
+      } else {
+        "required_missing"
+      }
+      changed <- has_current && has_incoming && !((is.na(current_value) && is.na(incoming_value)) || (!is.na(current_value) && !is.na(incoming_value) && abs(current_value - incoming_value) <= 1e-9))
+      value_status <- if (changed) {
+        "changed_overlap"
+      } else if (has_current && has_incoming) {
+        "same_overlap"
+      } else if (has_incoming) {
+        "extension"
+      } else if (year %in% required_years) {
+        "missing_required"
+      } else {
+        "dropped_current"
+      }
+      row <- data.frame(
+        source_id = source_id,
+        country = country,
+        dependency_id = dependency_id,
+        year = as.integer(year),
+        value_column = value_col,
+        role = role,
+        current_value = current_value,
+        incoming_value = incoming_value,
+        value_status = value_status,
+        stringsAsFactors = FALSE
+      )
+      if (identical(value_col, "minwage")) {
+        row$current_minwage <- current_value
+        row$incoming_minwage <- incoming_value
+      }
+      row
+    })
   })
-  admin_pit_explorer_bind(rows)
+  admin_pit_explorer_bind(unlist(rows, recursive = FALSE))
 }
 
-admin_pit_explorer_compare_bra_minwage <- function(root, source_ids, years) {
-  source_id <- "bra-pit-total"
-  country <- "BRA"
-  dependency_id <- "bra-minwage"
-  if (!(source_id %in% source_ids)) {
-    empty <- data.frame(stringsAsFactors = FALSE)
-    return(list(summary = empty, detail = empty))
+admin_pit_explorer_aux_changed_years <- function(current_data, incoming_data, overlap, value_cols) {
+  if (!length(overlap)) return(integer())
+  changed <- vapply(overlap, function(year) {
+    current_hit <- match(year, current_data$year)
+    incoming_hit <- match(year, incoming_data$year)
+    any(vapply(value_cols, function(col) {
+      current_value <- current_data[[col]][[current_hit]]
+      incoming_value <- incoming_data[[col]][[incoming_hit]]
+      !((is.na(current_value) && is.na(incoming_value)) || (!is.na(current_value) && !is.na(incoming_value) && abs(current_value - incoming_value) <= 1e-9))
+    }, logical(1)))
+  }, logical(1))
+  overlap[changed]
+}
+
+admin_pit_explorer_compare_one_aux <- function(root, source_id, country, dependency_id, years) {
+  schema <- admin_pit_explorer_aux_schema(dependency_id)
+  if (is.null(schema)) {
+    return(list(summary = data.frame(stringsAsFactors = FALSE), detail = data.frame(stringsAsFactors = FALSE)))
   }
   source <- admin_pit_explorer_registry_source(root, dependency_id)
   required <- admin_pit_explorer_aux_required_years(dependency_id, years)
   fetch <- admin_pit_explorer_fetch_command(source, dependency_id)
   if (is.null(source)) {
     summary <- admin_pit_explorer_aux_compare_summary_row(
+      source_id = source_id,
+      country = country,
+      dependency_id = dependency_id,
       required_years = required,
       status = "missing_aux_registry",
       severity = "warning",
@@ -768,12 +827,15 @@ admin_pit_explorer_compare_bra_minwage <- function(root, source_ids, years) {
   canonical_paths <- admin_pit_explorer_existing_glob(source$canonical, root)
   current_path <- if (length(canonical_paths)) canonical_paths[[1L]] else ""
   current_rel <- if (nzchar(current_path)) admin_pit_explorer_relative_path(current_path, root) else ""
-  current <- if (nzchar(current_path)) admin_pit_explorer_read_minwage(current_path) else list(ok = FALSE, data = data.frame(year = integer(), minwage = numeric()), status = "missing", detail = "")
+  current <- if (nzchar(current_path)) admin_pit_explorer_read_aux_csv(current_path, dependency_id) else list(ok = FALSE, data = data.frame(year = integer()), status = "missing", detail = "")
   current_years <- if (isTRUE(current$ok)) current$data$year else integer()
 
   if (length(incoming_paths) > 1L) {
     incoming_years <- sort(unique(unlist(lapply(incoming_paths, function(path) admin_pit_explorer_aux_years(dependency_id, path)), use.names = FALSE)))
     summary <- admin_pit_explorer_aux_compare_summary_row(
+      source_id = source_id,
+      country = country,
+      dependency_id = dependency_id,
       current_rel = current_rel,
       incoming_rel = paste(vapply(incoming_paths, admin_pit_explorer_relative_path, character(1), root = root), collapse = ", "),
       current_years = current_years,
@@ -781,31 +843,37 @@ admin_pit_explorer_compare_bra_minwage <- function(root, source_ids, years) {
       required_years = required,
       status = "blocked_aux_ambiguous_candidates",
       severity = "blocked",
-      detail = "More than one incoming wiki_minwage candidate was found; keep exactly one file in _new."
+      detail = paste("More than one incoming", schema$file_label, "candidate was found; keep exactly one file in _new.")
     )
     return(list(summary = summary, detail = data.frame(stringsAsFactors = FALSE)))
   }
 
   incoming_path <- if (length(incoming_paths)) incoming_paths[[1L]] else ""
   incoming_rel <- if (nzchar(incoming_path)) admin_pit_explorer_relative_path(incoming_path, root) else ""
-  incoming <- if (nzchar(incoming_path)) admin_pit_explorer_read_minwage(incoming_path) else list(ok = FALSE, data = data.frame(year = integer(), minwage = numeric()), status = "missing", detail = "")
+  incoming <- if (nzchar(incoming_path)) admin_pit_explorer_read_aux_csv(incoming_path, dependency_id) else list(ok = FALSE, data = data.frame(year = integer()), status = "missing", detail = "")
   incoming_years <- if (isTRUE(incoming$ok)) incoming$data$year else integer()
   has_incoming <- nzchar(incoming_path)
   has_current <- nzchar(current_path)
 
   if (!has_incoming && !has_current) {
     summary <- admin_pit_explorer_aux_compare_summary_row(
+      source_id = source_id,
+      country = country,
+      dependency_id = dependency_id,
       required_years = required,
       status = "blocked_missing_aux",
       severity = "blocked",
       next_command = fetch,
-      detail = "Brazil minimum-wage aux file is missing in both _new and canonical paths."
+      detail = paste(schema$label, "aux file is missing in both _new and canonical paths.")
     )
     return(list(summary = summary, detail = data.frame(stringsAsFactors = FALSE)))
   }
 
   if (has_incoming && !isTRUE(incoming$ok)) {
     summary <- admin_pit_explorer_aux_compare_summary_row(
+      source_id = source_id,
+      country = country,
+      dependency_id = dependency_id,
       current_rel = current_rel,
       incoming_rel = incoming_rel,
       current_years = current_years,
@@ -819,6 +887,9 @@ admin_pit_explorer_compare_bra_minwage <- function(root, source_ids, years) {
   }
   if (!has_incoming && has_current && !isTRUE(current$ok)) {
     summary <- admin_pit_explorer_aux_compare_summary_row(
+      source_id = source_id,
+      country = country,
+      dependency_id = dependency_id,
       current_rel = current_rel,
       required_years = required,
       status = current$status,
@@ -835,7 +906,7 @@ admin_pit_explorer_compare_bra_minwage <- function(root, source_ids, years) {
   extension <- if (has_incoming) setdiff(incoming_years, current_years) else integer()
   dropped_current <- if (has_incoming && has_current) setdiff(current_years, incoming_years) else integer()
   changed <- if (has_incoming && has_current && length(overlap)) {
-    overlap[abs(incoming$data$minwage[match(overlap, incoming$data$year)] - current$data$minwage[match(overlap, current$data$year)]) > 1e-9]
+    admin_pit_explorer_aux_changed_years(current$data, incoming$data, overlap, schema$value_cols)
   } else {
     integer()
   }
@@ -854,35 +925,38 @@ admin_pit_explorer_compare_bra_minwage <- function(root, source_ids, years) {
     status <- "blocked_aux_missing_required_years"
     severity <- "blocked"
     next_command_value <- fetch
-    message <- paste("wiki_minwage.csv is missing required years:", paste(missing_required, collapse = ","))
+    message <- paste(schema$file_label, "is missing required years:", paste(missing_required, collapse = ","))
   } else if (length(changed)) {
     status <- "blocked_aux_overlap_changed"
     severity <- "blocked"
     next_command_value <- ""
-    message <- paste("Overlapping minimum-wage values changed for years:", paste(changed, collapse = ","))
+    message <- paste("Overlapping", schema$label, "values changed for years:", paste(changed, collapse = ","))
   } else if (length(dropped_current)) {
     status <- "blocked_aux_missing_canonical_years"
     severity <- "blocked"
     next_command_value <- ""
-    message <- paste("New wiki_minwage.csv omits canonical historical years:", paste(dropped_current, collapse = ","))
+    message <- paste("New", schema$file_label, "omits canonical historical years:", paste(dropped_current, collapse = ","))
   } else if (has_incoming && has_current) {
     status <- "aux_validated_append_only"
     severity <- "info"
     next_command_value <- ""
-    message <- "New wiki_minwage.csv preserves overlap values and appends new years."
+    message <- paste("New", schema$file_label, "preserves overlap values and appends new years.")
   } else if (has_incoming) {
     status <- "aux_validated_complete"
     severity <- "info"
     next_command_value <- ""
-    message <- "New wiki_minwage.csv has required coverage; no canonical overlap exists yet."
+    message <- paste("New", schema$file_label, "has required coverage; no canonical overlap exists yet.")
   } else {
     status <- "carried_forward_aux"
     severity <- "info"
     next_command_value <- ""
-    message <- "Canonical wiki_minwage.csv covers required years and can be carried forward."
+    message <- paste("Canonical", schema$file_label, "covers required years and can be carried forward.")
   }
 
   summary <- admin_pit_explorer_aux_compare_summary_row(
+    source_id = source_id,
+    country = country,
+    dependency_id = dependency_id,
     current_rel = current_rel,
     incoming_rel = incoming_rel,
     current_years = current_years,
@@ -899,6 +973,21 @@ admin_pit_explorer_compare_bra_minwage <- function(root, source_ids, years) {
     detail = message
   )
   list(summary = summary, detail = detail)
+}
+
+admin_pit_explorer_compare_aux_sources <- function(root, include_contract, source_ids, years) {
+  aux <- include_contract$cleaners$auxiliary_sources %||% list()
+  comparisons <- list()
+  for (source_id in intersect(names(aux), source_ids)) {
+    country <- admin_pit_explorer_source_country(source_id)
+    for (dependency_id in as.character(aux[[source_id]] %||% character())) {
+      comparisons[[length(comparisons) + 1L]] <- admin_pit_explorer_compare_one_aux(root, source_id, country, dependency_id, years)
+    }
+  }
+  list(
+    summary = admin_pit_explorer_bind(lapply(comparisons, `[[`, "summary")),
+    detail = admin_pit_explorer_bind(lapply(comparisons, `[[`, "detail"))
+  )
 }
 
 admin_pit_explorer_survey_pop_status <- function(root, path) {
@@ -1287,7 +1376,7 @@ run_admin_pit_explorer <- function(
   include_contract <- admin_pit_explorer_read_include_contract(root)
   aux_detail <- admin_pit_explorer_aux_dependency_detail(root, include_contract, source_ids, years)
   aux_summary <- admin_pit_explorer_aux_dependency_summary(aux_detail)
-  aux_comparison <- admin_pit_explorer_compare_bra_minwage(root, source_ids, years)
+  aux_comparison <- admin_pit_explorer_compare_aux_sources(root, include_contract, source_ids, years)
   static_report <- admin_pit_explorer_static_dependency_report(root, include_contract, source_ids)
   dependency_actions <- admin_pit_explorer_dependency_actions(aux_summary, static_report, aux_comparison$summary)
   blocked <- (nrow(structure) && any(structure$structure_status == "blocked_structure_mismatch", na.rm = TRUE)) ||
