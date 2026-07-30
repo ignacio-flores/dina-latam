@@ -74,6 +74,41 @@ Keep these source-type exceptions in mind:
 - Survey include can generate `intermediary_data/population/SurveyPop.dta`; admin
   PIT workflows depend on that file and may ask you to run the surveys workflow
   first.
+- Survey discovery validates every incoming `.dta`, including files outside the
+  configured `SurveyPop` countries or years. It infers unambiguous country/year
+  identities from filenames and parent folders, retries configured legacy Stata
+  encodings, and normalizes accepted destinations to `CCC_YYYYN.dta`.
+- `SurveyPop.dta` is not restricted by the pipeline country/year configuration.
+  It includes every country with a recognized survey and uses a country-specific
+  annual grid from that country's earliest to latest available source.
+  Unobserved years inside the grid are interpolated; downstream pipeline steps
+  apply their own country/year filters.
+- Survey coverage distinguishes incoming, usable, and selected observed years,
+  the resulting annual SurveyPop grid, and blocked country-years. A missing or
+  stale `SurveyPop.dta` is `action_required`; only unusable or ambiguous sources
+  make exploration `blocked`.
+- Explore inventories overlaps but does not compare their contents. Run
+  `dina sources include surveys --dry-run` to see whether incoming replacements
+  differ from their canonical country-year files before confirmation.
+- Treat the surveys workflow as two layers. The primary layer is ingestion and
+  promotion of the survey source files; the secondary layer is rebuilding the
+  derived `SurveyPop.dta` grid from the selected sources. `explore surveys` is a
+  quick identity/readability/required-variable preflight for both layers.
+  `include surveys --dry-run` is the full review package: it stages source
+  destinations, compares overlaps, builds the candidate grid, and records the
+  exact promotion plan. Neither command changes production files.
+- Before confirming a survey include run, review these tables in order:
+  `survey_source_comparison` for new and changed source contents,
+  `staged_source_mappings` for incoming-to-canonical paths, `promotion_plan` for
+  the exact files that confirmation will write, and `survey_pop_comparison` for
+  the smaller derived-artifact change. Use `include_detail` and
+  `survey_source_candidates` when a source is blocked or its identity is
+  unclear. The include command prints the corresponding `dina sources table`
+  commands with the run path as a reminder.
+- Running `dina sources include surveys` currently performs the same safe staged
+  dry-run as the documented `--dry-run` form; it also regenerates exploration
+  data in memory when the saved exploration is missing or has an old schema.
+  Production writes require the separate `--confirm --include-run RUN` command.
 - Admin source workflow support is PIT-only v1. Non-PIT admin families remain
   registry/fetch inputs until a workflow is added.
 - `compare`, `fields`, `methods`, `scan`, `diff`, and `inbox` are advanced

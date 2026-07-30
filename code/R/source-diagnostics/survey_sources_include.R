@@ -101,7 +101,7 @@ survey_pop_read_contract <- function(
   contract_path = file.path(root, "config", "survey_population_include.yml")
 ) {
   contract <- survey_pop_read_yaml(contract_path)
-  required <- c("source_type", "source_ids", "explore_output_root", "output_root", "years", "paths")
+  required <- c("source_type", "source_ids", "explore_output_root", "output_root", "paths")
   missing <- setdiff(required, names(contract))
   if (length(missing)) {
     stop("Invalid survey population contract; missing: ", paste(missing, collapse = ", "), call. = FALSE)
@@ -114,8 +114,20 @@ survey_pop_supported_ids <- function(contract) {
   as.character(contract$source_ids %||% "surveys-cepal")
 }
 
+survey_pop_stata_encoding_fallbacks <- function(contract) {
+  read_config <- contract$stata_read %||% list()
+  values <- if (is.null(read_config$encoding_fallbacks)) "latin1" else as.character(read_config$encoding_fallbacks)
+  values <- trimws(values)
+  unique(values[!is.na(values) & nzchar(values) & values != "native"])
+}
+
 survey_pop_config <- function(root, contract) {
-  config_path <- survey_pop_path((contract$years %||% list())$from_config %||% "config/dina.yml", root)
+  config_path <- survey_pop_path(
+    (contract$identity %||% list())$countries_from_config %||%
+      (contract$years %||% list())$from_config %||%
+      "config/dina.yml",
+    root
+  )
   survey_pop_read_yaml(config_path)
 }
 
@@ -201,14 +213,97 @@ survey_pop_required_vars <- function(country) {
   if (identical(country, "ARG")) c("_fep", "edad", "id_hogar") else c("_fep", "edad")
 }
 
-survey_pop_survey_match <- function(path) {
+survey_pop_read_dta_once <- function(path, encoding = NULL, columns = NULL, n_max = Inf) {
+  survey_pop_need("haven")
+  args <- list(file = path, n_max = n_max)
+  if (!is.null(encoding) && nzchar(encoding)) args$encoding <- encoding
+  if (!is.null(columns)) args$col_select <- columns
+  do.call(haven::read_dta, args)
+}
+
+survey_pop_read_dta_resilient <- function(path, encoding_fallbacks = "latin1", columns = NULL, n_max = Inf) {
+  encodings <- c(NA_character_, unique(as.character(encoding_fallbacks %||% character())))
+  encodings <- encodings[is.na(encodings) | nzchar(encodings)]
+  labels <- ifelse(is.na(encodings), "native", encodings)
+  errors <- character()
+  for (i in seq_along(encodings)) {
+    encoding <- if (is.na(encodings[[i]])) NULL else encodings[[i]]
+    result <- tryCatch(
+      survey_pop_read_dta_once(path, encoding = encoding, columns = columns, n_max = n_max),
+      error = function(e) e
+    )
+    if (!inherits(result, "error")) {
+      return(list(
+        ok = TRUE,
+        data = result,
+        encoding = labels[[i]],
+        recovered = i > 1L,
+        attempted_encodings = paste(labels[seq_len(i)], collapse = ","),
+        attempt_errors = paste(errors, collapse = " | "),
+        error = ""
+      ))
+    }
+    errors <- c(errors, sprintf("%s: %s", labels[[i]], conditionMessage(result)))
+  }
+  list(
+    ok = FALSE,
+    data = NULL,
+    encoding = "",
+    recovered = FALSE,
+    attempted_encodings = paste(labels, collapse = ","),
+    attempt_errors = paste(errors, collapse = " | "),
+    error = paste(errors, collapse = " | ")
+  )
+}
+
+survey_pop_country_vocabulary <- function(root, contract) {
+  paths <- survey_pop_paths(root, contract)
+  canonical_dirs <- if (dir.exists(paths$canonical_surveys)) {
+    basename(list.dirs(paths$canonical_surveys, recursive = FALSE, full.names = TRUE))
+  } else {
+    character()
+  }
+  configured <- survey_pop_countries(root, contract)
+  values <- toupper(c(configured, canonical_dirs))
+  sort(unique(values[grepl("^[A-Z]{3}$", values)]))
+}
+
+survey_pop_token_matches <- function(text, pattern) {
+  hits <- regmatches(text, gregexpr(pattern, text, perl = TRUE, ignore.case = TRUE))[[1L]]
+  if (identical(hits, character(0)) || identical(hits, "")) character() else hits
+}
+
+survey_pop_identity_evidence <- function(text, country_vocabulary) {
+  country_tokens <- toupper(survey_pop_token_matches(text, "(?<![A-Za-z])[A-Za-z]{3}(?![A-Za-z])"))
+  year_tokens <- survey_pop_token_matches(text, "(?<![0-9])(?:19[0-9]{2}|20[0-9]{2}|2100)(?![0-9])")
+  list(
+    countries = sort(unique(country_tokens[country_tokens %in% country_vocabulary])),
+    years = sort(unique(suppressWarnings(as.integer(year_tokens))))
+  )
+}
+
+survey_pop_unknown_match <- function(parse_status = "unknown_file_class") {
+  list(
+    country = NA_character_,
+    year = NA_integer_,
+    suffix = "",
+    is_survey = FALSE,
+    file_class = "unknown_dta",
+    is_active_name = FALSE,
+    active_basename = "",
+    parse_status = parse_status,
+    identity_method = "unresolved"
+  )
+}
+
+survey_pop_survey_match <- function(path, source_root = dirname(path), country_vocabulary = character()) {
   base <- basename(path)
-  primary <- regexec("^([A-Z]{3})_([0-9]{4})(N[0-9]*)\\.dta$", base, ignore.case = FALSE)
+  primary <- regexec("^([A-Z]{3})_([0-9]{4})(N[0-9]*)\\.dta$", base, ignore.case = TRUE)
   hit <- regmatches(base, primary)[[1]]
   if (length(hit) == 4L) {
-    country <- hit[[2L]]
+    country <- toupper(hit[[2L]])
     year <- as.integer(hit[[3L]])
-    suffix <- hit[[4L]]
+    suffix <- toupper(hit[[4L]])
     return(list(
       country = country,
       year = year,
@@ -217,7 +312,8 @@ survey_pop_survey_match <- function(path) {
       file_class = "primary_survey",
       is_active_name = identical(suffix, "N"),
       active_basename = sprintf("%s_%sN.dta", country, year),
-      parse_status = if (identical(suffix, "N")) "active_name" else "variant_name"
+      parse_status = if (identical(suffix, "N")) "active_name" else "variant_name",
+      identity_method = "canonical_name"
     ))
   }
   aux <- regexec("^([A-Z]{3})_([0-9]{4}).*_byn\\.dta$", base, ignore.case = TRUE)
@@ -231,7 +327,8 @@ survey_pop_survey_match <- function(path) {
       file_class = "auxiliary_survey",
       is_active_name = FALSE,
       active_basename = "",
-      parse_status = "supporting_file"
+      parse_status = "supporting_file",
+      identity_method = "supporting_name"
     ))
   }
   if (grepl("\\.(xls|xlsx)$", base, ignore.case = TRUE)) {
@@ -243,30 +340,63 @@ survey_pop_survey_match <- function(path) {
       file_class = "metadata",
       is_active_name = FALSE,
       active_basename = "",
-      parse_status = "supporting_file"
+      parse_status = "supporting_file",
+      identity_method = "supporting_name"
     ))
   }
   if (grepl("\\.dta$", base, ignore.case = TRUE)) {
-    return(list(
-      country = NA_character_,
-      year = NA_integer_,
-      suffix = "",
-      is_survey = FALSE,
-      file_class = "unknown_dta",
-      is_active_name = FALSE,
-      active_basename = "",
-      parse_status = "unknown_file_class"
-    ))
+    rel <- survey_pop_relative_path(path, source_root)
+    base_evidence <- survey_pop_identity_evidence(tools::file_path_sans_ext(base), country_vocabulary)
+    path_evidence <- survey_pop_identity_evidence(tools::file_path_sans_ext(rel), country_vocabulary)
+    conflicting_country <- length(base_evidence$countries) > 1L ||
+      (length(base_evidence$countries) == 1L && any(path_evidence$countries != base_evidence$countries[[1L]]))
+    conflicting_year <- length(base_evidence$years) > 1L ||
+      (length(base_evidence$years) == 1L && any(path_evidence$years != base_evidence$years[[1L]]))
+    if (conflicting_country || conflicting_year || length(path_evidence$countries) > 1L || length(path_evidence$years) > 1L) {
+      return(survey_pop_unknown_match("ambiguous_identity"))
+    }
+    country <- if (length(base_evidence$countries) == 1L) {
+      base_evidence$countries[[1L]]
+    } else if (length(path_evidence$countries) == 1L) {
+      path_evidence$countries[[1L]]
+    } else {
+      NA_character_
+    }
+    year <- if (length(base_evidence$years) == 1L) {
+      base_evidence$years[[1L]]
+    } else if (length(path_evidence$years) == 1L) {
+      path_evidence$years[[1L]]
+    } else {
+      NA_integer_
+    }
+    if (!is.na(country) && !is.na(year)) {
+      suffix_hit <- survey_pop_token_matches(tools::file_path_sans_ext(base), "(?<![A-Za-z0-9])N[0-9]*(?![A-Za-z0-9])")
+      suffix <- if (length(suffix_hit) == 1L) toupper(suffix_hit[[1L]]) else ""
+      method <- if (length(base_evidence$countries) == 1L && length(base_evidence$years) == 1L) "filename_inferred" else "path_inferred"
+      return(list(
+        country = country,
+        year = as.integer(year),
+        suffix = suffix,
+        is_survey = TRUE,
+        file_class = "primary_survey",
+        is_active_name = FALSE,
+        active_basename = sprintf("%s_%sN.dta", country, year),
+        parse_status = "inferred_identity",
+        identity_method = method
+      ))
+    }
+    return(survey_pop_unknown_match("missing_identity"))
   }
   list(
     country = NA_character_,
     year = NA_integer_,
     suffix = "",
     is_survey = FALSE,
-    file_class = "unknown_file",
+    file_class = "supporting_file",
     is_active_name = FALSE,
     active_basename = "",
-    parse_status = "unknown_file_class"
+    parse_status = "supporting_file",
+    identity_method = "supporting_extension"
   )
 }
 
@@ -281,12 +411,15 @@ survey_pop_source_role <- function(source_set, info) {
   if (isTRUE(info$is_survey)) return("canonical_variant")
   if (identical(info$file_class, "metadata")) return(paste(source_set, "metadata", sep = "_"))
   if (identical(info$file_class, "auxiliary_survey")) return(paste(source_set, "auxiliary", sep = "_"))
+  if (identical(info$file_class, "supporting_file")) return(paste(source_set, "supporting", sep = "_"))
   paste(source_set, "unknown", sep = "_")
 }
 
 survey_pop_source_blocker <- function(row) {
   if (!nrow(row)) return("")
-  if (identical(row$source_set[[1L]], "incoming") && row$file_class[[1L]] %in% c("unknown_dta", "unknown_file")) {
+  if (identical(row$source_set[[1L]], "incoming") && identical(row$file_class[[1L]], "unknown_dta")) {
+    parse_status <- as.character(row$parse_status[[1L]] %||% "")
+    if (parse_status %in% c("ambiguous_identity", "missing_identity")) return(parse_status)
     return("unknown_file_class")
   }
   if (identical(row$status[[1L]], "unreadable_file")) return("unreadable_file")
@@ -299,11 +432,15 @@ survey_pop_list_files <- function(path) {
   list.files(path, recursive = TRUE, all.files = FALSE, full.names = TRUE, no.. = TRUE)
 }
 
-survey_pop_incoming_destination <- function(root, contract, path) {
+survey_pop_incoming_destination <- function(root, contract, path, info = NULL) {
   paths <- survey_pop_paths(root, contract)
   rel <- survey_pop_relative_path(path, paths$incoming_surveys)
   parts <- strsplit(rel, .Platform$file.sep, fixed = TRUE)[[1]]
-  info <- survey_pop_survey_match(path)
+  info <- info %||% survey_pop_survey_match(
+    path,
+    source_root = paths$incoming_surveys,
+    country_vocabulary = survey_pop_country_vocabulary(root, contract)
+  )
   if (isTRUE(info$is_survey)) {
     return(survey_pop_active_rel(info))
   }
@@ -313,28 +450,31 @@ survey_pop_incoming_destination <- function(root, contract, path) {
   file.path("input_data", "surveys_CEPAL", rel)
 }
 
-survey_pop_file_vars_report <- function(path) {
+survey_pop_file_vars_report <- function(path, encoding_fallbacks = "latin1") {
   if (!file.exists(path) || dir.exists(path) || !grepl("\\.dta$", path, ignore.case = TRUE)) {
-    return(list(ok = TRUE, vars = character(), error = ""))
+    return(list(ok = TRUE, vars = character(), encoding = "", recovered = FALSE, attempted_encodings = "", attempt_errors = "", error = ""))
   }
-  survey_pop_need("haven")
-  data <- tryCatch(haven::read_dta(path, n_max = 0), error = function(e) e)
-  if (inherits(data, "error")) {
-    return(list(ok = FALSE, vars = character(), error = conditionMessage(data)))
+  read <- survey_pop_read_dta_resilient(path, encoding_fallbacks = encoding_fallbacks, n_max = 0)
+  if (!isTRUE(read$ok)) {
+    read$vars <- character()
+    return(read)
   }
-  list(ok = TRUE, vars = names(data), error = "")
+  read$vars <- names(read$data)
+  read$data <- NULL
+  read
 }
 
-survey_pop_file_vars <- function(path) {
-  survey_pop_file_vars_report(path)$vars
+survey_pop_file_vars <- function(path, encoding_fallbacks = "latin1") {
+  survey_pop_file_vars_report(path, encoding_fallbacks = encoding_fallbacks)$vars
 }
 
-survey_pop_inventory_row <- function(root, contract, source_set, path) {
+survey_pop_inventory_row <- function(root, contract, source_set, path, country_vocabulary, encoding_fallbacks) {
   paths <- survey_pop_paths(root, contract)
-  info <- survey_pop_survey_match(path)
+  source_root <- if (identical(source_set, "incoming")) paths$incoming_surveys else paths$canonical_surveys
+  info <- survey_pop_survey_match(path, source_root = source_root, country_vocabulary = country_vocabulary)
   rel <- survey_pop_relative_path(path, root)
-  destination <- if (identical(source_set, "incoming")) survey_pop_incoming_destination(root, contract, path) else rel
-  vars_report <- survey_pop_file_vars_report(path)
+  destination <- if (identical(source_set, "incoming")) survey_pop_incoming_destination(root, contract, path, info = info) else rel
+  vars_report <- survey_pop_file_vars_report(path, encoding_fallbacks = encoding_fallbacks)
   vars <- vars_report$vars
   required <- survey_pop_required_vars(info$country)
   missing_required <- if (isTRUE(info$is_survey)) setdiff(required, vars) else character()
@@ -366,9 +506,14 @@ survey_pop_inventory_row <- function(root, contract, source_set, path) {
     is_active_name = isTRUE(info$is_active_name),
     active_rel = survey_pop_active_rel(info),
     parse_status = info$parse_status,
+    identity_method = info$identity_method,
     is_survey = isTRUE(info$is_survey),
     status = stat,
     missing_required_columns = paste(missing_required, collapse = ","),
+    read_encoding = vars_report$encoding,
+    read_recovered = isTRUE(vars_report$recovered),
+    read_attempted_encodings = vars_report$attempted_encodings,
+    read_attempt_errors = vars_report$attempt_errors,
     read_error = if (!isTRUE(vars_report$ok)) vars_report$error else "",
     size = if (file.exists(path)) as.numeric(file.info(path)$size[[1L]]) else NA_real_,
     mtime = if (file.exists(path)) as.character(file.info(path)$mtime[[1L]]) else NA_character_,
@@ -380,9 +525,11 @@ survey_pop_source_inventory <- function(root, contract) {
   paths <- survey_pop_paths(root, contract)
   canonical <- survey_pop_list_files(paths$canonical_surveys)
   incoming <- survey_pop_list_files(paths$incoming_surveys)
+  country_vocabulary <- survey_pop_country_vocabulary(root, contract)
+  encoding_fallbacks <- survey_pop_stata_encoding_fallbacks(contract)
   survey_pop_bind(c(
-    lapply(canonical, survey_pop_inventory_row, root = root, contract = contract, source_set = "canonical"),
-    lapply(incoming, survey_pop_inventory_row, root = root, contract = contract, source_set = "incoming")
+    lapply(canonical, survey_pop_inventory_row, root = root, contract = contract, source_set = "canonical", country_vocabulary = country_vocabulary, encoding_fallbacks = encoding_fallbacks),
+    lapply(incoming, survey_pop_inventory_row, root = root, contract = contract, source_set = "incoming", country_vocabulary = country_vocabulary, encoding_fallbacks = encoding_fallbacks)
   ))
 }
 
@@ -397,6 +544,12 @@ survey_pop_empty_candidates <- function() {
     role = character(),
     file_class = character(),
     status = character(),
+    parse_status = character(),
+    identity_method = character(),
+    read_encoding = character(),
+    read_recovered = logical(),
+    read_attempted_encodings = character(),
+    read_error = character(),
     blocker = character(),
     severity = character(),
     rel = character(),
@@ -426,6 +579,12 @@ survey_pop_source_candidates <- function(inventory, countries = NULL, years = NU
     role = rows$role,
     file_class = rows$file_class,
     status = rows$status,
+    parse_status = rows$parse_status,
+    identity_method = rows$identity_method,
+    read_encoding = rows$read_encoding,
+    read_recovered = rows$read_recovered,
+    read_attempted_encodings = rows$read_attempted_encodings,
+    read_error = rows$read_error,
     blocker = vapply(seq_len(nrow(rows)), function(i) survey_pop_source_blocker(rows[i, , drop = FALSE]), character(1)),
     severity = "info",
     rel = rows$rel,
@@ -445,19 +604,29 @@ survey_pop_source_candidates <- function(inventory, countries = NULL, years = NU
   out[order(out$source_set, out$country, out$year, out$rel), , drop = FALSE]
 }
 
-survey_pop_primary_inventory <- function(inventory, countries, years) {
-  inventory[
-    inventory$file_class == "primary_survey" &
-      inventory$country %in% countries &
-      inventory$year %in% years,
-    ,
-    drop = FALSE
-  ]
+survey_pop_primary_inventory <- function(inventory) {
+  inventory[inventory$file_class == "primary_survey" & !is.na(inventory$country) & !is.na(inventory$year), , drop = FALSE]
 }
 
-survey_pop_primary_effective_sources <- function(inventory, countries, years) {
-  primary <- survey_pop_primary_inventory(inventory, countries, years)
-  grid <- expand.grid(country = countries, year = years, stringsAsFactors = FALSE)
+survey_pop_available_grid <- function(inventory) {
+  primary <- survey_pop_primary_inventory(inventory)
+  if (!nrow(primary)) {
+    return(data.frame(country = character(), year = integer(), stringsAsFactors = FALSE))
+  }
+  countries <- sort(unique(primary$country))
+  rows <- lapply(countries, function(country) {
+    observed <- sort(unique(primary$year[primary$country == country]))
+    data.frame(
+      country = country,
+      year = seq.int(min(observed), max(observed)),
+      stringsAsFactors = FALSE
+    )
+  })
+  survey_pop_bind(rows)
+}
+
+survey_pop_primary_effective_sources <- function(inventory, grid = survey_pop_available_grid(inventory)) {
+  primary <- survey_pop_primary_inventory(inventory)
   rows <- lapply(seq_len(nrow(grid)), function(i) {
     country <- grid$country[[i]]
     year <- grid$year[[i]]
@@ -508,27 +677,63 @@ survey_pop_year_label <- function(years) {
   }, character(1)), collapse = ",")
 }
 
-survey_pop_year_coverage <- function(inventory, countries, years) {
+survey_pop_year_coverage <- function(inventory) {
+  grid <- survey_pop_available_grid(inventory)
+  countries <- sort(unique(grid$country))
+  selected <- survey_pop_primary_effective_sources(inventory, grid)
   rows <- lapply(countries, function(country) {
-    canonical <- inventory[inventory$source_set == "canonical" & inventory$is_survey & inventory$country == country, , drop = FALSE]
-    incoming <- inventory[inventory$source_set == "incoming" & inventory$is_survey & inventory$country == country, , drop = FALSE]
-    effective <- sort(unique(c(canonical$year, incoming$year)))
+    country_grid <- grid$year[grid$country == country]
+    canonical_all <- inventory[
+      inventory$source_set == "canonical" & inventory$is_survey & inventory$country == country,
+      ,
+      drop = FALSE
+    ]
+    incoming_all <- inventory[
+      inventory$source_set == "incoming" & inventory$is_survey & inventory$country == country,
+      ,
+      drop = FALSE
+    ]
+    usable <- sort(unique(c(
+      canonical_all$year[canonical_all$status == "ok"],
+      incoming_all$year[incoming_all$status == "ok"]
+    )))
+    choices <- selected[selected$country == country, , drop = FALSE]
+    selected_years <- choices$year[nzchar(choices$path)]
+    blocked_years <- choices$year[startsWith(choices$selection_status, "blocked_")]
+    interpolated_years <- setdiff(country_grid, selected_years)
+    year_values <- list(
+      grid = country_grid,
+      canonical_discovered = canonical_all$year,
+      incoming_discovered = incoming_all$year,
+      usable = usable,
+      selected = selected_years,
+      blocked = blocked_years,
+      interpolated = interpolated_years
+    )
     data.frame(
       country = country,
-      configured_years = survey_pop_year_label(years),
-      canonical_years = survey_pop_year_label(canonical$year),
-      incoming_years = survey_pop_year_label(incoming$year),
-      effective_years = survey_pop_year_label(effective),
-      missing_configured_years = survey_pop_year_label(setdiff(years, effective)),
-      survey_files = length(effective),
+      grid_years = survey_pop_year_label(year_values$grid),
+      grid_count = length(unique(year_values$grid)),
+      canonical_discovered_years = survey_pop_year_label(year_values$canonical_discovered),
+      canonical_discovered_count = length(unique(year_values$canonical_discovered)),
+      incoming_discovered_years = survey_pop_year_label(year_values$incoming_discovered),
+      incoming_discovered_count = length(unique(year_values$incoming_discovered)),
+      usable_years = survey_pop_year_label(year_values$usable),
+      usable_count = length(unique(year_values$usable)),
+      selected_years = survey_pop_year_label(year_values$selected),
+      selected_count = length(unique(year_values$selected)),
+      blocked_years = survey_pop_year_label(year_values$blocked),
+      blocked_count = length(unique(year_values$blocked)),
+      interpolated_years = survey_pop_year_label(year_values$interpolated),
+      interpolated_count = length(unique(year_values$interpolated)),
       stringsAsFactors = FALSE
     )
   })
   survey_pop_bind(rows)
 }
 
-survey_pop_variable_report <- function(inventory, countries, years) {
-  surveys <- inventory[inventory$is_survey & inventory$country %in% countries & inventory$year %in% years, , drop = FALSE]
+survey_pop_variable_report <- function(inventory) {
+  surveys <- inventory[inventory$is_survey, , drop = FALSE]
   if (!nrow(surveys)) {
     return(data.frame(source_id = character(), source_set = character(), country = character(), year = integer(), rel = character(), status = character(), missing_required_columns = character(), severity = character(), stringsAsFactors = FALSE))
   }
@@ -581,7 +786,7 @@ survey_pop_status <- function(root, contract, inventory) {
     rel = survey_pop_relative_path(survey_pop, root),
     exists = existing,
     status = status,
-    severity = if (status %in% c("missing", "stale", "stale_incoming_pending")) "blocked" else "info",
+    severity = if (status %in% c("missing", "stale", "stale_incoming_pending")) "action_required" else "info",
     latest_input_mtime = as.character(latest_input),
     output_mtime = as.character(output_mtime),
     incoming_files = incoming_count,
@@ -614,7 +819,7 @@ survey_pop_review_actions <- function(status, variable_report, source_summary = 
       stringsAsFactors = FALSE
     )
   }
-  if (nrow(status) && status$severity[[1L]] == "blocked") {
+  if (nrow(status) && status$severity[[1L]] %in% c("blocked", "action_required")) {
     rows[[length(rows) + 1L]] <- data.frame(
       source_id = "surveys-cepal",
       action = status$status[[1L]],
@@ -638,14 +843,14 @@ survey_pop_review_actions <- function(status, variable_report, source_summary = 
 
 survey_pop_manifest <- function(run_id, source_type, workflow, status, countries, years, dry_run = FALSE) {
   data.frame(
-    key = c("run_id", "source_type", "workflow", "status", "dry_run", "countries", "years"),
-    value = c(run_id, source_type, workflow, status, as.character(isTRUE(dry_run)), paste(countries, collapse = ","), survey_pop_year_label(years)),
+    key = c("run_id", "source_type", "workflow", "status", "dry_run", "grid_mode", "countries", "years"),
+    value = c(run_id, source_type, workflow, status, as.character(isTRUE(dry_run)), "available_country_ranges", paste(countries, collapse = ","), survey_pop_year_label(years)),
     stringsAsFactors = FALSE
   )
 }
 
-survey_pop_overlay_paths <- function(root, contract, inventory, countries, years) {
-  choices <- survey_pop_primary_effective_sources(inventory, countries, years)
+survey_pop_overlay_paths <- function(inventory, grid = survey_pop_available_grid(inventory)) {
+  choices <- survey_pop_primary_effective_sources(inventory, grid)
   if (!nrow(choices)) {
     return(data.frame(country = character(), year = integer(), path = character(), source_set = character(), rel = character(), selection_status = character(), stringsAsFactors = FALSE))
   }
@@ -676,22 +881,20 @@ survey_pop_arg_target <- function(pop_targets, year) {
   hit$totalpop[[1L]]
 }
 
-survey_pop_read_survey <- function(path, country) {
-  survey_pop_need("haven")
-  survey_pop_need("tidyselect")
+survey_pop_read_survey <- function(path, country, encoding_fallbacks = "latin1") {
   cols <- survey_pop_required_vars(country)
-  out <- tryCatch(as.data.frame(haven::read_dta(path, col_select = tidyselect::all_of(cols)), stringsAsFactors = FALSE), error = function(e) e)
-  if (inherits(out, "error")) {
-    return(list(ok = FALSE, data = data.frame(stringsAsFactors = FALSE), error = conditionMessage(out)))
+  read <- survey_pop_read_dta_resilient(path, encoding_fallbacks = encoding_fallbacks, columns = cols)
+  if (!isTRUE(read$ok)) {
+    return(list(ok = FALSE, data = data.frame(stringsAsFactors = FALSE), encoding = "", recovered = FALSE, error = read$error))
   }
-  list(ok = TRUE, data = out, error = "")
+  list(ok = TRUE, data = as.data.frame(read$data, stringsAsFactors = FALSE), encoding = read$encoding, recovered = read$recovered, error = "")
 }
 
-survey_pop_summarize_file <- function(path, country, year, pop_targets) {
+survey_pop_summarize_file <- function(path, country, year, pop_targets, encoding_fallbacks = "latin1") {
   if (!file.exists(path)) {
     return(data.frame(country = country, year = year, totpop = NA_real_, pct_adults = NA_real_, adults = NA_real_, nonadults = NA_real_, source_status = "missing_file", detail = "Survey file is missing.", stringsAsFactors = FALSE))
   }
-  read <- survey_pop_read_survey(path, country)
+  read <- survey_pop_read_survey(path, country, encoding_fallbacks = encoding_fallbacks)
   if (!isTRUE(read$ok)) {
     return(data.frame(country = country, year = year, totpop = NA_real_, pct_adults = NA_real_, adults = NA_real_, nonadults = NA_real_, source_status = "read_failed", detail = read$error, stringsAsFactors = FALSE))
   }
@@ -776,11 +979,12 @@ survey_pop_linear_extrapolate <- function(years, values) {
   out
 }
 
-survey_pop_add_interpolation <- function(popdata, countries, years) {
+survey_pop_add_interpolation <- function(popdata, grid) {
+  countries <- sort(unique(grid$country))
   rows <- lapply(countries, function(country) {
     part <- popdata[popdata$country == country, , drop = FALSE]
-    grid <- data.frame(country = country, year = years, stringsAsFactors = FALSE)
-    part <- merge(grid, part, by = c("country", "year"), all.x = TRUE, sort = FALSE)
+    country_grid <- grid[grid$country == country, c("country", "year"), drop = FALSE]
+    part <- merge(country_grid, part, by = c("country", "year"), all.x = TRUE, sort = FALSE)
     part <- part[order(part$year), , drop = FALSE]
     part$totpop_i <- survey_pop_linear_interpolate(part$year, part$totpop)
     part$pct_adults_i <- survey_pop_linear_interpolate(part$year, part$pct_adults)
@@ -794,27 +998,27 @@ survey_pop_add_interpolation <- function(popdata, countries, years) {
 
 survey_pop_build_candidate <- function(root, contract, inventory = NULL) {
   inventory <- inventory %||% survey_pop_source_inventory(root, contract)
-  countries <- survey_pop_countries(root, contract)
-  years <- survey_pop_years(root, contract)
-  overlay <- survey_pop_overlay_paths(root, contract, inventory, countries, years)
+  grid <- survey_pop_available_grid(inventory)
+  countries <- sort(unique(grid$country))
+  encoding_fallbacks <- survey_pop_stata_encoding_fallbacks(contract)
+  overlay <- survey_pop_overlay_paths(inventory, grid)
   pop_targets <- survey_pop_read_population_targets(root, contract)
   rows <- list()
-  source_rows <- list()
-  for (country in countries) {
-    for (year in years) {
-      hit <- overlay[overlay$country == country & overlay$year == year, , drop = FALSE]
-      if (nrow(hit)) {
-        row <- survey_pop_summarize_file(hit$path[[1L]], country, year, pop_targets)
-        row$source_set <- hit$source_set[[1L]]
-        row$source_rel <- hit$rel[[1L]]
-      } else {
-        row <- data.frame(country = country, year = year, totpop = NA_real_, pct_adults = NA_real_, adults = NA_real_, nonadults = NA_real_, source_status = "missing_file", detail = "No canonical or incoming survey file for this country-year.", source_set = "", source_rel = "", stringsAsFactors = FALSE)
-      }
-      rows[[length(rows) + 1L]] <- row
+  for (i in seq_len(nrow(grid))) {
+    country <- grid$country[[i]]
+    year <- grid$year[[i]]
+    hit <- overlay[overlay$country == country & overlay$year == year, , drop = FALSE]
+    if (nrow(hit)) {
+      row <- survey_pop_summarize_file(hit$path[[1L]], country, year, pop_targets, encoding_fallbacks = encoding_fallbacks)
+      row$source_set <- hit$source_set[[1L]]
+      row$source_rel <- hit$rel[[1L]]
+    } else {
+      row <- data.frame(country = country, year = year, totpop = NA_real_, pct_adults = NA_real_, adults = NA_real_, nonadults = NA_real_, source_status = "interpolated_grid_year", detail = "No observed survey source; values are interpolated within the country-specific grid.", source_set = "", source_rel = "", stringsAsFactors = FALSE)
     }
+    rows[[length(rows) + 1L]] <- row
   }
   raw <- survey_pop_bind(rows)
-  data <- survey_pop_add_interpolation(raw, countries, years)
+  data <- survey_pop_add_interpolation(raw, grid)
   status <- raw[, c("country", "year", "source_status", "detail", "source_set", "source_rel"), drop = FALSE]
   no_data_countries <- vapply(countries, function(country) all(is.na(raw$totpop[raw$country == country])), logical(1))
   country_status <- data.frame(
@@ -824,7 +1028,7 @@ survey_pop_build_candidate <- function(root, contract, inventory = NULL) {
     severity = ifelse(no_data_countries, "blocked", "info"),
     stringsAsFactors = FALSE
   )
-  list(data = data, source_status = status, country_status = country_status)
+  list(data = data, source_status = status, country_status = country_status, grid = grid)
 }
 
 survey_pop_empty_promotion_plan <- function() {
@@ -926,25 +1130,27 @@ survey_pop_file_metric_empty <- function(status = "missing_file", error = "") {
   )
 }
 
-survey_pop_file_metrics <- function(path, country) {
+survey_pop_file_metrics <- function(path, country, encoding_fallbacks = "latin1") {
   if (!file.exists(path) || dir.exists(path)) {
     return(survey_pop_file_metric_empty("missing_file", "File is missing."))
   }
   if (!grepl("\\.dta$", path, ignore.case = TRUE)) {
     return(survey_pop_file_metric_empty("unsupported_file", "Only Stata .dta survey files are compared."))
   }
-  survey_pop_need("haven")
-  survey_pop_need("tidyselect")
-  header <- tryCatch(haven::read_dta(path, n_max = 0), error = function(e) e)
-  if (inherits(header, "error")) {
-    return(survey_pop_file_metric_empty("read_failed", conditionMessage(header)))
+  header <- survey_pop_read_dta_resilient(path, encoding_fallbacks = encoding_fallbacks, n_max = 0)
+  if (!isTRUE(header$ok)) {
+    return(survey_pop_file_metric_empty("read_failed", header$error))
   }
-  vars <- names(header)
+  vars <- names(header$data)
   required <- survey_pop_required_vars(country)
   missing_required <- setdiff(required, vars)
   selected <- intersect(c("_fep", "edad"), vars)
   data <- if (length(selected)) {
-    tryCatch(as.data.frame(haven::read_dta(path, col_select = tidyselect::all_of(selected)), stringsAsFactors = FALSE), error = function(e) e)
+    encoding <- if (identical(header$encoding, "native")) NULL else header$encoding
+    tryCatch(
+      as.data.frame(survey_pop_read_dta_once(path, encoding = encoding, columns = selected), stringsAsFactors = FALSE),
+      error = function(e) e
+    )
   } else {
     data.frame(stringsAsFactors = FALSE)
   }
@@ -1046,17 +1252,15 @@ survey_pop_empty_source_comparison <- function() {
   )
 }
 
-survey_pop_source_comparison <- function(inventory, countries, years) {
+survey_pop_source_comparison <- function(inventory, encoding_fallbacks = "latin1") {
   incoming <- inventory[
     inventory$source_set == "incoming" &
-      inventory$file_class == "primary_survey" &
-      inventory$country %in% countries &
-      inventory$year %in% years,
+      inventory$file_class == "primary_survey",
     ,
     drop = FALSE
   ]
   if (!nrow(incoming)) return(survey_pop_empty_source_comparison())
-  primary <- survey_pop_primary_inventory(inventory, countries, years)
+  primary <- survey_pop_primary_inventory(inventory)
   incoming$key <- paste(incoming$country, incoming$year, sep = "\r")
   ambiguous <- names(table(incoming$key))[table(incoming$key) > 1L]
   rows <- lapply(seq_len(nrow(incoming)), function(i) {
@@ -1070,9 +1274,9 @@ survey_pop_source_comparison <- function(inventory, countries, years) {
     } else {
       canonical[0L, , drop = FALSE]
     }
-    incoming_metrics <- survey_pop_file_metrics(row$file[[1L]], row$country[[1L]])
+    incoming_metrics <- survey_pop_file_metrics(row$file[[1L]], row$country[[1L]], encoding_fallbacks = encoding_fallbacks)
     canonical_metrics <- if (nrow(canonical_choice)) {
-      survey_pop_file_metrics(canonical_choice$file[[1L]], row$country[[1L]])
+      survey_pop_file_metrics(canonical_choice$file[[1L]], row$country[[1L]], encoding_fallbacks = encoding_fallbacks)
     } else {
       survey_pop_file_metric_empty("no_canonical_active", "No canonical active survey file exists for this country-year.")
     }
@@ -1141,18 +1345,23 @@ survey_pop_source_comparison <- function(inventory, countries, years) {
   survey_pop_bind(rows)
 }
 
-survey_pop_source_summary <- function(inventory, comparison = data.frame(), mappings = data.frame(), countries = NULL, years = NULL) {
-  candidates <- survey_pop_source_candidates(inventory, countries, years)
-  incoming_primary <- candidates[candidates$source_set == "incoming" & candidates$file_class == "primary_survey", , drop = FALSE]
-  canonical_primary <- candidates[candidates$source_set == "canonical" & candidates$file_class == "primary_survey", , drop = FALSE]
+survey_pop_source_summary <- function(inventory, comparison = data.frame(), mappings = data.frame()) {
+  candidates <- survey_pop_source_candidates(inventory)
+  incoming <- candidates[candidates$source_set == "incoming", , drop = FALSE]
+  incoming_primary <- incoming[incoming$file_class == "primary_survey", , drop = FALSE]
+  canonical_primary <- candidates[
+    candidates$source_set == "canonical" &
+      candidates$file_class == "primary_survey",
+    ,
+    drop = FALSE
+  ]
   incoming_keys <- unique(paste(incoming_primary$country, incoming_primary$year, sep = "\r"))
   canonical_keys <- unique(paste(canonical_primary$country, canonical_primary$year, sep = "\r"))
-  ambiguous <- if (nrow(incoming_primary)) {
-    tab <- table(paste(incoming_primary$country, incoming_primary$year, sep = "\r"))
-    sum(tab > 1L)
-  } else {
-    0L
-  }
+  ambiguous <- length(unique(paste(
+    incoming_primary$country[incoming_primary$blocker == "ambiguous_incoming_primary"],
+    incoming_primary$year[incoming_primary$blocker == "ambiguous_incoming_primary"],
+    sep = "\r"
+  )))
   copy_failures <- if (nrow(mappings) && "copy_status" %in% names(mappings)) {
     sum(mappings$copy_status %in% c("missing_source", "unsupported_directory_source", "copy_failed"), na.rm = TRUE)
   } else {
@@ -1163,17 +1372,22 @@ survey_pop_source_summary <- function(inventory, comparison = data.frame(), mapp
   } else {
     0L
   }
-  unknown_files <- sum(candidates$source_set == "incoming" & candidates$file_class %in% c("unknown_dta", "unknown_file"), na.rm = TRUE)
+  unknown_files <- sum(incoming$file_class %in% c("unknown_dta", "unknown_file"), na.rm = TRUE)
   missing_required <- sum(incoming_primary$status == "missing_required_columns", na.rm = TRUE)
   unreadable <- sum(incoming_primary$status == "unreadable_file", na.rm = TRUE)
   blocked <- unknown_files + ambiguous + missing_required + unreadable + copy_failures + blocked_comparisons
+  comparison_evaluated <- nrow(comparison) > 0L && "comparison_status" %in% names(comparison)
   data.frame(
     source_id = "surveys-cepal",
     status = if (blocked > 0L) "blocked" else "all_good",
+    incoming_files = nrow(incoming),
     incoming_primary_files = nrow(incoming_primary),
+    usable_files = sum(incoming_primary$status == "ok" & incoming_primary$blocker == "", na.rm = TRUE),
+    encoding_recovered_files = sum(incoming_primary$read_recovered, na.rm = TRUE),
     new_years = sum(!incoming_keys %in% canonical_keys),
-    retroactive_overlaps = sum(incoming_keys %in% canonical_keys),
-    changed_overlaps = if (nrow(comparison) && "comparison_status" %in% names(comparison)) sum(comparison$comparison_status == "retro_overlap_changed", na.rm = TRUE) else 0L,
+    overlaps = sum(incoming_keys %in% canonical_keys),
+    overlap_comparison_status = if (comparison_evaluated) "evaluated" else "not_evaluated",
+    changed_overlaps = if (comparison_evaluated) sum(comparison$comparison_status == "retro_overlap_changed", na.rm = TRUE) else NA_integer_,
     filename_variants = sum(incoming_primary$suffix != "N", na.rm = TRUE),
     unknown_files = unknown_files,
     ambiguous_incoming = ambiguous,
@@ -1260,20 +1474,27 @@ run_survey_pop_explorer <- function(
   dry_run = FALSE
 ) {
   contract <- survey_pop_read_contract(root, contract_path)
-  all_countries <- survey_pop_countries(root, contract)
-  if (!is.null(countries)) {
-    all_countries <- intersect(all_countries, toupper(countries))
-  }
-  years <- survey_pop_years(root, contract)
   paths <- survey_pop_explore_paths(root, contract, output_dir)
   inventory <- survey_pop_source_inventory(root, contract)
-  coverage <- survey_pop_year_coverage(inventory, all_countries, years)
-  variable_report <- survey_pop_variable_report(inventory, all_countries, years)
-  source_candidates <- survey_pop_source_candidates(inventory, all_countries, years)
-  source_summary <- survey_pop_source_summary(inventory, countries = all_countries, years = years)
+  grid <- survey_pop_available_grid(inventory)
+  all_countries <- sort(unique(grid$country))
+  years <- sort(unique(grid$year))
+  coverage <- survey_pop_year_coverage(inventory)
+  if (!is.null(countries)) {
+    coverage <- coverage[coverage$country %in% toupper(countries), , drop = FALSE]
+  }
+  variable_report <- survey_pop_variable_report(inventory)
+  source_candidates <- survey_pop_source_candidates(inventory)
+  source_summary <- survey_pop_source_summary(inventory)
   status <- survey_pop_status(root, contract, inventory)
   actions <- survey_pop_review_actions(status, variable_report, source_summary)
-  overall <- if (any(actions$severity == "blocked", na.rm = TRUE)) "blocked" else "all_good"
+  overall <- if (any(actions$severity == "blocked", na.rm = TRUE)) {
+    "blocked"
+  } else if (any(actions$severity == "action_required", na.rm = TRUE)) {
+    "action_required"
+  } else {
+    "all_good"
+  }
   tables <- list(
     source_inventory = inventory,
     survey_source_candidates = source_candidates,
@@ -1318,10 +1539,25 @@ survey_pop_read_exploration <- function(root, contract, exploration_run = NULL) 
   )
 }
 
+survey_pop_inventory_schema_current <- function(inventory) {
+  required <- c(
+    "source_set", "file", "country", "year", "file_class", "status",
+    "identity_method", "read_encoding",
+    "read_recovered", "read_attempted_encodings"
+  )
+  nrow(inventory) > 0L && all(required %in% names(inventory))
+}
+
+survey_pop_exploration_schema_current <- function(exploration) {
+  survey_pop_inventory_schema_current(exploration$source_inventory) &&
+    nrow(exploration$year_coverage) > 0L &&
+    all(c("grid_years", "interpolated_years") %in% names(exploration$year_coverage))
+}
+
 survey_pop_include_manifest <- function(run_id, status, exploration_root, countries, years) {
   data.frame(
-    key = c("run_id", "source_type", "workflow", "status", "dry_run", "exploration_run", "countries", "years"),
-    value = c(run_id, "surveys", "survey_population", status, "TRUE", normalizePath(exploration_root, mustWork = FALSE), paste(countries, collapse = ","), survey_pop_year_label(years)),
+    key = c("run_id", "source_type", "workflow", "status", "dry_run", "grid_mode", "exploration_run", "countries", "years"),
+    value = c(run_id, "surveys", "survey_population", status, "TRUE", "available_country_ranges", normalizePath(exploration_root, mustWork = FALSE), paste(countries, collapse = ","), survey_pop_year_label(years)),
     stringsAsFactors = FALSE
   )
 }
@@ -1341,16 +1577,20 @@ run_survey_pop_include <- function(
   dir.create(paths$logs, recursive = TRUE, showWarnings = FALSE)
   dir.create(paths$staged_repo, recursive = TRUE, showWarnings = FALSE)
   exploration <- survey_pop_read_exploration(root, contract, exploration_run)
-  if (!nrow(exploration$source_inventory)) {
+  if (!survey_pop_exploration_schema_current(exploration)) {
     fresh <- run_survey_pop_explorer(root = root, contract_path = contract_path, write_outputs = FALSE, dry_run = TRUE)
     exploration <- c(list(root = fresh$paths$root), fresh$outputs)
   }
-  countries <- survey_pop_countries(root, contract)
-  years <- survey_pop_years(root, contract)
+  grid <- survey_pop_available_grid(exploration$source_inventory)
+  countries <- sort(unique(grid$country))
+  years <- sort(unique(grid$year))
   mappings <- survey_pop_stage_sources(root, contract, paths, exploration$source_inventory)
-  source_candidates <- survey_pop_source_candidates(exploration$source_inventory, countries, years)
-  source_comparison <- survey_pop_source_comparison(exploration$source_inventory, countries, years)
-  source_summary <- survey_pop_source_summary(exploration$source_inventory, source_comparison, mappings, countries, years)
+  source_candidates <- survey_pop_source_candidates(exploration$source_inventory)
+  source_comparison <- survey_pop_source_comparison(
+    exploration$source_inventory,
+    encoding_fallbacks = survey_pop_stata_encoding_fallbacks(contract)
+  )
+  source_summary <- survey_pop_source_summary(exploration$source_inventory, source_comparison, mappings)
   candidate <- survey_pop_build_candidate(root, contract, exploration$source_inventory)
   candidate_path <- survey_pop_write_candidate(candidate, paths, root)
   current <- survey_pop_read_current(root, contract)
@@ -1592,11 +1832,11 @@ survey_pop_table_catalog <- function() {
       "include_manifest"
     ),
     contents = c(
-      "canonical and incoming survey files with parsed country/year and variable status",
-      "parsed raw survey source candidates, filename variants, normalized destinations, and blockers",
+      "canonical and incoming survey files with identity, decoding provenance, and variable status",
+      "parsed survey source candidates, inferred identities, filename variants, normalized destinations, and blockers",
       "incoming primary survey files compared lightly against canonical country-year benchmarks",
-      "raw survey source counts for new years, retroactive overlaps, variants, unknowns, and blockers",
-      "configured, canonical, incoming, and effective survey-year coverage by country",
+      "incoming, usable, recovered, new, overlap-review, and blocker counts",
+      "incoming, usable, selected, blocked, interpolated, and annual-grid survey-year coverage",
       "required _fep/edad/id_hogar availability by survey file",
       "current SurveyPop.dta missing/stale/current status",
       "review action and next command for survey sources and derived SurveyPop.dta",

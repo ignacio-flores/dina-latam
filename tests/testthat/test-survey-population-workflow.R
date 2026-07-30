@@ -43,7 +43,8 @@ survey_pop_fixture_root <- function(existing_survey_pop = FALSE, incoming = FALS
     source_ids = c("surveys-cepal"),
     explore_output_root = "output/experiments/survey_population_explore",
     output_root = "output/experiments/survey_population_include",
-    years = list(from_config = "config/dina.yml"),
+    identity = list(countries_from_config = "config/dina.yml"),
+    stata_read = list(encoding_fallbacks = c("latin1")),
     paths = list(
       canonical_surveys = "input_data/surveys_CEPAL",
       incoming_surveys = "input_data/_new/surveys",
@@ -103,6 +104,8 @@ test_that("survey explorer reports missing and stale SurveyPop.dta", {
   root <- survey_pop_fixture_root()
   missing <- run_survey_pop_explorer(root = root, write_outputs = FALSE)
   expect_equal(missing$outputs$survey_pop_status$status, "missing")
+  expect_equal(missing$outputs$survey_pop_status$severity, "action_required")
+  expect_equal(missing$status, "action_required")
   expect_equal(missing$outputs$survey_pop_status$next_command, "dina sources include surveys --dry-run")
   expect_equal(missing$outputs$survey_source_summary$status, "all_good")
 
@@ -163,7 +166,7 @@ test_that("retroactive overlap changes are reported without blocking", {
 
   include <- run_survey_pop_include(root = root, write_outputs = TRUE, run_id = "survey-retro")
   expect_equal(survey_pop_manifest_value(include$manifest, "status"), "all_good")
-  expect_equal(include$outputs$survey_source_summary$retroactive_overlaps, 1L)
+  expect_equal(include$outputs$survey_source_summary$overlaps, 1L)
   expect_equal(include$outputs$survey_source_summary$changed_overlaps, 1L)
   expect_true(any(include$outputs$survey_source_comparison$comparison_status == "retro_overlap_changed"))
 })
@@ -193,12 +196,150 @@ test_that("incoming survey missing minimum variables blocks include", {
   expect_true(any(include$outputs$staged_source_mappings$copy_status == "blocked_missing_required_columns"))
 })
 
+test_that("resilient Stata reader records configured fallback recovery", {
+  reader_env <- environment(survey_pop_read_dta_resilient)
+  original <- get("survey_pop_read_dta_once", envir = reader_env)
+  calls <- character()
+  assign("survey_pop_read_dta_once", function(path, encoding = NULL, columns = NULL, n_max = Inf) {
+    label <- if (is.null(encoding)) "native" else encoding
+    calls <<- c(calls, label)
+    if (is.null(encoding)) stop("invalid metadata encoding")
+    data.frame(`_fep` = numeric(), edad = numeric(), check.names = FALSE)
+  }, envir = reader_env)
+  on.exit(assign("survey_pop_read_dta_once", original, envir = reader_env), add = TRUE)
+
+  read <- survey_pop_read_dta_resilient("legacy.dta", encoding_fallbacks = c("latin1"))
+  expect_true(read$ok)
+  expect_true(read$recovered)
+  expect_equal(read$encoding, "latin1")
+  expect_equal(read$attempted_encodings, "native,latin1")
+  expect_equal(calls, c("native", "latin1"))
+})
+
+test_that("survey identity can be inferred safely from filename and parent path", {
+  root <- survey_pop_fixture_root()
+  inferred <- data.frame(`_fep` = c(100, 50), edad = c(30, 10), check.names = FALSE)
+  survey_pop_fixture_write_dta(
+    root,
+    "input_data/_new/surveys/MEX_archives/household-survey-2001.dta",
+    inferred
+  )
+
+  explore <- run_survey_pop_explorer(root = root, write_outputs = FALSE)
+  hit <- explore$outputs$source_inventory[
+    explore$outputs$source_inventory$original_basename == "household-survey-2001.dta",
+    ,
+    drop = FALSE
+  ]
+  expect_equal(hit$country, "MEX")
+  expect_equal(hit$year, 2001L)
+  expect_equal(hit$identity_method, "path_inferred")
+  expect_equal(hit$status, "ok")
+  expect_equal(hit$destination, "input_data/surveys_CEPAL/MEX/MEX_2001N.dta")
+})
+
+test_that("conflicting inferred identities block instead of guessing", {
+  root <- survey_pop_fixture_root()
+  survey <- data.frame(`_fep` = c(100, 50), edad = c(30, 10), check.names = FALSE)
+  survey_pop_fixture_write_dta(
+    root,
+    "input_data/_new/surveys/ARG_archives/MEX-2001-survey.dta",
+    survey
+  )
+
+  explore <- run_survey_pop_explorer(root = root, write_outputs = FALSE)
+  hit <- explore$outputs$survey_source_candidates[
+    explore$outputs$survey_source_candidates$original_basename == "MEX-2001-survey.dta",
+    ,
+    drop = FALSE
+  ]
+  expect_equal(hit$blocker, "ambiguous_identity")
+  expect_equal(hit$severity, "blocked")
+})
+
+test_that("all available countries receive country-specific annual SurveyPop grids", {
+  root <- survey_pop_fixture_root()
+  bol <- data.frame(`_fep` = c(100, 50), edad = c(30, 10), check.names = FALSE)
+  survey_pop_fixture_write_dta(root, "input_data/_new/surveys/BOL_2001N.dta", bol)
+  survey_pop_fixture_write_dta(root, "input_data/_new/surveys/BOL_2003N.dta", bol)
+
+  explore <- run_survey_pop_explorer(root = root, write_outputs = TRUE)
+  bol_coverage <- explore$outputs$year_coverage[explore$outputs$year_coverage$country == "BOL", ]
+  expect_equal(bol_coverage$grid_years, "2001-2003")
+  expect_equal(bol_coverage$selected_years, "2001,2003")
+  expect_equal(bol_coverage$interpolated_years, "2002")
+
+  include <- run_survey_pop_include(root = root, write_outputs = TRUE, run_id = "survey-dynamic-grid")
+  expect_true(any(include$outputs$staged_source_mappings$to_rel == "input_data/surveys_CEPAL/BOL/BOL_2001N.dta"))
+  bol_status <- include$outputs$candidate_source_status[include$outputs$candidate_source_status$country == "BOL", ]
+  expect_equal(bol_status$year, 2001:2003)
+  expect_equal(bol_status$source_status[[2L]], "interpolated_grid_year")
+  bol_candidate <- include$outputs$survey_pop_comparison[include$outputs$survey_pop_comparison$country == "BOL", ]
+  expect_equal(bol_candidate$year, 2001:2003)
+})
+
+test_that("invalid incoming replacement is usable canonically but blocked from selection", {
+  root <- survey_pop_fixture_root()
+  invalid <- data.frame(edad = c(30, 10), check.names = FALSE)
+  survey_pop_fixture_write_dta(root, "input_data/_new/surveys/MEX_2000N.dta", invalid)
+
+  explore <- run_survey_pop_explorer(root = root, write_outputs = FALSE)
+  coverage <- explore$outputs$year_coverage[explore$outputs$year_coverage$country == "MEX", ]
+  expect_match(coverage$usable_years, "2000")
+  expect_false(grepl("2000", coverage$selected_years, fixed = TRUE))
+  expect_equal(coverage$blocked_years, "2000")
+})
+
+test_that("explore defers overlap comparison and reports explicit coverage stages", {
+  root <- survey_pop_fixture_root()
+  changed_mex <- data.frame(`_fep` = c(500, 25), edad = c(25, 12), check.names = FALSE)
+  survey_pop_fixture_write_dta(root, "input_data/_new/surveys/MEX_2000N.dta", changed_mex)
+
+  explore <- run_survey_pop_explorer(root = root, write_outputs = FALSE)
+  summary <- explore$outputs$survey_source_summary
+  expect_equal(summary$overlap_comparison_status, "not_evaluated")
+  expect_true(is.na(summary$changed_overlaps))
+  expect_false("effective_years" %in% names(explore$outputs$year_coverage))
+  expect_true(all(c("grid_years", "usable_years", "selected_years", "blocked_years", "interpolated_years") %in% names(explore$outputs$year_coverage)))
+})
+
+test_that("local incoming survey corpus is a usable regression corpus", {
+  incoming_root <- file.path(repo_root_for_tests, "input_data", "_new", "surveys")
+  files <- if (dir.exists(incoming_root)) {
+    list.files(incoming_root, pattern = "\\.dta$", recursive = TRUE, full.names = TRUE, ignore.case = TRUE)
+  } else {
+    character()
+  }
+  skip_if(!length(files), "Local incoming survey corpus is not available.")
+
+  contract <- survey_pop_read_contract(repo_root_for_tests)
+  inventory <- survey_pop_source_inventory(repo_root_for_tests, contract)
+  incoming <- inventory[inventory$source_set == "incoming", , drop = FALSE]
+  candidates <- survey_pop_source_candidates(inventory)
+  incoming_candidates <- candidates[candidates$source_set == "incoming", , drop = FALSE]
+
+  expect_equal(nrow(incoming), length(files))
+  expect_true(all(incoming$file_class == "primary_survey"))
+  expect_true(all(incoming$status == "ok"))
+  expect_true(all(incoming_candidates$blocker == ""))
+  expect_true(any(incoming$read_recovered))
+  recovered <- incoming[incoming$read_recovered, , drop = FALSE]
+  sample_read <- survey_pop_read_survey(
+    recovered$file[[1L]],
+    recovered$country[[1L]],
+    encoding_fallbacks = survey_pop_stata_encoding_fallbacks(contract)
+  )
+  expect_true(sample_read$ok)
+  expect_true(sample_read$recovered)
+})
+
 test_that("main dina CLI dispatches survey explore, include, and table", {
   root <- survey_pop_fixture_root(incoming = TRUE)
   explore <- run_dina_cli(c("sources", "explore", "surveys"), root = root)
   expect_equal(explore$status, 0L)
   expect_match(explore$output, "Survey Sources Explore")
-  expect_match(explore$output, "Survey source status")
+  expect_match(explore$output, "1\\. Source intake preflight \\(primary\\)")
+  expect_match(explore$output, "2\\. Derived SurveyPop preview \\(secondary\\)")
   expect_match(explore$output, "dina sources include surveys --dry-run")
 
   table <- run_dina_cli(c("sources", "table", "surveys", "survey_source_summary"), root = root)
@@ -208,5 +349,14 @@ test_that("main dina CLI dispatches survey explore, include, and table", {
   include <- run_dina_cli(c("sources", "include", "surveys", "--dry-run"), root = root)
   expect_equal(include$status, 0L)
   expect_match(include$output, "Survey Sources Include")
+  expect_match(include$output, "1\\. Source promotion review \\(required\\)")
+  expect_match(include$output, "Staging result: .* survey source files staged")
+  expect_match(include$output, "2\\. Derived SurveyPop check \\(secondary\\)")
+  expect_match(include$output, "SurveyPop candidate: .* grid rows")
+  expect_match(include$output, "Review before confirm \\(in order\\)")
+  expect_match(include$output, "survey_source_comparison")
+  expect_match(include$output, "staged_source_mappings")
+  expect_match(include$output, "promotion_plan")
+  expect_match(include$output, "survey_pop_comparison")
   expect_match(include$output, "No production files changed")
 })

@@ -4692,8 +4692,22 @@ dina_admin_pit_label <- function(x) {
 dina_admin_pit_year_label <- function(x, max_chars = 34L) {
   x <- trimws(as.character(x %||% ""))
   x[is.na(x) | !nzchar(x)] <- "-"
-  years <- suppressWarnings(as.integer(unlist(strsplit(x[[1L]], "[^0-9]+"))))
-  years <- sort(unique(years[!is.na(years) & years >= 1900L & years <= 2100L]))
+  parts <- trimws(unlist(strsplit(x[[1L]], ",", fixed = TRUE)))
+  years <- unlist(lapply(parts, function(part) {
+    range_match <- regexec(
+      "^(19[0-9]{2}|20[0-9]{2}|2100)\\s*[-:]\\s*(19[0-9]{2}|20[0-9]{2}|2100)$",
+      part,
+      perl = TRUE
+    )
+    hit <- regmatches(part, range_match)[[1L]]
+    if (length(hit) == 3L) {
+      bounds <- as.integer(hit[2:3])
+      if (bounds[[1L]] <= bounds[[2L]]) return(seq.int(bounds[[1L]], bounds[[2L]]))
+    }
+    values <- suppressWarnings(as.integer(unlist(strsplit(part, "[^0-9]+"))))
+    values[!is.na(values) & values >= 1900L & values <= 2100L]
+  }), use.names = FALSE)
+  years <- sort(unique(as.integer(years)))
   if (!length(years)) {
     label <- x[[1L]]
     if (nchar(label) > max_chars) label <- paste0(substr(label, 1L, max_chars - 3L), "...")
@@ -5388,38 +5402,57 @@ dina_print_survey_pop_explore <- function(result, dry_run = FALSE) {
   dina_cli_cat(sprintf("Overall status: %s", overall))
   if (nrow(source_summary)) {
     dina_cli_cat("")
-    dina_cli_cat("Survey source status:")
-    dina_cli_cat(dina_cli_row(c("source", "status", "new", "retro", "changed", "variants", "unknown", "blocked"), widths = c(18, 12, 6, 7, 8, 9, 8, 8), dim = TRUE))
+    dina_cli_cat("1. Source intake preflight (primary):")
+    dina_cli_cat(dina_cli_row(c("source", "status", "found", "usable", "recovered", "new", "overlaps", "blocked"), widths = c(18, 12, 8, 8, 10, 8, 10, 8), dim = TRUE))
     for (i in seq_len(nrow(source_summary))) {
       dina_cli_cat(dina_cli_row(
         c(
           source_summary$source_id[[i]],
           source_summary$status[[i]],
+          source_summary$incoming_primary_files[[i]],
+          source_summary$usable_files[[i]],
+          source_summary$encoding_recovered_files[[i]],
           source_summary$new_years[[i]],
-          source_summary$retroactive_overlaps[[i]],
-          source_summary$changed_overlaps[[i]],
-          source_summary$filename_variants[[i]],
-          source_summary$unknown_files[[i]],
+          source_summary$overlaps[[i]],
           source_summary$blocked[[i]]
         ),
-        widths = c(18, 12, 6, 7, 8, 9, 8, 8)
+        widths = c(18, 12, 8, 8, 10, 8, 10, 8)
       ))
     }
+    dina_cli_alert(sprintf(
+      "Overlap comparison: %s; actual same/changed results are computed by `dina sources include surveys --dry-run`.",
+      gsub("_", " ", source_summary$overlap_comparison_status[[1L]], fixed = TRUE)
+    ))
+    dina_cli_cat(dina_cli_dim("Explore identifies, reads, and structurally validates incoming survey files. It does not stage or promote them."))
   }
   if (nrow(coverage)) {
-    dina_cli_cat(dina_cli_row(c("country", "canonical", "incoming", "effective", "missing"), widths = c(8, 22, 22, 22, 22), dim = TRUE))
+    dina_cli_cat("")
+    dina_cli_cat("2. Derived SurveyPop preview (secondary):")
+    dina_cli_cat("Country-year coverage that would feed a rebuilt SurveyPop.dta:")
+    dina_cli_cat(dina_cli_row(c("country", "incoming", "usable", "selected", "SurveyPop grid", "issues"), widths = c(8, 22, 22, 22, 22, 18), dim = TRUE))
     for (i in seq_len(nrow(coverage))) {
+      issues <- if (coverage$blocked_count[[i]] > 0L) {
+        paste0("blocked: ", dina_admin_pit_year_label(coverage$blocked_years[[i]], max_chars = 9L))
+      } else {
+        "-"
+      }
       dina_cli_cat(dina_cli_row(
         c(
           coverage$country[[i]],
-          dina_admin_pit_year_label(coverage$canonical_years[[i]], max_chars = 22L),
-          dina_admin_pit_year_label(coverage$incoming_years[[i]], max_chars = 22L),
-          dina_admin_pit_year_label(coverage$effective_years[[i]], max_chars = 22L),
-          dina_admin_pit_year_label(coverage$missing_configured_years[[i]], max_chars = 22L)
+          dina_admin_pit_year_label(coverage$incoming_discovered_years[[i]], max_chars = 22L),
+          dina_admin_pit_year_label(coverage$usable_years[[i]], max_chars = 22L),
+          dina_admin_pit_year_label(coverage$selected_years[[i]], max_chars = 22L),
+          dina_admin_pit_year_label(coverage$grid_years[[i]], max_chars = 22L),
+          issues
         ),
-        widths = c(8, 22, 22, 22, 22)
+        widths = c(8, 22, 22, 22, 22, 18)
       ))
     }
+    dina_cli_cat(dina_cli_dim("incoming: survey years found in input_data/_new/surveys."))
+    dina_cli_cat(dina_cli_dim("usable: years with at least one readable source containing the required survey variables."))
+    dina_cli_cat(dina_cli_dim("selected: observed source years chosen for SurveyPop; valid incoming files take precedence over canonical files."))
+    dina_cli_cat(dina_cli_dim("SurveyPop grid: every year from the country's earliest to latest available source; unobserved years are interpolated."))
+    dina_cli_cat(dina_cli_dim("SurveyPop.dta is a derived artifact; source ingestion and promotion are the primary update decision."))
   }
   if (nrow(status)) {
     dina_cli_cat("")
@@ -5454,7 +5487,7 @@ dina_print_survey_pop_table <- function(root, table, run = NULL, country = NULL,
   table <- gsub("-", "_", table %||% "", fixed = TRUE)
   rows <- survey_pop_read_table(root, table, run)
   if (!is.null(country) && "country" %in% names(rows)) {
-    rows <- rows[toupper(rows$country) == toupper(country), , drop = FALSE]
+    rows <- rows[!is.na(rows$country) & toupper(rows$country) == toupper(country), , drop = FALSE]
   }
   dina_cli_header(sprintf("Survey Sources Table: %s", table))
   if (isTRUE(show_run)) dina_cli_alert(sprintf("Run: %s", survey_pop_table_run(root, run)))
@@ -5482,46 +5515,68 @@ dina_print_survey_pop_tables <- function(root, run = NULL, country = NULL, limit
 dina_print_survey_pop_include <- function(result) {
   summary <- result$outputs$include_summary
   source_summary <- result$outputs$survey_source_summary %||% data.frame()
+  promotion_plan <- result$outputs$promotion_plan %||% data.frame()
+  source_promotions <- if (nrow(promotion_plan) && "artifact_type" %in% names(promotion_plan)) {
+    sum(promotion_plan$artifact_type == "survey_source", na.rm = TRUE)
+  } else {
+    0L
+  }
+  survey_pop_promotions <- if (nrow(promotion_plan) && "artifact_type" %in% names(promotion_plan)) {
+    sum(promotion_plan$artifact_type == "survey_population", na.rm = TRUE)
+  } else {
+    0L
+  }
   manifest <- result$manifest
   status <- if (nrow(manifest)) manifest$value[manifest$key == "status"][[1L]] else "check_following"
   dina_cli_header("Survey Sources Include")
   dina_cli_cat(sprintf("Overall status: %s", status))
   if (nrow(source_summary)) {
-    dina_cli_cat(dina_cli_row(c("source", "status", "new", "retro", "changed", "variants", "unknown", "blocked"), widths = c(18, 12, 6, 7, 8, 9, 8, 8), dim = TRUE))
+    dina_cli_cat("")
+    dina_cli_cat("1. Source promotion review (required):")
+    dina_cli_cat(dina_cli_row(c("source", "status", "found", "usable", "recovered", "new", "overlaps", "blocked"), widths = c(18, 12, 8, 8, 10, 8, 10, 8), dim = TRUE))
     for (i in seq_len(nrow(source_summary))) {
       dina_cli_cat(dina_cli_row(
         c(
           source_summary$source_id[[i]],
           source_summary$status[[i]],
+          source_summary$incoming_primary_files[[i]],
+          source_summary$usable_files[[i]],
+          source_summary$encoding_recovered_files[[i]],
           source_summary$new_years[[i]],
-          source_summary$retroactive_overlaps[[i]],
-          source_summary$changed_overlaps[[i]],
-          source_summary$filename_variants[[i]],
-          source_summary$unknown_files[[i]],
+          source_summary$overlaps[[i]],
           source_summary$blocked[[i]]
         ),
-        widths = c(18, 12, 6, 7, 8, 9, 8, 8)
+        widths = c(18, 12, 8, 8, 10, 8, 10, 8)
+      ))
+      dina_cli_cat(sprintf(
+        "Source review: %s new, %s overlaps, %s changed, %s filename variants.",
+        source_summary$new_years[[i]],
+        source_summary$overlaps[[i]],
+        source_summary$changed_overlaps[[i]],
+        source_summary$filename_variants[[i]]
       ))
     }
   }
   if (!nrow(summary)) {
     dina_cli_alert("No survey include summary rows were produced. Run `dina sources explore surveys` first.")
   } else {
-    dina_cli_cat(dina_cli_row(c("source", "status", "rows", "observed", "staged", "promote", "blocked"), widths = c(18, 14, 8, 10, 8, 8, 8), dim = TRUE))
-    for (i in seq_len(nrow(summary))) {
-      dina_cli_cat(dina_cli_row(
-        c(
-          summary$source_id[[i]],
-          summary$status[[i]],
-          summary$candidate_rows[[i]],
-          summary$observed_country_years[[i]],
-          summary$staged_sources[[i]],
-          summary$promotions[[i]],
-          summary$blocked[[i]]
-        ),
-        widths = c(18, 14, 8, 10, 8, 8, 8)
-      ))
-    }
+    dina_cli_cat(sprintf(
+      "Staging result: %s survey source files staged; %s source files in the promotion plan.",
+      summary$staged_sources[[1L]],
+      source_promotions
+    ))
+  }
+  dina_cli_cat("")
+  dina_cli_cat("2. Derived SurveyPop check (secondary):")
+  if (nrow(summary)) {
+    dina_cli_cat(sprintf(
+      "SurveyPop candidate: %s grid rows, %s observed country-years, %s derived artifact staged.",
+      summary$candidate_rows[[1L]],
+      summary$observed_country_years[[1L]],
+      survey_pop_promotions
+    ))
+  } else {
+    dina_cli_cat("No SurveyPop candidate summary was produced.")
   }
   detail <- result$outputs$include_detail %||% data.frame()
   blocked <- if (nrow(detail) && "severity" %in% names(detail)) detail[detail$severity == "blocked", , drop = FALSE] else data.frame()
@@ -5531,7 +5586,13 @@ dina_print_survey_pop_include <- function(result) {
   dina_cli_ok(sprintf("Include dry-run output: %s", result$paths$root))
   dina_cli_alert("No production files changed. Confirm only after reviewing a clean run.")
   dina_cli_alert(sprintf("List include tables with `dina sources table surveys --run %s`.", result$paths$root))
-  dina_cli_alert("Common review tables: survey_source_summary, survey_source_comparison, survey_source_candidates, survey_pop_comparison.")
+  dina_cli_cat("")
+  dina_cli_cat("Review before confirm (in order):")
+  dina_cli_cat(sprintf("1. Source changes: `dina sources table surveys survey_source_comparison --run %s`", result$paths$root))
+  dina_cli_cat(sprintf("2. Incoming -> canonical paths: `dina sources table surveys staged_source_mappings --run %s`", result$paths$root))
+  dina_cli_cat(sprintf("3. Exact files to be written: `dina sources table surveys promotion_plan --run %s`", result$paths$root))
+  dina_cli_cat(sprintf("4. Derived SurveyPop change: `dina sources table surveys survey_pop_comparison --run %s`", result$paths$root))
+  dina_cli_cat(dina_cli_dim("If a source is blocked or its identity is unclear, inspect include_detail and survey_source_candidates."))
   if (identical(status, "all_good")) {
     dina_cli_alert(sprintf("Confirm after review: dina sources include surveys --confirm --include-run %s", result$paths$root))
   }

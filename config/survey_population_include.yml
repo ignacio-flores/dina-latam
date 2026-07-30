@@ -4,8 +4,15 @@ source_ids:
   - surveys-cepal
 explore_output_root: output/experiments/survey_population_explore
 output_root: output/experiments/survey_population_include
-years:
-  from_config: config/dina.yml
+identity:
+  # Configured country codes supplement canonical directory names when
+  # inferring identities from non-standard incoming paths.
+  countries_from_config: config/dina.yml
+stata_read:
+  # Haven auto-detection is always attempted first. These fallbacks are tried
+  # in order for legacy Stata files whose metadata encoding is not declared.
+  encoding_fallbacks:
+    - latin1
 paths:
   canonical_surveys: input_data/surveys_CEPAL
   incoming_surveys: input_data/_new/surveys

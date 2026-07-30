@@ -21,6 +21,14 @@ expect_false <- function(object, info = NULL, label = NULL) {
   invisible(value)
 }
 
+test_that("compact year labels count every year represented by ranges", {
+  source_cli_for_tests()
+  expect_equal(
+    dina_admin_pit_year_label("2002-2005,2008-2024", max_chars = 22L),
+    "2002...2024 (21y)"
+  )
+})
+
 test_that("help describes the new workflow and omits retired command families", {
   main <- run_dina_cli(c("help"))
   expect_equal(main$status, 0L)
