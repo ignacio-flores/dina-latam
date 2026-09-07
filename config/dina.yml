@@ -80,5 +80,6 @@ dependencies:
     - testthat
     - withr
     - readxl
+    - haven
     - readxlsb
     - openxlsx

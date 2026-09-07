@@ -1400,6 +1400,8 @@ country_sna_include_read_explorer_table <- function(exploration_root, name) {
   if (!file.exists(path)) {
     return(data.frame(stringsAsFactors = FALSE))
   }
+  lines <- readLines(path, warn = FALSE, n = 5L)
+  if (!length(lines) || identical(lines, '""') || all(!nzchar(trimws(lines)))) return(data.frame(stringsAsFactors = FALSE))
   utils::read.csv(path, stringsAsFactors = FALSE, na.strings = c("", "NA"))
 }
 

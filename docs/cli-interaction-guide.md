@@ -50,6 +50,52 @@ Every user-facing command listed in `dina commands` must appear in `dina help`
 or the relevant topic help. Every documented topic-help command must appear in
 the command navigator unless it is intentionally hidden and covered by a test.
 
-There is no separate "main menu" layer. Plain `dina` shows status, the current
-recommendation, and immediate `DINA Actions` in one screen; browsing commands
-opens the navigator directly.
+Plain `dina` opens Configuration, Sources, Pipeline, and Results with concise
+statuses. One secondary suggestion can accompany them. `dina commands` contains
+update lifecycle actions, project details, setup, and maintenance. Inspection
+returns to its originating area; it never launches a runner or viewer implicitly.
+The noninteractive home prints the same statuses and equivalent commands.
+
+## Source family review
+
+- Menus and typed commands share the `Explore -> Include` workflow.
+- Source families must be selected explicitly; generic actions never silently
+  substitute SNA. Keep the family selected until the user returns to families.
+- Explore presents coverage, overlapping revisions, then problems. Detailed
+  evidence is saved with the candidate, not resolved through a mutable latest
+  inventory. Explain unavailable comparisons and their cause. Do not label empty
+  cells as skipped checks: distinguish expected absence, missing expected values,
+  outside extracted coverage, and undetermined applicability.
+- Family selection, home, and recommendations share one status calculation.
+  Included sources do not imply rebuilt outputs. No incoming files says nothing
+  about updates available from the producer.
+- Reports begin with a country summary, then coverage, value changes, and problems.
+  Print revisions ahead of absence evidence; group blockers before warnings.
+  Long records use labeled fields rather than truncated columns. Full source IDs
+  remain available. Expected absences are not problems.
+- Include accepts the exact saved family review after one confirmation. Scripts
+  use `--confirm`. Do not add another generic navigator confirmation around it.
+- Keep explicit legacy assessment flags for compatibility, but do not surface
+  dry-run terminology, staging directories or required run paths in normal actions.
+
+## Configuration, pipeline, and results
+
+- Configuration uses the active update's commented YAML file, not a settings wizard.
+  The menu compares benchmark and update values above its actions, emphasizing
+  changed values with color and `*`. Baseline filenames and warnings appear together.
+  Full paths and setting keys are under **Details and file paths**. Values in the
+  update file override benchmark defaults.
+  `dina update config show` is compact; `--full` exposes effective YAML and waits
+  for Enter when opened from the menu. `q` returns to the workspace.
+  `edit` explains the editor's save/exit keys and waits for the editor to return;
+  `check` runs the same validation used after editing. A missing baseline affects export,
+  not source inspection. Resume preserves comments and manual changes.
+- Home shows recorded pipeline outcomes immediately. File freshness is inspected
+  when you open Pipeline or use `dina run list`, so startup does not scan all tasks.
+  Pipeline shows the last recorded execution and declared output observations
+  separately. `dina run list` and `dina run why TASK` are the inspection interface;
+  existing execution commands and flags retain their behavior.
+- `dina results show` lists existing final WID graphs with generation context.
+  Only explicit selection or `dina results open GRAPH` opens a viewer. Historical
+  graphs without metadata say "Generation baseline unknown". A changed baseline,
+  settings, or generated artifact requires regeneration through the export step.

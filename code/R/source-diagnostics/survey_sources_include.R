@@ -62,7 +62,7 @@ survey_pop_read_yaml <- function(path, default = NULL) {
 survey_pop_read_csv <- function(path) {
   if (!file.exists(path)) return(data.frame(stringsAsFactors = FALSE))
   lines <- readLines(path, warn = FALSE, n = 5L)
-  if (!length(lines) || all(!nzchar(trimws(lines)))) {
+  if (!length(lines) || all(!nzchar(trimws(lines))) || identical(lines, '""')) {
     return(data.frame(stringsAsFactors = FALSE))
   }
   utils::read.csv(path, stringsAsFactors = FALSE, na.strings = c("", "NA"))
@@ -1720,7 +1720,11 @@ survey_pop_confirm_sources <- function(
     to <- file.path(root, row$to_rel[[1L]])
     backup <- file.path(paths$snapshots, "original", row$to_rel[[1L]])
     backup_status <- if (file.exists(to)) survey_pop_copy_path(to, backup) else "destination_absent"
-    promote_status <- survey_pop_copy_path(from, to)
+    promote_status <- if (backup_status %in% c("staged", "destination_absent")) {
+      survey_pop_copy_path(from, to)
+    } else {
+      "skipped_backup_failed"
+    }
     data.frame(
       source_id = row$source_id,
       artifact_type = row$artifact_type,
@@ -1740,7 +1744,8 @@ survey_pop_confirm_sources <- function(
   utils::write.csv(promote_report, file.path(paths$tables, "promote_report.csv"), row.names = FALSE, na = "")
   utils::write.csv(source_check, file.path(paths$tables, "source_fingerprint_check.csv"), row.names = FALSE, na = "")
   utils::write.csv(staged_check, file.path(paths$tables, "staged_artifact_fingerprint_check.csv"), row.names = FALSE, na = "")
-  manifest <- survey_pop_confirm_manifest(confirm_id, include_run, "confirmed")
+  failed <- any(!promote_report$backup_status %in% c("backed_up", "destination_absent") | promote_report$promote_status != "staged")
+  manifest <- survey_pop_confirm_manifest(confirm_id, include_run, if (failed) "confirm_failed" else "confirmed")
   utils::write.csv(manifest, file.path(paths$logs, "confirm_manifest.csv"), row.names = FALSE, na = "")
   list(paths = paths, outputs = list(promote_report = promote_report, source_fingerprint_check = source_check, staged_artifact_fingerprint_check = staged_check), manifest = manifest, contract = contract)
 }

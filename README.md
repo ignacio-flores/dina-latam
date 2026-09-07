@@ -60,25 +60,45 @@ do code/Stata/00.run-everything.do
 
 ### CLI Workflow
 
-This repository also includes an experimental R-based project CLI:
+The R-based CLI opens an update workspace with four areas: **Configuration,
+Sources, Pipeline, and Results**. Family statuses appear before you choose one.
+Home shows recorded pipeline outcomes; opening Pipeline checks file freshness.
+Execution continues through `dina run`. Results starts with the existing final WID graphs.
+
+Configuration compares benchmark and update settings side by side, highlights
+changes, and puts file paths under Details. Editing includes save/exit instructions.
+At update creation, review the prefilled, commented settings file. Choose one
+baseline version in `previous_series/`; several files are alternatives, not parts
+of one baseline. Existing graphs identify their generation baseline when metadata
+is available. Changing the selection requires rerunning the export.
+
+Typical commands:
 
 ```sh
 ./bin/dina
 ./bin/dina doctor
 ./bin/dina update start 2026
-./bin/dina sources list
-./bin/dina sources compare
-./bin/dina sources explore sna
-./bin/dina sources table sna year_expectations
-./bin/dina sources include sna --dry-run
-./bin/dina sources include sna --confirm --include-run RUN
-./bin/dina sources explore wid --fetch
-./bin/dina sources include wid --dry-run
+./bin/dina update config show
+./bin/dina update config check
+./bin/dina sources
+./bin/dina sources list surveys
+./bin/dina sources explore surveys
+./bin/dina sources table surveys
+./bin/dina sources include surveys
 ./bin/dina run list
 ./bin/dina run 01a
+./bin/dina results
+./bin/dina results open t10
 ./bin/dina update close --dry-run
 ./bin/dina help sources
 ```
+
+Work through one family across countries, then move to the next. **Explore**
+reviews coverage, overlapping revisions and source checks together. **Include**
+accepts the saved family review after confirmation and keeps a source backup.
+The same flow is available through menus and typed commands. Families are
+`sna`, `admin`, `surveys`, and `wid`; other inputs remain in the source registry.
+Exploration does not change accepted sources or run the pipeline.
 
 The CLI keeps Stata's manual workflow available, but adds update workspaces,
 source registry and `_new` bucket tools, task freshness checks, temporary Stata

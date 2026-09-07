@@ -3,32 +3,51 @@
 This document describes the active experimental country-SNA source workflow.
 The public CLI source type is `sna`; the implementation still writes country-SNA
 experiment folders. The workflow does not replace `01b`, does not run the
-production pipeline, and keeps generated artifacts under disposable experiment
+production pipeline, and keeps generated artifacts under experiment
 folders.
 
-## Commands
+The routine CLI now combines exploration and the inclusion assessment behind
+`dina sources explore sna`. Inspect the saved review with
+`dina sources table sna`, then accept it with `dina sources include sna`.
+The descriptions below document the underlying engines and explicit compatibility
+commands. The normal CLI also compares extracted accepted and candidate values
+using the same rules, and retains frozen copies of the reviewed incoming files.
+
+## Explicit compatibility commands
 
 ```bash
 dina sources explore sna [--dry-run] [--output-dir PATH] [--country ISO]
 dina sources table sna TABLE [--run PATH] [--country ISO] [--limit N]
-dina sources include sna [--dry-run] [--exploration-run PATH] [--output-dir PATH]
+dina sources include sna --dry-run [--exploration-run PATH] [--output-dir PATH]
 dina sources include sna --confirm --include-run RUN
 dina sources include sna --restore CONFIRM_RUN
 ```
 
-`explore` reads `input_data/_new/country_sna`, inventories old and new source
-files, detects likely years and broad layout changes, and writes expectations
-for the include step. It focuses on source structure and coverage, not on
-claiming that every candidate value has been adaptively extracted.
+`explore` combines inventory with the existing extraction assessment. It reads
+accepted and incoming source files through the same deterministic extractors,
+prepares the exact candidate, and saves a family review. The report starts with
+a country summary, followed by extracted coverage, numerical revisions and lost
+values, then blockers and warnings. It does not change accepted source files.
 
-`include --dry-run` is the default inclusion assessment. It consumes the latest
+Empty grid cells are distinguished from missing expected values. Expected
+absences stay out of problems; missing expected values retain extraction reasons.
+Ambiguous source destinations are explicit blockers. `None` and `No extracted
+data` distinguish no coverage change from unavailable extracted coverage. Year
+coverage does not imply complete variable coverage.
+
+Use `dina sources table sna revisions`, `missing-values`, `coverage`, `problems`,
+or `files` for readable details. Existing internal table names remain available.
+The family chooser shows whether a review is available, needs attention, needs
+exploration again, or has been included. Inclusion does not rebuild the pipeline.
+
+`include --dry-run` is the explicit standalone inclusion assessment. It consumes the latest
 exploration run, stages current canonical source files plus approved `_new`
 files inside the include run folder, applies the deterministic country-SNA
 include contract to that staged tree, and reports whether expected values were
 found, missing, revised, ambiguous, or blocked by an adapter/layout issue. It
 prints: no production files changed; fix code/contract and rerun safely.
 
-`include --confirm` is the only promotion path. It requires a clean staged
+`include --confirm --include-run RUN` accepts an explicitly selected assessment. It requires a clean staged
 include dry-run, refuses blocked/ambiguous runs, writes a backup snapshot, then
 promotes approved `_new` source files into canonical source folders. It never
 edits `01b` or pipeline outputs.

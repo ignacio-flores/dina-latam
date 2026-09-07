@@ -1311,7 +1311,11 @@ admin_pit_include_confirm_sources <- function(root = admin_pit_include_repo_root
     to <- file.path(root, row$to_rel[[1L]])
     backup <- file.path(paths$snapshots, "original", row$to_rel[[1L]])
     backup_status <- if (file.exists(to)) admin_pit_include_copy_path(to, backup) else "destination_absent"
-    promote_status <- admin_pit_include_copy_path(from, to)
+    promote_status <- if (backup_status %in% c("staged", "destination_absent")) {
+      admin_pit_include_copy_path(from, to)
+    } else {
+      "skipped_backup_failed"
+    }
     data.frame(source_id = row$source_id, country = row$country, artifact_type = row$artifact_type, from = from, to = row$to_rel, backup = if (identical(backup_status, "destination_absent")) "" else admin_pit_include_relative_path(backup, root), backup_status = if (identical(backup_status, "staged")) "backed_up" else backup_status, promote_status = promote_status, stringsAsFactors = FALSE)
   })
   promote_report <- admin_pit_include_bind(report)
@@ -1320,7 +1324,8 @@ admin_pit_include_confirm_sources <- function(root = admin_pit_include_repo_root
   utils::write.csv(promote_report, file.path(paths$tables, "promote_report.csv"), row.names = FALSE, na = "")
   utils::write.csv(fingerprint_check, file.path(paths$tables, "source_fingerprint_check.csv"), row.names = FALSE, na = "")
   utils::write.csv(artifact_fingerprint_check, file.path(paths$tables, "staged_artifact_fingerprint_check.csv"), row.names = FALSE, na = "")
-  manifest <- admin_pit_include_confirm_manifest(confirm_id, include_run, "confirmed")
+  failed <- any(!promote_report$backup_status %in% c("backed_up", "destination_absent") | promote_report$promote_status != "staged")
+  manifest <- admin_pit_include_confirm_manifest(confirm_id, include_run, if (failed) "confirm_failed" else "confirmed")
   utils::write.csv(manifest, file.path(paths$logs, "confirm_manifest.csv"), row.names = FALSE, na = "")
   list(paths = paths, outputs = list(promote_report = promote_report, source_fingerprint_check = fingerprint_check, staged_artifact_fingerprint_check = artifact_fingerprint_check), manifest = manifest, contract = contract)
 }

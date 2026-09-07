@@ -30,7 +30,9 @@ test_that("runtime config files do not contain stale fallback values", {
   expect_false(any(grepl("local ly = 2024", stata_07d, fixed = TRUE)))
   expect_true(any(grepl("Missing required DINA config global", stata_07d, fixed = TRUE)))
   expect_true(any(grepl("DINA_CONFIG_DO", stata_07d, fixed = TRUE)))
-  expect_false(file.exists(file.path(repo_root_for_tests, "_config.do")))
+  # The working repository may have a manually maintained legacy config.
+  root <- mini_repo()
+  expect_false(file.exists(file.path(root, "_config.do")))
 })
 
 test_that("nested config set helper parses scalars and vectors", {

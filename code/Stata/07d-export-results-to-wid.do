@@ -12,7 +12,7 @@ do "code/Stata/auxiliar/aux_general.do"
 
 // DINA supplies these export-validation settings from the effective YAML config.
 // Fail loudly if the runtime config was not provided instead of using stale defaults.
-foreach required in export_unit export_steps export_last_y previous_update_date previous_update {
+foreach required in export_unit export_steps export_last_y previous_update {
 	if `"${`required'}"' == "" {
 		di as error "Missing required DINA config global: `required'"
 		di as error "Run this task through dina run, or provide DINA_CONFIG_DO explicitly."
@@ -23,14 +23,30 @@ local unit "$export_unit"
 local steps: copy global export_steps
 local ly = $export_last_y
 
+// Capture the settings actually used by this export; publish only after success.
+local date "$S_DATE"
+local date = subinstr("`date'", " ", "", .)
+cap mkdir "output/figures"
+cap mkdir "output/figures/updates"
+cap erase "output/figures/updates/comparison-`date'.json"
+cap erase "output/figures/updates/comparison-`date'.pending.json"
+tempfile comparison_request
+tempname comparison_handle
+file open `comparison_handle' using "`comparison_request'", write text replace
+file write `comparison_handle' `"$previous_update"' _n `"$export_unit"' _n `"$export_steps"' _n
+file write `comparison_handle' "$export_last_y" _n `"$all_countries"' _n "$first_y" _n "$last_y" _n
+file close `comparison_handle'
+shell Rscript code/R/export-comparison-metadata.R begin `date' "`comparison_request'"
+confirm file "output/figures/updates/comparison-`date'.pending.json"
+
 //compare with previous update? 
 qui use $previous_update, clear 
-qui drop data_quality comment extrap_points interp_points
+foreach optional in data_quality comment extrap_points interp_points {
+	cap drop `optional'
+}
 tempfile tf_prev
 qui save `tf_prev'
 
-local date "$S_DATE"
-local date = subinstr("`date'", " ", "", .)
 
 //create folders if necessary 
 local dirpath "output/figures/updates"
@@ -621,12 +637,11 @@ global aux_part " "graph_basics" "
 qui do "code/Stata/auxiliar/aux_general.do"
 
 *get date 
-local date "$S_DATE"
-local date = subinstr("`date'", " ", "", .)
 
 /*
 *compare pretax postax 
-local ly = 2022
+// Baseline and updated lines use observed availability within the comparison period.
+local ly = $export_last_y
 graph twoway ///
 	(line value year if widcode == "sdiinc992j", lcolor(blue)) ///
 	(line value year if widcode == "sptinc992j", lcolor(red)) ///
@@ -676,52 +691,53 @@ qui gen diff_value = (new_value - old_value) / old_value * 100
 *qui replace data_quality = 4 if country == "DOM"
 	
 //compare pretax 	
-local ly = 2022
+// Baseline and updated lines use observed availability within the comparison period.
+local ly = $export_last_y
 
 foreach xxx in "sptinc992j" /*"sdiinc992j"*/ {
 	
-	graph twoway (line new_value year, lcolor(red)) ///
-		(line old_value year if year <= `ly', lcolor(black*.5)) ///
+	graph twoway (line new_value year if inrange(year, $first_y, `ly'), lcolor(red)) ///
+		(line old_value year if inrange(year, $first_y, `ly'), lcolor(black*.5)) ///
 		if p == "p99.99p100" & widcode == "`xxx'" ///
 		& (data_quality != 0 /*| inlist(country, "BOL", "CUB")*/) , ///
 		by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Top 0.01% share") ///
 		$graph_scheme legend(label(1 "Updated") label(2 "Old"))
 	qui graph export "output/figures/updates/update-`date'-`xxx'-t001.pdf", replace 
 	
-	graph twoway (line new_value year, lcolor(red)) ///
-		(line old_value year if year <= `ly', lcolor(black*.5)) ///
+	graph twoway (line new_value year if inrange(year, $first_y, `ly'), lcolor(red)) ///
+		(line old_value year if inrange(year, $first_y, `ly'), lcolor(black*.5)) ///
 		if p == "p99.9p100" & widcode == "`xxx'" ///
 		& (data_quality != 0 /*| inlist(country, "BOL", "CUB")*/) , ///
 		by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Top 0.1% share") ///
 		$graph_scheme legend(label(1 "Updated") label(2 "Old"))
 	qui graph export "output/figures/updates/update-`date'-`xxx'-t01.pdf", replace 
 	
-	graph twoway (line new_value year, lcolor(red)) ///
-		(line old_value year if year <= `ly', lcolor(black*.5)) ///
+	graph twoway (line new_value year if inrange(year, $first_y, `ly'), lcolor(red)) ///
+		(line old_value year if inrange(year, $first_y, `ly'), lcolor(black*.5)) ///
 		if p == "p99p100" & widcode == "`xxx'" ///
 		& (data_quality != 0 /*| inlist(country, "BOL", "CUB")*/) , ///
 		by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Top 1% share") ///
 		$graph_scheme legend(label(1 "Updated") label(2 "Old"))
 	qui graph export "output/figures/updates/update-`date'-`xxx'-t1.pdf", replace 
 
-	graph twoway (line new_value year, lcolor(red)) ///
-		(line old_value year if year <= `ly', lcolor(black*.5)) ///
+	graph twoway (line new_value year if inrange(year, $first_y, `ly'), lcolor(red)) ///
+		(line old_value year if inrange(year, $first_y, `ly'), lcolor(black*.5)) ///
 		if p == "p90p100" & widcode == "`xxx'" ///
 		& (data_quality != 0 /*| inlist(country, "BOL", "CUB")*/) , ///
 		by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Top 10% share") ///
 		$graph_scheme legend(label(1 "Updated") label(2 "Old"))
 	qui graph export "output/figures/updates/update-`date'-`xxx'-t10.pdf", replace 
 
-	graph twoway (line new_value year, lcolor(red)) ///
-		(line old_value year if year <= `ly', lcolor(black*.5)) ///
+	graph twoway (line new_value year if inrange(year, $first_y, `ly'), lcolor(red)) ///
+		(line old_value year if inrange(year, $first_y, `ly'), lcolor(black*.5)) ///
 		if p == "p50p90" & widcode == "`xxx'" ///
 		& (data_quality != 0 /*| inlist(country, "BOL", "CUB")*/) , ///
 		by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Middle 40% share") ///
 		$graph_scheme legend(label(1 "Updated") label(2 "Old"))
 	qui graph export "output/figures/updates/update-`date'-`xxx'-m40.pdf", replace 
 
-	graph twoway (line new_value year, lcolor(red)) ///
-		(line old_value year if year <= `ly', lcolor(black*.5)) ///
+	graph twoway (line new_value year if inrange(year, $first_y, `ly'), lcolor(red)) ///
+		(line old_value year if inrange(year, $first_y, `ly'), lcolor(black*.5)) ///
 		if p == "p0p50" & widcode == "`xxx'" ///
 		& (data_quality != 0 /*| inlist(country, "BOL", "CUB")*/) , ///
 		by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Bottom 50% share") ///
@@ -739,11 +755,15 @@ restore
 qui drop _merge 
 qui merge 1:1 country year widcode p using `tf_wid'
 
-graph twoway (line new_value year, lcolor(red)) ///
-		(line value_web year if year <= `ly', lcolor(black*.5)) ///
+graph twoway (line new_value year if inrange(year, $first_y, `ly'), lcolor(red)) ///
+		(line value_web year if inrange(year, $first_y, `ly'), lcolor(black*.5)) ///
 		if p == "p0p20" & widcode == "sptinc992j" ///
 		& (data_quality != 0 /*| inlist(country, "BOL", "CUB")*/) , ///
 		by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Bottom 20% share") ///
 		ylabel(0(.01).03) ///
 		$graph_scheme legend(label(1 "Updated") label(2 "Old"))
 	qui graph export "output/figures/updates/update-`date'-sptinc992j-b20.pdf", replace
+
+// A failed or interrupted export never reaches publication of this metadata.
+shell Rscript code/R/export-comparison-metadata.R complete `date' "`comparison_request'"
+confirm file "output/figures/updates/comparison-`date'.json"

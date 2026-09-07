@@ -623,3 +623,64 @@ test_that("country SNA include duplicate code conflicts are not guessed", {
   expect_equal(picked$status, "matched")
   expect_equal(picked$value, 2)
 })
+
+test_that("family SNA review compares extracted values and includes a frozen candidate", {
+  skip_if_not_installed("openxlsx")
+  source_cli_for_tests()
+  root <- mini_repo()
+  file.copy(file.path(repo_root_for_tests, "code", "R", "source-diagnostics", c("country_sna_include.R", "country_sna_explorer.R")),
+    file.path(root, "code", "R", "source-diagnostics"))
+  dina_write_yaml(list(countries = "AAA", years = list(first = 2020L, last = 2020L)), file.path(root, "config", "dina.yml"))
+  dina_write_yaml(list(sources = list(list(id = "country-sna-aaa", family = "country_sna", country = "AAA",
+    canonical = "input_data/sna_country_data/AAA/fixture.xlsx", inbox = "input_data/_new/sna/AAA/*.xlsx",
+    destination = "input_data/sna_country_data/AAA/{basename}"))), file.path(root, "config", "sources.yml"))
+  contract <- country_sna_include_fixture_contract(root)
+  contract$country_rules$AAA$layouts[[1]]$range <- "A3:D6"
+  dina_write_yaml(contract, file.path(root, "config", "country_sna_include.yml"))
+  exploration <- dina_read_yaml(file.path(repo_root_for_tests, "config", "country_sna_explorer.yml"))
+  exploration$economic_contract$countries <- "AAA"
+  exploration$economic_contract$variables <- contract$variables
+  exploration$economic_contract$code_aliases <- contract$code_aliases
+  exploration$source_discovery$country_rules <- NULL
+  exploration$source_discovery$countries <- list(AAA = list(adapter_family = "rectangular_workbook",
+    old = list(type = "single_stem", stem = "input_data/sna_country_data/AAA/fixture"),
+    new = list(type = "single_pattern", pattern = "input_data/_new/sna/AAA/*.xlsx")))
+  dina_write_yaml(exploration, file.path(root, "config", "country_sna_explorer.yml"))
+  write_book <- function(path, d4, broken = FALSE) {
+    dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+    wb <- openxlsx::createWorkbook()
+    openxlsx::addWorksheet(wb, "2020")
+    openxlsx::writeData(wb, "2020", data.frame(code = "codigo", label = "descripcion", r = "Hogares Recursos", u = "Hogares Empleos"), colNames = FALSE)
+    openxlsx::writeData(wb, "2020", data.frame(code = if (broken) rep("unknown", 4) else c("D.4", "D.43", "D.44", "B.5"),
+      label = "x", r = c(d4, NA, 25, 200), u = c(NA, 20, NA, NA)), startRow = 3, colNames = FALSE)
+    openxlsx::saveWorkbook(wb, path, overwrite = TRUE)
+  }
+  current <- file.path(root, "input_data", "sna_country_data", "AAA", "fixture.xlsx")
+  incoming <- file.path(root, "input_data", "_new", "sna", "AAA", "fixture.xlsx")
+  write_book(current, 100)
+  write_book(incoming, 110)
+  original <- dina_hash_file(current)
+  result <- run_dina_cli(c("sources", "explore", "sna"), root)
+  expect_equal(result$status, 0L, info = result$output)
+  record <- dina_review_read(root, "sna")
+  expect_equal(record$status, "all_good", info = result$output)
+  rows <- dina_review_table(record, "review_values")
+  d4 <- rows[rows$measure == "D4_cei", ]
+  expect_equal(d4$old_value, 1000)
+  expect_equal(d4$new_value, 1100)
+  expect_equal(d4$result, "revised")
+  expect_equal(dina_hash_file(current), original)
+  plan <- dina_review_table(record, "review_files")
+  expect_true(all(grepl("reviewed_sources", plan$from_rel, fixed = TRUE)))
+  expect_equal(run_dina_cli(c("sources", "include", "sna", "--confirm"), root)$status, 0L)
+  expect_equal(dina_hash_file(current), dina_hash_file(incoming))
+  backup <- dina_review_read(root, "sna")$confirmation
+  expect_equal(run_dina_cli(c("sources", "include", "sna", "--restore", backup), root)$status, 0L)
+  expect_equal(dina_hash_file(current), original)
+  write_book(incoming, 110, broken = TRUE)
+  broken <- run_dina_cli(c("sources", "explore", "sna"), root)
+  expect_equal(broken$status, 0L, info = broken$output)
+  expect_false(identical(dina_review_read(root, "sna")$status, "all_good"))
+  expect_match(broken$output, "3. Problems", fixed = TRUE)
+  expect_equal(run_dina_cli(c("sources", "include", "sna", "--confirm"), root)$status, 1L)
+})

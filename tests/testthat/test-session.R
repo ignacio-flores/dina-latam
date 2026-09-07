@@ -74,125 +74,56 @@ test_that("update restart preserves valid todo state and drops stale ids", {
   expect_equal(dina_load_session(root = root)$todo$checked, "review-config")
 })
 
-test_that("update start and restart print config proposal in CLI", {
+test_that("update creation shows compact settings and preserves editor access", {
   root <- mini_repo()
-
-  started <- run_dina_cli(c("update", "start", "2026", "--yes"), root = root)
+  started <- run_dina_cli(c("update", "start", "2026", "--yes"), root)
   expect_equal(started$status, 0L)
-  expect_match(started$output, "Config Proposal")
-  expect_match(started$output, "config.override.yml")
-  expect_match(started$output, "key[[:space:]]+current[[:space:]]+proposed[[:space:]]+reason")
-  expect_match(started$output, "years\\.last[[:space:]]+2023[[:space:]]+2024[[:space:]]+next update year")
-  expect_match(started$output, "export_validation\\.last_year[[:space:]]+2024[[:space:]]+2025[[:space:]]+next export validation year")
-  expect_match(started$output, "Override YAML")
-  expect_match(started$output, "years:")
-  expect_match(started$output, "last: 2024")
-  expect_match(started$output, "export_validation:")
-  expect_match(started$output, "last_year: 2025")
-  expect_match(started$output, "Effective config:")
-  expect_match(started$output, "project:")
-  expect_match(started$output, "Edit protocol:")
-  expect_match(started$output, "Do not edit config/dina.yml")
-  expect_match(started$output, "dina update config show")
-  expect_match(started$output, "Workflow reminder: `dina help workflow`")
-  expect_false(grepl("Config Override", started$output, fixed = TRUE))
-
+  expect_match(started$output, "Configuration")
+  expect_match(started$output, "Run years +2000–2023 +2000–2024")
+  expect_match(started$output, "Comparison through +2024 +2025")
+  expect_false(grepl("Override YAML|Effective YAML", started$output))
   session <- dina_load_session(root = root)
-  dina_session_config_set(session, root = root, key = "run.lang", value = "spa")
-  shown <- run_dina_cli(c("update", "config", "show"), root = root)
+  path <- dina_session_config_path(session$id, root)
+  expect_match(paste(readLines(path), collapse = "\n"), "# Settings for this update")
+  dina_session_config_set(session, root, key = "run.lang", value = "esp")
+  shown <- run_dina_cli(c("update", "config", "show", "--full"), root)
   expect_equal(shown$status, 0L)
-  expect_match(shown$output, "Config Proposal")
-  expect_match(shown$output, "run\\.lang[[:space:]]+eng[[:space:]]+spa[[:space:]]+manual override")
-  expect_match(shown$output, "Effective config:")
-  expect_match(shown$output, "lang: spa")
-  expect_match(shown$output, "Edit protocol:")
-
-  swap <- file.path(root, "output", "updates", dina_current_update(root), ".config.override.yml.swp")
-  writeLines("swap", swap)
-  edit <- run_dina_cli(c("update", "config", "edit"), root = root)
+  expect_match(shown$output, "Effective YAML:")
+  expect_match(shown$output, "lang: esp")
+  edit <- run_dina_cli(c("update", "config", "edit"), root, env = "EDITOR=/usr/bin/true")
   expect_equal(edit$status, 0L)
-  expect_match(edit$output, "Update Config Edit")
-  expect_match(edit$output, "Edit protocol:")
-  expect_match(edit$output, "No editor was opened")
-  expect_match(edit$output, "Possible editor swap file")
-  expect_match(edit$output, "dina update config show")
-
-  update_id <- dina_current_update(root)
-  restarted <- run_dina_cli(c("update", "restart", update_id, "--yes"), root = root)
+  expect_match(edit$output, "settings need attention")
+  expect_false(grepl("settings validated", edit$output))
+  restarted <- run_dina_cli(c("update", "restart", session$id, "--yes"), root)
   expect_equal(restarted$status, 0L)
-  expect_match(restarted$output, "Config Proposal")
-  expect_match(restarted$output, "config.override.yml")
-  expect_match(restarted$output, "years\\.last[[:space:]]+2023[[:space:]]+2024")
-  expect_match(restarted$output, "last: 2024")
-  expect_match(restarted$output, "Effective config:")
-  expect_match(restarted$output, "Edit protocol:")
-  expect_false(grepl("Config Override", restarted$output, fixed = TRUE))
+  expect_match(restarted$output, "Configuration")
 })
 
-test_that("plain dashboard prints status and recommendation without common commands", {
-  source_cli_for_tests()
-  root <- mini_repo()
-  dina_update_start("2026", root = root)
-
-  output <- capture.output(dina_print_dashboard(root, is_terminal = FALSE))
-  text <- paste(output, collapse = "\n")
-  expect_match(text, "DINA-LatAm CLI")
-  expect_match(text, "Project status:")
-  expect_match(text, "Recommended:")
-  expect_false(grepl("Common commands", text, fixed = TRUE))
-  expect_false(grepl("DINA Actions", text, fixed = TRUE))
+test_that("plain dashboard shows four areas and a secondary suggestion", {
+  source_cli_for_tests(); root <- mini_repo(); dina_update_start("2026", root = root)
+  text <- paste(capture.output(dina_print_dashboard(root, is_terminal = FALSE)), collapse = "\n")
+  for (area in c("Configuration:", "Sources:", "Pipeline:", "Results:", "Suggestion:")) expect_match(text, area)
+  expect_false(grepl("Project status:|Run recommended action|Next likely command", text))
 })
 
-test_that("plain dashboard does not scan task freshness before rendering", {
-  source_cli_for_tests()
-  root <- mini_repo()
-  dina_update_start("2026", root = root)
-
-  env <- environment(dina_print_dashboard)
-  original <- get("dina_all_task_status", envir = env)
-  on.exit(assign("dina_all_task_status", original, envir = env), add = TRUE)
-  assign("dina_all_task_status", function(...) stop("dashboard should not scan task freshness", call. = FALSE), envir = env)
-
-  con <- textConnection("q\n")
-  output <- capture.output(dina_print_dashboard(root, input = con, is_terminal = TRUE))
-  close(con)
-
-  text <- paste(output, collapse = "\n")
-  expect_match(text, "pipeline status not checked")
-  expect_match(text, "DINA Actions")
-  expect_match(text, "dina run stale --dry-run")
+test_that("home defers file scans and retains a concrete inspection suggestion", {
+  source_cli_for_tests(); root <- mini_repo(); session <- dina_update_start("2026", root = root)
+  expect_equal(dina_dashboard_state_fast(session, root)$state, "pipeline_uninspected")
+  expect_equal(dina_session_state(session, root)$state, "build_ready")
+  input <- textConnection("q\n"); on.exit(close(input))
+  text <- paste(capture.output(dina_print_dashboard(root, input, TRUE)), collapse = "\n")
+  expect_match(text, "Workspace")
+  expect_match(text, "dina run list", fixed = TRUE)
 })
 
-test_that("interactive dashboard combines status, recommendation, and actions", {
-  source_cli_for_tests()
-  root <- mini_repo()
-  dina_update_start("2026", root = root)
-
-  con <- textConnection("q\n")
-  output <- capture.output(dina_print_dashboard(root, input = con, is_terminal = TRUE))
-  close(con)
-
-  text <- paste(output, collapse = "\n")
-  expect_match(text, "Project status:")
-  expect_match(text, "Recommended:")
-  expect_match(text, "DINA Actions")
-  expect_match(text, "Run recommended action")
-  expect_match(text, "Commands menu")
-  expect_false(grepl("Common commands", text, fixed = TRUE))
-})
-
-test_that("interactive dashboard recommended action runs the proposal", {
-  source_cli_for_tests()
-  root <- mini_repo()
-  dina_update_start("2026", root = root)
-
-  con <- textConnection("1\n")
-  output <- capture.output(dina_print_dashboard(root, input = con, is_terminal = TRUE))
-  close(con)
-
-  text <- paste(output, collapse = "\n")
-  expect_match(text, "dina run stale --dry-run")
-  expect_match(text, "task1: dry_run")
+test_that("pipeline inspection returns home without running a task", {
+  source_cli_for_tests(); root <- mini_repo(); dina_update_start("2026", root = root)
+  before <- dina_hash_path(file.path(root, "output"))
+  input <- textConnection("3\nq\nq\n"); on.exit(close(input))
+  text <- paste(capture.output(dina_print_dashboard(root, input, TRUE)), collapse = "\n")
+  expect_match(text, "Explain a task")
+  expect_true(sum(grepl("Update workspace", strsplit(text, "\n")[[1]])) >= 2)
+  expect_equal(dina_hash_path(file.path(root, "output")), before)
 })
 
 test_that("session state ignores retired source workflow and recommends runs, todos, then close", {
@@ -231,82 +162,25 @@ test_that("session state ignores retired source workflow and recommends runs, to
   expect_equal(state$proposal$next_command, "dina update close")
 })
 
-test_that("session state recommends country-SNA explore when that inbox has files", {
-  root <- mini_repo()
-  dina_write_yaml(list(sources = list(
-    list(
-      id = "country-sna-aaa",
-      family = "country_sna",
-      country = "AAA",
-      method = "manual",
-      canonical = "input_data/sna_country_data/AAA/*.xlsx",
-      inbox = "input_data/_new/sna/AAA/*.xlsx",
-      destination = "input_data/sna_country_data/AAA/{basename}",
-      transformer = "code/Stata/01b-add-country-sna.do",
-      notes = "Country-SNA fixture."
-    )
-  )), file.path(root, "config", "sources.yml"))
-  session <- dina_update_start("2026", root = root)
-  dir.create(file.path(root, "input_data", "_new", "sna", "AAA"), recursive = TRUE, showWarnings = FALSE)
-  writeLines("new", file.path(root, "input_data", "_new", "sna", "AAA", "cei_2024.xlsx"))
-
-  state <- dina_session_state(session, root = root)
-  expect_equal(state$state, "sources_pending")
-  expect_equal(state$proposal$command, "dina sources explore sna")
-  expect_equal(state$proposal$next_command, "dina sources include sna --dry-run")
-
-  status <- run_dina_cli(c("update", "status"), root = root)
-  expect_equal(status$status, 0L)
-  expect_match(status$output, "dina sources explore sna")
-  expect_match(status$output, "dina sources include sna --dry-run")
-  expect_match(status$output, "SNA incoming files can be explored")
-
-  explore_root <- file.path(root, "output", "experiments", "country_sna_explore")
-  dir.create(file.path(explore_root, "logs"), recursive = TRUE, showWarnings = FALSE)
-  dir.create(file.path(explore_root, "tables"), recursive = TRUE, showWarnings = FALSE)
-  utils::write.csv(
-    data.frame(key = c("run_id", "output_root"), value = c("explore-test", explore_root), stringsAsFactors = FALSE),
-    file.path(explore_root, "logs", "explore_manifest.csv"),
-    row.names = FALSE
-  )
-  utils::write.csv(
-    dina_country_sna_inbox_signature(root),
-    file.path(explore_root, "tables", "source_fingerprints.csv"),
-    row.names = FALSE
-  )
-  state <- dina_session_state(session, root = root)
-  expect_equal(state$state, "sources_explored")
-  expect_equal(state$proposal$command, "dina sources include sna --dry-run")
-
-  include_run <- file.path(root, "output", "experiments", "country_sna_include", "runs", "include-test")
-  dir.create(file.path(include_run, "logs"), recursive = TRUE, showWarnings = FALSE)
-  utils::write.csv(
-    data.frame(
-      key = c("dry_run", "status", "exploration_run"),
-      value = c("TRUE", "all_good", explore_root),
-      stringsAsFactors = FALSE
-    ),
-    file.path(include_run, "logs", "include_manifest.csv"),
-    row.names = FALSE
-  )
-  state <- dina_session_state(session, root = root)
-  expect_equal(state$state, "sources_include_ready")
-  expect_match(state$proposal$command, "dina sources include sna --confirm")
-
-  confirm_run <- file.path(root, "output", "experiments", "country_sna_include", "confirms", "confirm-test")
-  dir.create(file.path(confirm_run, "logs"), recursive = TRUE, showWarnings = FALSE)
-  utils::write.csv(
-    data.frame(
-      key = c("include_run", "status"),
-      value = c(include_run, "confirmed"),
-      stringsAsFactors = FALSE
-    ),
-    file.path(confirm_run, "logs", "confirm_manifest.csv"),
-    row.names = FALSE
-  )
-  state <- dina_session_state(session, root = root)
-  expect_equal(state$state, "sources_confirmed")
-  expect_equal(state$proposal$command, "dina run 01b --dry-run")
+test_that("source recommendations follow each family and invalidate changed reviews", {
+  for (family in c("sna", "admin", "surveys", "wid")) {
+    root <- mini_repo()
+    session <- dina_update_start("2026", root = root)
+    incoming <- file.path(root, "input_data", "_new", family)
+    dir.create(incoming, recursive = TRUE, showWarnings = FALSE)
+    path <- file.path(incoming, "new.txt")
+    writeLines("new", path)
+    state <- dina_session_state(session, root)
+    expect_equal(state$proposal$command, paste("dina sources explore", family))
+    record <- list(family = family, run = "fixture", status = "all_good", reviewed_at = dina_now(), watch = dina_review_watch(incoming))
+    dina_write_json(record, dina_review_pointer(root, family))
+    expect_equal(dina_session_state(session, root)$proposal$command, paste("dina sources include", family))
+    record$status <- "included"
+    dina_write_json(record, dina_review_pointer(root, family))
+    expect_true(is.null(dina_review_recommendation(root)))
+    writeLines("changed incoming", path)
+    expect_equal(dina_session_state(session, root)$proposal$command, paste("dina sources explore", family))
+  }
 })
 
 test_that("update status prints structured recommendation details", {
@@ -319,11 +193,11 @@ test_that("update status prints structured recommendation details", {
   expect_equal(status$status, 0L)
   expect_match(status$output, "Recommended:")
   expect_match(status$output, "Why:")
-  expect_match(status$output, "Focus:")
+  expect_match(status$output, "Why:")
   expect_match(status$output, "Expected action:")
   expect_match(status$output, "Next likely command:")
   expect_match(status$output, "Incoming source files: 1")
-  expect_match(status$output, "no source validation/preparation workflow is implemented yet")
+  expect_match(status$output, "Review incoming sources by family")
   expect_match(status$output, "dina run stale --dry-run")
   expect_false(grepl("dina sources review", status$output, fixed = TRUE))
   expect_false(grepl("dina sources integrate", status$output, fixed = TRUE))

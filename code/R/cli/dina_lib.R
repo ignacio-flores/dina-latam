@@ -328,6 +328,8 @@ dina_source_public_family_for_internal <- function(family) {
 }
 
 dina_source_public_family <- function(source) {
+  if (identical(source$integration, "sources_explore_include_wid")) return("wid")
+  if (identical(source$family, "admin_aux")) return("admin")
   dina_source_public_family_for_internal(source$family %||% "")
 }
 
@@ -430,7 +432,8 @@ dina_source_country_matches <- function(source_country, country) {
 dina_source_registry <- function(root = dina_repo_root(), family = NULL, country = NULL, method = NULL) {
   registry <- dina_sources(root)$sources
   if (!is.null(family) && length(family) && any(nzchar(family))) {
-    registry <- registry[vapply(registry, function(source) dina_source_field(source, "family", "") %in% family, logical(1))]
+    registry <- registry[vapply(registry, function(source) dina_source_field(source, "family", "") %in% family ||
+      ("wid" %in% family && identical(source$integration, "sources_explore_include_wid")), logical(1))]
   }
   if (!is.null(country) && nzchar(country)) {
     registry <- registry[vapply(registry, function(source) dina_source_country_matches(dina_source_field(source, "country", ""), country), logical(1))]
@@ -546,8 +549,12 @@ dina_config_value_missing <- function(value) {
 
 dina_export_validation_config <- function(config) {
   export <- config$export_validation %||% list()
-  required <- c("unit", "steps", "last_year", "previous_update_date", "previous_update_file")
-  missing <- required[vapply(required, function(key) dina_config_value_missing(export[[key]]), logical(1))]
+  required <- c("unit", "steps", "last_year", "previous_update_file")
+  # An explicitly unselected baseline is valid runtime configuration for other
+  # tasks. The export itself requires it; missing schema keys still fail here.
+  missing <- required[vapply(required, function(key) {
+    if (key %in% c("previous_update_file", "previous_update_date") && identical(export[[key]], "")) FALSE else dina_config_value_missing(export[[key]])
+  }, logical(1))]
   if (length(missing)) {
     stop(
       "Missing required export_validation config value(s): ",
@@ -559,7 +566,7 @@ dina_export_validation_config <- function(config) {
     unit = export$unit,
     steps = dina_source_values(export$steps),
     last_year = as.integer(export$last_year),
-    previous_update_date = export$previous_update_date,
+    previous_update_date = export$previous_update_date %||% basename(export$previous_update_file),
     previous_update_file = export$previous_update_file
   )
 }
@@ -1958,14 +1965,15 @@ dina_update_suggested_config_override <- function(root = dina_repo_root(), confi
   if (!is.na(export_last)) {
     override <- dina_config_override_set(override, "export_validation.last_year", as.character(export_last + 1L))
   }
-  previous <- dina_update_previous_update_candidates(root)
-  if (nrow(previous)) {
-    override <- dina_config_override_set(override, "export_validation.previous_update_file", previous$rel[[1]])
-    date <- dina_update_extract_wid_update_date(previous$rel[[1]])
-    if (nzchar(date)) {
-      override <- dina_config_override_set(override, "export_validation.previous_update_date", date)
-    }
+  override$countries <- config$countries
+  selected <- config$export_validation$previous_update_file
+  if (length(dina_baseline_check(selected, root))) {
+    previous <- dina_baseline_candidates(root)
+    selected <- if (length(previous) == 1L) previous[[1L]] else ""
   }
+  override <- dina_config_override_set(override, "export_validation.previous_update_file", selected)
+  date <- dina_update_extract_wid_update_date(selected)
+  if (!identical(selected, config$export_validation$previous_update_file) || nzchar(date)) override <- dina_config_override_set(override, "export_validation.previous_update_date", if (nzchar(date)) date else basename(selected))
   override
 }
 
@@ -1975,7 +1983,8 @@ dina_write_suggested_session_config_override <- function(session_or_id, root = d
   if (!isTRUE(overwrite) && file.exists(path)) {
     return(path)
   }
-  dina_write_yaml(dina_update_suggested_config_override(root), path)
+  dina_need("yaml")
+  dina_settings_write_suggestion(path, dina_update_suggested_config_override(root))
   path
 }
 
@@ -2741,7 +2750,62 @@ dina_country_sna_confirm_for_include <- function(include_run, root = dina_repo_r
   matches[[order(vapply(matches, function(x) as.numeric(x$mtime), numeric(1)), decreasing = TRUE)[[1L]]]]
 }
 
-dina_session_state <- function(session, root = dina_repo_root()) {
+dina_review_pointer <- function(root, family) {
+  file.path(root, "output", "experiments", "source_reviews", paste0(family, ".json"))
+}
+
+dina_review_read <- function(root, family) {
+  dina_read_json(dina_review_pointer(root, family), default = NULL)
+}
+
+# Cheap signatures are only for guidance. Acceptance verifies full hashes.
+dina_review_watch <- function(paths) {
+  paths <- sort(unique(paths[!is.na(paths) & nzchar(paths)]))
+  setNames(lapply(paths, function(path) {
+    if (!file.exists(path)) return("absent")
+    files <- if (dir.exists(path)) sort(list.files(path, recursive = TRUE, full.names = TRUE, all.files = TRUE, no.. = TRUE)) else path
+    files <- files[!dir.exists(files)]
+    info <- file.info(files)
+    dina_need("digest")
+    digest::digest(paste(files, info$size, as.numeric(info$mtime), collapse = "\n"), algo = "sha256")
+  }), paths)
+}
+
+dina_review_family_status <- function(root, family, record = dina_review_read(root, family)) {
+  incoming <- list.files(file.path(root, "input_data", "_new", family), recursive = TRUE, all.files = TRUE, no.. = TRUE)
+  answer <- function(code, label, reason, action = "explore") list(code = code, label = label, reason = reason, action = action, record = record)
+  if (is.null(record)) {
+    if (length(incoming)) return(answer("unexplored", "Not explored", "Local incoming files are available."))
+    return(answer("empty", "No incoming files", "No local candidates; producer availability is unknown.", "list"))
+  }
+  if (record$status %in% c("including", "inclusion_failed")) return(answer("failed", "Inclusion incomplete", "Inspect the inclusion report and backup.", "table"))
+  if (record$status == "incomplete" || is.null(record$run)) return(answer("attention", "Needs attention", "The last exploration did not complete."))
+  changed <- is.null(record$watch) || !identical(dina_review_watch(names(record$watch)), record$watch)
+  if (changed || record$status == "restored") return(answer("stale", "Explore again", "Relevant evidence changed since the saved review."))
+  if (record$status == "included") return(answer("included", paste("Included ·", substr(record$included_at %||% record$reviewed_at, 1, 10)), "Saved candidate accepted; pipeline status is separate.", "table"))
+  if (record$status == "nothing_to_include") return(answer("nothing", "Nothing to include", "The engine found no eligible changes.", "table"))
+  if (record$status == "all_good") return(answer("ready", "Review available", "Prepared evidence is ready for your decision.", "include"))
+  answer("attention", "Needs attention", "The saved review has unresolved engine conditions.", "table")
+}
+
+dina_review_recommendation <- function(root) {
+  families <- c("sna", "admin", "surveys", "wid")
+  states <- lapply(families, function(family) dina_review_family_status(root, family))
+  times <- vapply(states, function(x) x$record$reviewed_at %||% "", character(1))
+  for (i in order(times, decreasing = TRUE)) {
+    state <- states[[i]]; family <- families[[i]]
+    if (state$code %in% c("empty", "included", "nothing")) next
+    command <- paste("dina sources", state$action, family)
+    return(dina_session_result(if (state$code == "ready") "sources_include_ready" else "sources_pending",
+      dina_recommendation(command = command, why = state$reason,
+        expected_action = "Inspect the saved family evidence before acceptance.",
+        next_command = if (state$code == "ready") "dina sources" else paste("dina sources explore", family),
+        next_note = "Continue one family at a time.", recommendation = command)))
+  }
+  NULL
+}
+
+dina_session_state <- function(session, root = dina_repo_root(), inspect_pipeline = TRUE) {
   if (is.null(session)) {
     return(dina_session_result(
       "no_active_update",
@@ -2772,70 +2836,15 @@ dina_session_state <- function(session, root = dina_repo_root()) {
       )
     ))
   }
-  country_sna_inbox <- dina_sources_country_sna_inbox_rows(root)
-  if (nrow(country_sna_inbox) > 0L) {
-    explore <- dina_country_sna_matching_explore(root)
-    if (!is.null(explore)) {
-      include <- dina_country_sna_latest_include_for_explore(explore$root, root)
-      if (!is.null(include) && identical(include$status, "all_good")) {
-        confirm <- dina_country_sna_confirm_for_include(include$root, root)
-        if (!is.null(confirm) && identical(confirm$status, "confirmed")) {
-          return(dina_session_result(
-            "sources_confirmed",
-            dina_recommendation(
-              command = "dina run 01b --dry-run",
-              why = "Country-SNA incoming files were explored, staged, and confirmed with a backup snapshot.",
-              todo_id = "country-sna-source-workflow",
-              todo_label = "Explore country-SNA source changes",
-              expected_action = "Preview the country-SNA pipeline step after confirmed source promotion.",
-              next_command = "dina run 01b",
-              next_note = "Run without --dry-run only after reviewing the preview.",
-              recommendation = "Preview 01b with `dina run 01b --dry-run`."
-            )
-          ))
-        }
-        return(dina_session_result(
-          "sources_include_ready",
-          dina_recommendation(
-            command = sprintf("dina sources include sna --confirm --include-run %s", include$root),
-            why = "A matching country-SNA exploration run exists and the latest include dry-run is clean.",
-            todo_id = "country-sna-source-workflow",
-            todo_label = "Explore country-SNA source changes",
-            expected_action = "Promote approved incoming source files after the staged run and backup guard.",
-            next_command = "dina run 01b --dry-run",
-            next_note = "Confirm does not run the pipeline; preview 01b afterward.",
-            recommendation = "Confirm the clean staged include run."
-          )
-        ))
-      }
-      return(dina_session_result(
-        "sources_explored",
-        dina_recommendation(
-          command = "dina sources include sna --dry-run",
-          why = "A matching country-SNA exploration run exists for the current incoming files.",
-          todo_id = "country-sna-source-workflow",
-          todo_label = "Explore country-SNA source changes",
-          expected_action = "Stage incoming sources and check deterministic include expectations without changing production files.",
-          next_command = "dina sources include sna --confirm --include-run RUN",
-          next_note = "Confirm is only available after an all_good include dry-run.",
-          recommendation = "Run a staged include dry-run."
-        )
-      ))
-    }
-    return(dina_session_result(
-      "sources_pending",
-      dina_recommendation(
-        command = "dina sources explore sna",
-        why = sprintf("%s incoming country-SNA source file%s %s waiting in input_data/_new/sna.", nrow(country_sna_inbox), if (nrow(country_sna_inbox) == 1L) "" else "s", if (nrow(country_sna_inbox) == 1L) "is" else "are"),
-        todo_id = "country-sna-source-workflow",
-        todo_label = "Explore country-SNA source changes",
-        expected_action = "Inventory new files, likely years, layout changes, and expected variables before attempting inclusion.",
-        next_command = "dina sources include sna --dry-run",
-        next_note = "Use include after reviewing the exploration output.",
-        recommendation = "Explore incoming SNA files with `dina sources explore sna`."
-      )
-    ))
-  }
+  source_state <- dina_review_recommendation(root)
+  if (!is.null(source_state)) return(source_state)
+
+  if (!inspect_pipeline) return(dina_session_result("pipeline_uninspected",
+    dina_recommendation(command = "dina run list",
+      why = "Open Pipeline to inspect declared output freshness.",
+      expected_action = "Inspect task records and files without running tasks.",
+      recommendation = "Inspect Pipeline with `dina run list`.")))
+
   task_status <- dina_all_task_status(root = root, session = session)
   stale <- sum(vapply(task_status, function(x) x$status %in% c("missing_outputs", "stale", "upstream_stale", "missing_inputs"), logical(1)))
   if (stale > 0) {
@@ -3649,4 +3658,76 @@ dina_notify <- function(message, root = dina_repo_root(), title = "DINA-LatAm") 
 
 dina_notify_test <- function(root = dina_repo_root()) {
   dina_notify("DINA-LatAm CLI notification test", root = root, title = "DINA-LatAm")
+}
+
+# Small, read-only checks shared by update suggestions and the workspace UI.
+dina_baseline_check <- function(path, root) {
+  if (is.null(path) || length(path) != 1L || is.na(path) || !nzchar(path)) return("Select a comparison baseline in previous_series/.")
+  full <- if (grepl("^/", path)) path else file.path(root, path)
+  if (!file.exists(full) || dir.exists(full)) return(paste("Baseline file is missing:", path))
+  if (!requireNamespace("haven", quietly = TRUE)) return("Install haven to check the comparison baseline.")
+  tryCatch({
+    data <- haven::read_dta(full)
+    required <- c("year", "iso", "p", "widcode", "value")
+    missing <- setdiff(required, names(data))
+    if (length(missing)) return(paste("Baseline lacks required fields:", paste(missing, collapse = ", ")))
+    keys <- data[c("year", "iso", "p", "widcode")]
+    if (!nrow(data) || anyNA(keys) || anyDuplicated(keys) || any(vapply(keys, function(x) any(!nzchar(trimws(as.character(x)))), logical(1)))) return("Baseline has empty, missing, or duplicate comparison keys.")
+    if (!is.numeric(data$year) || !is.numeric(data$value) || any(!is.finite(data$year)) || any(data$year != floor(data$year))) return("Baseline year and value fields must be numeric, with integer years.")
+    character()
+  }, error = function(e) paste("Baseline is unreadable:", conditionMessage(e)))
+}
+
+dina_baseline_candidates <- function(root) {
+  paths <- list.files(file.path(root, "previous_series"), pattern = "\\.dta$", full.names = TRUE, ignore.case = TRUE)
+  paths <- paths[vapply(paths, function(path) !length(dina_baseline_check(path, root)), logical(1))]
+  sort(vapply(paths, dina_relative, character(1), root = root))
+}
+
+dina_settings_check <- function(root, session = dina_load_session(root = root)) {
+  tryCatch({
+    base <- dina_config(root, expand_env = FALSE)
+    override <- dina_config_override(session, root)
+    config <- dina_session_config(session, root, expand_env = FALSE)
+    errors <- character()
+    supported <- function(value, schema, prefix = "") {
+      if (!is.list(value) || is.null(names(value))) return(character())
+      unknown <- setdiff(names(value), names(schema))
+      out <- if (length(unknown)) paste0(prefix, unknown) else character()
+      for (key in intersect(names(value), names(schema))) if (is.list(value[[key]]) && !is.null(names(value[[key]]))) out <- c(out, supported(value[[key]], schema[[key]], paste0(prefix, key, ".")))
+      out
+    }
+    if (!is.list(override) || (length(override) && is.null(names(override)))) errors <- c(errors, "The update override must be a YAML mapping.")
+    unknown <- supported(override, base)
+    if (length(unknown)) errors <- c(errors, paste("Unsupported override settings:", paste(unknown, collapse = ", ")))
+    countries <- unlist(config$countries)
+    known <- unique(c(unlist(base$countries), vapply(dina_read_yaml(file.path(root, "config", "wid_include.yml"), default = list())$area_metadata %||% list(), function(x) x$iso3 %||% "", character(1))))
+    if (!length(countries) || anyNA(countries) || any(!grepl("^[A-Z]{3}$", countries)) || any(!countries %in% known) || anyDuplicated(countries)) errors <- c(errors, "Countries must be unique supported ISO3 codes (see config/wid_include.yml).")
+    integer_year <- function(x) length(x) == 1L && is.numeric(x) && is.finite(x) && x == floor(x) && x >= 1900 && x <= 2200
+    if (!integer_year(config$years$first) || !integer_year(config$years$last) || config$years$first > config$years$last) errors <- c(errors, "Years must be ordered integer bounds between 1900 and 2200.")
+    if (!integer_year(config$export_validation$last_year)) errors <- c(errors, "The comparison end year must be an integer between 1900 and 2200.")
+    if (integer_year(config$years$first) && integer_year(config$export_validation$last_year) && config$years$first > config$export_validation$last_year) errors <- c(errors, "The comparison end year must not precede the first year.")
+    units <- unlist(config$run$units)
+    if (!is.character(units) || !length(units) || anyNA(units) || any(!units %in% c("ind", "esn", "pch", "act"))) errors <- c(errors, "Run units must be ind, esn, pch, or act.")
+    export_unit <- config$export_validation$unit
+    if (!is.character(export_unit) || length(export_unit) != 1L || !export_unit %in% c("ind", "esn", "pch", "act")) errors <- c(errors, "Choose one supported export validation unit: ind, esn, pch, or act.")
+    export_steps <- unlist(config$export_validation$steps)
+    if (!is.character(export_steps) || !length(export_steps) || anyNA(export_steps) || any(!nzchar(trimws(export_steps)))) errors <- c(errors, "Export validation steps must contain nonempty step names.")
+    if (!config$run$lang %in% c("eng", "esp")) errors <- c(errors, "run.lang must be eng or esp.")
+    for (name in c("debug", "bfm_replace")) if (!is.logical(config$run[[name]]) || length(config$run[[name]]) != 1L || is.na(config$run[[name]])) errors <- c(errors, paste("run", name, "must be true or false."))
+    for (name in c("units", "steps")) if (!length(unlist(config$run[[name]])) || anyNA(unlist(config$run[[name]]))) errors <- c(errors, paste("run", name, "must contain values."))
+    baseline <- dina_baseline_check(config$export_validation$previous_update_file, root)
+    list(config = config, errors = errors, baseline = baseline, valid = !length(c(errors, baseline)))
+  }, error = function(e) list(config = list(), errors = paste("Invalid configuration:", conditionMessage(e)), baseline = character(), valid = FALSE))
+}
+
+dina_settings_write_suggestion <- function(path, config) {
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+  comments <- c("# Settings for this update only; other values come from config/dina.yml.",
+    "# Countries: keep the current list or add a supported ISO3 code.",
+    "# Years: the suggested final years advance the benchmark by one year.",
+    "# Run years and export_validation.last_year serve different steps.",
+    "# Baseline: choose ONE alternative version in previous_series/.",
+    "# Changing the baseline requires rerunning the export to regenerate graphs.", "")
+  writeLines(c(comments, yaml::as.yaml(config)), path)
 }
