@@ -34,7 +34,7 @@ Place your local copies of input data that are not tracked by Git for size and c
 ```
 input_data/
 ├─ surveys_CEPAL/               # Household surveys
-├─ previous_series/             # DTA file in WID format (to compare in stata's 07d)
+├─ _new/previous_series/        # WID-format DTA alternatives for Stata's 07d comparison
 ├─ admin_data/URY/microdata     # Admin microdata (if you want to run stata's 02b)
 └─ admin_data/MEX/microdata     # Admin microdata (if you want to run stata's 02b)
 ```
@@ -68,7 +68,7 @@ Execution continues through `dina run`. Results starts with the existing final W
 Configuration compares benchmark and update settings side by side, highlights
 changes, and puts file paths under Details. Editing includes save/exit instructions.
 At update creation, review the prefilled, commented settings file. Choose one
-baseline version in `previous_series/`; several files are alternatives, not parts
+baseline version in `input_data/_new/previous_series/`; several files are alternatives, not parts
 of one baseline. Existing graphs identify their generation baseline when metadata
 is available. Changing the selection requires rerunning the export.
 
@@ -124,7 +124,7 @@ task finishes.
 
 - **Final series:** `output/latest_wid_series/`
 - **Intermediate data:** `intermediary_data/` (ignored)
-- **Archived versions:** `previous_series/` (ignored)
+- **Comparison baselines:** `input_data/_new/previous_series/` (ignored)
 
 Files include variables like income shares, thresholds, and average incomes for each percentile.  
 

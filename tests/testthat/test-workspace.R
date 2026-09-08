@@ -8,7 +8,7 @@ workspace_session <- function(root) {
 }
 
 workspace_baseline <- function(root, name = "dina_latam_3Oct2024.dta") {
-  path <- file.path(root, "previous_series", name)
+  path <- file.path(root, "input_data", "_new", "previous_series", name)
   haven::write_dta(data.frame(year = 2022:2023, iso = "CO", p = "p90p100", widcode = "sptinc992j", value = c(.5, .6)), path)
   dina_relative(path, root)
 }
@@ -103,7 +103,7 @@ test_that("configuration checks preserve commented edits and separate baseline a
   before <- readLines(path)
   dina_write_suggested_session_config_override(session, root, overwrite = FALSE)
   expect_equal(readLines(path), before)
-  unlink(file.path(root, "previous_series", "dina_latam_3Oct2024.dta"))
+  unlink(file.path(root, "input_data", "_new", "previous_series", "dina_latam_3Oct2024.dta"))
   check <- dina_settings_check(root, session)
   expect_length(check$errors, 0); expect_length(check$baseline, 1)
   writeLines(c("years:", "  first: 2026", "  last: 2000", "unknown_setting: true"), path)
@@ -122,6 +122,11 @@ test_that("baseline validation catches missing fields and duplicate keys", {
   expect_match(dina_baseline_check(rel, root), "duplicate")
   haven::write_dta(data["value"], full)
   expect_match(dina_baseline_check(rel, root), "required fields")
+})
+
+test_that("comparison baselines must stay in the configured baseline directory", {
+  source_cli_for_tests(); root <- mini_repo(); workspace_baseline(root)
+  expect_match(dina_baseline_check("previous_series/dina_latam_3Oct2024.dta", root), "must be stored in input_data/_new/previous_series")
 })
 
 test_that("pipeline tracking separates recorded outcomes from file observations", {

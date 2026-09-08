@@ -354,7 +354,7 @@ tasks:
       - 07c-interpolate-ineqstats
     inputs:
       - output/synthetic_microfiles
-      - previous_series
+      - input_data/_new/previous_series
       - input_data/wid/population_total_adult_npopul.dta
       - input_data/wid/export_scaling_anninc_xrates.dta
       - input_data/wid/export_comparison_sptinc_p0p20.dta

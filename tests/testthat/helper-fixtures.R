@@ -61,7 +61,7 @@ mini_repo <- function() {
   dir.create(file.path(root, "code", "R", "source-diagnostics"), recursive = TRUE)
   dir.create(file.path(root, "input_data"), recursive = TRUE)
   dir.create(file.path(root, "output"), recursive = TRUE)
-  dir.create(file.path(root, "previous_series"), recursive = TRUE)
+  dir.create(file.path(root, "input_data", "_new", "previous_series"), recursive = TRUE)
 
   dina_write_yaml(list(
     project = list(name = "mini"),
@@ -73,19 +73,19 @@ mini_repo <- function() {
       steps = c("nat"),
       last_year = 2024L,
       previous_update_date = "3Oct2024",
-      previous_update_file = "previous_series/dina_latam_3Oct2024.dta"
+      previous_update_file = "input_data/_new/previous_series/dina_latam_3Oct2024.dta"
     ),
     stata = list(command = "${DINA_STATA_CMD}", batch_args = c("-b", "do")),
     paths = list(
       input_data = "input_data",
       output = "output",
-      previous_series = "previous_series",
+      previous_series = "input_data/_new/previous_series",
       updates = "output/updates",
       run_logs = "output/run_logs",
       final_outputs = c("output/latest_wid_series")
     ),
     notifications = list(pushover = list(enabled = FALSE, token = "${PUSHOVER_APP_TOKEN}", user = "${PUSHOVER_USER_KEY}")),
-    archives = list(default_dir = "output/archives", primary_paths = c("input_data", "previous_series")),
+    archives = list(default_dir = "output/archives", primary_paths = "input_data"),
     dependencies = list(r_packages = c("cli", "yaml", "jsonlite"))
   ), file.path(root, "config", "dina.yml"))
   file.copy(

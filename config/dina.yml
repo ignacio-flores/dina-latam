@@ -35,8 +35,8 @@ export_validation:
   steps:
     - nat
   last_year: 2024
-  previous_update_date: 3Oct2024
-  previous_update_file: previous_series/dina_latam_3Oct2024.dta
+  previous_update_date: 7Nov2025
+  previous_update_file: input_data/_new/previous_series/dina_latam_7Nov2025.dta
 
 stata:
   command: "${DINA_STATA_CMD}"
@@ -48,7 +48,7 @@ paths:
   input_data: input_data
   intermediary_data: intermediary_data
   output: output
-  previous_series: previous_series
+  previous_series: input_data/_new/previous_series
   updates: output/updates
   run_logs: output/run_logs
   final_outputs:
@@ -66,7 +66,6 @@ archives:
   default_dir: output/archives
   primary_paths:
     - input_data
-    - previous_series
 
 dependencies:
   r_packages:

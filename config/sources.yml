@@ -674,11 +674,10 @@ sources:
     country: MULTI
     method: manual
     canonical:
-      - previous_series/*.dta
+      - input_data/_new/previous_series/*.dta
     inbox:
-      - input_data/_new/other/validation/*.dta
+      - input_data/_new/previous_series/*.dta
+    integration: none
     inbox_examples:
-      - dina_latam_3Oct2024.dta
-    destination: previous_series/{basename}
-    transformer: code/Stata/07d-export-results-to-wid.do
-    notes: Prior WID-format series used during final validation and export comparison.
+      - dina_latam_7Nov2025.dta
+    notes: Prior WID-format series used directly for final validation and export comparison. Keep alternatives in input_data/_new/previous_series and select one explicitly in the update settings.

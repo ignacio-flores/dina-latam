@@ -234,7 +234,7 @@ editor return. Invalid edits remain on disk for correction and are not reported
 as validated. Cancelling without saving does not record a configuration edit.
 `dina config show|check` inspects the benchmark independently of the update.
 
-Use one compatible WID-format DTA file from `previous_series/` as the comparison
+Use one compatible WID-format DTA file from `input_data/_new/previous_series/` as the comparison
 baseline. A valid explicit selection is preserved. Otherwise, the sole compatible
 file is selected; multiple alternatives require a choice in interactive review or
 an explicit `export_validation.previous_update_file` in the settings file. Files
@@ -278,7 +278,7 @@ dina maintain repo-restore --dry-run
 ```
 
 The baseline tracks small code/config/document files, not data roots such as
-`input_data`, `intermediary_data`, `output`, or `previous_series`. Restore is
+`input_data`, `intermediary_data`, or `output`. Restore is
 conservative: it restores captured modified or deleted files, does not remove
 added files automatically, and never touches excluded data roots.
 

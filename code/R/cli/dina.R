@@ -166,7 +166,7 @@ Inspect existing final WID comparison graphs and their generation baseline.
 Graph names: t10, t1, t01, t001, m40, b50. If several versions exist, use the
 full path printed by dina results show. Listing never opens files or runs tasks.
 Graphs without companion metadata have an unknown generation baseline.
-Changing previous_series selection requires rerunning the export: dina run 07d.
+Changing the comparison baseline selection requires rerunning the export: dina run 07d.
 ",
     workflow = "Usage:
   dina help workflow
@@ -536,7 +536,7 @@ Active update overrides:
   dina update config check
       A compact effective summary and a prefilled, commented settings file.
       Resume preserves edits. Check validates settings and the selected baseline.
-      Select one alternative version from previous_series/; several files require
+      Select one alternative version from input_data/_new/previous_series/; several files require
       an explicit choice. A missing baseline affects export, not source inspection.
       No benchmark config file is changed.
 ",
@@ -2736,7 +2736,7 @@ dina_config_override_reason <- function(key) {
     key,
     years.last = "next update year",
     export_validation.last_year = "next export validation year",
-    export_validation.previous_update_file = "latest previous-series file",
+    export_validation.previous_update_file = "selected comparison baseline file",
     export_validation.previous_update_date = "inferred previous update date",
     "manual override"
   )

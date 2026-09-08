@@ -10,6 +10,7 @@ test_that("config loads and renders Stata globals", {
   expect_true(any(grepl("global bfm_replace \"no\"", lines, fixed = TRUE)))
   expect_true(any(grepl("global export_unit \"esn\"", lines, fixed = TRUE)))
   expect_true(any(grepl("global export_last_y 2024", lines, fixed = TRUE)))
+  expect_true(any(grepl('global previous_update "input_data/_new/previous_series/dina_latam_3Oct2024.dta"', lines, fixed = TRUE)))
 })
 
 test_that("export validation config fails without required values", {
@@ -21,6 +22,13 @@ test_that("export validation config fails without required values", {
     dina_render_config_do(cfg),
     "Missing required export_validation config value\\(s\\): previous_update_file"
   )
+})
+
+test_that("runtime config rejects comparison baselines outside the configured directory", {
+  root <- mini_repo()
+  cfg <- dina_config(root)
+  cfg$export_validation$previous_update_file <- "previous_series/dina_latam_3Oct2024.dta"
+  expect_error(dina_render_config_do(cfg), "Comparison baseline must be stored in input_data/_new/previous_series")
 })
 
 test_that("runtime config files do not contain stale fallback values", {

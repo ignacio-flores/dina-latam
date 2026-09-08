@@ -104,7 +104,8 @@ test_that("source inbox displays use normalized public buckets", {
     "input_data/_new/tax_composition",
     "input_data/_new/social_security",
     "input_data/_new/ceq",
-    "input_data/_new/public_spending"
+    "input_data/_new/public_spending",
+    "input_data/_new/other/validation"
   )
 
   guide <- run_dina_cli(c("sources", "inbox", "guide"), root = repo_root_for_tests)
@@ -113,6 +114,7 @@ test_that("source inbox displays use normalized public buckets", {
   expect_match(guide$output, "input_data/_new/sna")
   expect_match(guide$output, "input_data/_new/surveys")
   expect_match(guide$output, "input_data/_new/other")
+  expect_match(guide$output, "input_data/_new/previous_series")
   expect_false(any(vapply(retired_inboxes, grepl, logical(1), x = guide$output, fixed = TRUE)))
 
   paths <- run_dina_cli(c("sources", "list", "paths", "--no-menu"), root = repo_root_for_tests)

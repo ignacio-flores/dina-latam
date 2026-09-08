@@ -141,6 +141,15 @@ dina_config <- function(root = dina_repo_root(), expand_env = TRUE, path = dina_
   config
 }
 
+dina_previous_series_dir <- function(root = dina_repo_root(), config = dina_config(root, expand_env = FALSE)) {
+  path <- config$paths$previous_series %||% "input_data/_new/previous_series"
+  if (grepl("^/", path)) path else file.path(root, path)
+}
+
+dina_previous_series_dir_rel <- function(root = dina_repo_root(), config = dina_config(root, expand_env = FALSE)) {
+  dina_relative(dina_previous_series_dir(root, config), root)
+}
+
 dina_pipeline <- function(root = dina_repo_root()) {
   x <- dina_read_yaml(dina_pipeline_path(root), default = list(tasks = list()))
   if (is.null(x$tasks)) {
@@ -561,6 +570,13 @@ dina_export_validation_config <- function(config) {
       paste(missing, collapse = ", "),
       call. = FALSE
     )
+  }
+  baseline <- export$previous_update_file
+  baseline_dir <- config$paths$previous_series %||% "input_data/_new/previous_series"
+  baseline <- gsub("\\\\", "/", baseline)
+  baseline_dir <- sub("/+$", "", gsub("\\\\", "/", baseline_dir))
+  if (nzchar(baseline) && !startsWith(paste0(baseline, "/"), paste0(baseline_dir, "/"))) {
+    stop("Comparison baseline must be stored in ", baseline_dir, "/.", call. = FALSE)
   }
   list(
     unit = export$unit,
@@ -1916,43 +1932,20 @@ dina_update_extract_wid_update_date <- function(path) {
 }
 
 dina_update_previous_update_candidates <- function(root = dina_repo_root()) {
-  source <- NULL
-  for (candidate in dina_sources(root)$sources) {
-    if (identical(candidate$id %||% "", "previous-series")) {
-      source <- candidate
-      break
-    }
-  }
-  if (is.null(source)) {
+  paths <- list.files(dina_previous_series_dir(root), pattern = "\\.dta$", full.names = TRUE, ignore.case = TRUE)
+  paths <- paths[file.exists(paths) & !dir.exists(paths)]
+  if (!length(paths)) {
     return(data.frame(path = character(), rel = character(), source = character(), mtime = as.POSIXct(character()), stringsAsFactors = FALSE))
   }
-  collect <- function(patterns, source_name) {
-    paths <- dina_expand_paths(patterns, root = root)
-    paths <- paths[file.exists(paths) & !dir.exists(paths)]
-    paths <- paths[tolower(tools::file_ext(paths)) == "dta"]
-    if (!length(paths)) {
-      return(data.frame(path = character(), rel = character(), source = character(), mtime = as.POSIXct(character()), stringsAsFactors = FALSE))
-    }
-    info <- file.info(paths)
-    data.frame(
-      path = normalizePath(paths, mustWork = FALSE),
-      rel = dina_relative(paths, root),
-      source = source_name,
-      mtime = as.POSIXct(info$mtime, origin = "1970-01-01"),
-      stringsAsFactors = FALSE
-    )
-  }
-  rows <- rbind(
-    collect(dina_source_values(source$canonical %||% character()), "canonical"),
-    collect(dina_source_inbox_patterns(source), "inbox")
+  info <- file.info(paths)
+  rows <- data.frame(
+    path = normalizePath(paths, mustWork = FALSE),
+    rel = dina_relative(paths, root),
+    source = "baseline",
+    mtime = as.POSIXct(info$mtime, origin = "1970-01-01"),
+    stringsAsFactors = FALSE
   )
-  if (!nrow(rows)) {
-    return(rows)
-  }
-  rows$rank <- ifelse(rows$source == "canonical", 0L, 1L)
-  rows$mtime_rank <- -as.numeric(rows$mtime)
-  rows <- rows[order(rows$mtime_rank, rows$rank), , drop = FALSE]
-  rows[!duplicated(rows$rel), c("path", "rel", "source", "mtime"), drop = FALSE]
+  rows[order(rows$rel), , drop = FALSE]
 }
 
 dina_update_suggested_config_override <- function(root = dina_repo_root(), config = dina_config(root, expand_env = FALSE)) {
@@ -2115,9 +2108,7 @@ dina_repo_state_excluded <- function(rel) {
     rel == "intermediary_data" ||
     startsWith(rel, "intermediary_data/") ||
     rel == "output" ||
-    startsWith(rel, "output/") ||
-    rel == "previous_series" ||
-    startsWith(rel, "previous_series/")
+    startsWith(rel, "output/")
 }
 
 dina_repo_state_dir <- function(session_or_id, root = dina_repo_root(), baseline = "start") {
@@ -2205,7 +2196,7 @@ dina_repo_state_snapshot <- function(update_id, root = dina_repo_root(), baselin
     max_file_size = max_file_size,
     max_total_size = max_total_size,
     copied_bytes = total,
-    excluded_roots = c("input_data", "intermediary_data", "output", "previous_series"),
+    excluded_roots = c("input_data", "intermediary_data", "output"),
     copied = copied,
     skipped = skipped
   )
@@ -3545,10 +3536,11 @@ dina_doctor <- function(root = dina_repo_root(), stata_path_names = dina_stata_p
   packages <- config_raw$dependencies$r_packages %||% character()
   installed <- vapply(packages, function(pkg) nzchar(system.file(package = pkg)), logical(1))
   stata <- dina_stata_status(root, path_names = stata_path_names, app_dirs = stata_app_dirs)
+  paths <- c("input_data", "output", dina_previous_series_dir_rel(root, config_raw), "config")
   path_checks <- data.frame(
-    path = c("input_data", "output", "previous_series", "config"),
-    exists = file.exists(file.path(root, c("input_data", "output", "previous_series", "config"))),
-    writable = vapply(file.path(root, c("input_data", "output", "previous_series", "config")), function(path) {
+    path = paths,
+    exists = file.exists(file.path(root, paths)),
+    writable = vapply(file.path(root, paths), function(path) {
       dir.exists(path) && file.access(path, 2) == 0
     }, logical(1)),
     stringsAsFactors = FALSE
@@ -3662,8 +3654,12 @@ dina_notify_test <- function(root = dina_repo_root()) {
 
 # Small, read-only checks shared by update suggestions and the workspace UI.
 dina_baseline_check <- function(path, root) {
-  if (is.null(path) || length(path) != 1L || is.na(path) || !nzchar(path)) return("Select a comparison baseline in previous_series/.")
+  baseline_dir <- normalizePath(dina_previous_series_dir(root), mustWork = FALSE)
+  baseline_dir_rel <- dina_relative(baseline_dir, root)
+  if (is.null(path) || length(path) != 1L || is.na(path) || !nzchar(path)) return(paste0("Select a comparison baseline in ", baseline_dir_rel, "/."))
   full <- if (grepl("^/", path)) path else file.path(root, path)
+  full <- normalizePath(full, mustWork = FALSE)
+  if (!startsWith(paste0(full, "/"), paste0(baseline_dir, "/"))) return(paste0("Baseline must be stored in ", baseline_dir_rel, "/."))
   if (!file.exists(full) || dir.exists(full)) return(paste("Baseline file is missing:", path))
   if (!requireNamespace("haven", quietly = TRUE)) return("Install haven to check the comparison baseline.")
   tryCatch({
@@ -3679,7 +3675,7 @@ dina_baseline_check <- function(path, root) {
 }
 
 dina_baseline_candidates <- function(root) {
-  paths <- list.files(file.path(root, "previous_series"), pattern = "\\.dta$", full.names = TRUE, ignore.case = TRUE)
+  paths <- dina_update_previous_update_candidates(root)$path
   paths <- paths[vapply(paths, function(path) !length(dina_baseline_check(path, root)), logical(1))]
   sort(vapply(paths, dina_relative, character(1), root = root))
 }
@@ -3727,7 +3723,7 @@ dina_settings_write_suggestion <- function(path, config) {
     "# Countries: keep the current list or add a supported ISO3 code.",
     "# Years: the suggested final years advance the benchmark by one year.",
     "# Run years and export_validation.last_year serve different steps.",
-    "# Baseline: choose ONE alternative version in previous_series/.",
+    "# Baseline: choose ONE alternative version in input_data/_new/previous_series/.",
     "# Changing the baseline requires rerunning the export to regenerate graphs.", "")
   writeLines(c(comments, yaml::as.yaml(config)), path)
 }

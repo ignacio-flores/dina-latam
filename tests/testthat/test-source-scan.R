@@ -83,7 +83,8 @@ test_that("project source registry is a complete readable catalog", {
     "input_data/_new/tax_composition",
     "input_data/_new/social_security",
     "input_data/_new/ceq",
-    "input_data/_new/public_spending"
+    "input_data/_new/public_spending",
+    "input_data/_new/other/validation"
   )
   expect_false(any(vapply(retired_inboxes, grepl, logical(1), x = registry_text, fixed = TRUE)))
   expect_false(any(vapply(retired_inboxes, grepl, logical(1), x = explorer_text, fixed = TRUE)))
@@ -91,8 +92,9 @@ test_that("project source registry is a complete readable catalog", {
   registry_inboxes <- regmatches(registry_text, gregexpr("input_data/_new/[^[:space:]\"']+", registry_text, perl = TRUE))[[1]]
   registry_inboxes <- sub("[,)]$", "", registry_inboxes)
   registry_buckets <- unique(sub("^input_data/_new/([^/]+).*$", "\\1", registry_inboxes))
-  expect_true(all(registry_buckets %in% c("admin", "sna", "surveys", "other")))
-  expect_true(all(c("admin", "sna", "surveys", "other") %in% registry_buckets))
+  expect_true(all(registry_buckets %in% c("admin", "sna", "surveys", "other", "previous_series")))
+  expect_true(all(c("admin", "sna", "surveys", "other", "previous_series") %in% registry_buckets))
+  expect_false(grepl("input_data/_new/other/validation", registry_text, fixed = TRUE))
 
   registry <- dina_sources(repo_root_for_tests)$sources
   ids <- vapply(registry, function(source) source$id, character(1))
