@@ -52,14 +52,15 @@ dina_results_complete <- function(root, date, config) {
   invisible(metadata)
 }
 
-dina_results_inventory <- function(root) {
+dina_results_inventory <- function(root, verify = TRUE) {
   folder <- file.path(root, "output", "figures", "updates")
   paths <- list.files(folder, pattern = "^update-.*-sptinc992j-(t10|t1|t01|t001|m40|b50)\\.pdf$", full.names = TRUE)
   paths <- paths[order(file.info(paths)$mtime, decreasing = TRUE)]
-  cfg <- tryCatch(dina_session_config(dina_load_session(root = root), root, expand_env = FALSE), error = function(e) NULL)
+  cfg <- if (isTRUE(verify)) tryCatch(dina_session_config(dina_load_session(root = root), root, expand_env = FALSE), error = function(e) NULL) else NULL
   metadata_files <- list.files(folder, pattern = "^comparison-[A-Za-z0-9]+\\.json$", full.names = TRUE)
   metadata <- lapply(metadata_files, function(path) tryCatch({ value <- dina_read_json(path, default = NULL); if (is.list(value)) value else NULL }, error = function(e) NULL))
   states <- lapply(metadata, function(meta) {
+    if (!isTRUE(verify)) return(if (!is.null(meta) && identical(meta$status, "complete")) "Not inspected" else "Generation incomplete")
     if (is.null(meta) || !identical(meta$status, "complete")) return("Generation incomplete")
     if (!is.character(meta$baseline) || length(meta$baseline) != 1L || !length(meta$artifacts) || !length(meta$graphs) || !length(meta$series) || !all(unlist(c(meta$graphs, meta$series)) %in% names(meta$artifacts))) return("Generation metadata incomplete")
     baseline <- if (grepl("^/", meta$baseline)) meta$baseline else file.path(root, meta$baseline)
@@ -88,6 +89,10 @@ dina_results_inventory <- function(root) {
 }
 
 dina_results_show <- function(root) {
+  operation <- dina_cli_operation("results verification")
+  completed <- FALSE
+  on.exit(if (!completed) operation$finish("Failed"), add = TRUE)
+  operation$progress("Checking recorded baselines, settings, and generated artifacts.")
   inventory <- dina_results_inventory(root)
   dina_cli_header("Results — Final WID series")
   cfg <- tryCatch(dina_session_config(dina_load_session(root = root), root, expand_env = FALSE), error = function(e) list())
@@ -96,22 +101,35 @@ dina_results_show <- function(root) {
   dina_cli_cat("Final-series files:")
   if (length(inventory$series)) for (path in inventory$series) dina_cli_cat(paste(" ", path)) else dina_cli_cat("None available.")
   dina_cli_cat("Open: dina results open GRAPH\nRegenerate through the existing export: dina run 07d")
+  completed <- TRUE
+  operation$finish("Completed")
   invisible(inventory)
 }
 
 dina_results_open <- function(root, graph, viewer = NULL) {
+  operation <- dina_cli_operation("comparison graph opening")
+  completed <- FALSE
+  on.exit(if (!completed) operation$finish("Failed"), add = TRUE)
+  operation$progress("Verifying the selected graph before opening it.")
   rows <- dina_results_inventory(root)$graphs
   selected <- rows[rows$path == graph | rows$graph == graph, , drop = FALSE]
   if (!nrow(selected)) stop("No matching comparison graph. Run dina results show.", call. = FALSE)
   if (nrow(selected) > 1L) stop("Several versions exist. Select the full graph path shown by dina results show.", call. = FALSE)
   path <- file.path(root, selected$path[[1]])
-  if (!is.null(viewer)) return(invisible(viewer(path)))
+  if (!is.null(viewer)) {
+    result <- viewer(path)
+    completed <- TRUE
+    operation$finish("Completed", selected$path[[1]])
+    return(invisible(result))
+  }
   if (.Platform$OS.type == "windows") shell.exec(path) else {
     command <- if (Sys.info()[["sysname"]] == "Darwin") "open" else "xdg-open"
     dina_need("processx")
     result <- processx::run(command, path, error_on_status = FALSE)
     if (result$status != 0L) stop("Could not open the graph: ", result$stderr, call. = FALSE)
   }
+  completed <- TRUE
+  operation$finish("Completed", selected$path[[1]])
   invisible(path)
 }
 

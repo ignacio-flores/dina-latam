@@ -93,6 +93,11 @@ mini_repo <- function() {
     file.path(root, "config", "survey_population_include.yml"),
     overwrite = TRUE
   )
+  # Generic CLI fixtures use minimal SurveyPop-only files. Production's richer
+  # 01e review-focus contract is exercised against the real task separately.
+  survey_contract <- dina_read_yaml(file.path(root, "config", "survey_population_include.yml"))
+  survey_contract$review_focus <- NULL
+  dina_write_yaml(survey_contract, file.path(root, "config", "survey_population_include.yml"))
   file.copy(
     file.path(repo_root_for_tests, "code", "R", "source-diagnostics", "survey_sources_include.R"),
     file.path(root, "code", "R", "source-diagnostics", "survey_sources_include.R"),

@@ -13,6 +13,41 @@ stata_read:
   # in order for legacy Stata files whose metadata encoding is not declared.
   encoding_fallbacks:
     - latin1
+review_focus:
+  # The normal survey review follows the direct raw inputs consumed by the
+  # active cleaner.  The Stata task carries the matching DINA_SURVEY_REVIEW_INPUTS
+  # annotation; the explorer checks that the two declarations stay identical.
+  task: 01e-clean-survey-data
+  script: code/Stata/01e-clean-survey-data.do
+  groups:
+    - name: Records and weights
+      variables:
+        - _fep
+        - edad
+        - id_hogar
+        - id_pers
+        - sexo
+    - name: Income components
+      variables:
+        - sys_pe
+        - yoemp_pe
+        - yjub_pe
+        - gan_pe
+        - ycap_pe
+        - yotr_pe
+        - yaim_he
+        - yto_pe
+        - yto_he
+    - name: Household and work characteristics
+      variables:
+        - categ5_p
+        - paren_ee
+        - sector_ee
+        - ramar_ee
+        - tamest_ee
+        - li
+        - lp
+        - pobreza
 paths:
   canonical_surveys: input_data/surveys_CEPAL
   incoming_surveys: input_data/_new/surveys

@@ -213,6 +213,86 @@ survey_pop_required_vars <- function(country) {
   if (identical(country, "ARG")) c("_fep", "edad", "id_hogar") else c("_fep", "edad")
 }
 
+survey_pop_review_focus <- function(contract, root) {
+  focus <- contract$review_focus %||% list()
+  groups <- focus$groups %||% list()
+  if (!length(groups)) {
+    # Small historical fixtures deliberately retain the former SurveyPop-only
+    # contract. Production configuration always declares the active cleaner's
+    # input set below.
+    return(list(task = "SurveyPop", script = "", entries = data.frame(
+      input_group = "Records and weights", variable = c("_fep", "edad"), stringsAsFactors = FALSE
+    ), variables = c("_fep", "edad"), enforce = FALSE))
+  }
+  entries <- survey_pop_bind(lapply(groups, function(group) {
+    variables <- as.character(unlist(group$variables %||% character(), use.names = FALSE))
+    data.frame(input_group = as.character(group$name %||% "Pipeline inputs"), variable = variables, stringsAsFactors = FALSE)
+  }))
+  entries <- entries[nzchar(entries$variable), , drop = FALSE]
+  if (!nrow(entries) || anyDuplicated(entries$variable)) {
+    stop("survey_population_include.yml review_focus must declare each pipeline input exactly once.", call. = FALSE)
+  }
+  script <- as.character(focus$script %||% "")
+  script_path <- if (grepl("^/", script)) script else file.path(root, script)
+  if (!nzchar(script) || !file.exists(script_path)) {
+    stop("Survey review focus cannot find its declared active cleaner: ", script, call. = FALSE)
+  }
+  marker <- "^\\* DINA_SURVEY_REVIEW_INPUTS:[[:space:]]*"
+  lines <- readLines(script_path, warn = FALSE)
+  hit <- grep(marker, lines, value = TRUE)
+  if (length(hit) != 1L) {
+    stop("The declared survey cleaner must contain exactly one DINA_SURVEY_REVIEW_INPUTS annotation.", call. = FALSE)
+  }
+  declared <- strsplit(sub(marker, "", hit[[1L]]), "[[:space:]]+")[[1L]]
+  declared <- declared[nzchar(declared)]
+  if (!setequal(entries$variable, declared)) {
+    stop("Survey review focus does not match the active cleaner's DINA_SURVEY_REVIEW_INPUTS annotation.", call. = FALSE)
+  }
+  list(task = as.character(focus$task %||% "01e-clean-survey-data"), script = script,
+    entries = entries, variables = entries$variable, enforce = TRUE)
+}
+
+survey_pop_pipeline_input_report <- function(inventory, focus) {
+  empty <- data.frame(
+    source_set = character(), country = character(), year = integer(), rel = character(),
+    input_group = character(), variable = character(), status = character(), severity = character(),
+    stringsAsFactors = FALSE
+  )
+  surveys <- inventory[inventory$is_survey & inventory$file_class == "primary_survey", , drop = FALSE]
+  if (!nrow(surveys) || !nrow(focus$entries)) return(empty)
+  rows <- lapply(seq_len(nrow(surveys)), function(i) {
+    file <- surveys[i, , drop = FALSE]
+    missing <- strsplit(as.character(file$missing_pipeline_columns[[1L]] %||% ""), ",", fixed = TRUE)[[1L]]
+    missing <- trimws(missing[nzchar(missing)])
+    status <- if (file$status[[1L]] %in% c("unreadable_file", "missing")) {
+      rep("unresolved", nrow(focus$entries))
+    } else {
+      ifelse(focus$entries$variable %in% missing, "missing", "available")
+    }
+    data.frame(
+      source_set = file$source_set[[1L]], country = file$country[[1L]], year = file$year[[1L]], rel = file$rel[[1L]],
+      input_group = focus$entries$input_group, variable = focus$entries$variable,
+      status = status, severity = ifelse(status %in% c("missing", "unresolved"), "blocked", "info"),
+      stringsAsFactors = FALSE
+    )
+  })
+  survey_pop_bind(rows)
+}
+
+survey_pop_pipeline_input_summary <- function(report) {
+  empty <- data.frame(country = character(), years = character(), files = integer(), input_groups = integer(), inputs_checked = integer(), missing = integer(), unresolved = integer(), stringsAsFactors = FALSE)
+  incoming <- report[report$source_set == "incoming", , drop = FALSE]
+  if (!nrow(incoming)) return(empty)
+  survey_pop_bind(lapply(split(incoming, incoming$country), function(rows) {
+    data.frame(
+      country = rows$country[[1L]], years = survey_pop_year_label(unique(rows$year)), files = length(unique(rows$rel)),
+      input_groups = length(unique(rows$input_group)), inputs_checked = length(unique(rows$variable)),
+      missing = sum(rows$status == "missing"), unresolved = sum(rows$status == "unresolved"),
+      stringsAsFactors = FALSE
+    )
+  }))
+}
+
 survey_pop_read_dta_once <- function(path, encoding = NULL, columns = NULL, n_max = Inf) {
   survey_pop_need("haven")
   args <- list(file = path, n_max = n_max)
@@ -424,7 +504,13 @@ survey_pop_source_blocker <- function(row) {
   }
   if (identical(row$status[[1L]], "unreadable_file")) return("unreadable_file")
   if (identical(row$status[[1L]], "missing_required_columns")) return("missing_required_columns")
+  if (identical(row$status[[1L]], "missing_pipeline_columns")) return("missing_pipeline_columns")
   ""
+}
+
+survey_pop_source_blocker_detail <- function(row) {
+  if (identical(row$status[[1L]], "missing_pipeline_columns")) return(row$missing_pipeline_columns[[1L]] %||% "")
+  row$missing_required_columns[[1L]] %||% ""
 }
 
 survey_pop_list_files <- function(path) {
@@ -468,7 +554,7 @@ survey_pop_file_vars <- function(path, encoding_fallbacks = "latin1") {
   survey_pop_file_vars_report(path, encoding_fallbacks = encoding_fallbacks)$vars
 }
 
-survey_pop_inventory_row <- function(root, contract, source_set, path, country_vocabulary, encoding_fallbacks) {
+survey_pop_inventory_row <- function(root, contract, source_set, path, country_vocabulary, encoding_fallbacks, focus = survey_pop_review_focus(contract, root)) {
   paths <- survey_pop_paths(root, contract)
   source_root <- if (identical(source_set, "incoming")) paths$incoming_surveys else paths$canonical_surveys
   info <- survey_pop_survey_match(path, source_root = source_root, country_vocabulary = country_vocabulary)
@@ -478,6 +564,7 @@ survey_pop_inventory_row <- function(root, contract, source_set, path, country_v
   vars <- vars_report$vars
   required <- survey_pop_required_vars(info$country)
   missing_required <- if (isTRUE(info$is_survey)) setdiff(required, vars) else character()
+  missing_pipeline <- if (isTRUE(info$is_survey) && isTRUE(focus$enforce) && isTRUE(vars_report$ok)) setdiff(focus$variables, vars) else character()
   stat <- if (!file.exists(path)) {
     "missing"
   } else if (info$file_class %in% c("unknown_dta", "unknown_file")) {
@@ -488,6 +575,8 @@ survey_pop_inventory_row <- function(root, contract, source_set, path, country_v
     "supporting_file"
   } else if (length(missing_required)) {
     "missing_required_columns"
+  } else if (length(missing_pipeline)) {
+    "missing_pipeline_columns"
   } else {
     "ok"
   }
@@ -510,6 +599,7 @@ survey_pop_inventory_row <- function(root, contract, source_set, path, country_v
     is_survey = isTRUE(info$is_survey),
     status = stat,
     missing_required_columns = paste(missing_required, collapse = ","),
+    missing_pipeline_columns = paste(missing_pipeline, collapse = ","),
     read_encoding = vars_report$encoding,
     read_recovered = isTRUE(vars_report$recovered),
     read_attempted_encodings = vars_report$attempted_encodings,
@@ -521,16 +611,59 @@ survey_pop_inventory_row <- function(root, contract, source_set, path, country_v
   )
 }
 
-survey_pop_source_inventory <- function(root, contract) {
+survey_pop_filter_paths_scope <- function(paths, source_root, country_vocabulary, countries = NULL, years = NULL) {
+  configured_countries <- unique(toupper(trimws(as.character(countries %||% character()))))
+  configured_countries <- configured_countries[!is.na(configured_countries) & nzchar(configured_countries)]
+  configured_years <- unique(suppressWarnings(as.integer(years %||% integer())))
+  configured_years <- configured_years[is.finite(configured_years)]
+  if (!length(configured_countries) && !length(configured_years)) return(paths)
+  keep <- vapply(paths, function(path) {
+    info <- survey_pop_survey_match(path, source_root = source_root, country_vocabulary = country_vocabulary)
+    isTRUE(info$is_survey) &&
+      (!length(configured_countries) || info$country %in% configured_countries) &&
+      (!length(configured_years) || info$year %in% configured_years)
+  }, logical(1))
+  paths[keep]
+}
+
+survey_pop_source_inventory <- function(root, contract, countries = NULL, years = NULL) {
   paths <- survey_pop_paths(root, contract)
   canonical <- survey_pop_list_files(paths$canonical_surveys)
   incoming <- survey_pop_list_files(paths$incoming_surveys)
   country_vocabulary <- survey_pop_country_vocabulary(root, contract)
+  canonical <- survey_pop_filter_paths_scope(canonical, paths$canonical_surveys, country_vocabulary, countries, years)
+  incoming <- survey_pop_filter_paths_scope(incoming, paths$incoming_surveys, country_vocabulary, countries, years)
   encoding_fallbacks <- survey_pop_stata_encoding_fallbacks(contract)
+  focus <- survey_pop_review_focus(contract, root)
   survey_pop_bind(c(
-    lapply(canonical, survey_pop_inventory_row, root = root, contract = contract, source_set = "canonical", country_vocabulary = country_vocabulary, encoding_fallbacks = encoding_fallbacks),
-    lapply(incoming, survey_pop_inventory_row, root = root, contract = contract, source_set = "incoming", country_vocabulary = country_vocabulary, encoding_fallbacks = encoding_fallbacks)
+    lapply(canonical, survey_pop_inventory_row, root = root, contract = contract, source_set = "canonical", country_vocabulary = country_vocabulary, encoding_fallbacks = encoding_fallbacks, focus = focus),
+    lapply(incoming, survey_pop_inventory_row, root = root, contract = contract, source_set = "incoming", country_vocabulary = country_vocabulary, encoding_fallbacks = encoding_fallbacks, focus = focus)
   ))
+}
+
+# A review is about the configured update, not every historical file that
+# happens to live in the survey archive.  Apply this before deriving coverage,
+# direct-input checks, source blockers, or a promotion plan so out-of-scope
+# evidence cannot make the active update look incomplete.
+survey_pop_filter_scope <- function(inventory, countries = NULL, years = NULL) {
+  if (!nrow(inventory)) return(inventory)
+  configured_countries <- unique(toupper(trimws(as.character(countries %||% character()))))
+  configured_countries <- configured_countries[!is.na(configured_countries) & nzchar(configured_countries)]
+  configured_years <- unique(suppressWarnings(as.integer(years %||% integer())))
+  configured_years <- configured_years[is.finite(configured_years)]
+  if (!length(configured_countries) && !length(configured_years)) return(inventory)
+
+  # Survey review only promotes identified primary survey files. Supporting
+  # files with no country/year identity are not evidence for this update.
+  primary <- !is.na(inventory$file_class) & inventory$file_class == "primary_survey"
+  keep <- primary
+  if (length(configured_countries)) {
+    keep <- keep & toupper(trimws(as.character(inventory$country))) %in% configured_countries
+  }
+  if (length(configured_years)) {
+    keep <- keep & suppressWarnings(as.integer(inventory$year)) %in% configured_years
+  }
+  inventory[keep, , drop = FALSE]
 }
 
 survey_pop_empty_candidates <- function() {
@@ -647,14 +780,14 @@ survey_pop_primary_effective_sources <- function(inventory, grid = survey_pop_av
     if (nrow(incoming) == 1L) {
       blocker <- survey_pop_source_blocker(incoming)
       if (nzchar(blocker)) {
-        return(data.frame(country = country, year = year, path = "", source_set = "incoming", rel = incoming$rel[[1L]], selection_status = paste0("blocked_", blocker), detail = incoming$missing_required_columns[[1L]], stringsAsFactors = FALSE))
+        return(data.frame(country = country, year = year, path = "", source_set = "incoming", rel = incoming$rel[[1L]], selection_status = paste0("blocked_", blocker), detail = survey_pop_source_blocker_detail(incoming), stringsAsFactors = FALSE))
       }
       return(data.frame(country = country, year = year, path = incoming$file[[1L]], source_set = "incoming", rel = incoming$rel[[1L]], selection_status = "incoming_candidate", detail = "", stringsAsFactors = FALSE))
     }
     if (nrow(canonical_choice) == 1L) {
       blocker <- survey_pop_source_blocker(canonical_choice)
       if (nzchar(blocker)) {
-        return(data.frame(country = country, year = year, path = "", source_set = "canonical", rel = canonical_choice$rel[[1L]], selection_status = paste0("blocked_", blocker), detail = canonical_choice$missing_required_columns[[1L]], stringsAsFactors = FALSE))
+        return(data.frame(country = country, year = year, path = "", source_set = "canonical", rel = canonical_choice$rel[[1L]], selection_status = paste0("blocked_", blocker), detail = survey_pop_source_blocker_detail(canonical_choice), stringsAsFactors = FALSE))
       }
       status <- if (isTRUE(canonical_choice$is_active_name[[1L]])) "canonical_active" else "canonical_variant_fallback"
       return(data.frame(country = country, year = year, path = canonical_choice$file[[1L]], source_set = "canonical", rel = canonical_choice$rel[[1L]], selection_status = status, detail = "", stringsAsFactors = FALSE))
@@ -677,9 +810,11 @@ survey_pop_year_label <- function(years) {
   }, character(1)), collapse = ",")
 }
 
-survey_pop_year_coverage <- function(inventory) {
+survey_pop_year_coverage <- function(inventory, countries = NULL) {
   grid <- survey_pop_available_grid(inventory)
-  countries <- sort(unique(grid$country))
+  observed_countries <- sort(unique(grid$country))
+  countries <- unique(toupper(trimws(as.character(countries %||% observed_countries))))
+  countries <- countries[!is.na(countries) & nzchar(countries)]
   selected <- survey_pop_primary_effective_sources(inventory, grid)
   rows <- lapply(countries, function(country) {
     country_grid <- grid$year[grid$country == country]
@@ -735,7 +870,7 @@ survey_pop_year_coverage <- function(inventory) {
 survey_pop_variable_report <- function(inventory) {
   surveys <- inventory[inventory$is_survey, , drop = FALSE]
   if (!nrow(surveys)) {
-    return(data.frame(source_id = character(), source_set = character(), country = character(), year = integer(), rel = character(), status = character(), missing_required_columns = character(), severity = character(), stringsAsFactors = FALSE))
+    return(data.frame(source_id = character(), source_set = character(), country = character(), year = integer(), rel = character(), status = character(), missing_required_columns = character(), missing_pipeline_columns = character(), severity = character(), stringsAsFactors = FALSE))
   }
   data.frame(
     source_id = surveys$source_id,
@@ -745,7 +880,8 @@ survey_pop_variable_report <- function(inventory) {
     rel = surveys$rel,
     status = surveys$status,
     missing_required_columns = surveys$missing_required_columns,
-    severity = ifelse(surveys$status %in% c("missing_required_columns", "unreadable_file"), "blocked", "info"),
+    missing_pipeline_columns = surveys$missing_pipeline_columns,
+    severity = ifelse(surveys$status %in% c("missing_required_columns", "missing_pipeline_columns", "unreadable_file"), "blocked", "info"),
     stringsAsFactors = FALSE
   )
 }
@@ -815,7 +951,7 @@ survey_pop_review_actions <- function(status, variable_report, source_summary = 
       action = "review_survey_variables",
       severity = "blocked",
       next_command = "dina sources table surveys variable_report",
-      detail = "Some survey files are unreadable or missing _fep, edad, or ARG id_hogar.",
+      detail = "Some survey files are unreadable or missing direct inputs declared for the active survey cleaner.",
       stringsAsFactors = FALSE
     )
   }
@@ -1470,20 +1606,25 @@ run_survey_pop_explorer <- function(
   contract_path = file.path(root, "config", "survey_population_include.yml"),
   output_dir = NULL,
   countries = NULL,
+  years = NULL,
+  scope = NULL,
   write_outputs = TRUE,
   dry_run = FALSE
 ) {
   contract <- survey_pop_read_contract(root, contract_path)
+  focus <- survey_pop_review_focus(contract, root)
   paths <- survey_pop_explore_paths(root, contract, output_dir)
-  inventory <- survey_pop_source_inventory(root, contract)
+  inventory <- survey_pop_source_inventory(root, contract, countries = countries, years = years)
+  inventory <- survey_pop_filter_scope(inventory, countries = countries, years = years)
   grid <- survey_pop_available_grid(inventory)
-  all_countries <- sort(unique(grid$country))
-  years <- sort(unique(grid$year))
-  coverage <- survey_pop_year_coverage(inventory)
-  if (!is.null(countries)) {
-    coverage <- coverage[coverage$country %in% toupper(countries), , drop = FALSE]
-  }
+  all_countries <- unique(toupper(trimws(as.character(countries %||% sort(unique(grid$country))))))
+  all_countries <- all_countries[!is.na(all_countries) & nzchar(all_countries)]
+  explored_years <- unique(suppressWarnings(as.integer(years %||% sort(unique(grid$year)))))
+  explored_years <- explored_years[is.finite(explored_years)]
+  coverage <- survey_pop_year_coverage(inventory, countries = all_countries)
   variable_report <- survey_pop_variable_report(inventory)
+  pipeline_input_audit <- survey_pop_pipeline_input_report(inventory, focus)
+  pipeline_input_summary <- survey_pop_pipeline_input_summary(pipeline_input_audit)
   source_candidates <- survey_pop_source_candidates(inventory)
   source_summary <- survey_pop_source_summary(inventory)
   status <- survey_pop_status(root, contract, inventory)
@@ -1501,14 +1642,18 @@ run_survey_pop_explorer <- function(
     survey_source_summary = source_summary,
     year_coverage = coverage,
     variable_report = variable_report,
+    pipeline_input_focus = focus$entries,
+    pipeline_input_audit = pipeline_input_audit,
+    pipeline_input_summary = pipeline_input_summary,
     survey_pop_status = status,
     review_actions = actions,
-    explore_manifest = survey_pop_manifest("explore", "surveys", "survey_population", overall, all_countries, years, dry_run = dry_run)
+    explore_manifest = survey_pop_manifest("explore", "surveys", "survey_population", overall, all_countries, explored_years, dry_run = dry_run)
   )
   if (isTRUE(write_outputs)) {
     survey_pop_write_csvs(tables, paths, "explore_manifest")
   }
-  list(paths = paths, outputs = tables, manifest = tables$explore_manifest, contract = contract, countries = all_countries, years = years, status = overall)
+  list(paths = paths, outputs = tables, manifest = tables$explore_manifest, contract = contract,
+    countries = all_countries, years = explored_years, scope = scope %||% list(countries = all_countries, years = explored_years), status = overall)
 }
 
 survey_pop_manifest_value <- function(manifest, key) {
@@ -1700,7 +1845,8 @@ survey_pop_confirm_sources <- function(
   root = survey_pop_repo_root(),
   contract_path = file.path(root, "config", "survey_population_include.yml"),
   include_run = NULL,
-  output_dir = NULL
+  output_dir = NULL,
+  progress = function(...) invisible(NULL)
 ) {
   contract <- survey_pop_read_contract(root, contract_path)
   include_run <- survey_pop_resolve_run(root, contract, include_run)
@@ -1710,12 +1856,23 @@ survey_pop_confirm_sources <- function(
   mappings <- survey_pop_read_csv(file.path(include_run, "tables", "staged_source_mappings.csv"))
   promotion_plan <- survey_pop_read_csv(file.path(include_run, "tables", "promotion_plan.csv"))
   if (!nrow(promotion_plan)) stop("Survey include run has no staged artifact to promote.", call. = FALSE)
+  incoming_count <- sum(mappings$source_set == "incoming" & mappings$copy_status == "staged", na.rm = TRUE)
+  progress(sprintf("Verifying %s incoming survey file fingerprint%s.", incoming_count,
+    if (incoming_count == 1L) "" else "s"))
   source_check <- survey_pop_verify_source_fingerprints(root, include_run, mappings)
+  progress(sprintf("Verifying %s staged artifact%s before promotion.", nrow(promotion_plan),
+    if (nrow(promotion_plan) == 1L) "" else "s"))
   staged_check <- survey_pop_verify_promotion_fingerprints(include_run, promotion_plan)
   confirm_id <- survey_pop_confirm_id()
   paths <- survey_pop_output_paths_for_confirm(root, contract, output_dir, confirm_id)
-  report <- lapply(seq_len(nrow(promotion_plan)), function(i) {
+  total <- nrow(promotion_plan)
+  progress(sprintf("Creating recoverable backups and promoting %s survey artifact%s.", total,
+    if (total == 1L) "" else "s"))
+  report <- lapply(seq_len(total), function(i) {
     row <- promotion_plan[i, , drop = FALSE]
+    if (i == 1L || i == total || i %% 10L == 0L) {
+      progress(sprintf("Promoting survey artifacts: %s/%s (%s).", i, total, row$to_rel[[1L]]))
+    }
     from <- row$from_rel[[1L]]
     to <- file.path(root, row$to_rel[[1L]])
     backup <- file.path(paths$snapshots, "original", row$to_rel[[1L]])
@@ -1739,6 +1896,7 @@ survey_pop_confirm_sources <- function(
     )
   })
   promote_report <- survey_pop_bind(report)
+  progress("Writing the inclusion report and backup manifest.")
   dir.create(paths$tables, recursive = TRUE, showWarnings = FALSE)
   dir.create(paths$logs, recursive = TRUE, showWarnings = FALSE)
   utils::write.csv(promote_report, file.path(paths$tables, "promote_report.csv"), row.names = FALSE, na = "")

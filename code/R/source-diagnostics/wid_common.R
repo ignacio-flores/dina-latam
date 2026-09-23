@@ -114,6 +114,27 @@ wid_include_read_contract <- function(
   if (length(missing)) {
     stop("Invalid WID include contract; missing: ", paste(missing, collapse = ", "), call. = FALSE)
   }
+  focus <- (contract$review_focus %||% list())$pipeline_inputs %||% list()
+  if (!length(focus)) {
+    stop("Invalid WID include contract; review_focus.pipeline_inputs must declare at least one direct pipeline input.", call. = FALSE)
+  }
+  unknown_focus <- setdiff(names(focus), as.character(contract$source_ids %||% character()))
+  if (length(unknown_focus)) {
+    stop("Invalid WID review-focus contract; unknown source(s): ", paste(unknown_focus, collapse = ", "), call. = FALSE)
+  }
+  for (source_id in names(focus)) {
+    spec <- focus[[source_id]] %||% list()
+    keys <- as.character(spec$keys %||% character())
+    values <- spec$values %||% list()
+    if (!length(keys) || !length(values) || !all(nzchar(names(values)))) {
+      stop("Invalid WID review-focus contract for ", source_id, ".", call. = FALSE)
+    }
+  }
+  population <- (contract$artifacts %||% list())$population %||% list()
+  legacy <- as.character(population$legacy_baseline %||% "")
+  if (length(legacy) > 1L) {
+    stop("Invalid WID population legacy_baseline path.", call. = FALSE)
+  }
   contract$contract_path <- contract_path
   contract
 }
@@ -151,7 +172,21 @@ wid_include_schema <- function(artifact) {
 
 wid_include_config <- function(root, contract) {
   path <- wid_include_path((contract$years %||% list())$from_config %||% "config/dina.yml", root)
-  wid_include_read_yaml(path)
+  benchmark <- wid_include_read_yaml(path)
+  # WID acquisition is part of the active update. When one exists, its
+  # effective configuration (benchmark plus override) is authoritative for
+  # the requested final year; reading config/dina.yml alone would silently
+  # truncate a configured update such as 2000–2024 to its 2023 benchmark.
+  has_session_api <- exists("dina_load_session", mode = "function", inherits = TRUE) &&
+    exists("dina_session_config", mode = "function", inherits = TRUE)
+  if (!isTRUE(has_session_api)) return(benchmark)
+  session <- tryCatch(dina_load_session(root = root), error = function(e) NULL)
+  if (is.null(session)) return(benchmark)
+  effective <- tryCatch(dina_session_config(session, root = root, expand_env = FALSE), error = function(e) NULL)
+  last <- suppressWarnings(as.integer(effective$years$last %||% NA_integer_))
+  first <- suppressWarnings(as.integer(effective$years$first %||% NA_integer_))
+  if (is.null(effective) || is.na(first) || is.na(last) || first > last) return(benchmark)
+  effective
 }
 
 wid_include_years <- function(root, contract, artifact = NULL) {
@@ -579,6 +614,23 @@ wid_include_artifact_paths <- function(root, artifact, staged_repo = NULL) {
   )
 }
 
+# During the one-time population-source migration, compare the incoming WID
+# file with the legacy input. Once the WID canonical file exists, it always
+# takes precedence. The legacy file is historical evidence and is never
+# promoted over or deleted by this workflow.
+wid_include_comparison_baseline <- function(root, artifact) {
+  canonical <- wid_include_artifact_paths(root, artifact)
+  if (file.exists(canonical$canonical)) {
+    return(list(path = canonical$canonical, rel = canonical$canonical_rel, kind = "accepted_wid"))
+  }
+  legacy_rel <- as.character(artifact$legacy_baseline %||% "")
+  legacy_path <- if (nzchar(legacy_rel)) wid_include_path(legacy_rel, root) else ""
+  if (nzchar(legacy_path) && file.exists(legacy_path)) {
+    return(list(path = legacy_path, rel = legacy_rel, kind = "legacy_population"))
+  }
+  list(path = canonical$canonical, rel = canonical$canonical_rel, kind = "none")
+}
+
 wid_include_incoming_rel <- function(path) {
   file.path("input_data", "_new", "wid", basename(path %||% ""))
 }
@@ -640,7 +692,7 @@ wid_include_validate_candidate <- function(source_id, artifact, data, years) {
   schema <- wid_include_schema(artifact)
   rows <- list()
   add <- function(check, status, severity, detail) {
-    rows[[length(rows) + 1L]] <<- data.frame(source_id = source_id, check = check, status = status, severity = severity, detail = detail, next_command = if (identical(severity, "blocked")) "dina sources explore wid --fetch" else "", stringsAsFactors = FALSE)
+    rows[[length(rows) + 1L]] <<- data.frame(source_id = source_id, check = check, status = status, severity = severity, detail = detail, next_command = if (identical(severity, "blocked")) "dina sources refresh wid" else "", stringsAsFactors = FALSE)
   }
   if (!nrow(data)) {
     add("rows", "blocked_empty_source", "blocked", "Candidate WID artifact has no rows.")
@@ -693,7 +745,8 @@ wid_include_prepare_candidate_one <- function(root, contract, paths, artifact) {
     candidate <- wid_include_derive_artifact(raw, artifact, years)
     wid_include_write_dta(candidate, stage_paths$canonical)
     validation <- wid_include_validate_candidate(source_id, artifact, candidate, required_years)
-    comparison <- wid_include_compare_artifact(source_id, artifact, stage_paths$canonical, prod_paths$canonical, candidate)
+    baseline <- wid_include_comparison_baseline(root, artifact)
+    comparison <- wid_include_compare_artifact(source_id, artifact, stage_paths$canonical, baseline$path, candidate, baseline$rel, baseline$kind)
     list(ok = !any(validation$severity == "blocked", na.rm = TRUE), raw = raw, candidate = candidate, validation = validation, comparison = comparison, error = "")
   }, error = function(e) {
     validation <- data.frame(
@@ -702,7 +755,7 @@ wid_include_prepare_candidate_one <- function(root, contract, paths, artifact) {
       status = if (grepl("WID download failed|WID returned", conditionMessage(e))) "blocked_fetch_failed" else "blocked_derivation_failed",
       severity = "blocked",
       detail = conditionMessage(e),
-      next_command = "dina sources explore wid --fetch",
+      next_command = "dina sources refresh wid",
       stringsAsFactors = FALSE
     )
     list(ok = FALSE, raw = data.frame(stringsAsFactors = FALSE), candidate = data.frame(stringsAsFactors = FALSE), validation = validation, comparison = list(artifact = data.frame(stringsAsFactors = FALSE), numeric = data.frame(stringsAsFactors = FALSE)), error = conditionMessage(e))
@@ -769,7 +822,7 @@ wid_include_publish_validation <- function(publish_report) {
       status = "blocked_copy_failed",
       severity = "blocked",
       detail = sprintf("Could not publish fetched WID %s artifact to %s: %s", row$artifact_type, row$to, row$status),
-      next_command = "dina sources explore wid --fetch",
+      next_command = "dina sources refresh wid",
       stringsAsFactors = FALSE
     )
   }))
@@ -801,7 +854,7 @@ wid_include_inspect_incoming_one <- function(root, contract, artifact, require_c
       status = status,
       severity = "blocked",
       detail = detail,
-      next_command = "dina sources explore wid --fetch",
+      next_command = "dina sources refresh wid",
       stringsAsFactors = FALSE
     )
   }
@@ -819,7 +872,8 @@ wid_include_inspect_incoming_one <- function(root, contract, artifact, require_c
   comparison <- list(artifact = data.frame(stringsAsFactors = FALSE), numeric = data.frame(stringsAsFactors = FALSE))
   if (isTRUE(candidate_read$ok)) {
     validation <- wid_include_bind(validation, wid_include_validate_candidate(source_id, artifact, candidate_read$data, required_years))
-    comparison <- wid_include_compare_artifact(source_id, artifact, incoming$canonical, prod$canonical, candidate_read$data)
+    baseline <- wid_include_comparison_baseline(root, artifact)
+    comparison <- wid_include_compare_artifact(source_id, artifact, incoming$canonical, baseline$path, candidate_read$data, baseline$rel, baseline$kind)
   }
   ok <- isTRUE(has_candidate) && isTRUE(has_raw) && isTRUE(candidate_read$ok) && isTRUE(raw_read$ok) && !any(validation$severity == "blocked", na.rm = TRUE)
   promotions <- if (isTRUE(ok)) {
@@ -867,7 +921,7 @@ wid_include_pct_diff <- function(candidate, current) {
   ifelse(is.na(current) | abs(current) < .Machine$double.eps, NA_real_, 100 * (candidate - current) / current)
 }
 
-wid_include_compare_artifact <- function(source_id, artifact, candidate_path, current_path, candidate_data) {
+wid_include_compare_artifact <- function(source_id, artifact, candidate_path, current_path, candidate_data, current_rel = artifact$canonical, baseline_kind = "accepted_wid") {
   schema <- wid_include_schema(artifact)
   current_read <- wid_include_read_dta(current_path)
   current_exists <- file.exists(current_path)
@@ -876,7 +930,7 @@ wid_include_compare_artifact <- function(source_id, artifact, candidate_path, cu
       artifact = data.frame(
         source_id = source_id,
         comparison_status = if (!current_exists) "no_current_artifact" else "current_read_failed",
-        current_rel = artifact$canonical,
+        current_rel = current_rel,
         candidate_rel = normalizePath(candidate_path, mustWork = FALSE),
         current_rows = if (isTRUE(current_read$ok)) nrow(current_read$data) else 0L,
         candidate_rows = nrow(candidate_data),
@@ -897,8 +951,14 @@ wid_include_compare_artifact <- function(source_id, artifact, candidate_path, cu
   key_cols <- intersect(schema$key_columns, intersect(names(current_data), names(candidate_data)))
   current_only <- candidate_only <- NA_integer_
   if (length(key_cols)) {
-    current_key <- do.call(paste, c(current_data[key_cols], sep = "\r"))
-    candidate_key <- do.call(paste, c(candidate_data[key_cols], sep = "\r"))
+    normalize_keys <- function(data) {
+      for (key in key_cols) if (is.character(data[[key]])) data[[key]] <- trimws(data[[key]])
+      data
+    }
+    current_keys <- normalize_keys(current_data[key_cols])
+    candidate_keys <- normalize_keys(candidate_data[key_cols])
+    current_key <- do.call(paste, c(current_keys, sep = "\r"))
+    candidate_key <- do.call(paste, c(candidate_keys, sep = "\r"))
     current_only <- sum(!(unique(current_key) %in% unique(candidate_key)))
     candidate_only <- sum(!(unique(candidate_key) %in% unique(current_key)))
   }
@@ -910,8 +970,8 @@ wid_include_compare_artifact <- function(source_id, artifact, candidate_path, cu
   list(
     artifact = data.frame(
       source_id = source_id,
-      comparison_status = "compared",
-      current_rel = artifact$canonical,
+      comparison_status = if (identical(baseline_kind, "legacy_population")) "compared_legacy_baseline" else "compared",
+      current_rel = current_rel,
       candidate_rel = normalizePath(candidate_path, mustWork = FALSE),
       current_rows = nrow(current_data),
       candidate_rows = nrow(candidate_data),
@@ -980,7 +1040,7 @@ wid_include_read_table <- function(root, table, run = NULL) {
 wid_include_table_catalog <- function() {
   data.frame(
     table = c("wid_request_plan", "source_inventory", "wid_artifact_status", "validation_report", "review_actions", "unsupported_sources", "promotion_plan", "source_fingerprints", "promotion_fingerprints", "wid_artifact_comparison", "wid_numeric_comparison", "fetch_publish_report", "explore_manifest", "include_summary", "include_detail", "include_manifest", "promote_report", "restore_report"),
-    contents = c("configured WID request, area set, raw/derived outputs, and output mappings", "current and _new WID artifact inventory", "current WID artifact missing/stale status", "blocking validation checks", "review action and next command per WID source", "registry WID rows not included in the workflow", "WID raw and derived artifacts eligible for include", "raw WID fingerprints", "promotion artifact fingerprints", "candidate versus current artifact file/schema/key comparison", "candidate versus current numeric aggregate comparison", "fetch publish status into input_data/_new/wid", "explore run metadata", "include dry-run summary", "include dry-run validation detail", "include run metadata", "confirm promotion report", "restore report"),
+    contents = c("configured WID request, area set, raw/derived outputs, and output mappings", "current and _new WID artifact inventory", "current WID artifact missing/stale status", "blocking validation checks", "review action and next command per WID source", "registry WID rows not included in the workflow", "WID raw and derived artifacts eligible for include", "raw WID fingerprints", "promotion artifact fingerprints", "candidate/current staging schema and key diagnostic; not a final-series revision comparison", "candidate/current staging aggregate diagnostic; not a final-series revision comparison", "fetch publish status into input_data/_new/wid", "explore run metadata", "include dry-run summary", "include dry-run validation detail", "include run metadata", "confirm promotion report", "restore report"),
     stringsAsFactors = FALSE
   )
 }

@@ -95,11 +95,105 @@ country_sna_explorer_output_paths <- function(root, contract, output_dir = NULL)
   out <- country_sna_explorer_output_root(root, contract, output_dir)
   list(
     root = out,
+    cache = file.path(out, "cache"),
     tables = file.path(out, "tables"),
     figures = file.path(out, "figures"),
     workbooks = file.path(out, "workbooks"),
     logs = file.path(out, "logs")
   )
+}
+
+country_sna_explorer_hash <- function(value) {
+  if (country_sna_explorer_has("digest")) return(digest::digest(value, algo = "sha256"))
+  paste(value, collapse = "|")
+}
+
+country_sna_explorer_scope_identity <- function(scope, root, contract_path, include_contract_path) {
+  country_sna_explorer_hash(list(
+    config_source = scope$config_source %||% "benchmark config/dina.yml",
+    active_update = scope$active_update %||% "",
+    effective_config_hash = scope$effective_config_hash %||% "",
+    years = as.integer(scope$years %||% integer()),
+    countries = sort(unique(toupper(as.character(scope$countries %||% character())))),
+    explorer_contract = if (file.exists(contract_path)) country_sna_explorer_file_fingerprint(contract_path, root)$sha256 else "missing",
+    include_contract = if (file.exists(include_contract_path)) country_sna_explorer_file_fingerprint(include_contract_path, root)$sha256 else "missing",
+    explorer_code = country_sna_explorer_file_fingerprint(file.path(root, "code", "R", "source-diagnostics", "country_sna_explorer.R"), root)$sha256
+  ))
+}
+
+country_sna_explorer_cache_file <- function(paths, country) {
+  file.path(paths$cache, "countries", paste0(country, ".rds"))
+}
+
+country_sna_explorer_cache_read <- function(path, key) {
+  if (!file.exists(path)) return(NULL)
+  entry <- tryCatch(readRDS(path), error = function(e) NULL)
+  if (is.null(entry) || !identical(entry$key, key) || !is.list(entry$outputs)) return(NULL)
+  entry$outputs
+}
+
+country_sna_explorer_cache_write <- function(path, key, outputs) {
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+  saveRDS(list(key = key, outputs = outputs), path)
+  invisible(path)
+}
+
+country_sna_explorer_evidence_cache <- function(paths, root, contract_path, include_contract_path, write = FALSE) {
+  cache <- new.env(parent = emptyenv())
+  cache$root <- file.path(paths$cache, "evidence")
+  cache$repo_root <- root
+  cache$write <- isTRUE(write)
+  cache$base_key <- country_sna_explorer_hash(list(
+    explorer_contract = country_sna_explorer_file_fingerprint(contract_path, root)$sha256,
+    include_contract = country_sna_explorer_file_fingerprint(include_contract_path, root)$sha256,
+    explorer_code = country_sna_explorer_file_fingerprint(file.path(root, "code", "R", "source-diagnostics", "country_sna_explorer.R"), root)$sha256
+  ))
+  cache$hits <- 0L
+  cache$misses <- 0L
+  cache
+}
+
+country_sna_explorer_evidence_cached <- function(cache, kind, context, compute) {
+  if (is.null(cache)) return(compute())
+  file <- as.character(context$file[[1L]] %||% "")
+  fingerprint <- if (nzchar(file) && file.exists(file)) country_sna_explorer_file_fingerprint(file, cache$repo_root) else data.frame()
+  key <- country_sna_explorer_hash(list(cache$base_key, kind, context, fingerprint))
+  path <- file.path(cache$root, kind, paste0(key, ".rds"))
+  cached <- country_sna_explorer_cache_read(path, key)
+  if (!is.null(cached)) {
+    cache$hits <- cache$hits + 1L
+    return(cached)
+  }
+  cache$misses <- cache$misses + 1L
+  value <- compute()
+  if (isTRUE(cache$write)) country_sna_explorer_cache_write(path, key, value)
+  value
+}
+
+country_sna_explorer_cache_key <- function(country, source_inventory, scope_identity, contract_path, include_contract_path, root) {
+  rows <- source_inventory[source_inventory$country == country, , drop = FALSE]
+  files <- unique(as.character(rows$file[!is.na(rows$file) & nzchar(rows$file) & file.exists(rows$file)]))
+  fingerprints <- lapply(sort(files), country_sna_explorer_file_fingerprint, root = root)
+  country_sna_explorer_hash(list(
+    country = country,
+    scope_identity = scope_identity,
+    source_inventory = rows[c("source_set", "selector", "year", "status", "file", "matched_by", "index_consistency")],
+    files = fingerprints,
+    explorer_contract = country_sna_explorer_file_fingerprint(contract_path, root)$sha256,
+    include_contract = country_sna_explorer_file_fingerprint(include_contract_path, root)$sha256
+  ))
+}
+
+country_sna_explorer_merge_outputs <- function(parts) {
+  names_all <- unique(unlist(lapply(parts, names)))
+  out <- lapply(names_all, function(name) {
+    values <- lapply(parts, function(part) part[[name]])
+    values <- Filter(function(value) is.data.frame(value), values)
+    if (!length(values)) return(data.frame(stringsAsFactors = FALSE))
+    country_sna_explorer_bind(values)
+  })
+  names(out) <- names_all
+  out
 }
 
 country_sna_explorer_run_id <- function(prefix = "explore") {
@@ -165,12 +259,33 @@ country_sna_explorer_normalize_code <- function(x) {
   x[is.na(x)] <- ""
   x <- iconv(x, from = "", to = "ASCII//TRANSLIT", sub = "")
   x <- toupper(trimws(x))
+  # Several official workbooks place a code and its label in the same cell,
+  # e.g. "D.1 - Remuneracion de los asalariados".  The code is still the
+  # first structural token, so remove the label before normalising it.
+  x <- sub("[[:space:]]*-[[:space:]].*$", "", x)
   x <- gsub("\\s+", "", x)
   x <- gsub("Y", "/", x)
   x <- gsub("^D([0-9])", "D.\\1", x)
   x <- gsub("^B([0-9])", "B.\\1", x)
   x <- gsub("B\\.2B/B\\.3B", "B.2B/B.3B", x, fixed = TRUE)
   x
+}
+
+country_sna_explorer_excel_col_to_index <- function(col) {
+  chars <- strsplit(toupper(as.character(col)), "", fixed = TRUE)[[1L]]
+  if (!length(chars) || any(!chars %in% LETTERS)) return(NA_integer_)
+  sum((match(chars, LETTERS)) * 26L ^ rev(seq_along(chars) - 1L))
+}
+
+country_sna_explorer_parse_cell_range <- function(cell_range) {
+  parts <- regmatches(cell_range, regexec("^([A-Z]+)([0-9]+):([A-Z]+)([0-9]+)$", cell_range))[[1L]]
+  if (length(parts) != 5L) stop("Invalid Excel cell range in country-SNA explorer layout: ", cell_range, call. = FALSE)
+  list(first_col = parts[[2L]], first_row = as.integer(parts[[3L]]), last_col = parts[[4L]], last_row = as.integer(parts[[5L]]))
+}
+
+country_sna_explorer_range_col_position <- function(col, cell_range) {
+  parsed <- country_sna_explorer_parse_cell_range(cell_range)
+  country_sna_explorer_excel_col_to_index(col) - country_sna_explorer_excel_col_to_index(parsed$first_col) + 1L
 }
 
 country_sna_explorer_num <- function(x) {
@@ -451,35 +566,42 @@ country_sna_explorer_sheet_score <- function(sheet, target_year = NA_integer_, c
   list(score = min(score, 1), reason = paste(unique(reason), collapse = ";"))
 }
 
-country_sna_explorer_sheet_inventory <- function(source_inventory, contract) {
+country_sna_explorer_sheet_inventory <- function(source_inventory, contract, progress = NULL, cache = NULL) {
+  progress <- progress %||% function(...) invisible(NULL)
   country_sna_explorer_need("readxl")
   rows <- list()
   for (i in seq_len(nrow(source_inventory))) {
     src <- source_inventory[i, , drop = FALSE]
+    if (i == 1L || i == nrow(source_inventory) || i %% 10L == 0L) {
+      progress(sprintf("Inspecting workbook sheets (%s of %s; %s %s %s).", i, nrow(source_inventory), src$country, src$source_set, src$year %||% ""))
+    }
     if (is.na(src$file) || !file.exists(src$file) || !src$adapter_family %in% c("rectangular_workbook", "account_sheet_workbook")) {
       next
     }
-    sheets <- tryCatch(readxl::excel_sheets(src$file), error = function(e) character())
-    if (!length(sheets)) next
-    scored <- lapply(sheets, function(sheet) {
-      years <- country_sna_explorer_parse_years(sheet)
-      target_year <- if (!is.na(src$year)) src$year else if (length(years) == 1L) years[[1L]] else NA_integer_
-      score <- country_sna_explorer_sheet_score(sheet, target_year, contract, src$adapter_family)
-      data.frame(
-        country = src$country,
-        source_set = src$source_set,
-        adapter_family = src$adapter_family,
-        year = as.integer(target_year),
-        file = src$file,
-        sheet = sheet,
-        parsed_years = paste(years, collapse = ","),
-        sheet_score = score$score,
-        evidence = score$reason,
-        status = if (score$score >= 0.70) "likely_sheet" else if (score$score >= 0.40) "possible_sheet" else "unlikely_sheet",
-        stringsAsFactors = FALSE
-      )
+    evidence <- country_sna_explorer_evidence_cached(cache, "sheets", src, function() {
+      sheets <- tryCatch(readxl::excel_sheets(src$file), error = function(e) character())
+      if (!length(sheets)) return(data.frame(stringsAsFactors = FALSE))
+      scored <- lapply(sheets, function(sheet) {
+        years <- country_sna_explorer_parse_years(sheet)
+        target_year <- if (!is.na(src$year)) src$year else if (length(years) == 1L) years[[1L]] else NA_integer_
+        score <- country_sna_explorer_sheet_score(sheet, target_year, contract, src$adapter_family)
+        data.frame(
+          country = src$country,
+          source_set = src$source_set,
+          adapter_family = src$adapter_family,
+          year = as.integer(target_year),
+          file = src$file,
+          sheet = sheet,
+          parsed_years = paste(years, collapse = ","),
+          sheet_score = score$score,
+          evidence = score$reason,
+          status = if (score$score >= 0.70) "likely_sheet" else if (score$score >= 0.40) "possible_sheet" else "unlikely_sheet",
+          stringsAsFactors = FALSE
+        )
+      })
+      country_sna_explorer_bind(scored)
     })
-    rows[[length(rows) + 1L]] <- country_sna_explorer_bind(scored)
+    rows[[length(rows) + 1L]] <- evidence
   }
   country_sna_explorer_bind(rows)
 }
@@ -654,6 +776,15 @@ country_sna_explorer_value_resolution <- function(status) {
   c(status_group = "unresolved", resolution_stage = stage)
 }
 
+country_sna_explorer_zero_as_missing <- function(contract, account) {
+  economic_contract <- contract$economic_contract %||% list()
+  if (isTRUE(economic_contract$zero_as_missing)) {
+    return(TRUE)
+  }
+  accounts <- as.character(unlist(economic_contract$zero_as_missing_accounts %||% character(), use.names = FALSE))
+  country_sna_explorer_normalize_code(account) %in% country_sna_explorer_normalize_code(accounts)
+}
+
 country_sna_explorer_role_resolution_detail <- function(role_candidates, role) {
   part <- role_candidates[role_candidates$role == role, , drop = FALSE]
   if (!nrow(part)) return("no_role_candidates")
@@ -671,7 +802,6 @@ country_sna_explorer_value_candidates <- function(grid, table, role_candidates, 
   variables <- country_sna_explorer_primitive_specs(contract)
   codes <- country_sna_explorer_normalize_code(grid[[table$code_col]])
   multiplier <- contract$economic_contract$units[[table$country]] %||% 1
-  zero_as_missing <- isTRUE(contract$economic_contract$zero_as_missing)
   rows <- list()
   for (spec in variables) {
     aliases <- country_sna_explorer_account_aliases(contract, spec$account)
@@ -705,15 +835,18 @@ country_sna_explorer_value_candidates <- function(grid, table, role_candidates, 
       if (!length(non_missing)) {
         status <- "non_numeric"
         reason <- c(reason, "matched_cell_not_numeric")
-      } else if (length(unique(non_missing)) > 1L) {
-        status <- "duplicate_conflict"
-        reason <- c(reason, "duplicate_account_values_conflict")
+      } else if (country_sna_explorer_zero_as_missing(contract, spec$account) && !length(non_missing[non_missing != 0])) {
+        status <- "zero_treated_missing"
+        reason <- c(reason, "zero_source_value")
       } else {
-        value_raw <- unique(non_missing)[[1L]]
-        if (isTRUE(zero_as_missing) && isTRUE(value_raw == 0)) {
-          status <- "zero_treated_missing"
-          reason <- c(reason, "zero_source_value")
+        if (country_sna_explorer_zero_as_missing(contract, spec$account)) {
+          non_missing <- non_missing[non_missing != 0]
+        }
+        if (length(unique(non_missing)) > 1L) {
+          status <- "duplicate_conflict"
+          reason <- c(reason, "duplicate_account_values_conflict")
         } else {
+          value_raw <- unique(non_missing)[[1L]]
           high <- table$status == "accepted_high_confidence" && role$status[[1L]] == "accepted_high_confidence"
           status <- if (high) "accepted_high_confidence" else "accepted_low_confidence"
           value_standardized <- value_raw * multiplier
@@ -749,11 +882,136 @@ country_sna_explorer_value_candidates <- function(grid, table, role_candidates, 
   country_sna_explorer_bind(rows)
 }
 
-country_sna_explorer_audit_rectangular <- function(source_inventory, sheet_inventory, contract) {
+country_sna_explorer_configured_layout_for_year <- function(include_contract, country, year) {
+  if (length(year) != 1L || is.na(year)) return(NULL)
+  rule <- include_contract$country_rules[[country]] %||% list()
+  layouts <- rule$layouts %||% list()
+  if (!length(layouts)) return(NULL)
+  for (layout in layouts) {
+    years <- layout$years %||% list()
+    min_year <- as.numeric(years$min %||% -Inf)
+    max_year <- as.numeric(years$max %||% Inf)
+    if (year >= min_year && year <= max_year) return(layout)
+  }
+  NULL
+}
+
+country_sna_explorer_configured_sheet <- function(file, sheet_spec, year) {
+  sheets <- tryCatch(readxl::excel_sheets(file), error = function(e) character())
+  if (!length(sheets)) return(NA_character_)
+  if (identical(sheet_spec$type %||% "", "fixed")) {
+    wanted <- as.character(sheet_spec$value %||% "")
+    return(if (wanted %in% sheets) wanted else NA_character_)
+  }
+  candidates <- c(as.character(year), paste0(as.character(year), "p"), paste0("CEI_", year), paste0("CEI_", year, "p"))
+  hit <- candidates[candidates %in% sheets]
+  if (length(hit)) hit[[1L]] else NA_character_
+}
+
+country_sna_explorer_read_configured_grid <- function(file, sheet, layout) {
+  raw <- suppressMessages(readxl::read_excel(
+    file,
+    sheet = sheet,
+    range = layout$range,
+    col_names = FALSE,
+    .name_repair = "minimal"
+  ))
+  as.data.frame(raw, stringsAsFactors = FALSE)
+}
+
+country_sna_explorer_configured_layout_audit <- function(source_inventory, include_contract, contract, country = "MEX", progress = NULL, cache = NULL) {
+  progress <- progress %||% function(...) invisible(NULL)
+  sources <- source_inventory[
+    source_inventory$country == country & source_inventory$status == "matched" & !is.na(source_inventory$file),
+    , drop = FALSE
+  ]
+  if (!nrow(sources)) return(list(tables = data.frame(stringsAsFactors = FALSE), roles = data.frame(stringsAsFactors = FALSE), values = data.frame(stringsAsFactors = FALSE)))
+  tables <- list()
+  roles <- list()
+  values <- list()
+  for (i in seq_len(nrow(sources))) {
+    source <- sources[i, , drop = FALSE]
+    layout <- country_sna_explorer_configured_layout_for_year(include_contract, country, source$year[[1L]])
+    if (is.null(layout)) next
+    sheet <- country_sna_explorer_configured_sheet(source$file[[1L]], layout$sheet %||% list(), source$year[[1L]])
+    if (is.na(sheet)) next
+    if (i == 1L || i == nrow(sources) || i %% 5L == 0L) {
+      progress(sprintf("Inspecting configured %s layouts (%s of %s; %s %s).", country, i, nrow(sources), source$source_set[[1L]], source$year[[1L]]))
+    }
+    context <- data.frame(file = source$file[[1L]], sheet = sheet, source_set = source$source_set[[1L]], year = source$year[[1L]], stringsAsFactors = FALSE)
+    evidence <- country_sna_explorer_evidence_cached(cache, "configured", context, function() {
+      grid <- tryCatch(country_sna_explorer_read_configured_grid(source$file[[1L]], sheet, layout), error = function(e) NULL)
+      if (is.null(grid) || !nrow(grid)) return(list(tables = data.frame(), roles = data.frame(), values = data.frame()))
+      columns <- layout$columns %||% list()
+      code_col <- country_sna_explorer_range_col_position(columns$code %||% "", layout$range)
+      if (is.na(code_col) || code_col < 1L || code_col > ncol(grid)) return(list(tables = data.frame(), roles = data.frame(), values = data.frame()))
+      parsed <- country_sna_explorer_parse_cell_range(layout$range)
+      table_id <- sprintf("%s:%s:%s:configured", country, source$source_set[[1L]], source$year[[1L]])
+      table <- data.frame(
+      country = country,
+      source_set = source$source_set[[1L]],
+      adapter_family = source$adapter_family[[1L]],
+      year = as.integer(source$year[[1L]]),
+      file = source$file[[1L]],
+      sheet = sheet,
+      table_id = table_id,
+      code_col = code_col,
+      code_col_letter = columns$code,
+      row_start = parsed$first_row,
+      row_end = parsed$last_row,
+      account_hit_count = NA_integer_,
+      account_diversity = NA_integer_,
+      table_score = 1,
+      status = "accepted_high_confidence",
+      evidence = sprintf("configured_layout=%s;code_column=%s", layout$range, columns$code),
+      stringsAsFactors = FALSE
+    )
+      role_rows <- lapply(names(contract$economic_contract$roles), function(role) {
+      col <- columns[[role]] %||% NA_character_
+      index <- if (is.na(col)) NA_integer_ else country_sna_explorer_range_col_position(col, layout$range)
+      data.frame(
+        country = country,
+        source_set = source$source_set[[1L]],
+        adapter_family = source$adapter_family[[1L]],
+        year = as.integer(source$year[[1L]]),
+        file = source$file[[1L]],
+        sheet = sheet,
+        table_id = table_id,
+        role = role,
+        role_col = index,
+        role_col_letter = col,
+        role_score = if (is.na(index)) 0 else 1,
+        sector_score = if (is.na(index)) 0 else 1,
+        direction_score = if (is.na(index)) 0 else 1,
+        numeric_score = if (is.na(index)) 0 else mean(!is.na(country_sna_explorer_num(grid[[index]]))),
+        status = if (is.na(index)) "missing_role" else "accepted_high_confidence",
+        evidence = sprintf("configured_column=%s", col %||% ""),
+        stringsAsFactors = FALSE
+      )
+    })
+      role_rows <- country_sna_explorer_bind(role_rows)
+      list(tables = table, roles = role_rows, values = country_sna_explorer_value_candidates(grid, table, role_rows, contract))
+    })
+    tables[[length(tables) + 1L]] <- evidence$tables
+    roles[[length(roles) + 1L]] <- evidence$roles
+    values[[length(values) + 1L]] <- evidence$values
+  }
+  list(
+    tables = country_sna_explorer_bind(tables),
+    roles = country_sna_explorer_bind(roles),
+    values = country_sna_explorer_bind(values)
+  )
+}
+
+country_sna_explorer_audit_rectangular <- function(source_inventory, sheet_inventory, contract, excluded_countries = character(), progress = NULL, cache = NULL) {
+  progress <- progress %||% function(...) invisible(NULL)
   table_rows <- list()
   role_rows <- list()
   value_rows <- list()
-  selected <- sheet_inventory[sheet_inventory$status %in% c("likely_sheet", "possible_sheet"), , drop = FALSE]
+  selected <- sheet_inventory[
+    sheet_inventory$status %in% c("likely_sheet", "possible_sheet") & !sheet_inventory$country %in% excluded_countries,
+    , drop = FALSE
+  ]
   if (!nrow(selected)) {
     return(list(tables = data.frame(stringsAsFactors = FALSE), roles = data.frame(stringsAsFactors = FALSE), values = data.frame(stringsAsFactors = FALSE)))
   }
@@ -762,17 +1020,22 @@ country_sna_explorer_audit_rectangular <- function(source_inventory, sheet_inven
   selected <- selected[!duplicated(key), , drop = FALSE]
   for (i in seq_len(nrow(selected))) {
     ctx <- selected[i, , drop = FALSE]
-    grid <- tryCatch(country_sna_explorer_read_sheet_grid(ctx$file, ctx$sheet, contract), error = function(e) NULL)
-    if (is.null(grid)) next
-    tables <- country_sna_explorer_detect_tables(grid, ctx, contract)
-    if (!nrow(tables)) next
-    tables <- tables[seq_len(min(3L, nrow(tables))), , drop = FALSE]
-    table_rows[[length(table_rows) + 1L]] <- tables
-    best_table <- tables[1L, , drop = FALSE]
-    roles <- country_sna_explorer_detect_roles(grid, best_table, contract)
-    role_rows[[length(role_rows) + 1L]] <- roles
-    values <- country_sna_explorer_value_candidates(grid, best_table, roles, contract)
-    value_rows[[length(value_rows) + 1L]] <- values
+    if (i == 1L || i == nrow(selected) || i %% 5L == 0L) {
+      progress(sprintf("Inspecting workbook sheet evidence (%s of %s; %s %s %s).", i, nrow(selected), ctx$country, ctx$source_set, ctx$year))
+    }
+    evidence <- country_sna_explorer_evidence_cached(cache, "rectangular", ctx, function() {
+      grid <- tryCatch(country_sna_explorer_read_sheet_grid(ctx$file, ctx$sheet, contract), error = function(e) NULL)
+      if (is.null(grid)) return(list(tables = data.frame(), roles = data.frame(), values = data.frame()))
+      tables <- country_sna_explorer_detect_tables(grid, ctx, contract)
+      if (!nrow(tables)) return(list(tables = data.frame(), roles = data.frame(), values = data.frame()))
+      tables <- tables[seq_len(min(3L, nrow(tables))), , drop = FALSE]
+      best_table <- tables[1L, , drop = FALSE]
+      roles <- country_sna_explorer_detect_roles(grid, best_table, contract)
+      list(tables = tables, roles = roles, values = country_sna_explorer_value_candidates(grid, best_table, roles, contract))
+    })
+    table_rows[[length(table_rows) + 1L]] <- evidence$tables
+    role_rows[[length(role_rows) + 1L]] <- evidence$roles
+    value_rows[[length(value_rows) + 1L]] <- evidence$values
   }
   list(
     tables = country_sna_explorer_bind(table_rows),
@@ -789,7 +1052,7 @@ country_sna_explorer_sector_from_file <- function(file, rule) {
   NA_character_
 }
 
-country_sna_explorer_audit_sector_bundle <- function(source_inventory, rule, contract) {
+country_sna_explorer_audit_sector_bundle <- function(source_inventory, rule, contract, cache = NULL) {
   table_rows <- list()
   role_rows <- list()
   value_rows <- list()
@@ -799,59 +1062,54 @@ country_sna_explorer_audit_sector_bundle <- function(source_inventory, rule, con
     files <- files[nzchar(files)]
     for (file in files) {
       if (!file.exists(file)) next
-      sheets <- tryCatch(readxl::excel_sheets(file), error = function(e) character())
-      if (!length(sheets)) next
-      grid <- tryCatch(country_sna_explorer_read_sheet_grid(file, sheets[[1L]], contract), error = function(e) NULL)
-      if (is.null(grid)) next
       ctx <- data.frame(
         country = sources$country[[i]],
         source_set = sources$source_set[[i]],
         adapter_family = sources$adapter_family[[i]],
         year = sources$year[[i]],
         file = file,
-        sheet = sheets[[1L]],
+        sheet = NA_character_,
         stringsAsFactors = FALSE
       )
-      tables <- country_sna_explorer_detect_tables(grid, ctx, contract)
-      if (!nrow(tables)) next
-      table <- tables[1L, , drop = FALSE]
-      table_rows[[length(table_rows) + 1L]] <- table
-      sector <- country_sna_explorer_sector_from_file(file, rule)
-      value_col <- NA_integer_
-      if (ncol(grid) > 1L) {
-        table_rows_seq <- seq.int(table$row_start, table$row_end)
-        numeric_density <- vapply(seq_len(ncol(grid)), function(col) {
-          if (col == table$code_col) return(0)
-          mean(!is.na(country_sna_explorer_num(grid[table_rows_seq, col, drop = TRUE])))
-        }, numeric(1))
-        value_col <- which.max(numeric_density)
-      }
-      roles <- contract$economic_contract$roles
-      for (role in names(roles)) {
-        if (!identical(roles[[role]]$sector, sector)) next
-        role_rows[[length(role_rows) + 1L]] <- data.frame(
-          country = table$country,
-          source_set = table$source_set,
-          adapter_family = table$adapter_family,
-          year = as.integer(table$year),
-          file = file,
-          sheet = table$sheet,
-          table_id = table$table_id,
-          role = role,
-          role_col = value_col,
-          role_col_letter = country_sna_explorer_col_letter(value_col),
-          role_score = if (!is.na(value_col)) 0.65 else 0,
-          sector_score = 1,
-          direction_score = 0.35,
-          numeric_score = if (!is.na(value_col)) 1 else 0,
-          status = if (!is.na(value_col)) "accepted_low_confidence" else "missing_role",
-          evidence = sprintf("sector file bundle: %s", sector),
-          stringsAsFactors = FALSE
-        )
-      }
-      roles_df <- country_sna_explorer_bind(role_rows)
-      values <- country_sna_explorer_value_candidates(grid, table, roles_df[roles_df$table_id == table$table_id, , drop = FALSE], contract)
-      value_rows[[length(value_rows) + 1L]] <- values
+      evidence <- country_sna_explorer_evidence_cached(cache, "sector_bundle", ctx, function() {
+        sheets <- tryCatch(readxl::excel_sheets(file), error = function(e) character())
+        if (!length(sheets)) return(list(tables = data.frame(), roles = data.frame(), values = data.frame()))
+        ctx$sheet <- sheets[[1L]]
+        grid <- tryCatch(country_sna_explorer_read_sheet_grid(file, ctx$sheet, contract), error = function(e) NULL)
+        if (is.null(grid)) return(list(tables = data.frame(), roles = data.frame(), values = data.frame()))
+        tables <- country_sna_explorer_detect_tables(grid, ctx, contract)
+        if (!nrow(tables)) return(list(tables = data.frame(), roles = data.frame(), values = data.frame()))
+        table <- tables[1L, , drop = FALSE]
+        sector <- country_sna_explorer_sector_from_file(file, rule)
+        value_col <- NA_integer_
+        if (ncol(grid) > 1L) {
+          table_rows_seq <- seq.int(table$row_start, table$row_end)
+          numeric_density <- vapply(seq_len(ncol(grid)), function(col) {
+            if (col == table$code_col) return(0)
+            mean(!is.na(country_sna_explorer_num(grid[table_rows_seq, col, drop = TRUE])))
+          }, numeric(1))
+          value_col <- which.max(numeric_density)
+        }
+        roles <- contract$economic_contract$roles
+        role_rows <- lapply(names(roles), function(role) {
+          if (!identical(roles[[role]]$sector, sector)) return(NULL)
+          data.frame(
+            country = table$country, source_set = table$source_set, adapter_family = table$adapter_family,
+            year = as.integer(table$year), file = file, sheet = table$sheet, table_id = table$table_id,
+            role = role, role_col = value_col, role_col_letter = country_sna_explorer_col_letter(value_col),
+            role_score = if (!is.na(value_col)) 0.65 else 0, sector_score = 1, direction_score = 0.35,
+            numeric_score = if (!is.na(value_col)) 1 else 0,
+            status = if (!is.na(value_col)) "accepted_low_confidence" else "missing_role",
+            evidence = sprintf("sector file bundle: %s", sector), stringsAsFactors = FALSE
+          )
+        })
+        roles_df <- country_sna_explorer_bind(role_rows)
+        list(tables = table, roles = roles_df,
+          values = country_sna_explorer_value_candidates(grid, table, roles_df, contract))
+      })
+      table_rows[[length(table_rows) + 1L]] <- evidence$tables
+      role_rows[[length(role_rows) + 1L]] <- evidence$roles
+      value_rows[[length(value_rows) + 1L]] <- evidence$values
     }
   }
   list(
@@ -1302,6 +1560,33 @@ country_sna_explorer_value_status_summary <- function(value_candidates) {
   country_sna_explorer_bind(rows)
 }
 
+country_sna_explorer_incoming_source_gaps <- function(extension_summary, source_inventory) {
+  if (!nrow(extension_summary)) return(data.frame(stringsAsFactors = FALSE))
+  rows <- lapply(seq_len(nrow(extension_summary)), function(i) {
+    row <- extension_summary[i, , drop = FALSE]
+    incoming <- source_inventory[source_inventory$country == row$country[[1L]] & source_inventory$source_set == "new", , drop = FALSE]
+    current <- source_inventory[source_inventory$country == row$country[[1L]] & source_inventory$source_set == "old", , drop = FALSE]
+    if (nrow(incoming) && any(incoming$status == "matched", na.rm = TRUE)) return(NULL)
+    if (!nrow(current) || !any(current$status == "matched", na.rm = TRUE)) return(NULL)
+    old_years <- row$old_years[[1L]] %||% ""
+    if (is.na(old_years) || !nzchar(old_years)) return(NULL)
+    data.frame(
+      country = row$country,
+      status = "incoming_source_not_supplied",
+      reason = "No incoming source was supplied; the current source is retained.",
+      stringsAsFactors = FALSE
+    )
+  })
+  country_sna_explorer_bind(rows)
+}
+
+# Whole-year missing data can only be established after the deterministic
+# include extractor has successfully recognized and read the incoming source.
+# Explorer discovery alone can establish a missing *file*, never missing data.
+country_sna_explorer_confirmed_missing_years <- function(source_inventory) {
+  data.frame(country = character(), year = integer(), status = character(), reason = character(), stringsAsFactors = FALSE)
+}
+
 country_sna_explorer_value_map <- function(value_candidates) {
   accepted <- value_candidates[value_candidates$status %in% c("accepted_high_confidence", "accepted_low_confidence"), , drop = FALSE]
   if (!nrow(accepted)) return(data.frame(stringsAsFactors = FALSE))
@@ -1481,30 +1766,55 @@ country_sna_explorer_review_actions <- function(extension_summary, structure_sum
   country_sna_explorer_bind(rows)
 }
 
-country_sna_explorer_audit <- function(contract, root, years = country_sna_explorer_years(contract, root), countries = NULL, include_contract = NULL) {
+country_sna_explorer_source_inventory <- function(contract, root, years, countries, progress = NULL) {
+  progress <- progress %||% function(...) invisible(NULL)
   rules <- country_sna_explorer_country_rules(contract)
-  countries <- countries %||% country_sna_explorer_project_countries(contract, root)
   source_rows <- list()
-  for (country in countries) {
+  progress("Discovering current and incoming source files.")
+  for (i in seq_along(countries)) {
+    country <- countries[[i]]
     rule <- rules[[country]]
     if (is.null(rule)) next
+    progress(sprintf("Resolving source files for %s (%s of %s).", country, i, length(countries)))
     source_rows[[length(source_rows) + 1L]] <- country_sna_explorer_resolve_sources(country, "old", rule, years, root)
     source_rows[[length(source_rows) + 1L]] <- country_sna_explorer_resolve_sources(country, "new", rule, years, root)
   }
-  source_inventory <- country_sna_explorer_bind(source_rows)
-  sheet_inventory <- country_sna_explorer_sheet_inventory(source_inventory, contract)
-  rectangular <- country_sna_explorer_audit_rectangular(source_inventory, sheet_inventory, contract)
+  out <- country_sna_explorer_bind(source_rows)
+  if (nrow(out)) return(out)
+  data.frame(
+    country = character(), source_set = character(), adapter_family = character(), selector = character(),
+    year = integer(), file = character(), files = character(), status = character(), matched_by = character(),
+    expected_index = integer(), index_consistency = character(), notes = character(), stringsAsFactors = FALSE
+  )
+}
+
+country_sna_explorer_audit <- function(contract, root, years = country_sna_explorer_years(contract, root), countries = NULL, include_contract = NULL, progress = NULL, source_inventory = NULL, cache = NULL) {
+  progress <- progress %||% function(...) invisible(NULL)
+  rules <- country_sna_explorer_country_rules(contract)
+  countries <- countries %||% country_sna_explorer_project_countries(contract, root)
+  source_inventory <- source_inventory %||% country_sna_explorer_source_inventory(contract, root, years, countries, progress)
+  source_inventory <- source_inventory[source_inventory$country %in% countries, , drop = FALSE]
+  progress("Reading changed workbooks and reusable sheet evidence.")
+  sheet_inventory <- country_sna_explorer_sheet_inventory(source_inventory, contract, progress = progress, cache = cache)
+  configured_countries <- if ("MEX" %in% countries && length(include_contract$country_rules$MEX$layouts %||% list())) "MEX" else character()
+  configured <- if (length(configured_countries)) {
+    country_sna_explorer_configured_layout_audit(source_inventory, include_contract, contract, country = "MEX", progress = progress, cache = cache)
+  } else {
+    list(tables = data.frame(stringsAsFactors = FALSE), roles = data.frame(stringsAsFactors = FALSE), values = data.frame(stringsAsFactors = FALSE))
+  }
+  rectangular <- country_sna_explorer_audit_rectangular(source_inventory, sheet_inventory, contract, excluded_countries = configured_countries, progress = progress, cache = cache)
   sector <- list(tables = data.frame(stringsAsFactors = FALSE), roles = data.frame(stringsAsFactors = FALSE), values = data.frame(stringsAsFactors = FALSE))
   for (country in countries) {
     rule <- rules[[country]]
     if (!is.null(rule) && identical(rule$adapter_family, "sector_file_bundle")) {
-      sector <- country_sna_explorer_audit_sector_bundle(source_inventory[source_inventory$country == country, , drop = FALSE], rule, contract)
+      sector <- country_sna_explorer_audit_sector_bundle(source_inventory[source_inventory$country == country, , drop = FALSE], rule, contract, cache = cache)
     }
   }
   account_values <- country_sna_explorer_account_sheet_values(source_inventory, sheet_inventory, contract)
-  table_candidates <- country_sna_explorer_bind(rectangular$tables, sector$tables)
-  role_candidates <- country_sna_explorer_bind(rectangular$roles, sector$roles)
-  value_candidates <- country_sna_explorer_bind(rectangular$values, sector$values, account_values)
+  progress("Analyzing evidence: coverage, values, and review expectations.")
+  table_candidates <- country_sna_explorer_bind(configured$tables, rectangular$tables, sector$tables)
+  role_candidates <- country_sna_explorer_bind(configured$roles, rectangular$roles, sector$roles)
+  value_candidates <- country_sna_explorer_bind(configured$values, rectangular$values, sector$values, account_values)
   source_match_summary <- country_sna_explorer_source_match_summary(source_inventory)
   extractability_summary <- country_sna_explorer_extractability_summary(source_inventory, value_candidates)
   available_years <- country_sna_explorer_available_years(source_inventory, sheet_inventory, contract)
@@ -1514,6 +1824,8 @@ country_sna_explorer_audit <- function(contract, root, years = country_sna_explo
   year_expectations <- country_sna_explorer_year_expectations(extension_summary, structure_summary)
   variable_expectations <- country_sna_explorer_variable_expectations(year_expectations, include_contract)
   value_status_summary <- country_sna_explorer_value_status_summary(value_candidates)
+  incoming_source_gaps <- country_sna_explorer_incoming_source_gaps(extension_summary, source_inventory)
+  confirmed_missing_years <- country_sna_explorer_confirmed_missing_years(source_inventory)
   overlap_revision_detail <- country_sna_explorer_overlap_revision_detail(value_candidates, contract)
   overlap_revision_summary <- country_sna_explorer_overlap_revision_summary(overlap_revision_detail)
   review_actions <- country_sna_explorer_review_actions(extension_summary, structure_summary)
@@ -1533,6 +1845,8 @@ country_sna_explorer_audit <- function(contract, root, years = country_sna_explo
     overlap_revision_summary = overlap_revision_summary,
     overlap_revision_detail = overlap_revision_detail,
     value_status_summary = value_status_summary,
+    incoming_source_gaps = incoming_source_gaps,
+    confirmed_missing_years = confirmed_missing_years,
     review_actions = review_actions
   )
 }
@@ -1644,7 +1958,7 @@ country_sna_explorer_write_figures <- function(outputs, paths) {
   country_sna_explorer_bind(rows)
 }
 
-country_sna_explorer_write_outputs <- function(outputs, root, contract, output_dir = NULL, run_id = NULL) {
+country_sna_explorer_write_outputs <- function(outputs, root, contract, output_dir = NULL, run_id = NULL, scope = list()) {
   paths <- country_sna_explorer_output_paths(root, contract, output_dir)
   invisible(lapply(paths, dir.create, recursive = TRUE, showWarnings = FALSE))
   run_id <- run_id %||% country_sna_explorer_run_id("explore")
@@ -1671,11 +1985,16 @@ country_sna_explorer_write_outputs <- function(outputs, root, contract, output_d
     "none"
   }
   metadata <- data.frame(
-    key = c("run_id", "run_at", "output_root", "source_fingerprint_status", "tables", "figure_statuses", "review_actions"),
+    key = c("run_id", "run_at", "output_root", "config_source", "active_update", "effective_config_hash", "scope_identity", "years", "source_fingerprint_status", "tables", "figure_statuses", "review_actions"),
     value = c(
       run_id,
       format(Sys.time(), "%Y-%m-%d %H:%M:%S %z"),
       paths$root,
+      scope$config_source %||% "benchmark config/dina.yml",
+      scope$active_update %||% "",
+      scope$effective_config_hash %||% "",
+      scope$identity %||% "",
+      paste(scope$years %||% integer(), collapse = ","),
       source_fingerprint_status,
       table_list,
       paste(unique(figures$status), collapse = ";"),
@@ -1696,17 +2015,73 @@ run_country_sna_explorer <- function(
   output_dir = NULL,
   years = NULL,
   countries = NULL,
-  write_outputs = TRUE
+  write_outputs = TRUE,
+  scope = NULL,
+  progress = NULL,
+  reuse_cache = FALSE
 ) {
+  progress <- progress %||% function(...) invisible(NULL)
   contract <- country_sna_explorer_read_contract(root, contract_path)
   include_contract <- country_sna_explorer_read_include_contract(root, include_contract_path, fallback_contract = contract)
   years <- years %||% country_sna_explorer_years(contract, root)
-  outputs <- country_sna_explorer_audit(contract, root, years = years, countries = countries, include_contract = include_contract)
+  scope <- scope %||% list(config_source = "benchmark config/dina.yml", years = years)
+  scope$years <- sort(unique(as.integer(scope$years %||% years)))
+  countries <- countries %||% scope$countries %||% country_sna_explorer_project_countries(contract, root)
+  scope$countries <- unique(toupper(as.character(countries)))
+  scope$identity <- scope$identity %||% country_sna_explorer_scope_identity(scope, root, contract_path, include_contract_path)
+  if (isTRUE(reuse_cache)) progress("Checking reusable explorer evidence.") else progress("Preparing a fresh source inspection.")
+  source_inventory <- country_sna_explorer_source_inventory(contract, root, years, countries, progress)
+  paths <- country_sna_explorer_output_paths(root, contract, output_dir)
+  evidence_cache <- if (isTRUE(reuse_cache)) {
+    country_sna_explorer_evidence_cache(paths, root, contract_path, include_contract_path, write = write_outputs)
+  } else NULL
+  cached_parts <- list()
+  cache_rows <- list()
+  for (i in seq_along(countries)) {
+    country <- countries[[i]]
+    key <- country_sna_explorer_cache_key(country, source_inventory, scope$identity, contract_path, include_contract_path, root)
+    cache_path <- country_sna_explorer_cache_file(paths, country)
+    cached <- if (isTRUE(reuse_cache)) country_sna_explorer_cache_read(cache_path, key) else NULL
+    if (!is.null(cached)) {
+      progress(sprintf("Reusing cached evidence for %s (%s of %s).", country, i, length(countries)))
+      cached_parts[[country]] <- cached
+      cache_rows[[country]] <- data.frame(country = country, status = "reused", key = key, stringsAsFactors = FALSE)
+    } else {
+      progress(sprintf("Analyzing changed evidence for %s (%s of %s).", country, i, length(countries)))
+      analyzed <- country_sna_explorer_audit(contract, root, years = years, countries = country,
+        include_contract = include_contract, progress = progress,
+        source_inventory = source_inventory[source_inventory$country == country, , drop = FALSE], cache = evidence_cache)
+      cached_parts[[country]] <- analyzed
+      cache_rows[[country]] <- data.frame(country = country, status = "computed", key = key, stringsAsFactors = FALSE)
+      if (isTRUE(reuse_cache) && isTRUE(write_outputs)) country_sna_explorer_cache_write(cache_path, key, analyzed)
+    }
+  }
+  outputs <- country_sna_explorer_merge_outputs(cached_parts)
+  outputs$cache_status <- country_sna_explorer_bind(cache_rows)
+  outputs$cache_status$evidence_reused <- if (is.null(evidence_cache)) 0L else evidence_cache$hits
+  outputs$cache_status$evidence_analyzed <- if (is.null(evidence_cache)) 0L else evidence_cache$misses
+  if (isTRUE(reuse_cache)) {
+    progress(sprintf("Evidence analysis complete: %s table contexts reused, %s analyzed.", evidence_cache$hits, evidence_cache$misses))
+  } else {
+    progress(sprintf("Fresh evidence analysis complete: %s configured countries inspected.", length(countries)))
+  }
+  outputs$scope <- data.frame(
+    config_source = scope$config_source %||% "benchmark config/dina.yml",
+    active_update = scope$active_update %||% "",
+    effective_config_hash = scope$effective_config_hash %||% "",
+    scope_identity = scope$identity,
+    countries = paste(scope$countries %||% character(), collapse = ","),
+    years_first = if (length(scope$years)) min(scope$years) else NA_integer_,
+    years_last = if (length(scope$years)) max(scope$years) else NA_integer_,
+    years = paste(scope$years, collapse = ","),
+    stringsAsFactors = FALSE
+  )
   run_id <- country_sna_explorer_run_id("explore")
   written <- if (isTRUE(write_outputs)) {
-    country_sna_explorer_write_outputs(outputs, root, contract, output_dir, run_id = run_id)
+    progress("Writing review report and evidence.")
+    country_sna_explorer_write_outputs(outputs, root, contract, output_dir, run_id = run_id, scope = scope)
   } else {
-    list(paths = country_sna_explorer_output_paths(root, contract, output_dir))
+    list(paths = paths)
   }
-  list(contract = contract, years = years, outputs = outputs, written = written, paths = written$paths, run_id = run_id)
+  list(contract = contract, years = years, scope = scope, outputs = outputs, written = written, paths = written$paths, run_id = run_id)
 }

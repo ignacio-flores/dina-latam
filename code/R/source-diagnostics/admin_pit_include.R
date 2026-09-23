@@ -90,7 +90,7 @@ admin_pit_include_confirm_id <- function(prefix = "admin-pit-confirm") {
 admin_pit_include_output_paths_for_run <- function(root, contract, output_dir = NULL, run_id = NULL) {
   base <- admin_pit_include_output_root(root, contract, output_dir)
   out <- if (is.null(run_id) || !nzchar(run_id)) base else file.path(base, "runs", run_id)
-  list(root = out, tables = file.path(out, "tables"), logs = file.path(out, "logs"), staged_repo = file.path(out, "staged_repo"))
+  list(root = out, tables = file.path(out, "tables"), logs = file.path(out, "logs"), staged_repo = file.path(out, "staged_repo"), baseline_repo = file.path(out, "baseline_repo"))
 }
 
 admin_pit_include_output_paths_for_confirm <- function(root, contract, output_dir = NULL, confirm_id = NULL) {
@@ -260,7 +260,7 @@ admin_pit_include_wid_population_dependency <- function(rel, dependency_id = "")
 admin_pit_include_wid_population_status <- function(root, rel) {
   population <- admin_pit_include_path(rel, root)
   next_command <- "dina sources explore wid"
-  guidance <- "Run `dina sources explore wid --fetch` if WID artifacts are missing or stale, then `dina sources include wid --dry-run`, then confirm a clean WID include run."
+  guidance <- "Run `dina sources refresh wid` if WID artifacts are missing or stale, then `dina sources explore wid`, then confirm a clean WID include run."
   if (!file.exists(population)) {
     return(list(
       status = "missing_static_dependency",
@@ -268,26 +268,6 @@ admin_pit_include_wid_population_status <- function(root, rel) {
       next_command = next_command,
       detail = paste("Required WID population artifact is missing.", guidance)
     ))
-  }
-  inputs <- c(
-    file.path(root, "config", "dina.yml"),
-    file.path(root, "config", "wid_include.yml"),
-    file.path(root, "code", "R", "source-diagnostics", "wid_common.R"),
-    file.path(root, "code", "R", "source-diagnostics", "wid_explorer.R"),
-    file.path(root, "code", "R", "source-diagnostics", "wid_include.R")
-  )
-  inputs <- inputs[file.exists(inputs)]
-  if (length(inputs)) {
-    latest_input <- max(file.info(inputs)$mtime, na.rm = TRUE)
-    output_mtime <- file.info(population)$mtime[[1L]]
-    if (!is.na(latest_input) && !is.na(output_mtime) && latest_input > output_mtime) {
-      return(list(
-        status = "stale_static_dependency",
-        severity = "blocked",
-        next_command = next_command,
-        detail = paste("WID population artifact is older than the WID source workflow contract/code.", guidance)
-      ))
-    }
   }
   list(
     status = "carried_forward",
@@ -308,26 +288,6 @@ admin_pit_include_survey_pop_status <- function(root, rel) {
       next_command = next_command,
       detail = paste("Required SurveyPop.dta is missing.", guidance)
     ))
-  }
-  inputs <- c(
-    Sys.glob(file.path(root, "input_data", "surveys_CEPAL", "*", "*.dta")),
-    file.path(root, "input_data", "wid", "population_total_adult_npopul.dta"),
-    file.path(root, "config", "dina.yml"),
-    file.path(root, "config", "survey_population_include.yml"),
-    file.path(root, "code", "R", "source-diagnostics", "survey_sources_include.R")
-  )
-  inputs <- inputs[file.exists(inputs)]
-  if (length(inputs)) {
-    latest_input <- max(file.info(inputs)$mtime, na.rm = TRUE)
-    output_mtime <- file.info(survey_pop)$mtime[[1L]]
-    if (!is.na(latest_input) && !is.na(output_mtime) && latest_input > output_mtime) {
-      return(list(
-        status = "stale_static_dependency",
-        severity = "blocked",
-        next_command = next_command,
-        detail = paste("SurveyPop.dta is older than survey-source inputs.", guidance)
-      ))
-    }
   }
   list(
     status = "carried_forward",
@@ -767,23 +727,41 @@ admin_pit_include_years_for_source <- function(exploration, source_id) {
   sort(unique(years[!is.na(years)]))
 }
 
-admin_pit_include_col_years <- function(exploration) {
+admin_pit_include_col_years <- function(exploration, source_set = "new") {
   inventory <- exploration$source_inventory
-  rows <- inventory[inventory$source_id == "col-pit" & inventory$source_set == "new" & inventory$status == "matched", , drop = FALSE]
+  rows <- inventory[inventory$source_id == "col-pit" & inventory$source_set == source_set & inventory$status == "matched", , drop = FALSE]
   if (!nrow(rows)) return(integer())
   years <- unique(unlist(lapply(rows$years, function(x) suppressWarnings(as.integer(unlist(strsplit(as.character(x), "[^0-9]+"))))), use.names = FALSE))
   sort(years[!is.na(years)])
 }
 
-admin_pit_include_col_source_dir <- function(paths, exploration) {
+admin_pit_include_col_source_dir <- function(paths, exploration, source_set = "new") {
   inventory <- exploration$source_inventory
-  rows <- inventory[inventory$source_id == "col-pit" & inventory$source_set == "new" & inventory$status == "matched", , drop = FALSE]
+  rows <- inventory[inventory$source_id == "col-pit" & inventory$source_set == source_set & inventory$status == "matched", , drop = FALSE]
   if (!nrow(rows)) return("")
   row <- rows[order(rows$year_end, decreasing = TRUE), , drop = FALSE][1L, , drop = FALSE]
-  dest <- row$destination[[1L]] %||% row$rel[[1L]]
-  staged <- file.path(paths$staged_repo, dest)
+  dest <- row$destination[[1L]] %||% ""
+  if (is.na(dest) || !nzchar(dest)) dest <- row$rel[[1L]]
+  input_root <- paths$input_repo %||% paths$staged_repo
+  staged <- file.path(input_root, dest)
   nested <- file.path(staged, basename(staged))
   if (dir.exists(nested)) nested else staged
+}
+
+admin_pit_include_source_last_year <- function(exploration, source_id, source_set = "new") {
+  inventory <- exploration$source_inventory
+  rows <- inventory[inventory$source_id == source_id & inventory$source_set == source_set & inventory$status == "matched", , drop = FALSE]
+  years <- suppressWarnings(as.integer(rows$year_end %||% integer()))
+  years <- years[is.finite(years)]
+  if (!length(years)) NA_integer_ else max(years)
+}
+
+admin_pit_include_cleaner_override_path <- function(paths, country, last_year = NA_integer_) {
+  if (!is.finite(last_year)) return("")
+  admin_pit_include_need("yaml")
+  path <- file.path(paths$logs, paste0("cleaner-", country, "-accepted-config.override.yml"))
+  yaml::write_yaml(list(years = list(last = as.integer(last_year))), path)
+  path
 }
 
 admin_pit_include_mock_cleaner <- function(paths, contract, exploration, source_id) {
@@ -811,19 +789,41 @@ admin_pit_include_mock_cleaner <- function(paths, contract, exploration, source_
 admin_pit_include_run_r_candidate_cleaner <- function(root, paths, contract, source_id, country) {
   source(file.path(root, "code", "R", "admin_cleaners", "admin_pit_candidate_cleaners.R"), local = TRUE)
   config_path <- admin_pit_include_config_path(root, contract)
-  override_path <- admin_pit_include_override_path(root, contract)
+  override_path <- admin_pit_include_cleaner_override_path(paths, country, paths$cleaner_last_year %||% NA_integer_)
+  if (!nzchar(override_path)) override_path <- admin_pit_include_override_path(root, contract)
   log <- file.path(paths$logs, paste0("cleaner-", country, ".log"))
   dir.create(dirname(log), recursive = TRUE, showWarnings = FALSE)
+  warnings <- character()
+  messages <- character()
   out <- tryCatch({
-    result <- if (identical(country, "CHL")) {
-      admin_pit_candidate_clean_chl(repo_root = root, input_root = paths$staged_repo, output_root = paths$staged_repo, config_path = config_path, override_path = override_path)
-    } else {
-      admin_pit_candidate_clean_bra(repo_root = root, input_root = paths$staged_repo, output_root = paths$staged_repo, config_path = config_path, override_path = override_path)
-    }
-    writeLines(capture.output(print(result)), log)
+    input_root <- paths$input_repo %||% paths$staged_repo
+    result <- withCallingHandlers(
+      if (identical(country, "CHL")) {
+        admin_pit_candidate_clean_chl(repo_root = root, input_root = input_root, output_root = paths$staged_repo, config_path = config_path, override_path = override_path)
+      } else {
+        admin_pit_candidate_clean_bra(repo_root = root, input_root = input_root, output_root = paths$staged_repo, config_path = config_path, override_path = override_path)
+      },
+      warning = function(w) {
+        warnings <<- c(warnings, conditionMessage(w))
+        invokeRestart("muffleWarning")
+      },
+      message = function(m) {
+        messages <<- c(messages, conditionMessage(m))
+        invokeRestart("muffleMessage")
+      }
+    )
+    diagnostics <- c(
+      if (length(messages)) c("Messages recorded during cleaner execution:", messages, "") else character(),
+      if (length(warnings)) c("Warnings recorded during cleaner execution:", warnings, "") else character()
+    )
+    writeLines(c(diagnostics, capture.output(print(result))), log)
     list(status = "succeeded", log = log, exit_status = 0L, reason = "")
   }, error = function(e) {
-    writeLines(conditionMessage(e), log)
+    diagnostics <- c(
+      if (length(messages)) c("Messages recorded before failure:", messages, "") else character(),
+      if (length(warnings)) c("Warnings recorded before failure:", warnings, "") else character()
+    )
+    writeLines(c(diagnostics, conditionMessage(e)), log)
     list(status = "failed", log = log, exit_status = 1L, reason = conditionMessage(e))
   })
   out
@@ -838,6 +838,10 @@ admin_pit_include_stata_command <- function(root, contract) {
 admin_pit_include_col_temp_do <- function(root, paths, source_dir, output_dir, first_year, last_year) {
   original <- file.path(root, "code", "Stata", "tax-data", "COL-diverse.do")
   lines <- readLines(original, warn = FALSE)
+  # The source cleaner uses project-relative paths.  R's interactive CLI may
+  # be launched from a home directory or an IDE, so establish the supplied
+  # repository root explicitly before Stata reads any of them.
+  lines <- c(sprintf('cd "%s"', normalizePath(root, mustWork = FALSE)), lines)
   lines <- gsub("local lasty_col_tax = 2023", sprintf("local lasty_col_tax = %s", last_year), lines, fixed = TRUE)
   lines <- gsub("forvalues y = 2014/`lasty_col_tax' {", sprintf("forvalues y = %s/`lasty_col_tax' {", first_year), lines, fixed = TRUE)
   route_line <- grep("^\\s*global route\\s*///\\s*$", lines)
@@ -855,16 +859,16 @@ admin_pit_include_col_temp_do <- function(root, paths, source_dir, output_dir, f
   do_file
 }
 
-admin_pit_include_run_col_cleaner <- function(root, paths, contract, exploration) {
+admin_pit_include_run_col_cleaner <- function(root, paths, contract, exploration, source_set = "new") {
   stata <- admin_pit_include_stata_command(root, contract)
   if (!nzchar(stata)) {
     return(list(status = "failed", log = "", exit_status = NA_integer_, reason = "stata_not_configured"))
   }
-  years <- admin_pit_include_col_years(exploration)
+  years <- admin_pit_include_col_years(exploration, source_set = source_set)
   if (!length(years)) {
     return(list(status = "failed", log = "", exit_status = NA_integer_, reason = "col_years_missing"))
   }
-  source_dir <- admin_pit_include_col_source_dir(paths, exploration)
+  source_dir <- admin_pit_include_col_source_dir(paths, exploration, source_set = source_set)
   if (!dir.exists(source_dir)) {
     return(list(status = "failed", log = "", exit_status = NA_integer_, reason = "col_source_dir_missing"))
   }
@@ -876,7 +880,10 @@ admin_pit_include_run_col_cleaner <- function(root, paths, contract, exploration
   if (is.null(status)) status <- 0L
   log <- file.path(paths$logs, "cleaner-COL.log")
   writeLines(as.character(out), log)
-  list(status = if (identical(as.integer(status), 0L)) "succeeded" else "failed", log = log, exit_status = as.integer(status), reason = "")
+  expected <- file.path(paths$staged_repo, admin_pit_include_expected_outputs(contract, "col-pit"))
+  output_missing <- !identical(as.integer(status), 0L) || !length(expected) || any(!file.exists(expected))
+  reason <- if (!identical(as.integer(status), 0L)) "stata_cleaner_failed" else if (output_missing) "stata_completed_without_expected_output" else ""
+  list(status = if (output_missing) "failed" else "succeeded", log = log, exit_status = as.integer(status), reason = reason)
 }
 
 admin_pit_include_cleaner_output_rows <- function(paths, contract, source_id) {
@@ -902,13 +909,17 @@ admin_pit_include_cleaner_output_rows <- function(paths, contract, source_id) {
   admin_pit_include_bind(rows)
 }
 
-admin_pit_include_run_cleaners <- function(root, paths, contract, exploration, source_summary, cleaner_mode = NULL, static_dependencies = data.frame(), aux_dependencies = data.frame(), aux_validation = data.frame()) {
+admin_pit_include_run_cleaners <- function(root, paths, contract, exploration, source_summary, cleaner_mode = NULL, static_dependencies = data.frame(), aux_dependencies = data.frame(), aux_validation = data.frame(), source_set = "new") {
   mode <- cleaner_mode %||% contract$cleaners$mode %||% "real"
   source_ids <- admin_pit_include_supported_ids(contract)
   summaries <- list()
   outputs <- list()
   for (source_id in source_ids) {
     country <- admin_pit_include_source_country(source_id)
+    country_paths <- paths
+    if (identical(source_set, "old")) {
+      country_paths$cleaner_last_year <- admin_pit_include_source_last_year(exploration, source_id, source_set)
+    }
     source_row <- source_summary[source_summary$source_id == source_id & source_summary$country == country, , drop = FALSE]
     static <- static_dependencies[static_dependencies$source_id == source_id & static_dependencies$country == country & static_dependencies$severity == "blocked", , drop = FALSE]
     aux <- aux_dependencies[aux_dependencies$source_id == source_id & aux_dependencies$country == country & aux_dependencies$severity == "blocked", , drop = FALSE]
@@ -919,16 +930,16 @@ admin_pit_include_run_cleaners <- function(root, paths, contract, exploration, s
     } else if (length(dependency_blockers)) {
       run <- list(status = "skipped", log = "", exit_status = NA_integer_, reason = paste("blocked_dependency", paste(dependency_blockers, collapse = ","), sep = ":"))
     } else if (identical(mode, "mock")) {
-      ok <- tryCatch(admin_pit_include_mock_cleaner(paths, contract, exploration, source_id), error = function(e) e)
+      ok <- tryCatch(admin_pit_include_mock_cleaner(country_paths, contract, exploration, source_id), error = function(e) e)
       run <- if (isTRUE(ok)) list(status = "succeeded", log = "", exit_status = 0L, reason = "") else list(status = "failed", log = "", exit_status = 1L, reason = conditionMessage(ok))
     } else if (source_id %in% c("chl-pit", "bra-pit")) {
-      run <- admin_pit_include_run_r_candidate_cleaner(root, paths, contract, source_id, country)
+      run <- admin_pit_include_run_r_candidate_cleaner(root, country_paths, contract, source_id, country)
     } else if (identical(source_id, "col-pit")) {
-      run <- admin_pit_include_run_col_cleaner(root, paths, contract, exploration)
+      run <- admin_pit_include_run_col_cleaner(root, country_paths, contract, exploration, source_set = source_set)
     } else {
       run <- list(status = "failed", log = "", exit_status = 1L, reason = "unsupported_cleaner")
     }
-    output_rows <- admin_pit_include_cleaner_output_rows(paths, contract, source_id)
+    output_rows <- admin_pit_include_cleaner_output_rows(country_paths, contract, source_id)
     missing <- if (nrow(output_rows)) sum(!output_rows$exists) else 0L
     cleaner_status <- if (!identical(run$status, "succeeded") || missing > 0L) "blocked" else "all_good"
     summaries[[length(summaries) + 1L]] <- data.frame(
@@ -1174,8 +1185,10 @@ run_admin_pit_include <- function(
   output_dir = NULL,
   write_outputs = TRUE,
   run_id = NULL,
-  cleaner_mode = NULL
+  cleaner_mode = NULL,
+  progress = NULL
 ) {
+  progress <- progress %||% function(message) invisible(message)
   admin_pit_include_load_explorer(root)
   contract <- admin_pit_include_read_contract(root, contract_path)
   exploration <- admin_pit_include_read_exploration(root, contract, exploration_run)
@@ -1192,7 +1205,22 @@ run_admin_pit_include <- function(
   source_fingerprints <- admin_pit_include_source_fingerprints(root, mappings)
   detail <- admin_pit_include_detail(exploration, mappings, contract)
   source_summary <- admin_pit_include_summary(detail, mappings, contract, static_dependencies = static_dependencies, aux_dependencies = aux_dependencies, aux_validation = aux_validation)
+  progress("Applying country cleaners to incoming PIT sources.")
   cleaners <- admin_pit_include_run_cleaners(root, paths, contract, exploration, source_summary, cleaner_mode = cleaner_mode, static_dependencies = static_dependencies, aux_dependencies = aux_dependencies, aux_validation = aux_validation)
+  # Re-run the same normalizers against accepted source inputs in a disposable
+  # destination.  This is the baseline for comparing the harmonized bracket
+  # inputs that are ready for interpolation; it never reads or writes a prior
+  # generated _clean workbook as an implicit baseline.
+  baseline_paths <- paths
+  baseline_paths$staged_repo <- paths$baseline_repo
+  baseline_paths$logs <- file.path(paths$logs, "accepted-baseline")
+  baseline_paths$input_repo <- root
+  dir.create(baseline_paths$staged_repo, recursive = TRUE, showWarnings = FALSE)
+  dir.create(baseline_paths$logs, recursive = TRUE, showWarnings = FALSE)
+  progress("Applying the same cleaners to accepted PIT sources for comparison.")
+  baseline_cleaners <- admin_pit_include_run_cleaners(root, baseline_paths, contract, exploration, source_summary,
+    cleaner_mode = cleaner_mode, static_dependencies = static_dependencies, aux_dependencies = aux_dependencies,
+    aux_validation = aux_validation, source_set = "old")
   summary <- admin_pit_include_summary(detail, mappings, contract, cleaners$summary, static_dependencies, aux_dependencies, aux_validation)
   status <- admin_pit_include_overall_status(summary)
   manifest <- admin_pit_include_manifest(run_id, status, exploration$root, contract)
@@ -1208,6 +1236,8 @@ run_admin_pit_include <- function(
     include_summary = summary,
     cleaner_summary = cleaners$summary,
     cleaner_outputs = cleaners$outputs,
+    baseline_cleaner_summary = baseline_cleaners$summary,
+    baseline_cleaner_outputs = baseline_cleaners$outputs,
     promotion_plan = promotion_plan,
     source_fingerprints = source_fingerprints,
     promotion_fingerprints = promotion_fingerprints
@@ -1292,7 +1322,8 @@ admin_pit_include_confirm_manifest <- function(confirm_id, include_run, status) 
   data.frame(key = c("confirm_id", "source_type", "workflow", "status", "include_run", "confirmed_at"), value = c(confirm_id, "admin", "admin_pit", status, normalizePath(include_run, mustWork = FALSE), as.character(Sys.time())), stringsAsFactors = FALSE)
 }
 
-admin_pit_include_confirm_sources <- function(root = admin_pit_include_repo_root(), contract_path = file.path(root, "config", "admin_pit_include.yml"), include_run = NULL, output_dir = NULL) {
+admin_pit_include_confirm_sources <- function(root = admin_pit_include_repo_root(), contract_path = file.path(root, "config", "admin_pit_include.yml"), include_run = NULL, output_dir = NULL, progress = NULL) {
+  progress <- progress %||% function(message) invisible(message)
   contract <- admin_pit_include_read_contract(root, contract_path)
   include_run <- admin_pit_include_resolve_run(root, contract, include_run)
   include_manifest <- admin_pit_include_read_csv(file.path(include_run, "logs", "include_manifest.csv"))
@@ -1301,12 +1332,15 @@ admin_pit_include_confirm_sources <- function(root = admin_pit_include_repo_root
   mappings <- admin_pit_include_read_csv(file.path(include_run, "tables", "staged_source_mappings.csv"))
   promotion_plan <- admin_pit_include_read_csv(file.path(include_run, "tables", "promotion_plan.csv"))
   if (!nrow(promotion_plan)) stop("Admin PIT include run has no staged artifacts to promote.", call. = FALSE)
+  progress("Verifying the reviewed source files and staged artifacts.")
   fingerprint_check <- admin_pit_include_verify_source_fingerprints(root, include_run, mappings, contract)
   artifact_fingerprint_check <- admin_pit_include_verify_promotion_fingerprints(include_run, promotion_plan)
   confirm_id <- admin_pit_include_confirm_id()
   paths <- admin_pit_include_output_paths_for_confirm(root, contract, output_dir, confirm_id)
   report <- lapply(seq_len(nrow(promotion_plan)), function(i) {
     row <- promotion_plan[i, , drop = FALSE]
+    progress(sprintf("Creating recoverable backup and including %s/%s: %s %s (%s).",
+      i, nrow(promotion_plan), row$country[[1L]], row$source_id[[1L]], row$artifact_type[[1L]]))
     from <- row$from_rel[[1L]]
     to <- file.path(root, row$to_rel[[1L]])
     backup <- file.path(paths$snapshots, "original", row$to_rel[[1L]])
@@ -1319,6 +1353,7 @@ admin_pit_include_confirm_sources <- function(root = admin_pit_include_repo_root
     data.frame(source_id = row$source_id, country = row$country, artifact_type = row$artifact_type, from = from, to = row$to_rel, backup = if (identical(backup_status, "destination_absent")) "" else admin_pit_include_relative_path(backup, root), backup_status = if (identical(backup_status, "staged")) "backed_up" else backup_status, promote_status = promote_status, stringsAsFactors = FALSE)
   })
   promote_report <- admin_pit_include_bind(report)
+  progress("Writing the inclusion report and confirmation record.")
   dir.create(paths$tables, recursive = TRUE, showWarnings = FALSE)
   dir.create(paths$logs, recursive = TRUE, showWarnings = FALSE)
   utils::write.csv(promote_report, file.path(paths$tables, "promote_report.csv"), row.names = FALSE, na = "")

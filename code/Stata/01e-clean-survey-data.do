@@ -12,10 +12,12 @@ clear all
 global aux_part  ""preliminary"" 
 qui do "code/Stata/auxiliar/aux_general.do"  
 
-*which surveys do I clean?  
+*which surveys do I clean?
 local countries "$all_countries"
 
-// Create directory if it doesnt exist 
+* DINA_SURVEY_REVIEW_INPUTS: _fep edad id_hogar id_pers sexo sys_pe yoemp_pe yjub_pe gan_pe ycap_pe yotr_pe yaim_he yto_pe yto_he categ5_p paren_ee sector_ee ramar_ee tamest_ee li lp pobreza
+
+// Create directory if it doesnt exist
 	local dirpath "intermediary_data/microdata/raw"
 	mata: st_numscalar("exists", direxists(st_local("dirpath")))
 	if (scalar(exists) == 0) {

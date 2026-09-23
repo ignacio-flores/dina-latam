@@ -253,7 +253,9 @@ sources:
     inbox:
       - input_data/_new/sna/CHL/*.xls
       - input_data/_new/sna/CHL/*.xlsx
-    destination: input_data/sna_country_data/CHL/{basename}
+    # The annual publication has a release-specific filename, whereas the
+    # extraction contract reads this stable merged canonical filename.
+    destination: input_data/sna_country_data/CHL/CEI_merged.xls
     downloader: code/R/manual-downloaders/download-country-sna.R
     transformer: code/Stata/01b-add-country-sna.do
     notes: Old downloader has a hard-coded historical URL; current manual refresh should start from the website/index.
@@ -354,11 +356,14 @@ sources:
       - input_data/_new/sna/MEX/*
     inbox_examples:
       - tabulados_si.zip
+    # The source ZIP expands to year-indexed workbooks.  Their names are the
+    # canonical names expected by the MEX extraction contract.
+    destination: input_data/sna_country_data/MEX/{basename}
     downloader: code/R/manual-downloaders/download-country-sna.R
     transformer: code/Stata/01b-add-country-sna.do
     fetch_target: input_data/_new/sna/MEX/tabulados_si.zip
-    integration: none
-    notes: Fetches the ZIP into the SNA _new bucket; no automated source validation/preparation workflow is implemented yet.
+    integration: staged_review
+    notes: Fetches the ZIP into the SNA _new bucket; indexed workbooks are staged by basename for source review before confirmation.
 
   - id: country-sna-per
     family: country_sna

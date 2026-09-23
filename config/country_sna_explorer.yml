@@ -12,7 +12,13 @@ years:
   from_config: config/dina.yml
 
 economic_contract:
-  zero_as_missing: true
+  # A published numeric zero is retained as evidence and a candidate value.
+  # Do not infer missingness from zero without a documented source exception.
+  zero_as_missing: false
+  # Gross primary income (B.5) is a material aggregate. Some workbooks repeat
+  # B.5b for uses and resources; zero on the non-applicable side is not a
+  # candidate B5g value. Other accounts retain published zeros.
+  zero_as_missing_accounts: [B.5]
   code_aliases:
     D.11: ["D.11", "D11"]
     D.1: ["D.1", "D1"]
@@ -90,6 +96,7 @@ economic_contract:
       - {name: ratio_d75_d7, op: ratio, numerator: D75_cei, denominator: D7_cei}
       - {name: ratio_d75_b5g, op: ratio, numerator: D75_cei, denominator: B5g_cei}
       - {name: ratio_d43d44, op: sum, inputs: [ratio_d43_d4, ratio_d44_d4]}
+
   units:
     PER: 1000000
     DOM: 1000000
@@ -106,12 +113,28 @@ economic_contract:
       variables: [B2g_cei, HH_B2g_R]
       reason: "Current country-SNA contract excludes Ecuador aggregated household B2 before 2018."
 
+# The normal SNA review is intentionally narrower than the extraction audit:
+# these are the CEI values read directly by the active imputation task.
+review_focus:
+  scope: direct_pipeline_inputs
+  task_id: 05b-rescale-and-impute
+  script: code/Stata/05b-rescale-and-impute.do
+  groups:
+    - title: Corporate profits
+      measures: [NFC_B5g_cei, FC_B5g_cei]
+    - title: Property-income receipts
+      measures: [NFC_r_D4_cei, FC_r_D4_cei, GG_r_D4_cei, TOT_r_D4_cei, ROW_r_D4_cei]
+    - title: National income
+      measures: [TOT_B5g_cei]
+
 source_discovery:
   filename_year_span_max: 35
   country_rules:
     PER:
       adapter_family: rectangular_workbook
-      old: {type: single_stem, stem: input_data/sna_country_data/PER/CEI_merged}
+      # Mirrors the canonical extraction contract: included annual releases
+      # must become the next review's accepted side, not appear as new again.
+      old: {type: year_pattern, pattern: "input_data/sna_country_data/PER/cei_econtotal_{year}*.xls*"}
       new: {type: year_pattern, pattern: "input_data/_new/sna/PER/cei_econtotal_{year}*.xls*"}
     DOM:
       adapter_family: rectangular_workbook
@@ -167,7 +190,9 @@ source_discovery:
         ROW: S.2000
     ECU:
       adapter_family: rectangular_workbook
-      old: {type: single_pattern, pattern: "input_data/sna_country_data/ECU/mcs_cei_*.xls*"}
+      # Ecuador's release prefix can be mcs or mcn; both are canonical once
+      # included and both use the declared year-sheet variants.
+      old: {type: single_pattern, pattern: "input_data/sna_country_data/ECU/mc?_cei_*.xls*"}
       new: {type: single_pattern, pattern: "input_data/_new/sna/ECU/mcn_cei_*.xls*"}
 
 layout_detection:
@@ -226,12 +251,14 @@ layout_detection:
   direction_labels:
     resources:
       - "recursos"
+      - "r p"
       - "por cobrar"
       - "ingresos"
       - "received"
       - "resources"
     uses:
       - "empleos"
+      - "u a"
       - "usos"
       - "por pagar"
       - "gastos"

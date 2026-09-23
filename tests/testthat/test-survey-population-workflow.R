@@ -100,6 +100,48 @@ test_that("legacy survey_population_include wrapper loads the survey workflow", 
   expect_true(exists("run_survey_pop_include", envir = env, mode = "function"))
 })
 
+test_that("survey exploration limits evidence and blockers to the configured review scope", {
+  root <- survey_pop_fixture_root(incoming = TRUE)
+  # These real-looking files deliberately sit outside the requested update.
+  # Neither may appear in coverage, direct-input checks, or inclusion blockers.
+  survey_pop_fixture_write_dta(root, "input_data/surveys_CEPAL/BOL/BOL_1999N.dta",
+    data.frame(`_fep` = 1, edad = 30, check.names = FALSE))
+  survey_pop_fixture_write_dta(root, "input_data/_new/surveys/BOL_1999N.dta",
+    data.frame(`_fep` = 1, edad = 30, check.names = FALSE))
+
+  explored <- run_survey_pop_explorer(root = root, countries = "MEX", years = 2001L,
+    scope = list(countries = "MEX", years = 2001L), write_outputs = FALSE)
+
+  expect_equal(explored$countries, "MEX")
+  expect_equal(explored$years, 2001L)
+  expect_equal(unique(explored$outputs$year_coverage$country), "MEX")
+  expect_true(all(explored$outputs$source_inventory$country == "MEX"))
+  expect_true(all(explored$outputs$source_inventory$year == 2001L))
+  expect_true(all(explored$outputs$pipeline_input_audit$country == "MEX"))
+  expect_true(all(explored$outputs$pipeline_input_audit$year == 2001L))
+})
+
+test_that("production survey focus matches the active cleaner and aggregates direct-input checks", {
+  contract <- survey_pop_read_contract(repo_root_for_tests)
+  focus <- survey_pop_review_focus(contract, repo_root_for_tests)
+  expect_equal(focus$task, "01e-clean-survey-data")
+  expect_equal(length(focus$variables), 22L)
+  expect_true(all(c("_fep", "sys_pe", "pobreza") %in% focus$variables))
+  inventory <- data.frame(
+    source_set = c("incoming", "incoming"), is_survey = TRUE,
+    file_class = "primary_survey", country = c("AAA", "AAA"), year = c(2023L, 2024L),
+    rel = c("incoming/AAA_2023N.dta", "incoming/AAA_2024N.dta"),
+    status = c("ok", "missing_pipeline_columns"),
+    missing_pipeline_columns = c("", "sys_pe,ycap_pe"), stringsAsFactors = FALSE
+  )
+  audit <- survey_pop_pipeline_input_report(inventory, focus)
+  summary <- survey_pop_pipeline_input_summary(audit)
+  expect_equal(nrow(summary), 1L)
+  expect_equal(summary$inputs_checked, 22L)
+  expect_equal(summary$missing, 2L)
+  expect_equal(sum(audit$status == "available"), 42L)
+})
+
 test_that("survey explorer reports missing and stale SurveyPop.dta", {
   root <- survey_pop_fixture_root()
   missing <- run_survey_pop_explorer(root = root, write_outputs = FALSE)
@@ -129,7 +171,12 @@ test_that("survey include dry-run stages candidate SurveyPop without promoting",
 test_that("survey confirm writes SurveyPop and can restore it", {
   root <- survey_pop_fixture_root(incoming = TRUE)
   include <- run_survey_pop_include(root = root, write_outputs = TRUE, run_id = "survey-confirmable")
-  confirm <- survey_pop_confirm_sources(root = root, include_run = include$paths$root)
+  progress <- character()
+  confirm <- survey_pop_confirm_sources(root = root, include_run = include$paths$root,
+    progress = function(message) progress <<- c(progress, message))
+  expect_true(any(grepl("Verifying .*fingerprint", progress)))
+  expect_true(any(grepl("Creating recoverable backups", progress)))
+  expect_true(any(grepl("Promoting survey artifacts", progress)))
   survey_pop <- file.path(root, "intermediary_data", "population", "SurveyPop.dta")
   expect_true(file.exists(survey_pop))
   promoted <- haven::read_dta(survey_pop)

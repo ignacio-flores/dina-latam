@@ -554,6 +554,7 @@ test_that("isolated COL cleaner uses a temporary patched do-file only", {
     last_year = 2023L
   )
   lines <- readLines(do_file, warn = FALSE)
+  admin_pit_expect_true(identical(lines[[1L]], sprintf('cd "%s"', normalizePath(repo_root_for_tests, mustWork = FALSE))))
   admin_pit_expect_true(any(grepl('global route "/tmp/admin-pit-col-source"', lines, fixed = TRUE)))
   admin_pit_expect_true(any(grepl('forvalues y = 2015/`lasty_col_tax', lines, fixed = TRUE)))
   admin_pit_expect_true(any(grepl('"/tmp/admin-pit-col-output/total-`v\'-COL.xlsx"', lines, fixed = TRUE)))
@@ -577,10 +578,10 @@ test_that("main dina CLI dispatches admin PIT explore and table to isolated modu
   explore <- run_dina_cli(c("sources", "explore", "admin"), root = root)
   expect_equal(explore$status, 0L)
   expect_match(explore$output, "Administrative tax data Explore")
-  expect_match(explore$output, "chl-pit")
+  expect_match(explore$output, "Country summary")
   expect_match(explore$output, "2005-2022 \\(18y\\)")
   expect_match(explore$output, "2\\. Value changes")
-  expect_match(explore$output, "Main PIT values are not checked")
+  expect_match(explore$output, "Harmonized PIT inputs are compared")
   expect_match(explore$output, "dina sources table admin")
   admin_pit_expect_false(grepl("Experimental isolated source workflow", explore$output, fixed = TRUE))
   admin_pit_expect_false(grepl("review: structure=", explore$output, fixed = TRUE))
@@ -636,7 +637,7 @@ test_that("family admin review states its scope and binds auxiliary inputs and a
   before <- dina_hash_path(file.path(root, "input_data", "admin_data"))
   result <- run_dina_cli(c("sources", "explore", "admin"), root)
   expect_equal(result$status, 0L, info = result$output)
-  expect_match(result$output, "Main PIT values are not checked", fixed = TRUE)
+  expect_match(result$output, "Harmonized PIT inputs are compared", fixed = TRUE)
   expect_equal(dina_hash_path(file.path(root, "input_data", "admin_data")), before)
   record <- dina_review_read(root, "admin")
   expect_equal(record$status, "all_good", info = result$output)
@@ -653,4 +654,75 @@ test_that("family admin review states its scope and binds auxiliary inputs and a
   expect_equal(accepted$status, 0L, info = accepted$output)
   expect_equal(dina_review_read(root, "admin")$status, "included")
   expect_null(dina_review_recommendation(root))
+})
+
+test_that("Chile cleaner resolves the Consolidado group from its published label", {
+  source(file.path(repo_root_for_tests, "code", "R", "admin_cleaners", "admin_pit_candidate_cleaners.R"), local = FALSE)
+  layout <- data.frame(
+    v1 = c("", "Año Comercial"), v2 = c("", "Tramo de Rentas"),
+    v3 = c("Per. Naturales contribuyentes de GC", "N° de Personas"),
+    v4 = c("", "Renta Determinada (Millones de pesos)"),
+    v5 = c("", "Impuesto Determinado (Millones de pesos)"),
+    v6 = c("Per. Naturales contribuyentes de 2a Cat.", "N° de Personas"),
+    v7 = c("", "Renta Determinada (Millones de pesos)"),
+    v8 = c("", "Impuesto Determinado (Millones de pesos)"),
+    v9 = c("Consolidado", "N° de Personas"),
+    v10 = c("", "Renta Determinada (Millones de pesos)"),
+    v11 = c("", "Impuesto Determinado (Millones de pesos)"),
+    check.names = FALSE
+  )
+  raw_names <- c("Año Comercial", "Tramo de Rentas", "N° de Personas", "Renta Determinada (Millones de pesos)",
+    "Impuesto Determinado (Millones de pesos)", "N° de Personas.1", "Renta Determinada (Millones de pesos).1",
+    "Impuesto Determinado (Millones de pesos).1", "N° de Personas.2", "Renta Determinada (Millones de pesos).2",
+    "Impuesto Determinado (Millones de pesos).2")
+  expect_equal(admin_pit_candidate_chl_consolidated_columns(layout, raw_names), 9:11)
+  layout$v9[1] <- ""
+  expect_error(admin_pit_candidate_chl_consolidated_columns(layout, raw_names), "Consolidado")
+})
+
+test_that("admin review compares interpolation-ready bracket values at published thresholds", {
+  skip_if_not_installed("openxlsx")
+  source_cli_for_tests()
+  root <- tempfile("admin-harmonized-review-")
+  dir.create(root, recursive = TRUE)
+  if (requireNamespace("withr", quietly = TRUE)) {
+    withr::defer(unlink(root, recursive = TRUE), envir = parent.frame())
+  }
+  write_clean <- function(path, p, bracketavg) {
+    dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+    wb <- openxlsx::createWorkbook()
+    openxlsx::addWorksheet(wb, "2022")
+    openxlsx::writeData(wb, "2022", data.frame(
+      p = p, thr = 100, bracketavg = bracketavg, average = 150, popsize = 10
+    ))
+    openxlsx::saveWorkbook(wb, path, overwrite = TRUE)
+  }
+  rel <- "input_data/admin_data/CHL/_clean/total-pre-CHL.xlsx"
+  candidate_path <- file.path(root, "staged", rel)
+  baseline_root <- file.path(root, "baseline")
+  write_clean(candidate_path, 0.6, 125)
+  write_clean(file.path(baseline_root, rel), 0.5, 100)
+  prepared <- list(
+    contract = dina_read_yaml(file.path(repo_root_for_tests, "config", "admin_pit_include.yml")),
+    outputs = list(cleaner_outputs = data.frame(
+      source_id = "chl-pit", country = "CHL", rel = rel, staged_to = candidate_path, exists = TRUE,
+      stringsAsFactors = FALSE
+    )),
+    paths = list(baseline_repo = baseline_root)
+  )
+  values <- dina_review_admin_harmonized_values(prepared)$rows
+  expect_true(any(values$measure == "bracket average" & values$result == "revised"))
+  expect_false(any(values$result %in% c("new observation", "removed observation")))
+  expect_false(any(values$measure == "p"))
+})
+
+test_that("Chile candidate cleaner finds its helper at the supplied repository root", {
+  source(file.path(repo_root_for_tests, "code", "R", "admin_cleaners", "admin_pit_candidate_cleaners.R"), local = FALSE)
+  root <- tempfile("chl-helper-root-"); staged <- tempfile("chl-helper-stage-")
+  helper <- file.path(root, "code", "R", "source-helpers", "chl_uta.R")
+  dir.create(dirname(helper), recursive = TRUE); dir.create(staged, recursive = TRUE)
+  writeLines("chl_uta_load <- function(input_root, years, allow_fetch) data.frame(uta = '123', year = years)", helper)
+  result <- admin_pit_candidate_read_chl_uta(staged, 2005:2006, repo_root = root)
+  expect_equal(result$year, 2005:2006)
+  expect_equal(result$uta, c("123", "123"))
 })

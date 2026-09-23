@@ -296,18 +296,33 @@ admin_pit_explorer_years_for_path <- function(source_id, path, rule) {
 
 admin_pit_explorer_excel_sheet_status <- function(path, expected_sheets) {
   ext <- tolower(tools::file_ext(path))
-  sheets <- tryCatch({
-    if (identical(ext, "xlsb")) {
-      if (!admin_pit_explorer_has("readxlsb")) {
-        return(list(status = "structure_review_needed", evidence = "readxlsb_not_installed"))
-      }
-      readxlsb::excel_sheets(path)
-    } else {
-      if (!admin_pit_explorer_has("readxl")) {
-        return(list(status = "structure_review_needed", evidence = "readxl_not_installed"))
-      }
-      readxl::excel_sheets(path)
+  # readxlsb intentionally exposes a reader, not a sheet-inventory helper.
+  # Probe each declared sheet directly; this is exact, works across readxlsb
+  # versions, and never relies on fuzzy sheet-name matching.
+  if (identical(ext, "xlsb")) {
+    if (!admin_pit_explorer_has("readxlsb")) {
+      return(list(status = "structure_review_needed", evidence = "readxlsb_not_installed"))
     }
+    probes <- lapply(expected_sheets, function(sheet) tryCatch({
+      readxlsb::read_xlsb(path, sheet = sheet, range = "A1:A1", col_names = FALSE)
+      list(ok = TRUE, error = "")
+    }, error = function(e) list(ok = FALSE, error = conditionMessage(e))))
+    available <- vapply(probes, `[[`, logical(1), "ok")
+    errors <- vapply(probes, `[[`, character(1), "error")
+    missing <- expected_sheets[!available & grepl("cannot find worksheet", errors, ignore.case = TRUE)]
+    if (length(missing)) {
+      return(list(status = "blocked_structure_mismatch", evidence = paste("missing_sheets", paste(missing, collapse = ","), sep = ":")))
+    }
+    if (any(!available)) {
+      return(list(status = "structure_review_needed", evidence = paste0("sheet_read_error:", errors[which(!available)[[1L]]])))
+    }
+    return(list(status = "structure_evidence_available", evidence = paste("sheets", paste(expected_sheets, collapse = ","), sep = ":")))
+  }
+  sheets <- tryCatch({
+    if (!admin_pit_explorer_has("readxl")) {
+      return(list(status = "structure_review_needed", evidence = "readxl_not_installed"))
+    }
+    readxl::excel_sheets(path)
   }, error = function(e) return(structure(conditionMessage(e), class = "admin_pit_error")))
   if (inherits(sheets, "admin_pit_error")) {
     return(list(status = "structure_review_needed", evidence = paste0("sheet_read_error:", as.character(sheets))))
@@ -1005,26 +1020,6 @@ admin_pit_explorer_survey_pop_status <- function(root, path) {
       detail = "Required SurveyPop.dta is missing. Run `dina sources explore surveys`, then `dina sources include surveys --dry-run`, then confirm a clean surveys include run."
     ))
   }
-  inputs <- c(
-    Sys.glob(file.path(root, "input_data", "surveys_CEPAL", "*", "*.dta")),
-    file.path(root, "input_data", "wid", "population_total_adult_npopul.dta"),
-    file.path(root, "config", "dina.yml"),
-    file.path(root, "config", "survey_population_include.yml"),
-    file.path(root, "code", "R", "source-diagnostics", "survey_sources_include.R")
-  )
-  inputs <- inputs[file.exists(inputs)]
-  if (length(inputs)) {
-    latest_input <- max(file.info(inputs)$mtime, na.rm = TRUE)
-    output_mtime <- file.info(survey_pop)$mtime[[1L]]
-    if (!is.na(latest_input) && latest_input > output_mtime) {
-      return(list(
-        status = "stale_static_dependency",
-        severity = "blocked",
-        next_command = "dina sources explore surveys",
-        detail = "SurveyPop.dta is older than survey-source inputs. Run `dina sources explore surveys`, then `dina sources include surveys --dry-run`, then confirm a clean surveys include run."
-      ))
-    }
-  }
   list(
     status = "available_static_dependency",
     severity = "info",
@@ -1036,7 +1031,7 @@ admin_pit_explorer_survey_pop_status <- function(root, path) {
 admin_pit_explorer_wid_population_status <- function(root, path) {
   population <- admin_pit_explorer_path(path, root)
   next_command <- "dina sources explore wid"
-  guidance <- "Run `dina sources explore wid --fetch` if WID artifacts are missing or stale, then `dina sources include wid --dry-run`, then confirm a clean WID include run."
+  guidance <- "Run `dina sources refresh wid` if WID artifacts are missing or stale, then `dina sources explore wid`, then confirm a clean WID include run."
   if (!file.exists(population)) {
     return(list(
       status = "missing_static_dependency",
@@ -1044,26 +1039,6 @@ admin_pit_explorer_wid_population_status <- function(root, path) {
       next_command = next_command,
       detail = paste("Required WID population artifact is missing.", guidance)
     ))
-  }
-  inputs <- c(
-    file.path(root, "config", "dina.yml"),
-    file.path(root, "config", "wid_include.yml"),
-    file.path(root, "code", "R", "source-diagnostics", "wid_common.R"),
-    file.path(root, "code", "R", "source-diagnostics", "wid_explorer.R"),
-    file.path(root, "code", "R", "source-diagnostics", "wid_include.R")
-  )
-  inputs <- inputs[file.exists(inputs)]
-  if (length(inputs)) {
-    latest_input <- max(file.info(inputs)$mtime, na.rm = TRUE)
-    output_mtime <- file.info(population)$mtime[[1L]]
-    if (!is.na(latest_input) && latest_input > output_mtime) {
-      return(list(
-        status = "stale_static_dependency",
-        severity = "blocked",
-        next_command = next_command,
-        detail = paste("WID population artifact is older than the WID source workflow contract/code.", guidance)
-      ))
-    }
   }
   list(
     status = "available_static_dependency",

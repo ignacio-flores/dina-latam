@@ -66,6 +66,8 @@ The noninteractive home prints the same statuses and equivalent commands.
   inventory. Explain unavailable comparisons and their cause. Do not label empty
   cells as skipped checks: distinguish expected absence, missing expected values,
   outside extracted coverage, and undetermined applicability.
+- After an Explore, Include, or review-table result in a terminal menu, keep the
+  report on screen until the user presses Enter; never redraw the next menu over it.
 - Family selection, home, and recommendations share one status calculation.
   Included sources do not imply rebuilt outputs. No incoming files says nothing
   about updates available from the producer.
@@ -87,11 +89,15 @@ The noninteractive home prints the same statuses and equivalent commands.
   update file override benchmark defaults.
   `dina update config show` is compact; `--full` exposes effective YAML and waits
   for Enter when opened from the menu. `q` returns to the workspace.
-  `edit` explains the editor's save/exit keys and waits for the editor to return;
-  `check` runs the same validation used after editing. A missing baseline affects export,
-  not source inspection. Resume preserves comments and manual changes.
-- Home shows recorded pipeline outcomes immediately. File freshness is inspected
-  when you open Pipeline or use `dina run list`, so startup does not scan all tasks.
+  `edit` opens the update file in a graphical editor and immediately returns to
+  DINA; save there, then choose Validate configuration and baseline.
+  `check` records a receipt in the
+  active update. The dashboard shows whether that receipt is current, out of date,
+  or needs attention without reopening the baseline DTA. A missing baseline affects
+  export, not source inspection. Resume preserves comments and manual changes.
+- Home shows recorded pipeline outcomes immediately. Pipeline and result freshness
+  are inspected only when you open those areas, so startup does not scan all tasks or
+  hash comparison artifacts.
   Pipeline shows the last recorded execution and declared output observations
   separately. `dina run list` and `dina run why TASK` are the inspection interface;
   existing execution commands and flags retain their behavior.

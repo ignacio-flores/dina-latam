@@ -1,5 +1,56 @@
 # Four entry points for an update; execution remains in the existing runner.
 # The same text is printed by commands and kept on screen by terminal menus.
+
+# Stata is normally configured once per update.  Keep this separate from
+# dina_stata_status(): that helper intentionally describes the benchmark
+# configuration for `dina doctor`, while the workspace must honour an active
+# update's override before proposing a command to save.
+dina_settings_stata_status <- function(root, session = dina_load_session(root = root)) {
+  config <- dina_session_config(session, root, expand_env = FALSE)
+  environment <- trimws(Sys.getenv("DINA_STATA_CMD", unset = ""))
+  configured <- trimws(config$stata$command %||% "")
+  configured <- if (identical(configured, "${DINA_STATA_CMD}")) "" else configured
+  command <- if (nzchar(environment)) environment else configured
+  source <- if (nzchar(environment)) "DINA_STATA_CMD" else if (nzchar(configured)) "this update's configuration" else "not configured"
+  available <- nzchar(command) && dina_command_available(command)
+  discovered <- if (!available) dina_discover_stata() else list(command = "", source = "none")
+  proposal <- if (!nzchar(environment) && !available) discovered$command %||% "" else ""
+  list(
+    command = command,
+    source = source,
+    configured = nzchar(command),
+    available = available,
+    environment = environment,
+    proposal = proposal,
+    proposal_source = discovered$source %||% "none"
+  )
+}
+
+dina_settings_stata_lines <- function(root, session = dina_load_session(root = root)) {
+  stata <- dina_settings_stata_status(root, session)
+  bold <- function(x) if (dina_cli_has("cli")) cli::style_bold(x) else x
+  warning <- function(x) if (dina_cli_has("cli")) cli::col_yellow(x) else x
+  if (isTRUE(stata$available)) {
+    return(c(bold("  Stata"), paste("    Command:", stata$command),
+      dina_cli_dim(paste("    Source:", stata$source))))
+  }
+  if (nzchar(stata$environment)) {
+    return(c(bold("  Stata"), warning("    DINA_STATA_CMD is set but is not runnable."),
+      dina_cli_dim(paste("    Configured command:", stata$environment)),
+      dina_cli_dim("    Update DINA_STATA_CMD in your shell, then reopen Configuration.")))
+  }
+  if (nzchar(stata$proposal)) {
+    state <- if (isTRUE(stata$configured)) "    The configured Stata command is not runnable." else "    Stata is not configured for this update."
+    detected_label <- if (isTRUE(stata$configured)) "    Detected replacement:" else "    Detected:"
+    configured_line <- if (isTRUE(stata$configured)) dina_cli_dim(paste("    Configured command:", stata$command)) else character()
+    return(c(bold("  Stata"), warning(state), configured_line, paste(detected_label, stata$proposal),
+      dina_cli_dim("    Choose ‘Use detected Stata’ below to save it after confirmation.")))
+  }
+  c(bold("  Stata"), warning("    No runnable Stata executable was found."),
+    dina_cli_dim("    Install Stata or set DINA_STATA_CMD, then reopen Configuration."))
+}
+
+# The same text is printed by commands and kept on screen by terminal menus.
 dina_settings_lines <- function(root, session = dina_load_session(root = root), full = FALSE,
                                 check = dina_settings_check(root, session)) {
   cfg <- check$config
@@ -55,6 +106,14 @@ dina_settings_lines <- function(root, session = dina_load_session(root = root), 
     lines <- c(lines, warning(unlist(lapply(paste("!", problems), wrap))),
       dina_cli_dim("    Affects final export; source inspection is available."))
   }
+  validation <- dina_config_validation_state(root, session, check)
+  lines <- c(lines, "", bold("  Validation"), paste("    Status:", validation$label),
+    dina_cli_dim(wrap(paste("    ", validation$detail), 4L)),
+    dina_cli_dim("    Stata readiness is checked separately below; it is required only by Stata tasks."))
+  if (nzchar(validation$action %||% "")) {
+    lines <- c(lines, dina_cli_dim(paste("    Next:", validation$action)))
+  }
+  lines <- c(lines, "", dina_settings_stata_lines(root, session))
   rows <- if (!is.null(session) && !length(check$errors)) dina_config_override_diff_rows(root, dina_config_override(session, root)) else data.frame()
   if (nrow(rows)) {
     other <- rows[rows$current != rows$proposed & !rows$key %in% c("years.first", "years.last", "countries",
@@ -85,8 +144,13 @@ dina_settings_lines <- function(root, session = dina_load_session(root = root), 
   lines
 }
 
-dina_settings_print <- function(root, session = dina_load_session(root = root), full = FALSE) {
-  check <- dina_settings_check(root, session)
+dina_settings_print <- function(root, session = dina_load_session(root = root), full = FALSE, validate_baseline = TRUE,
+                                progress = NULL) {
+  check <- dina_settings_check(root, session, validate_baseline = validate_baseline, progress = progress)
+  if (isTRUE(validate_baseline) && !is.null(session)) {
+    session <- dina_record_config_validation(root, session, check, progress = progress)
+    dina_progress(progress, if (check$valid) "Configuration validation passed." else "Configuration validation needs attention.")
+  }
   for (line in dina_settings_lines(root, session, full, check)) dina_cli_cat(line)
   invisible(check)
 }
@@ -125,27 +189,53 @@ dina_workspace_config <- function(root, input = "stdin", is_terminal = isatty(st
   notice <- character()
   repeat {
     session <- dina_load_session(root = root)
-    check <- dina_settings_check(root, session)
+    check <- dina_settings_check(root, session, validate_baseline = FALSE)
     context <- c(dina_settings_lines(root, session, check = check), notice)
     if (!is_terminal || is.null(session)) {
       for (line in context) dina_cli_cat(line)
       return(invisible(NULL))
     }
-    action <- dina_menu_select("Configuration actions", list(
-      dina_menu_action("edit", "Edit update file", command = "dina update config edit"),
-      dina_menu_action("check", "Check settings", command = "dina update config check"),
+    stata <- dina_settings_stata_status(root, session)
+    actions <- list(
+      dina_menu_action("edit", "Open update file in editor", command = "dina update config edit",
+        description = "Opens the update YAML in a graphical editor; save there, then validate here."),
+      dina_menu_action("check", "Validate configuration and baseline", command = "dina update config check",
+        description = "Checks the settings, baseline fields, and comparison keys. This may take a moment.")
+    )
+    if (!is.null(session) && nzchar(stata$proposal)) {
+      actions <- c(actions, list(dina_menu_action("stata", "Use detected Stata", command = stata$proposal,
+        description = "Shows the detected executable and asks before saving it for this update.")))
+    }
+    actions <- c(actions, list(
       dina_menu_action("full", "Details and file paths", command = "dina update config show --full"),
-      dina_menu_action("back", "Back to workspace")), prompt = "Review the settings above. q returns to the workspace.",
+      dina_menu_action("back", "Back to workspace")))
+    action <- dina_menu_select("Configuration actions", actions, prompt = "Review the settings above. q returns to the workspace.",
       input = input, is_terminal = is_terminal, context = context)
     if (is.null(action) || action %in% c("quit", "back")) return(invisible(NULL))
     notice <- character()
     if (action == "edit") {
       dina_update_config_edit(session, root)
-      dina_cli_prompt_value("Press Enter to return to Configuration: ", input = input, is_terminal = is_terminal)
+      notice <- "Configuration file opened in your editor. Save it there, then validate configuration and baseline."
+    } else if (action == "stata") {
+      dina_cli_header("Configure Stata")
+      dina_cli_cat(sprintf("Detected executable: %s", stata$proposal))
+      dina_cli_cat(dina_cli_dim("This is saved only in the active update's configuration override. It does not run Stata."))
+      confirmed <- dina_menu_confirm("Configure Stata", "Save this executable for the active update?",
+        default = FALSE, input = input, is_terminal = is_terminal, preserve_screen = TRUE)
+      if (confirmed) {
+        dina_session_config_set(session, root, "stata.command", stata$proposal)
+        notice <- paste("Stata configured for this update:", stata$proposal)
+      } else {
+        notice <- "Stata configuration was left unchanged."
+      }
     } else if (action == "full") {
-      dina_settings_print(root, session, full = TRUE)
+      dina_settings_print(root, session, full = TRUE, validate_baseline = FALSE)
       dina_cli_prompt_value("Press Enter to return to Configuration: ", input = input, is_terminal = is_terminal)
-    } else notice <- "Settings checked again; the outcome is shown above."
+    } else {
+      checked <- dina_cli_validate_configuration(root, session)
+      notice <- if (checked$valid) character() else "Configuration needs attention; correct the issues shown above."
+      dina_cli_prompt_value("Press Enter to return to Configuration: ", input = input, is_terminal = is_terminal)
+    }
   }
 }
 
@@ -177,18 +267,27 @@ dina_pipeline_print <- function(root) {
 }
 
 dina_workspace_lines <- function(root, session = dina_load_session(root = root)) {
-  check <- dina_settings_check(root, session); cfg <- check$config
+  check <- dina_settings_check(root, session, validate_baseline = FALSE); cfg <- check$config
+  validation <- dina_config_validation_state(root, session, check)
   pipeline <- tryCatch(dina_pipeline_snapshot(root, session, inspect_files = FALSE), error = function(e) list(failures = NA, latest = NULL))
-  results <- dina_results_inventory(root)
-  families <- vapply(names(dina_review_families()), function(family) paste0(family, ": ", dina_review_family_status(root, family)$label), character(1))
-  c("DINA — Update workspace", paste("Active update:", session$id %||% "none"), "",
-    paste("Configuration:", if (check$valid) "Valid" else "Needs attention"),
-    sprintf("  %s · %s–%s", paste(unlist(cfg$countries), collapse = ", "), cfg$years$first %||% "?", cfg$years$last %||% "?"),
-    "Sources:", paste0("  ", families),
-    sprintf("Pipeline: %s recorded failures", pipeline$failures),
-    paste("  Last recorded:", if (is.null(pipeline$latest)) "none" else paste(pipeline$latest, pipeline$run$status)),
-    "  File freshness is checked when you open Pipeline.",
-    sprintf("Results: %s final-series files; %s comparison graphs", length(results$series), nrow(results$graphs)))
+  results <- dina_results_inventory(root, verify = FALSE)
+  families <- vapply(names(dina_review_families()), function(family) {
+    state <- dina_review_family_status(root, family)
+    paste0("    ", toupper(family), ": ", dina_review_state_label(state))
+  }, character(1))
+  c("DINA — Update workspace", "",
+    "  Active update", paste0("    ", session$id %||% "none"), "",
+    "Configuration", paste0("  Status: ", validation$label),
+    "  Scope", paste0("    Countries: ", paste(unlist(cfg$countries), collapse = ", ")),
+    sprintf("    Years: %s–%s", cfg$years$first %||% "?", cfg$years$last %||% "?"),
+    paste0("  ", validation$detail), if (nzchar(validation$action %||% "")) paste0("  Next: ", validation$action) else NULL, "",
+    "Sources", "  Review state", families, "",
+    "Pipeline", sprintf("  Recorded failures: %s", pipeline$failures),
+    paste("  Last recorded run:", if (is.null(pipeline$latest)) "none" else paste(pipeline$latest, pipeline$run$status)),
+    "  File freshness: checked when you open Pipeline.", "",
+    "Results", sprintf("  Final-series files: %s", length(results$series)),
+    sprintf("  Comparison graphs: %s", nrow(results$graphs)),
+    "  Artifact verification: Not inspected; open Results to verify freshness.")
 }
 
 dina_workspace_home <- function(root, input = "stdin", is_terminal = isatty(stdin())) {
@@ -196,7 +295,7 @@ dina_workspace_home <- function(root, input = "stdin", is_terminal = isatty(stdi
     session <- dina_load_session(root = root)
     lines <- dina_workspace_lines(root, session)
     proposal <- tryCatch(dina_state_proposal(dina_dashboard_state_fast(session, root)), error = function(e) NULL)
-    if (!is.null(proposal)) lines <- c(lines, "", paste("Suggestion:", proposal$command), paste("  ", proposal$why))
+    if (!is.null(proposal)) lines <- c(lines, "", "Next step", paste("  Command:", proposal$command), paste("  Why:", proposal$why))
     if (!is_terminal) {
       for (line in lines) dina_cli_cat(line)
       dina_cli_cat("\ndina update config show · dina sources · dina run list · dina results\nOther actions: dina commands")

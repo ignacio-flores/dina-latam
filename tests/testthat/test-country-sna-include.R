@@ -57,6 +57,9 @@ test_that("country SNA include contract loads literal Excel column letters", {
   contract <- country_sna_include_read_contract(repo_root_for_tests)
   expect_equal(contract$output_root, "output/experiments/country_sna_include")
   expect_equal(length(contract$countries), 9L)
+  expect_false(isTRUE(contract$thresholds$zero_as_missing))
+  expect_true(country_sna_include_zero_as_missing(contract, "B.5"))
+  expect_false(country_sna_include_zero_as_missing(contract, "D.4"))
 
   flattened <- unlist(contract$country_rules, recursive = TRUE, use.names = FALSE)
   if (any(vapply(flattened, identical, logical(1), FALSE))) {
@@ -65,6 +68,16 @@ test_that("country SNA include contract loads literal Excel column letters", {
   if (!("N" %in% flattened)) {
     fail("Contract should include literal Excel column N.")
   }
+})
+
+test_that("country SNA include retains a published zero when policy requires it", {
+  rows <- data.frame(
+    role = "households_r", code = "D.4", value_raw = "0", value = 0,
+    stringsAsFactors = FALSE
+  )
+  picked <- country_sna_include_pick_from_group(rows, "households_r", "D.4", zero_as_missing = FALSE)
+  expect_equal(picked$status, "matched")
+  expect_equal(picked$value, 0)
 })
 
 test_that("country SNA include imports default countries from project config", {
@@ -80,6 +93,31 @@ test_that("country SNA include imports default countries from project config", {
 
   loaded <- country_sna_include_read_contract(root, contract_path)
   expect_equal(loaded$countries, c("MEX", "AAA"))
+})
+
+test_that("country SNA include stages every documented sector-bundle member", {
+  root <- tempfile("country-sna-stage-bundle-")
+  dir.create(root, recursive = TRUE)
+  members <- file.path(root, c("CSI_3.2025_SC_S.1301.xlsx", "CSI_3.2025_SC_S.1402.xlsx", "CSI_3.2025_SC_S.2000.xlsx"))
+  file.create(members)
+  inventory <- data.frame(
+    country = "URY", source_set = "new", selector = "sector_file_bundle",
+    file = members[[1L]], files = paste(members, collapse = "|"), stringsAsFactors = FALSE
+  )
+  expanded <- country_sna_include_stage_candidate_rows(inventory)
+  expect_equal(expanded$file, members)
+
+  non_bundle <- inventory
+  non_bundle$selector <- "year_pattern"
+  expanded_non_bundle <- country_sna_include_stage_candidate_rows(non_bundle)
+  expect_equal(expanded_non_bundle$file, members[[1L]])
+})
+
+test_that("Peru's include contract resolves its documented yearly releases", {
+  contract <- country_sna_include_read_contract(repo_root_for_tests)
+  source <- contract$country_rules$PER$source
+  expect_equal(source$type, "year_pattern")
+  expect_match(source$pattern, "\\{year\\}")
 })
 
 test_that("country SNA include Mexico resolver prefers index metadata", {
@@ -120,9 +158,66 @@ test_that("country SNA include sheet resolver accepts configured variants", {
   openxlsx::writeData(wb, "CEI_2024p", data.frame(x = 1))
   openxlsx::saveWorkbook(wb, path, overwrite = TRUE)
 
-  resolved <- country_sna_include_resolve_sheet(path, 2024L, list(type = "year_variants"))
+  sheet_rule <- list(type = "year_variants", variants = c("CEI_{year}", "CEI_{year}p"))
+  resolved <- country_sna_include_resolve_sheet(path, 2024L, sheet_rule)
   expect_equal(resolved$status, "matched")
   expect_equal(resolved$sheet, "CEI_2024p")
+  expect_equal(resolved$match_kind, "declared_variant")
+
+  openxlsx::addWorksheet(wb, "CEI_2023")
+  openxlsx::writeData(wb, "CEI_2023", data.frame(x = 1))
+  openxlsx::saveWorkbook(wb, path, overwrite = TRUE)
+
+  resolved <- country_sna_include_resolve_sheet(path, 2023L, sheet_rule)
+  expect_equal(resolved$status, "matched")
+  expect_equal(resolved$sheet, "CEI_2023")
+  expect_equal(resolved$match_kind, "exact")
+})
+
+test_that("country SNA include rejects unsupported or underspecified sheet rules", {
+  contract <- country_sna_include_fixture_contract(tempdir())
+  contract$country_rules$AAA$layouts[[1L]]$sheet <- list(type = "fuzzy")
+  expect_error(country_sna_include_validate_contract(contract), "Unsupported sheet rule")
+  contract$country_rules$AAA$layouts[[1L]]$sheet <- list(type = "template", value = "CEI")
+  expect_error(country_sna_include_validate_contract(contract), "must contain")
+})
+
+test_that("Ecuador's current layout treats provisional sheet suffixes as variants", {
+  contract <- country_sna_include_read_contract(repo_root_for_tests)
+  layout <- country_sna_include_layout_for_year(contract$country_rules$ECU, 2023L)
+  expect_equal(layout$sheet$type, "year_variants")
+  expect_equal(layout$sheet$variants, c("CEI_{year}", "CEI_{year}p"))
+  expect_true("CEI_2023" %in% country_sna_include_sheet_candidates(layout$sheet, 2023L))
+  expect_true("CEI_2023p" %in% country_sna_include_sheet_candidates(layout$sheet, 2023L))
+})
+
+test_that("country SNA include rejects exploration from a different effective scope", {
+  root <- tempfile("country-sna-scope-")
+  dir.create(file.path(root, "explore", "tables"), recursive = TRUE)
+  utils::write.csv(data.frame(
+    config_source = "benchmark config/dina.yml", years = "2000,2001,2002,2003", effective_config_hash = "old", scope_identity = "old-scope",
+    stringsAsFactors = FALSE
+  ), file.path(root, "explore", "tables", "scope.csv"), row.names = FALSE)
+  expect_error(
+    country_sna_include_assert_exploration_scope(file.path(root, "explore"), list(
+      config_source = "active update example (effective configuration)", years = 2000:2024,
+      effective_config_hash = "new", identity = "new-scope"
+    )),
+    "different effective configuration"
+  )
+})
+
+test_that("whole-year absence requires a recognized source and successful extraction setup", {
+  detail <- data.frame(
+    country = c("AAA", "AAA"), year = c(2024L, 2024L), variable = c("D4_cei", "B5g_cei"),
+    expected_status = "expected_value", status = "warning_missing_expected_value",
+    extract_status = c("no_code_match", "zero_treated_missing"),
+    source_file = "/tmp/incoming.xlsx", sheet = "CEI_2024", stringsAsFactors = FALSE
+  )
+  confirmed <- country_sna_include_confirmed_missing_years(detail)
+  expect_equal(confirmed$status, "whole_year_missing_confirmed")
+  detail$extract_status[[1L]] <- "missing_sheet"
+  expect_equal(nrow(country_sna_include_confirmed_missing_years(detail)), 0L)
 })
 
 test_that("country SNA include single-stem resolver supports extension priority", {
@@ -353,6 +448,32 @@ test_that("country SNA include confirm backs up promoted sources and restore rev
   restored <- country_sna_include_restore_sources(root, confirmed$paths$root)
   expect_true(any(restored$outputs$restore_report$action == "restored"))
   expect_equal(openxlsx::read.xlsx(canonical, sheet = "2020", colNames = FALSE)[1, 3], 100)
+})
+
+test_that("country SNA include stages a release-named workbook at an explicit canonical destination", {
+  skip_if_not_installed("yaml")
+  root <- tempfile("country-sna-explicit-destination-")
+  dir.create(file.path(root, "config"), recursive = TRUE)
+  root <- normalizePath(root, mustWork = TRUE)
+  incoming <- file.path(root, "input_data", "_new", "sna", "CHL", "CEI_anuario_2013-2024.xls")
+  dir.create(dirname(incoming), recursive = TRUE)
+  writeLines("release workbook", incoming)
+  yaml::write_yaml(list(sources = list(list(
+    id = "country-sna-chl", family = "country_sna", country = "CHL",
+    destination = "input_data/sna_country_data/CHL/CEI_merged.xls"
+  ))), file.path(root, "config", "sources.yml"))
+  expectations <- list(root = file.path(root, "explore"))
+  dir.create(file.path(expectations$root, "tables"), recursive = TRUE)
+  utils::write.csv(data.frame(
+    country = "CHL", source_set = "new", status = "matched", file = incoming,
+    stringsAsFactors = FALSE
+  ), file.path(expectations$root, "tables", "source_inventory.csv"), row.names = FALSE)
+
+  staged <- country_sna_include_prepare_staged_sources(root, list(staged_repo = file.path(root, "stage")), expectations)
+  expected <- file.path(root, "input_data", "sna_country_data", "CHL", "CEI_merged.xls")
+  expect_equal(staged$mappings$status, "staged_new_source")
+  expect_equal(staged$mappings$destination, expected)
+  expect_true(file.exists(file.path(root, "stage", "input_data", "sna_country_data", "CHL", "CEI_merged.xls")))
 })
 
 test_that("country SNA include Brazil household override uses Familias year columns", {
@@ -630,6 +751,11 @@ test_that("family SNA review compares extracted values and includes a frozen can
   root <- mini_repo()
   file.copy(file.path(repo_root_for_tests, "code", "R", "source-diagnostics", c("country_sna_include.R", "country_sna_explorer.R")),
     file.path(root, "code", "R", "source-diagnostics"))
+  dir.create(file.path(root, "code", "Stata"), recursive = TRUE, showWarnings = FALSE)
+  file.copy(
+    file.path(repo_root_for_tests, "code", "Stata", "05b-rescale-and-impute.do"),
+    file.path(root, "code", "Stata", "05b-rescale-and-impute.do")
+  )
   dina_write_yaml(list(countries = "AAA", years = list(first = 2020L, last = 2020L)), file.path(root, "config", "dina.yml"))
   dina_write_yaml(list(sources = list(list(id = "country-sna-aaa", family = "country_sna", country = "AAA",
     canonical = "input_data/sna_country_data/AAA/fixture.xlsx", inbox = "input_data/_new/sna/AAA/*.xlsx",
@@ -669,6 +795,12 @@ test_that("family SNA review compares extracted values and includes a frozen can
   expect_equal(d4$old_value, 1000)
   expect_equal(d4$new_value, 1100)
   expect_equal(d4$result, "revised")
+  audit <- dina_review_table(record, "value-changes-audit")
+  expect_true(nrow(audit) > 0L)
+  expect_true(all(audit$result != "unchanged"))
+  expect_true(all(c("source_file", "sheet", "extract_status") %in% names(audit)))
+  expect_true(file.exists(file.path(record$run, "tables", "value_changes_audit.csv")))
+  expect_equal(run_dina_cli(c("sources", "table", "sna", "value-changes-audit"), root)$status, 0L)
   expect_equal(dina_hash_file(current), original)
   plan <- dina_review_table(record, "review_files")
   expect_true(all(grepl("reviewed_sources", plan$from_rel, fixed = TRUE)))
@@ -680,7 +812,9 @@ test_that("family SNA review compares extracted values and includes a frozen can
   write_book(incoming, 110, broken = TRUE)
   broken <- run_dina_cli(c("sources", "explore", "sna"), root)
   expect_equal(broken$status, 0L, info = broken$output)
-  expect_false(identical(dina_review_read(root, "sna")$status, "all_good"))
+  # This fixture only covers D4-family values, which are intentionally outside
+  # the direct 05b review focus. They remain in the audit, not an inclusion block.
+  expect_equal(dina_review_read(root, "sna")$status, "all_good")
   expect_match(broken$output, "3. Problems", fixed = TRUE)
-  expect_equal(run_dina_cli(c("sources", "include", "sna", "--confirm"), root)$status, 1L)
+  expect_equal(run_dina_cli(c("sources", "include", "sna", "--confirm"), root)$status, 0L)
 })

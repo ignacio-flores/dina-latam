@@ -173,6 +173,10 @@ artifacts:
   population:
     canonical: input_data/wid/population_total_adult_npopul.dta
     raw: input_data/wid/raw_population_npopul_ages_999_992.dta
+    # One-time source migration: this was the population input used by the
+    # preceding pipeline. It remains the comparison baseline until the first
+    # reviewed WID population artifact is included at `canonical`.
+    legacy_baseline: input_data/population/PopulationLatAm.dta
     type: population_total_adult
     output_map:
       totalpop: npopul999i
@@ -284,6 +288,19 @@ artifacts:
       key_columns: [country, year, widcode, p]
       numeric_columns: [value_web]
       required_years: configured_window
+review_focus:
+  # The regular WID review is deliberately centered on the population series:
+  # it is a direct pipeline input (including survey normalization).  This is a
+  # source-input comparison against the accepted WID artifact, not a comparison
+  # against the final DINA distribution.
+  pipeline_inputs:
+    population:
+      title: Population estimates
+      keys: [country, year]
+      values:
+        totalpop: Total population
+        adultpop: Adult population
+      role: direct_pipeline_input
 statuses:
   blocked:
     - blocked_fetch_failed

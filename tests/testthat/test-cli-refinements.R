@@ -29,6 +29,20 @@ test_that("compact year labels count every year represented by ranges", {
   )
 })
 
+test_that("evidence confirmations preserve the rendered screen", {
+  source_cli_for_tests()
+  called <- FALSE
+  environment <- environment(dina_menu_confirm)
+  original <- get("dina_menu_confirm_preserving_screen", envir = environment)
+  assign("dina_menu_confirm_preserving_screen", function(...) {
+    called <<- TRUE
+    TRUE
+  }, envir = environment)
+  on.exit(assign("dina_menu_confirm_preserving_screen", original, envir = environment), add = TRUE)
+  expect_true(dina_menu_confirm("Include family", "Accept this reviewed family?", is_terminal = TRUE, preserve_screen = TRUE))
+  expect_true(called)
+})
+
 test_that("help and navigator describe the family workflow and retain advanced compatibility", {
   main <- run_dina_cli("help")
   expect_equal(main$status, 0L)
@@ -126,7 +140,7 @@ test_that("source inbox displays use normalized public buckets", {
   expect_false(any(vapply(retired_inboxes, grepl, logical(1), x = paths$output, fixed = TRUE)))
 
   inbox_state <- dina_sources_inbox_init(repo_root_for_tests, dry_run = TRUE, migrate = FALSE)
-  expect_equal(sort(basename(inbox_state$buckets$bucket)), c("admin", "other", "sna", "surveys"))
+  expect_equal(sort(basename(inbox_state$buckets$bucket)), c("admin", "other", "previous_series", "sna", "surveys"))
 
   mex_fetch <- run_dina_cli(c("sources", "fetch", "country-sna-mex", "--dry-run"), root = repo_root_for_tests)
   expect_equal(mex_fetch$status, 0L)
@@ -249,6 +263,52 @@ test_that("country-SNA table preview prints compact explorer tables", {
   deprecated <- run_dina_cli(c("sources", "table", "country-sna", "year_expectations", "--run", run), root = root)
   expect_equal(deprecated$status, 0L)
   expect_match(deprecated$output, "deprecated")
+})
+
+test_that("country-SNA displays use compact values and collapse confirmed missing years", {
+  source_cli_for_tests()
+  root <- mini_repo()
+  run <- file.path(root, "output", "experiments", "country_sna_explore")
+  dir.create(file.path(run, "tables"), recursive = TRUE)
+  utils::write.csv(
+    data.frame(
+      country = c("AAA", "AAA"), year = c(2024L, 2024L), year_role = "extension",
+      variable = c("D4_cei", "D43_cei"), expected_status = "expected_value",
+      structure_status = "structure_evidence_available", stringsAsFactors = FALSE
+    ),
+    file.path(run, "tables", "variable_expectations.csv"), row.names = FALSE
+  )
+  utils::write.csv(
+    data.frame(country = "AAA", year = 2024L, status = "whole_year_missing", reason = "fixture", stringsAsFactors = FALSE),
+    file.path(run, "tables", "confirmed_missing_years.csv"), row.names = FALSE
+  )
+  utils::write.csv(
+    data.frame(country = "AAA", year = 2024L, value_standardized = 1.2e12, pct_diff = 0.001, rel_diff = 0.000001, stringsAsFactors = FALSE),
+    file.path(run, "tables", "value_candidates.csv"), row.names = FALSE
+  )
+
+  variables <- run_dina_cli(c("sources", "table", "sna", "variable_expectations", "--run", run), root = root)
+  expect_equal(variables$status, 0L)
+  expect_match(variables$output, "whole_year_missing")
+  expect_match(variables$output, "2024")
+  expect_false(grepl("D4_cei", variables$output, fixed = TRUE))
+
+  values <- run_dina_cli(c("sources", "table", "sna", "value_candidates", "--run", run), root = root)
+  expect_equal(values$status, 0L)
+  expect_match(values$output, "1,200B")
+  expect_match(values$output, "<0.01%")
+  expect_false(grepl("e\\+", values$output))
+})
+
+test_that("country-SNA explorer scope follows the active update when available", {
+  source_cli_for_tests()
+  root <- mini_repo()
+  expect_equal(dina_country_sna_explore_scope(root)$years, 2000:2023)
+  session <- dina_update_start("2026", root = root)
+  dina_write_yaml(list(years = list(last = 2024L)), dina_session_config_override_path(session$id, root))
+  scope <- dina_country_sna_explore_scope(root)
+  expect_equal(scope$years, 2000:2024)
+  expect_match(scope$config_source, session$id, fixed = TRUE)
 })
 
 test_that("source list follow-up menu is dismissible and routes views", {

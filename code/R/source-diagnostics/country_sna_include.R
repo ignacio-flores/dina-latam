@@ -82,6 +82,25 @@ country_sna_include_validate_contract <- function(contract) {
   if (is.null(contract$variables$primitives) || !length(contract$variables$primitives)) {
     stop("Country-SNA extractor contract has no primitive variables.", call. = FALSE)
   }
+  for (country in names(contract$country_rules %||% list())) {
+    for (layout in contract$country_rules[[country]]$layouts %||% list()) {
+      sheet <- layout$sheet %||% list(type = "year_variants")
+      type <- sheet$type %||% "year_variants"
+      if (!type %in% c("fixed", "template", "year_variants")) {
+        stop("Unsupported sheet rule type for ", country, ": ", type, call. = FALSE)
+      }
+      if (identical(type, "fixed") && (!is.character(sheet$value) || length(sheet$value) != 1L || !nzchar(sheet$value))) {
+        stop("Fixed sheet rule for ", country, " needs one non-empty value.", call. = FALSE)
+      }
+      if (identical(type, "template") && (!is.character(sheet$value) || length(sheet$value) != 1L || !grepl("\\{year\\}", sheet$value))) {
+        stop("Template sheet rule for ", country, " must contain {year}.", call. = FALSE)
+      }
+      if (identical(type, "year_variants") && !is.null(sheet$variants) &&
+          (!is.character(sheet$variants) || !length(sheet$variants) || any(!grepl("\\{year\\}", sheet$variants)))) {
+        stop("Year-variant sheet rules for ", country, " must be non-empty {year} templates.", call. = FALSE)
+      }
+    }
+  }
   invisible(contract)
 }
 
@@ -492,6 +511,12 @@ country_sna_include_sheet_candidates <- function(sheet_spec, year) {
   if (identical(type, "template")) {
     return(gsub("\\{year\\}", as.character(year), as.character(sheet_spec$value)))
   }
+  declared <- as.character(sheet_spec$variants %||% character())
+  if (length(declared)) {
+    return(gsub("\\{year\\}", as.character(year), declared))
+  }
+  # Legacy rules without an explicit declaration retain the shared documented
+  # forms. New country layouts should declare `variants` in the contract.
   c(
     as.character(year),
     sprintf("%sp", year),
@@ -504,20 +529,23 @@ country_sna_include_sheet_candidates <- function(sheet_spec, year) {
 
 country_sna_include_resolve_sheet <- function(path, year, sheet_spec) {
   if (is.na(path) || !file.exists(path)) {
-    return(list(sheet = NA_character_, status = "missing_file", warning = NA_character_, candidates = character()))
+    return(list(sheet = NA_character_, status = "missing_file", warning = NA_character_, candidates = character(), match_kind = NA_character_))
   }
   country_sna_include_need("readxl")
   sheets <- tryCatch(readxl::excel_sheets(path), error = function(e) character())
   candidates <- country_sna_include_sheet_candidates(sheet_spec, year)
   hit <- sheets[tolower(trimws(sheets)) %in% tolower(trimws(candidates))]
   if (length(hit)) {
-    return(list(sheet = hit[[1]], status = "matched", warning = NA_character_, candidates = candidates))
+    exact <- identical(tolower(trimws(hit[[1L]])), tolower(trimws(candidates[[1L]])))
+    return(list(sheet = hit[[1]], status = "matched", warning = NA_character_, candidates = candidates,
+      match_kind = if (exact) "exact" else "declared_variant"))
   }
   list(
     sheet = NA_character_,
     status = "missing_sheet",
     warning = sprintf("No matching sheet for year %s in %s.", year, basename(path)),
-    candidates = candidates
+    candidates = candidates,
+    match_kind = NA_character_
   )
 }
 
@@ -738,6 +766,15 @@ country_sna_include_alias_groups <- function(contract, country_rule, account) {
   list(as.character(unlist(aliases, use.names = FALSE)))
 }
 
+country_sna_include_zero_as_missing <- function(contract, account) {
+  thresholds <- contract$thresholds %||% list()
+  if (isTRUE(thresholds$zero_as_missing)) {
+    return(TRUE)
+  }
+  accounts <- as.character(unlist(thresholds$zero_as_missing_accounts %||% character(), use.names = FALSE))
+  country_sna_include_normalize_code(account) %in% country_sna_include_normalize_code(accounts)
+}
+
 country_sna_include_flow_direction <- function(role) {
   if (is.na(role)) {
     return(NA_character_)
@@ -887,7 +924,7 @@ country_sna_include_extract_primitive <- function(
       rows,
       spec$role,
       group,
-      zero_as_missing = isTRUE(contract$thresholds$zero_as_missing)
+      zero_as_missing = country_sna_include_zero_as_missing(contract, spec$account)
     )
     last <- picked
     if (picked$status %in% c("matched", "duplicate_identical", "zero_treated_missing", "duplicate_conflict", "non_numeric")) {
@@ -995,6 +1032,7 @@ country_sna_include_source_match_row <- function(country, year, country_rule, la
     candidate_count = length(source$candidates %||% character()),
     sheet = sheet$sheet %||% NA_character_,
     sheet_status = sheet$status %||% NA_character_,
+    sheet_match_kind = sheet$match_kind %||% NA_character_,
     cell_range = layout$range %||% NA_character_,
     table_health = table_health %||% NA_character_,
     warning = paste(na.omit(c(source$warning, sheet$warning)), collapse = " | "),
@@ -1008,7 +1046,7 @@ country_sna_include_extract_year <- function(country, year, contract, root) {
   source_spec <- layout$source %||% country_rule$source
   source <- country_sna_include_resolve_source(source_spec, year, root)
   source$sheet <- NA_character_
-  sheet <- list(sheet = NA_character_, status = NA_character_, warning = NA_character_)
+  sheet <- list(sheet = NA_character_, status = NA_character_, warning = NA_character_, match_kind = NA_character_)
   table_health <- NA_character_
 
   primitive_specs <- contract$variables$primitives
@@ -1415,6 +1453,34 @@ country_sna_include_read_expectations <- function(root, exploration_run = NULL) 
   )
 }
 
+country_sna_include_exploration_identity <- function(exploration_root) {
+  metadata <- country_sna_include_read_explorer_table(exploration_root, "scope")
+  # `scope.csv` is the stable public record. Older explorations have no
+  # identity and must be refreshed rather than accepted under a new update.
+  if (!nrow(metadata) || !"scope_identity" %in% names(metadata)) return(NA_character_)
+  as.character(metadata$scope_identity[[1L]])
+}
+
+country_sna_include_assert_exploration_scope <- function(exploration_root, expected_scope = NULL) {
+  if (is.null(expected_scope)) return(invisible(TRUE))
+  expected <- expected_scope$identity %||% NA_character_
+  scope <- country_sna_include_read_explorer_table(exploration_root, "scope")
+  actual <- country_sna_include_exploration_identity(exploration_root)
+  identity_matches <- !is.na(expected) && nzchar(expected) && !is.na(actual) && nzchar(actual) && identical(actual, expected)
+  countries_match <- !("countries" %in% names(scope)) ||
+    identical(as.character(scope$countries[[1L]] %||% ""), paste(sort(unique(toupper(as.character(expected_scope$countries %||% character())))), collapse = ","))
+  fields_match <- nrow(scope) &&
+    identical(as.character(scope$config_source[[1L]] %||% ""), as.character(expected_scope$config_source %||% "")) &&
+    identical(as.character(scope$years[[1L]] %||% ""), paste(sort(unique(as.integer(expected_scope$years %||% integer()))), collapse = ",")) &&
+    (is.null(expected_scope$effective_config_hash) || !"effective_config_hash" %in% names(scope) ||
+      identical(as.character(scope$effective_config_hash[[1L]] %||% ""), as.character(expected_scope$effective_config_hash))) &&
+    countries_match
+  if (!isTRUE(identity_matches || fields_match)) {
+    stop("Country-SNA exploration has a different effective configuration or year range. Run `dina sources explore sna` again before inclusion.", call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
 country_sna_include_expected_years <- function(expectations) {
   years <- expectations$variable_expectations$year %||% integer()
   years <- suppressWarnings(as.integer(years[!is.na(years)]))
@@ -1507,6 +1573,32 @@ country_sna_include_expectation_summary <- function(detail) {
       stringsAsFactors = FALSE
     )
   }))
+}
+
+country_sna_include_confirmed_missing_years <- function(detail) {
+  if (!nrow(detail) || !all(c("country", "year", "status", "extract_status", "source_file") %in% names(detail))) {
+    return(data.frame(country = character(), year = integer(), status = character(), reason = character(), stringsAsFactors = FALSE))
+  }
+  keys <- unique(detail[c("country", "year")])
+  rows <- lapply(seq_len(nrow(keys)), function(i) {
+    key <- keys[i, , drop = FALSE]
+    part <- detail[detail$country == key$country[[1L]] & detail$year == key$year[[1L]], , drop = FALSE]
+    expected <- part$expected_status == "expected_value"
+    if (!any(expected)) return(NULL)
+    part <- part[expected, , drop = FALSE]
+    recognized_source <- all(!is.na(part$source_file) & nzchar(part$source_file))
+    structural_failure <- part$extract_status %in% c("missing_file", "missing_sheet", "source_missing", "layout_family_unhandled", "not_extracted")
+    all_missing <- all(part$status == "warning_missing_expected_value")
+    if (!isTRUE(recognized_source && all_missing && !any(structural_failure))) return(NULL)
+    data.frame(
+      country = key$country,
+      year = as.integer(key$year),
+      status = "whole_year_missing_confirmed",
+      reason = "A recognized incoming source was read, but every expected value is unavailable.",
+      stringsAsFactors = FALSE
+    )
+  })
+  country_sna_include_bind(rows)
 }
 
 country_sna_include_overall_status <- function(summary, source_mappings = NULL) {
@@ -1619,12 +1711,20 @@ country_sna_include_source_destination <- function(root, source_inventory_row) {
     return(list(status = "ambiguous_registry", destination = NA_character_))
   }
   template <- matches[[1L]]$destination %||% ""
-  if (!nzchar(template) || !grepl("\\{basename\\}", template)) {
+  if (!nzchar(template)) {
     return(list(status = "ambiguous_destination", destination = NA_character_))
+  }
+  # A literal destination explicitly maps a release-named workbook onto the
+  # stable canonical name used by an extraction contract.  Without it, the
+  # dry-run would stage a new file that the contract can never read.
+  destination <- if (grepl("\\{basename\\}", template)) {
+    gsub("{basename}", basename(source_inventory_row$file[[1L]]), template, fixed = TRUE)
+  } else {
+    template
   }
   list(
     status = "ok",
-    destination = country_sna_include_path(gsub("{basename}", basename(source_inventory_row$file[[1L]]), template, fixed = TRUE), root)
+    destination = country_sna_include_path(destination, root)
   )
 }
 
@@ -1672,6 +1772,32 @@ country_sna_include_stage_canonical_sources <- function(root, staged_root) {
   country_sna_include_bind(rows)
 }
 
+country_sna_include_stage_candidate_rows <- function(candidates) {
+  # A bundle inventory keeps one representative path in `file` and all of its
+  # members in `files`.  Staging only the representative made a complete
+  # incoming bundle look structurally incomplete to the include contract.
+  # Expand the documented bundle membership here, while leaving normal
+  # single-workbook selectors deliberately one-file-at-a-time.
+  rows <- lapply(seq_len(nrow(candidates)), function(i) {
+    row <- candidates[i, , drop = FALSE]
+    is_bundle <- "selector" %in% names(row) && identical(as.character(row$selector[[1L]]), "sector_file_bundle")
+    members <- character()
+    if (is_bundle && "files" %in% names(row) && !is.na(row$files[[1L]]) && nzchar(row$files[[1L]])) {
+      members <- strsplit(as.character(row$files[[1L]]), "|", fixed = TRUE)[[1L]]
+      members <- members[nzchar(members) & file.exists(members)]
+    }
+    if (!length(members)) members <- as.character(row$file[[1L]])
+    lapply(members, function(member) {
+      expanded <- row
+      expanded$file <- member
+      expanded
+    })
+  })
+  rows <- unlist(rows, recursive = FALSE)
+  if (!length(rows)) return(candidates[FALSE, , drop = FALSE])
+  do.call(rbind, rows)
+}
+
 country_sna_include_prepare_staged_sources <- function(root, paths, expectations) {
   staged_root <- paths$staged_repo
   dir.create(staged_root, recursive = TRUE, showWarnings = FALSE)
@@ -1700,6 +1826,7 @@ country_sna_include_prepare_staged_sources <- function(root, paths, expectations
       canonical_stage = canonical_stage
     ))
   }
+  candidates <- country_sna_include_stage_candidate_rows(candidates)
 
   # The dry-run stage mirrors canonical country-SNA files under the include run
   # and overlays incoming files at the destination proposed by config/sources.yml.
@@ -2094,13 +2221,15 @@ run_country_sna_include <- function(
   years = NULL,
   write_outputs = TRUE,
   apply = FALSE,
-  run_id = NULL
+  run_id = NULL,
+  expected_scope = NULL
 ) {
   if (isTRUE(apply)) {
     stop("Use `--confirm`; promotion now requires a staged include run and backup snapshot.", call. = FALSE)
   }
   contract <- country_sna_include_read_contract(root, contract_path)
   expectations <- country_sna_include_read_expectations(root, exploration_run)
+  country_sna_include_assert_exploration_scope(expectations$root, expected_scope)
   expected_years <- country_sna_include_expected_years(expectations)
   years <- years %||% sort(unique(c(country_sna_include_years(contract, root), expected_years)))
   run_id <- run_id %||% country_sna_include_run_id("include")
@@ -2114,6 +2243,7 @@ run_country_sna_include <- function(
   parity <- country_sna_include_parity_report(values_wide, contract, root)
   include_detail <- country_sna_include_expectation_detail(values_wide, extracted$values_long, expectations)
   include_summary <- country_sna_include_expectation_summary(include_detail)
+  confirmed_missing_years <- country_sna_include_confirmed_missing_years(include_detail)
   include_manifest <- country_sna_include_manifest(
     include_summary,
     expectations,
@@ -2129,6 +2259,7 @@ run_country_sna_include <- function(
   outputs <- list(
     include_summary = include_summary,
     include_detail = include_detail,
+    confirmed_missing_years = confirmed_missing_years,
     include_manifest = include_manifest,
     apply_report = apply_report,
     staged_source_mappings = staging$mappings,

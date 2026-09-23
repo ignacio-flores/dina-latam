@@ -16,6 +16,12 @@ country_sna_explorer_quiet_locale <- function() {
   }
 }
 
+test_that("B.5 zero handling is an explicit account-level exception", {
+  contract <- country_sna_explorer_read_contract(repo_root_for_tests)
+  expect_true(country_sna_explorer_zero_as_missing(contract, "B.5"))
+  expect_false(country_sna_explorer_zero_as_missing(contract, "D.4"))
+})
+
 country_sna_explorer_fixture_contract <- function(root) {
   list(
     version = 1L,
@@ -128,12 +134,66 @@ country_sna_explorer_write_rectangular_fixture <- function(path) {
 test_that("adaptive normalizers and sheet scoring tolerate common variants", {
   country_sna_explorer_quiet_locale()
   expect_equal(country_sna_explorer_normalize_code(c(" D4 ", "D.43", "B5b")), c("D.4", "D.43", "B.5B"))
+  expect_equal(country_sna_explorer_normalize_code("D.4 - Property income"), "D.4")
   expect_match(country_sna_explorer_text("Hogares y ISFLSH"), "hogares")
 
   contract <- country_sna_explorer_fixture_contract(tempdir())
   score <- country_sna_explorer_sheet_score("CEI_2024p", 2024L, contract, "rectangular_workbook")
   expect_gt(score$score, 0.70)
   expect_match(score$reason, "sheet_year_matches")
+})
+
+test_that("Mexico configured layout reads code-in-label cells and known role columns", {
+  country_sna_explorer_quiet_locale()
+  skip_if_not_installed("openxlsx")
+  skip_if_not_installed("readxl")
+
+  root <- tempfile("country-sna-mex-configured-")
+  old_dir <- file.path(root, "input_data", "sna_country_data", "MEX")
+  new_dir <- file.path(root, "input_data", "_new", "sna", "MEX")
+  dir.create(old_dir, recursive = TRUE)
+  dir.create(new_dir, recursive = TRUE)
+  writeLines("CSI_24.xlsx|Cuentas institucionales|Precios corrientes|2024", file.path(old_dir, "indice_archivos.txt"))
+  writeLines("CSI_24.xlsx|Cuentas institucionales|Precios corrientes|2024", file.path(new_dir, "indice_archivos.txt"))
+  write_fixture <- function(path, d4) {
+    wb <- openxlsx::createWorkbook()
+    openxlsx::addWorksheet(wb, "Tabulado")
+    row <- as.data.frame(as.list(rep(NA, 19L)), stringsAsFactors = FALSE)
+    row[[1L]] <- "D.4 - Renta de la propiedad"
+    row[[3L]] <- d4 + 20
+    row[[8L]] <- d4 + 10
+    row[[9L]] <- d4
+    openxlsx::writeData(wb, "Tabulado", row, startRow = 68L, colNames = FALSE)
+    openxlsx::saveWorkbook(wb, path, overwrite = TRUE)
+  }
+  write_fixture(file.path(old_dir, "CSI_24.xlsx"), 100)
+  write_fixture(file.path(new_dir, "CSI_24.xlsx"), 110)
+
+  contract <- country_sna_explorer_fixture_contract(root)
+  contract$source_discovery$countries$MEX$new <- list(
+    type = "indexed_year_file", folder = "input_data/_new/sna/MEX", index_file = "input_data/_new/sna/MEX/indice_archivos.txt",
+    title_contains = "Cuentas institucionales", unit_contains = "Precios corrientes",
+    fallback_pattern = "input_data/_new/sna/MEX/CSI_{index}.xlsx", fallback_index_offset = 2000L
+  )
+  include_contract <- list(
+    variables = contract$economic_contract$variables,
+    country_rules = list(MEX = list(layouts = list(list(
+      years = list(min = 2000L), sheet = list(type = "fixed", value = "Tabulado"), range = "A68:S153",
+      columns = list(code = "A", code_long = "A", households_r = "I", households_u = "H", NFC_r = "C")
+    ))))
+  )
+  result <- country_sna_explorer_audit(contract, root, years = 2024L, countries = "MEX", include_contract = include_contract)
+  candidate <- result$value_candidates[
+    result$value_candidates$source_set == "new" & result$value_candidates$variable == "D4_cei",
+    , drop = FALSE
+  ]
+  expect_equal(candidate$status, "accepted_high_confidence")
+  expect_equal(candidate$value_standardized, 110)
+  expect_true(any(result$table_candidates$evidence == "configured_layout=A68:S153;code_column=A"))
+
+  labels <- c("r p", "u a")
+  expect_equal(country_sna_explorer_label_score(country_sna_explorer_text("R/P"), labels[[1L]]), 1)
+  expect_equal(country_sna_explorer_label_score(country_sna_explorer_text("U/A"), labels[[2L]]), 1)
 })
 
 test_that("explorer imports default countries from project config", {
@@ -247,6 +307,29 @@ test_that("adaptive value candidates flag duplicate conflicts", {
   expect_match(values$reason[values$variable == "D4_cei"], "duplicate_account_values_conflict")
 })
 
+test_that("B.5 duplicate zero is excluded while other account zeros remain evidence", {
+  country_sna_explorer_quiet_locale()
+  contract <- country_sna_explorer_fixture_contract(tempdir())
+  contract$economic_contract$zero_as_missing <- FALSE
+  contract$economic_contract$zero_as_missing_accounts <- "B.5"
+  grid <- data.frame(code = c("B.5", "B.5"), label = c("uses", "resources"), hh_r = c(0, 200), stringsAsFactors = FALSE)
+  table <- data.frame(
+    country = "AAA", source_set = "old", adapter_family = "rectangular_workbook",
+    year = 2024L, file = "fixture.xlsx", sheet = "CEI_2024p", table_id = "fixture",
+    code_col = 1L, code_col_letter = "A", row_start = 1L, row_end = 2L,
+    account_hit_count = 2L, account_diversity = 1L, table_score = 1,
+    status = "accepted_high_confidence", evidence = "fixture", stringsAsFactors = FALSE
+  )
+  roles <- data.frame(
+    role = "households_r", role_col = 3L, role_score = 1,
+    status = "accepted_high_confidence", table_id = "fixture", stringsAsFactors = FALSE
+  )
+  values <- country_sna_explorer_value_candidates(grid, table, roles, contract)
+  b5 <- values[values$variable == "B5g_cei", , drop = FALSE]
+  expect_match(b5$status, "accepted")
+  expect_equal(b5$value_raw, 200)
+})
+
 test_that("adaptive available-year summary expands generic filename spans", {
   country_sna_explorer_quiet_locale()
   source_inventory <- data.frame(
@@ -272,6 +355,84 @@ test_that("adaptive available-year summary expands generic filename spans", {
   summary <- country_sna_explorer_source_match_summary(source_inventory)
   expect_equal(summary$first_matched_year, 2022L)
   expect_equal(summary$last_matched_year, 2024L)
+})
+
+test_that("missing incoming files are classified as source gaps, never confirmed missing data", {
+  inventory <- data.frame(
+    country = c("AAA", "AAA", "BBB", "BBB"),
+    source_set = c("old", "new", "old", "new"),
+    year = c(2024L, 2024L, 2024L, 2024L),
+    status = c("matched", "no_file", "no_file", "no_file"),
+    stringsAsFactors = FALSE
+  )
+  extension <- data.frame(country = c("AAA", "BBB"), old_years = c("2024", "2024"), stringsAsFactors = FALSE)
+  gaps <- country_sna_explorer_incoming_source_gaps(extension, inventory)
+  expect_equal(gaps$country, "AAA")
+  expect_equal(gaps$status, "incoming_source_not_supplied")
+  expect_equal(nrow(country_sna_explorer_confirmed_missing_years(inventory)), 0L)
+})
+
+test_that("explorer performs a fresh inspection on every normal run", {
+  skip_if_not_installed("openxlsx")
+  root <- tempfile("country-sna-cache-")
+  dir.create(file.path(root, "input_data", "sna_country_data", "AAA"), recursive = TRUE)
+  dir.create(file.path(root, "input_data", "_new", "sna", "AAA"), recursive = TRUE)
+  country_sna_explorer_write_rectangular_fixture(file.path(root, "input_data", "sna_country_data", "AAA", "fixture.xlsx"))
+  country_sna_explorer_write_rectangular_fixture(file.path(root, "input_data", "_new", "sna", "AAA", "incoming_2024.xlsx"))
+  contract <- country_sna_explorer_fixture_contract(root)
+  contract$economic_contract$countries <- "AAA"
+  contract$source_discovery$countries <- contract$source_discovery$countries["AAA"]
+  contract_path <- file.path(root, "contract.yml")
+  yaml::write_yaml(contract, contract_path)
+  output_dir <- "output/cache-test"
+  progress <- character()
+  first <- run_country_sna_explorer(root = root, contract_path = contract_path, output_dir = output_dir,
+    years = 2024L, countries = "AAA", write_outputs = TRUE, scope = list(config_source = "fixture", years = 2024L),
+    progress = function(message) progress <<- c(progress, message))
+  expect_equal(first$outputs$cache_status$status, "computed")
+  expect_true(any(grepl("Preparing a fresh", progress)))
+  expect_true(any(grepl("Discovering current and incoming", progress)))
+  expect_true(any(grepl("Reading changed workbooks", progress)))
+  expect_true(any(grepl("Analyzing evidence", progress)))
+  expect_true(any(grepl("Writing review report", progress)))
+  second <- run_country_sna_explorer(root = root, contract_path = contract_path, output_dir = output_dir,
+    years = 2024L, countries = "AAA", write_outputs = FALSE, scope = list(config_source = "fixture", years = 2024L))
+  expect_equal(second$outputs$cache_status$status, "computed")
+  path <- file.path(root, "input_data", "_new", "sna", "AAA", "incoming_2024.xlsx")
+  Sys.setFileTime(path, Sys.time() + 2)
+  third <- run_country_sna_explorer(root = root, contract_path = contract_path, output_dir = output_dir,
+    years = 2024L, countries = "AAA", write_outputs = FALSE, scope = list(config_source = "fixture", years = 2024L))
+  expect_equal(third$outputs$cache_status$status, "computed")
+  expect_equal(third$outputs$cache_status$evidence_reused, 0L)
+  expect_equal(third$outputs$cache_status$evidence_analyzed, 0L)
+})
+
+test_that("explorer identities use their supplied root outside the repository", {
+  root <- tempfile("country-sna-explicit-root-")
+  outside <- tempfile("country-sna-outside-")
+  dir.create(root, recursive = TRUE)
+  dir.create(outside, recursive = TRUE)
+  contract <- file.path(root, "contract.yml")
+  include <- file.path(root, "include.yml")
+  file.create(contract, include)
+  scope <- list(config_source = "fixture", years = 2024L, effective_config_hash = "fixture")
+  original <- getwd()
+  on.exit(setwd(original), add = TRUE)
+  setwd(outside)
+  first <- country_sna_explorer_scope_identity(scope, root, contract, include)
+  scoped_countries <- scope
+  scoped_countries$countries <- "AAA"
+  expect_false(identical(first, country_sna_explorer_scope_identity(scoped_countries, root, contract, include)))
+  inventory <- data.frame(
+    country = "AAA", source_set = "new", selector = "fixture", year = 2024L, status = "matched",
+    file = contract, matched_by = "fixture", index_consistency = "ok", stringsAsFactors = FALSE
+  )
+  first_key <- country_sna_explorer_cache_key("AAA", inventory, first, contract, include, root)
+  setwd(tempdir())
+  second <- country_sna_explorer_scope_identity(scope, root, contract, include)
+  second_key <- country_sna_explorer_cache_key("AAA", inventory, second, contract, include, root)
+  expect_equal(first, second)
+  expect_equal(first_key, second_key)
 })
 
 test_that("explorer review actions stay broad and expectation-oriented", {

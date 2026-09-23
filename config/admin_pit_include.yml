@@ -42,6 +42,20 @@ fingerprints:
 
 cleaners:
   mode: real
+  review_harmonized_outputs:
+    description: >
+      Compare accepted and incoming PIT sources after their country cleaner has
+      produced the bracket inputs used by interpolation. Raw publisher cells
+      are not compared directly.
+    # Thresholds are the published bracket boundaries. They remain stable when
+    # the cleaner recomputes percentile positions from a revised population
+    # total, so use them to align equivalent interpolation-ready brackets.
+    bracket_keys: [country, source_id, year, component, thr]
+    # p is a derived interpolation coordinate, not a PIT value. The review's
+    # value-change table therefore focuses on the published bracket average.
+    bracket_values: [bracketavg]
+    annual_keys: [country, source_id, year, component]
+    annual_values: [average, popsize]
   expected_outputs:
     chl-pit:
       - input_data/admin_data/CHL/_clean/total-pre-CHL.xlsx

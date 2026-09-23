@@ -13,7 +13,13 @@ years:
 
 thresholds:
   anecdotal_pct: 1
-  zero_as_missing: true
+  # A published numeric zero is an observation, not an absent value.  Any
+  # source-specific exception must be documented explicitly before changing it.
+  zero_as_missing: false
+  # Gross primary income is a material aggregate. In source layouts that
+  # repeat B.5b for uses and resources, zero is the non-applicable side—not an
+  # extractable B5g observation. This exception applies only to this account.
+  zero_as_missing_accounts: [B.5]
 
 code_aliases:
   D.11: ["D.11", "D11"]
@@ -134,8 +140,11 @@ country_rules:
     adapter: workbook_table
     magnitude: 1000000
     source:
-      type: single_stem
-      stem: input_data/sna_country_data/PER/CEI_merged
+      # Peru publishes one official CEI workbook per year.  Keep the selector
+      # aligned with the explorer so a future release is resolved by its year,
+      # rather than relying on a manually rebuilt CEI_merged workbook.
+      type: year_pattern
+      pattern: input_data/sna_country_data/PER/cei_econtotal_{year}*.xls*
     layouts:
       - years: {min: 2000}
         sheet: {type: year_variants}
@@ -390,7 +399,9 @@ country_rules:
           ROW_r: BB
       - years: {min: 2023}
         source: {type: single_pattern, pattern: "input_data/sna_country_data/ECU/mc?_cei_2018_*.xls*"}
-        sheet: {type: template, value: "CEI_{year}p"}
+        # Ecuador's annual sheets alternate between CEI_YYYY and CEI_YYYYp.
+        # Treat the suffix as a release label, not part of the year identity.
+        sheet: {type: year_variants, variants: ["CEI_{year}", "CEI_{year}p"]}
         range: A38:BD128
         columns: *ecu_2018_columns
 

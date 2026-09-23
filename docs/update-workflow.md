@@ -50,6 +50,8 @@ family while you find sources, explore, inspect details, and include. Return to
 family selection when ready to move on. The compact source list shows complete
 IDs, families, countries and acquisition methods; source details contain URLs,
 paths, transformers and task links.
+After a terminal-menu action prints an Explore, Include, or detail report, DINA
+waits for Enter before redrawing a menu so the result remains visible.
 
 ### Explore
 
@@ -216,30 +218,31 @@ Full paths, setting keys, and effective YAML are under **Details and file paths*
 `config/dina.yml` supplies benchmark defaults; the active update's
 `output/updates/UPDATE/config.override.yml` overrides just the settings it contains.
 Editing changes the update file, so removing an override restores that setting's
-benchmark default. The editor screen identifies the exact file being edited.
+benchmark default. `edit` opens that exact file in a graphical editor and returns
+to DINA immediately.
 
 Use arrows and Enter (or the numbered choices) to navigate; `q` returns to the
 workspace. Full settings stay visible until you press Enter to return.
-`edit` shows instructions for the selected editor before opening it. DINA uses
-`VISUAL`, then `EDITOR`; on macOS the fallback is the system's default text editor, elsewhere it is `vi`.
-In `vi`, press `i` to edit, then Esc and `:wq` followed by Enter to save and return;
-Esc and `:q!` followed by Enter discards changes. In nano, use Ctrl+O, Enter to save
-and Ctrl+X to exit. In TextEdit, save with Cmd+S and quit with Cmd+Q to return.
-The macOS `open` launcher, VS Code, Sublime Text, and TextMate wait before validation.
-Other custom editor commands should include their own wait option if needed.
+`edit` never opens a terminal editor or waits for an editor to close. It prefers
+the VS Code `code` launcher, then VS Code or the default text editor on macOS, and
+the platform's graphical file opener elsewhere. Set `DINA_CONFIG_EDITOR` to use a
+different graphical editor command. Save the file in that editor, return to DINA,
+then choose **Validate configuration and baseline**.
 
 `check` validates YAML, supported settings, countries, year bounds, and the
-baseline's required comparison fields. The same checks run after a successful
-editor return. Invalid edits remain on disk for correction and are not reported
-as validated. Cancelling without saving does not record a configuration edit.
+baseline's required comparison fields. A completed check records a validation
+receipt in the active update, tied to the benchmark config, update override, and
+baseline file fingerprint. The workspace reports `Validated`, `Not validated`,
+`Validation out of date`, or `Needs attention` from that receipt without rereading
+the DTA. Invalid edits remain on disk for correction and are not reported as
+validated. Opening the editor alone never records a validation.
 `dina config show|check` inspects the benchmark independently of the update.
 
 Use one compatible WID-format DTA file from `input_data/_new/previous_series/` as the comparison
-baseline. A valid explicit selection is preserved. Otherwise, the sole compatible
-file is selected; multiple alternatives require a choice in interactive review or
-an explicit `export_validation.previous_update_file` in the settings file. Files
-are never combined or automatically chosen by modification time. Missing baseline
-configuration needs attention before export but does not prevent source inspection.
+baseline. Choose it explicitly through `export_validation.previous_update_file` in
+the settings file. Files are never combined or automatically chosen. Missing or
+out-of-date configuration validation prevents only the final WID export task; it
+does not prevent source inspection or earlier pipeline work.
 
 `dina run` continues supplying temporary runtime configuration to Stata tasks.
 

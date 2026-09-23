@@ -347,6 +347,8 @@ tasks:
   - id: 07d-export-results-to-wid
     stage: export
     type: stata
+    requirements:
+      - configuration_validation
     script: code/Stata/07d-export-results-to-wid.do
     deps:
       - 07a-export-synthetic-microfiles

@@ -41,7 +41,7 @@ wid_include_stage_from_exploration_one <- function(root, contract, paths, artifa
       status = status,
       severity = "blocked",
       detail = detail,
-      next_command = "dina sources explore wid --fetch",
+      next_command = "dina sources refresh wid",
       stringsAsFactors = FALSE
     )
   }
@@ -57,7 +57,7 @@ wid_include_stage_from_exploration_one <- function(root, contract, paths, artifa
     copy <- copies[[artifact_type]]
     expected_row <- expected[expected$source_id == source_id & expected$artifact_type == artifact_type & expected$to_rel == copy$to_rel, , drop = FALSE]
     if (!nrow(expected_row)) {
-      add_block("incoming_candidate", "blocked_missing_fetch_fingerprint", sprintf("No reviewed WID _new fingerprint found for %s. Run `dina sources explore wid --fetch` first.", copy$to_rel))
+      add_block("incoming_candidate", "blocked_missing_fetch_fingerprint", sprintf("No reviewed WID _new fingerprint found for %s. Refresh with `dina sources refresh wid`, then explore before including.", copy$to_rel))
       next
     }
     if (!file.exists(copy$from) || dir.exists(copy$from)) {
@@ -85,7 +85,8 @@ wid_include_stage_from_exploration_one <- function(root, contract, paths, artifa
   if (!nrow(validation) && isTRUE(candidate_read$ok)) {
     candidate_validation <- wid_include_validate_candidate(source_id, artifact, candidate_read$data, required_years)
     validation <- wid_include_bind(validation, candidate_validation)
-    comparison <- wid_include_compare_artifact(source_id, artifact, stage_paths$canonical, prod_paths$canonical, candidate_read$data)
+    baseline <- wid_include_comparison_baseline(root, artifact)
+    comparison <- wid_include_compare_artifact(source_id, artifact, stage_paths$canonical, baseline$path, candidate_read$data, baseline$rel, baseline$kind)
   } else if (!nrow(validation)) {
     validation <- data.frame(
       source_id = source_id,
@@ -93,7 +94,7 @@ wid_include_stage_from_exploration_one <- function(root, contract, paths, artifa
       status = "blocked_read_failed",
       severity = "blocked",
       detail = candidate_read$error %||% "Candidate WID artifact is unreadable.",
-      next_command = "dina sources explore wid --fetch",
+      next_command = "dina sources refresh wid",
       stringsAsFactors = FALSE
     )
   }

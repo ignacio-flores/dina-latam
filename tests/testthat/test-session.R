@@ -90,19 +90,22 @@ test_that("update creation shows compact settings and preserves editor access", 
   expect_equal(shown$status, 0L)
   expect_match(shown$output, "Effective YAML:")
   expect_match(shown$output, "lang: esp")
-  edit <- run_dina_cli(c("update", "config", "edit"), root, env = "EDITOR=/usr/bin/true")
+  edit <- run_dina_cli(c("update", "config", "edit"), root, env = "DINA_CONFIG_EDITOR=/usr/bin/true")
   expect_equal(edit$status, 0L)
-  expect_match(edit$output, "settings need attention")
-  expect_false(grepl("settings validated", edit$output))
+  expect_match(edit$output, "Opened the update file in your editor")
+  expect_match(edit$output, "Validate configuration and baseline")
   restarted <- run_dina_cli(c("update", "restart", session$id, "--yes"), root)
   expect_equal(restarted$status, 0L)
   expect_match(restarted$output, "Configuration")
 })
 
-test_that("plain dashboard shows four areas and a secondary suggestion", {
+test_that("plain dashboard groups the four areas and next step hierarchically", {
   source_cli_for_tests(); root <- mini_repo(); dina_update_start("2026", root = root)
   text <- paste(capture.output(dina_print_dashboard(root, is_terminal = FALSE)), collapse = "\n")
-  for (area in c("Configuration:", "Sources:", "Pipeline:", "Results:", "Suggestion:")) expect_match(text, area)
+  for (area in c("Configuration", "Sources", "Pipeline", "Results", "Next step")) expect_match(text, area)
+  expect_match(text, "  Status:", fixed = TRUE)
+  expect_match(text, "    Countries:", fixed = TRUE)
+  expect_match(text, "  Command: dina", fixed = TRUE)
   expect_false(grepl("Project status:|Run recommended action|Next likely command", text))
 })
 

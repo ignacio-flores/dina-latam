@@ -45,13 +45,13 @@ wid_include_review_actions <- function(status, validation = data.frame(stringsAs
       source_id = source_id,
       action = if (isTRUE(blocked)) "fetch_blocked" else if (isTRUE(incoming)) "review_include" else if (any(needs_fetch)) "fetch_wid" else "no_action",
       severity = if (isTRUE(blocked)) "blocked" else "info",
-      next_command = if (isTRUE(blocked) || any(needs_fetch) && !isTRUE(incoming)) "dina sources explore wid --fetch" else if (isTRUE(incoming)) "dina sources include wid --dry-run" else "",
+      next_command = if (isTRUE(blocked) || any(needs_fetch) && !isTRUE(incoming)) "dina sources refresh wid" else if (isTRUE(incoming)) "dina sources include wid --dry-run" else "",
       detail = if (isTRUE(blocked)) {
-        "Incoming WID candidate is missing or unreadable; rerun the WID fetch."
+        "Incoming WID candidate is missing or unreadable; refresh the WID snapshot, then explore it."
       } else if (isTRUE(incoming)) {
         "Incoming WID candidate in input_data/_new/wid is ready for include review."
       } else if (any(needs_fetch)) {
-        "WID artifact is missing or older than WID workflow inputs; fetch through the WID explorer."
+        "WID artifact is missing or older than WID workflow inputs; refresh the local WID snapshot."
       } else {
         "WID artifact is present."
       },
@@ -63,6 +63,32 @@ wid_include_review_actions <- function(status, validation = data.frame(stringsAs
 
 wid_include_fetch_needed <- function(inventory) {
   nrow(inventory) && any(inventory$source_set == "current" & inventory$status %in% c("missing_current_artifact", "stale"), na.rm = TRUE)
+}
+
+wid_include_snapshot_metadata_path <- function(root) {
+  file.path(root, "input_data", "_new", "wid", ".wid_snapshot.json")
+}
+
+wid_include_write_snapshot_metadata <- function(root, inventory, retrieved_at = format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z")) {
+  incoming <- inventory[inventory$source_set == "_new" & inventory$exists, , drop = FALSE]
+  if (!nrow(incoming)) return(invisible(NULL))
+  years <- suppressWarnings(as.integer(c(incoming$first_year, incoming$last_year)))
+  years <- years[is.finite(years)]
+  artifacts <- incoming[c("source_id", "artifact_type", "rel", "first_year", "last_year", "mtime", "hash_algorithm", "hash")]
+  metadata <- list(
+    source = "WID API",
+    retrieved_at = retrieved_at,
+    coverage = if (length(years)) sprintf("%s–%s", min(years), max(years)) else "",
+    artifacts = artifacts
+  )
+  path <- wid_include_snapshot_metadata_path(root)
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+  pending <- tempfile("wid-snapshot-", tmpdir = dirname(path))
+  on.exit(unlink(pending), add = TRUE)
+  wid_include_need("jsonlite")
+  jsonlite::write_json(metadata, pending, auto_unbox = TRUE, pretty = TRUE, na = "null")
+  if (!file.rename(pending, path)) stop("Could not record the WID snapshot metadata.", call. = FALSE)
+  invisible(path)
 }
 
 wid_include_unsupported_sources <- function(root, contract) {
@@ -130,7 +156,9 @@ run_wid_explorer <- function(
   incoming <- lapply(artifacts, function(artifact) wid_include_inspect_incoming_one(root, contract, artifact, require_candidate = FALSE))
   fetch_validation <- data.frame(stringsAsFactors = FALSE)
   publish_report <- data.frame(stringsAsFactors = FALSE)
-  fetch_attempted <- isTRUE(fetch) && isTRUE(needs_fetch) && !isTRUE(dry_run)
+  # An explicit --fetch means refresh from the WID API, even when the accepted
+  # artifacts are present. Ordinary Explore remains read-only for _new data.
+  fetch_attempted <- isTRUE(fetch) && !isTRUE(dry_run)
   if (isTRUE(fetch_attempted)) {
     dir.create(paths$fetch_tmp, recursive = TRUE, showWarnings = FALSE)
     prepared <- lapply(artifacts, function(artifact) wid_include_prepare_candidate_one(root, contract, paths, artifact))
@@ -145,6 +173,9 @@ run_wid_explorer <- function(
     }
   }
   candidate_inventory <- wid_include_bind(lapply(incoming, `[[`, "inventory"))
+  if (isTRUE(fetch_attempted) && !nrow(fetch_validation[fetch_validation$severity == "blocked", , drop = FALSE])) {
+    wid_include_write_snapshot_metadata(root, candidate_inventory)
+  }
   inventory <- wid_include_bind(current_inventory, candidate_inventory)
   validation <- wid_include_bind(lapply(incoming, `[[`, "validation"), fetch_validation)
   comparison <- wid_include_bind(lapply(incoming, `[[`, "comparison"))
@@ -160,7 +191,7 @@ run_wid_explorer <- function(
     rows = current_inventory$rows,
     first_year = current_inventory$first_year,
     last_year = current_inventory$last_year,
-    next_command = ifelse(current_inventory$status %in% c("missing_current_artifact", "stale"), "dina sources explore wid --fetch", ""),
+    next_command = ifelse(current_inventory$status %in% c("missing_current_artifact", "stale"), "dina sources refresh wid", ""),
     stringsAsFactors = FALSE
   )
   actions <- wid_include_review_actions(inventory, validation)

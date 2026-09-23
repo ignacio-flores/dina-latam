@@ -786,8 +786,9 @@ dina_same_cheap_signature <- function(current, previous) {
   if (is.null(current) || is.null(previous)) {
     return(FALSE)
   }
+  number <- function(x) suppressWarnings(as.numeric(x %||% NA_real_))
   identical(isTRUE(current$exists), isTRUE(previous$exists)) &&
-    identical(as.numeric(current$size %||% NA_real_), as.numeric(previous$size %||% NA_real_)) &&
+    identical(number(current$size), number(previous$size)) &&
     identical(as.character(current$mtime %||% NA_character_), as.character(previous$mtime %||% NA_character_))
 }
 
@@ -1960,10 +1961,8 @@ dina_update_suggested_config_override <- function(root = dina_repo_root(), confi
   }
   override$countries <- config$countries
   selected <- config$export_validation$previous_update_file
-  if (length(dina_baseline_check(selected, root))) {
-    previous <- dina_baseline_candidates(root)
-    selected <- if (length(previous) == 1L) previous[[1L]] else ""
-  }
+  selected_path <- if (grepl("^/", selected %||% "")) selected else file.path(root, selected %||% "")
+  if (!nzchar(selected %||% "") || !file.exists(selected_path) || dir.exists(selected_path)) selected <- ""
   override <- dina_config_override_set(override, "export_validation.previous_update_file", selected)
   date <- dina_update_extract_wid_update_date(selected)
   if (!identical(selected, config$export_validation$previous_update_file) || nzchar(date)) override <- dina_config_override_set(override, "export_validation.previous_update_date", if (nzchar(date)) date else basename(selected))
@@ -2762,6 +2761,22 @@ dina_review_watch <- function(paths) {
   }), paths)
 }
 
+# A completed inclusion is an acceptance of source data under a configuration,
+# not an acceptance of the current implementation of the CLI.  Code changes
+# still invalidate an unaccepted review (where its evidence must be rebuilt),
+# but must not make an accepted family appear to have been un-included.
+dina_review_acceptance_watch_paths <- function(paths) {
+  paths <- as.character(paths %||% character())
+  paths[!grepl("/code/", paths, fixed = TRUE)]
+}
+
+dina_review_included_watch_changed <- function(record) {
+  stored <- record$acceptance_watch %||% record$watch
+  paths <- dina_review_acceptance_watch_paths(names(stored))
+  if (!length(paths)) return(TRUE)
+  !identical(dina_review_watch(paths), stored[paths])
+}
+
 dina_review_family_status <- function(root, family, record = dina_review_read(root, family)) {
   incoming <- list.files(file.path(root, "input_data", "_new", family), recursive = TRUE, all.files = TRUE, no.. = TRUE)
   answer <- function(code, label, reason, action = "explore") list(code = code, label = label, reason = reason, action = action, record = record)
@@ -2772,6 +2787,11 @@ dina_review_family_status <- function(root, family, record = dina_review_read(ro
   if (record$status %in% c("including", "inclusion_failed")) return(answer("failed", "Inclusion incomplete", "Inspect the inclusion report and backup.", "table"))
   if (record$status == "incomplete" || is.null(record$run)) return(answer("attention", "Needs attention", "The last exploration did not complete."))
   changed <- is.null(record$watch) || !identical(dina_review_watch(names(record$watch)), record$watch)
+  if (record$status == "included") changed <- dina_review_included_watch_changed(record)
+  if (record$status == "included" && changed) {
+    return(answer("included_stale", "Included · recheck needed",
+      "The accepted review is retained, but relevant evidence changed after inclusion.", "explore"))
+  }
   if (changed || record$status == "restored") return(answer("stale", "Explore again", "Relevant evidence changed since the saved review."))
   if (record$status == "included") return(answer("included", paste("Included ·", substr(record$included_at %||% record$reviewed_at, 1, 10)), "Saved candidate accepted; pipeline status is separate.", "table"))
   if (record$status == "nothing_to_include") return(answer("nothing", "Nothing to include", "The engine found no eligible changes.", "table"))
@@ -3152,7 +3172,12 @@ dina_topological_downstream <- function(task_ids, root = dina_repo_root()) {
   selected
 }
 
-dina_run_task <- function(task, root = dina_repo_root(), session = dina_load_session(root = root), dry_run = TRUE, force = FALSE) {
+dina_task_requires_configuration_validation <- function(task) {
+  "configuration_validation" %in% unlist(task$requirements %||% character())
+}
+
+dina_run_task <- function(task, root = dina_repo_root(), session = dina_load_session(root = root), dry_run = TRUE, force = FALSE,
+                          progress = NULL) {
   status <- dina_task_status(task, root = root, session = session)
   if (!force && identical(status$status, "current")) {
     return(list(task = task$id, status = "skipped", reason = "Task is current."))
@@ -3172,12 +3197,25 @@ dina_run_task <- function(task, root = dina_repo_root(), session = dina_load_ses
   if (!nzchar(command[[1]]) || identical(command[[1]], "<DINA_STATA_CMD>")) {
     stop("No executable configured for task ", task$id, call. = FALSE)
   }
+  if (dina_task_requires_configuration_validation(task)) {
+    validation <- dina_config_validation_state(root, session)
+    if (!identical(validation$code, "validated")) {
+      dina_progress(progress, "Configuration validation is %s; running the required export preflight.", tolower(validation$label))
+      check <- dina_settings_check(root, session, validate_baseline = TRUE, progress = progress)
+      session <- dina_record_config_validation(root, session, check, progress = progress)
+      if (!check$valid) stop("Export requires a current successful configuration validation; see the checks above.", call. = FALSE)
+      dina_progress(progress, "Configuration validation preflight passed.")
+    } else {
+      dina_progress(progress, "Using current configuration validation: %s.", validation$label)
+    }
+  }
   dina_need("processx")
   run_id <- format(Sys.time(), "%Y%m%d-%H%M%S")
   log_dir <- dina_path("output", "run_logs", run_id, root = root)
   dir.create(log_dir, recursive = TRUE, showWarnings = FALSE)
   runtime_config_do <- ""
   if (identical(task$type, "stata")) {
+    dina_progress(progress, "Writing the Stata runtime configuration.")
     runtime_config_do <- dina_write_runtime_stata_config(config)
     on.exit(unlink(runtime_config_do), add = TRUE)
   }
@@ -3190,6 +3228,7 @@ dina_run_task <- function(task, root = dina_repo_root(), session = dina_load_ses
     DINA_CONFIG_YML = dina_config_path(root),
     DINA_CONFIG_OVERRIDE_YML = override_path
   )
+  dina_progress(progress, "Running %s; live command output follows.", task$id)
   result <- processx::run(command[[1]], command[-1], wd = root, echo = TRUE, error_on_status = FALSE, env = env)
   status_value <- if (identical(result$status, 0L)) "succeeded" else "failed"
   writeLines(result$stdout, file.path(log_dir, paste0(task$id, ".out.log")))
@@ -3199,6 +3238,7 @@ dina_run_task <- function(task, root = dina_repo_root(), session = dina_load_ses
     session$updated_at <- dina_now()
     dina_save_session(session, root)
   }
+  dina_progress(progress, "%s; logs written to %s.", if (identical(status_value, "succeeded")) "Task completed" else "Task failed", dina_relative(log_dir, root))
   list(task = task$id, status = status_value, command = command, exit_status = result$status, log_dir = dina_relative(log_dir, root))
 }
 
@@ -3680,8 +3720,66 @@ dina_baseline_candidates <- function(root) {
   sort(vapply(paths, dina_relative, character(1), root = root))
 }
 
-dina_settings_check <- function(root, session = dina_load_session(root = root)) {
+dina_config_validation_baseline_signature <- function(path, root = dina_repo_root(), hash = FALSE) {
+  path <- trimws(as.character(path %||% "")[[1L]])
+  if (is.na(path)) path <- ""
+  full <- if (nzchar(path) && grepl("^/", path)) path else file.path(root, path)
+  exists <- nzchar(path) && file.exists(full) && !dir.exists(full)
+  info <- if (exists) file.info(full) else NULL
+  list(
+    path = path,
+    exists = exists,
+    size = if (exists) unname(info$size) else NA_real_,
+    mtime = if (exists) format(info$mtime, "%Y-%m-%dT%H:%M:%OS%z") else NA_character_,
+    sha256 = if (exists && isTRUE(hash)) dina_hash_file(full) else NA_character_
+  )
+}
+
+dina_config_validation_snapshot <- function(root, session = dina_load_session(root = root), hash_baseline = FALSE) {
+  override <- if (!is.null(session)) dina_session_config_override_path(session$id, root) else ""
+  config <- tryCatch(dina_session_config(session, root, expand_env = FALSE), error = function(e) NULL)
+  baseline <- if (!is.null(config)) config$export_validation$previous_update_file %||% "" else ""
+  list(
+    benchmark_config_hash = dina_hash_file(dina_config_path(root)),
+    update_override_hash = if (nzchar(override)) dina_hash_file(override) else NA_character_,
+    baseline = dina_config_validation_baseline_signature(baseline, root, hash = hash_baseline)
+  )
+}
+
+dina_config_validation_state <- function(root, session = dina_load_session(root = root), check = NULL) {
+  if (is.null(session)) return(list(code = "not_available", label = "Not available", detail = "Start an update to validate update settings.", action = "dina update start YEAR"))
+  if (!is.null(check) && length(c(check$errors, check$baseline))) return(list(code = "needs_attention", label = "Needs attention", detail = c(check$errors, check$baseline)[[1L]], action = "dina update config check"))
+  receipt <- session$config_validation %||% NULL
+  if (is.null(receipt) || !length(receipt)) return(list(code = "not_validated", label = "Not validated", detail = "The current settings and comparison baseline have not been validated.", action = "dina update config check"))
+  snapshot <- dina_config_validation_snapshot(root, session, hash_baseline = FALSE)
+  same_hash <- function(x, y) identical(as.character(x %||% NA_character_), as.character(y %||% NA_character_))
+  same_baseline <- identical(receipt$baseline$path %||% "", snapshot$baseline$path %||% "") &&
+    dina_same_cheap_signature(receipt$baseline, snapshot$baseline)
+  current <- same_hash(receipt$benchmark_config_hash, snapshot$benchmark_config_hash) &&
+    same_hash(receipt$update_override_hash, snapshot$update_override_hash) && same_baseline
+  if (!current) return(list(code = "out_of_date", label = "Validation out of date", detail = "Settings or the comparison baseline changed after the last validation.", action = "dina update config check"))
+  checked_at <- receipt$checked_at %||% "unknown time"
+  if (identical(receipt$status, "passed")) return(list(code = "validated", label = paste("Validated ·", checked_at), detail = "Settings and comparison baseline match the recorded validation.", action = ""))
+  list(code = "needs_attention", label = paste("Needs attention ·", checked_at), detail = receipt$errors[[1L]] %||% "The last configuration validation did not pass.", action = "dina update config check")
+}
+
+dina_record_config_validation <- function(root, session, check, progress = NULL) {
+  if (is.null(session)) return(invisible(session))
+  dina_progress(progress, "Fingerprinting the comparison baseline for the validation receipt.")
+  snapshot <- dina_config_validation_snapshot(root, session, hash_baseline = TRUE)
+  session$config_validation <- c(
+    list(status = if (isTRUE(check$valid)) "passed" else "failed", checked_at = dina_now(), errors = unname(c(check$errors, check$baseline))),
+    snapshot
+  )
+  session$updated_at <- dina_now()
+  dina_save_session(session, root)
+  session
+}
+
+dina_settings_check <- function(root, session = dina_load_session(root = root), validate_baseline = TRUE,
+                                progress = NULL) {
   tryCatch({
+    dina_progress(progress, "Checking configuration settings.")
     base <- dina_config(root, expand_env = FALSE)
     override <- dina_config_override(session, root)
     config <- dina_session_config(session, root, expand_env = FALSE)
@@ -3712,9 +3810,19 @@ dina_settings_check <- function(root, session = dina_load_session(root = root)) 
     if (!config$run$lang %in% c("eng", "esp")) errors <- c(errors, "run.lang must be eng or esp.")
     for (name in c("debug", "bfm_replace")) if (!is.logical(config$run[[name]]) || length(config$run[[name]]) != 1L || is.na(config$run[[name]])) errors <- c(errors, paste("run", name, "must be true or false."))
     for (name in c("units", "steps")) if (!length(unlist(config$run[[name]])) || anyNA(unlist(config$run[[name]]))) errors <- c(errors, paste("run", name, "must contain values."))
-    baseline <- dina_baseline_check(config$export_validation$previous_update_file, root)
+    baseline <- character()
+    if (isTRUE(validate_baseline)) {
+      baseline_path <- config$export_validation$previous_update_file %||% ""
+      baseline_label <- if (nzchar(baseline_path)) basename(baseline_path) else "no baseline selected"
+      dina_progress(progress, "Reading comparison baseline: %s. Checking its fields and comparison keys; this may take a moment.", baseline_label)
+      baseline <- dina_baseline_check(baseline_path, root)
+      dina_progress(progress, if (length(baseline)) "Comparison baseline fields or keys need attention." else "Comparison baseline fields and keys are valid.")
+    }
     list(config = config, errors = errors, baseline = baseline, valid = !length(c(errors, baseline)))
-  }, error = function(e) list(config = list(), errors = paste("Invalid configuration:", conditionMessage(e)), baseline = character(), valid = FALSE))
+  }, error = function(e) {
+    dina_progress(progress, "Configuration validation could not be completed.")
+    list(config = list(), errors = paste("Invalid configuration:", conditionMessage(e)), baseline = character(), valid = FALSE)
+  })
 }
 
 dina_settings_write_suggestion <- function(path, config) {

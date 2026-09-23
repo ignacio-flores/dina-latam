@@ -67,6 +67,10 @@ Execution continues through `dina run`. Results starts with the existing final W
 
 Configuration compares benchmark and update settings side by side, highlights
 changes, and puts file paths under Details. Editing includes save/exit instructions.
+`dina update config check` records a validation receipt for the current settings
+and comparison baseline; the workspace then shows `Validated` until either input
+changes, without rereading the DTA on startup. Long-running CLI actions announce
+their phase, elapsed time, and final outcome.
 At update creation, review the prefilled, commented settings file. Choose one
 baseline version in `input_data/_new/previous_series/`; several files are alternatives, not parts
 of one baseline. Existing graphs identify their generation baseline when metadata

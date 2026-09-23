@@ -118,6 +118,15 @@ wid_fixture_contract <- function() {
         schema = list(required_columns = c("country", "year", "widcode", "p", "value_web"), key_columns = c("country", "year", "widcode", "p"), numeric_columns = "value_web", required_years = "configured_window")
       )
     ),
+    review_focus = list(
+      pipeline_inputs = list(
+        population = list(
+          title = "Population estimates", keys = c("country", "year"),
+          values = list(totalpop = "Total population", adultpop = "Adult population"),
+          role = "direct_pipeline_input"
+        )
+      )
+    ),
     statuses = list(blocked = c("blocked_fetch_failed", "blocked_read_failed", "blocked_schema", "blocked_empty_source", "blocked_duplicate_keys", "blocked_missing_values", "blocked_missing_required_years", "blocked_derivation_failed", "blocked_copy_failed"))
   )
 }
@@ -232,7 +241,7 @@ test_that("WID explorer reports missing artifacts without fetching", {
   expect_equal(nrow(result$outputs$wid_request_plan), 6L)
   expect_true(any(grepl("totalpop=npopul999i", result$outputs$wid_request_plan$mapping_summary, fixed = TRUE)))
   expect_equal(result$outputs$wid_request_plan$area_set[result$outputs$wid_request_plan$source_id == "population"], "population_legacy")
-  expect_true(any(result$outputs$review_actions$next_command == "dina sources explore wid --fetch"))
+  expect_true(any(result$outputs$review_actions$next_command == "dina sources refresh wid"))
   expect_equal(nrow(result$outputs$unsupported_sources), 0L)
   expect_false(dir.exists(file.path(root, "output", "experiments", "wid_include")))
   expect_false(dir.exists(file.path(root, "output", "experiments", "wid_explore", "staged_repo")))
@@ -245,7 +254,19 @@ test_that("WID explorer reports stale local artifacts", {
   result <- run_wid_explorer(root = root, write_outputs = FALSE)
   population_status <- result$outputs$wid_artifact_status[result$outputs$wid_artifact_status$source_id == "population", , drop = FALSE]
   expect_true("stale" %in% population_status$status)
-  expect_true(any(result$outputs$review_actions$source_id == "population" & result$outputs$review_actions$next_command == "dina sources explore wid --fetch"))
+  expect_true(any(result$outputs$review_actions$source_id == "population" & result$outputs$review_actions$next_command == "dina sources refresh wid"))
+})
+
+test_that("WID requests use the active update's effective final year", {
+  root <- wid_fixture_root(current = FALSE)
+  session <- dina_update_start("2026", root = root, source_hash = FALSE, repo_snapshot = FALSE)
+  session <- dina_session_config_set(session, root = root, key = "years.last", value = 2004L)
+  contract <- wid_include_read_contract(root)
+  artifact <- wid_include_artifacts(contract)[[1L]]
+  expect_equal(range(wid_include_years(root, contract, artifact)), c(2000L, 2004L))
+  expect_equal(range(wid_include_required_years(root, contract, artifact)), c(2000L, 2004L))
+  plan <- wid_include_request_plan(root, contract)
+  expect_true(all(plan$request_years == "2000-2004"))
 })
 
 test_that("WID explorer fetch fills _new first-time artifacts without promoting", {
@@ -262,8 +283,20 @@ test_that("WID explorer fetch fills _new first-time artifacts without promoting"
   expect_equal(sum(fetch$outputs$promotion_plan$artifact_type == "raw"), 6L)
   expect_true(all(fetch$outputs$wid_artifact_comparison$comparison_status == "no_current_artifact"))
   expect_true(file.exists(file.path(root, "input_data", "_new", "wid", "prices_deflator_ppp_eur.dta")))
+  snapshot <- file.path(root, "input_data", "_new", "wid", ".wid_snapshot.json")
+  expect_true(file.exists(snapshot))
+  metadata <- jsonlite::read_json(snapshot, simplifyVector = TRUE)
+  expect_equal(metadata$source, "WID API")
+  expect_true(nzchar(metadata$retrieved_at))
   expect_true(any(fetch$outputs$source_inventory$source_set == "_new"))
   expect_false(dir.exists(file.path(root, "output", "experiments", "wid_explore", "staged_repo")))
+})
+
+test_that("explicit WID fetch refreshes a candidate even when accepted artifacts exist", {
+  root <- wid_fixture_root(current = TRUE, current_offset = 0, incoming_offset = 100)
+  refreshed <- run_wid_explorer(root = root, write_outputs = FALSE, fetch = TRUE)
+  expect_equal(wid_include_manifest_value(refreshed$manifest, "status"), "fetched")
+  expect_true(file.exists(file.path(root, "input_data", "_new", "wid", ".wid_snapshot.json")))
 })
 
 test_that("WID include dry-run consumes _new WID artifacts without promoting", {
@@ -303,6 +336,36 @@ test_that("Later WID include compares candidates against existing artifacts", {
   expect_equal(wid_include_manifest_value(include$manifest, "status"), "all_good")
   expect_true(all(include$outputs$wid_artifact_comparison$comparison_status == "compared"))
   expect_true(any(include$outputs$wid_numeric_comparison$abs_diff != 0))
+})
+
+test_that("WID population migration compares the legacy input before the new canonical file exists", {
+  root <- wid_fixture_root(current = FALSE, incoming_offset = 100)
+  contract_path <- file.path(root, "config", "wid_include.yml")
+  contract <- wid_include_read_contract(root)
+  contract$artifacts$population$legacy_baseline <- "input_data/population/PopulationLatAm.dta"
+  dina_write_yaml(contract[names(contract) != "contract_path"], contract_path)
+  contract <- wid_include_read_contract(root)
+  population <- wid_include_artifact(contract, "population")
+  legacy <- wid_include_derive_artifact(wid_fixture_raw_set(offset = 0)$population, population, wid_include_years(root, contract, population))
+  legacy$country <- paste0("  ", legacy$country, " ")
+  wid_fixture_write_dta(root, population$legacy_baseline, legacy)
+
+  wid_fixture_fetch_explore(root)
+  include <- run_wid_include(root = root, write_outputs = TRUE, run_id = "wid-migration")
+  comparison <- include$outputs$wid_artifact_comparison[include$outputs$wid_artifact_comparison$source_id == "population", , drop = FALSE]
+  expect_equal(comparison$comparison_status, "compared_legacy_baseline")
+  expect_equal(comparison$current_rel, "input_data/population/PopulationLatAm.dta")
+  expect_equal(comparison$key_current_only, 0L)
+  expect_equal(comparison$key_candidate_only, 0L)
+
+  source_cli_for_tests()
+  explored <- run_dina_cli(c("sources", "explore", "wid"), root)
+  expect_equal(explored$status, 0L, info = explored$output)
+  expect_match(explored$output, "legacy population input", fixed = TRUE)
+  record <- dina_review_read(root, "wid")
+  values <- dina_review_table(record, "review_values")
+  expect_true(any(values$baseline == "legacy population input"))
+  expect_true(any(values$result == "revised"))
 })
 
 test_that("WID include blocks malformed source responses and invalid derived artifacts", {
@@ -356,19 +419,25 @@ test_that("main dina CLI dispatches WID explore, include, and table previews", {
   explore <- run_dina_cli(c("sources", "explore", "wid"), root = root)
   expect_equal(explore$status, 0L)
   expect_match(explore$output, "WID Explore")
-  expect_match(explore$output, "population")
-  expect_match(explore$output, "dina sources explore wid --fetch")
+  expect_match(explore$output, "There is no local WID snapshot to review")
+  expect_match(explore$output, "dina sources refresh wid")
 
   include <- run_dina_cli(c("sources", "include", "wid", "--dry-run"), root = root)
   expect_equal(include$status, 0L)
   expect_match(include$output, "WID Include")
-  expect_match(include$output, "dina sources explore wid --fetch")
+  expect_match(include$output, "dina sources refresh wid")
 
-  fetched <- run_dina_cli(c("sources", "explore", "wid", "--fetch"), root = root)
+  refreshed <- run_dina_cli(c("sources", "refresh", "wid"), root = root)
+  expect_equal(refreshed$status, 0L, info = refreshed$output)
+  expect_match(refreshed$output, "Refresh WID data")
+  expect_match(refreshed$output, "Next: dina sources explore wid", fixed = TRUE)
+  expect_false(file.exists(dina_review_pointer(root, "wid")))
+
+  fetched <- run_dina_cli(c("sources", "explore", "wid"), root = root)
   expect_equal(fetched$status, 0L)
   expect_match(fetched$output, "Review available")
   expect_match(fetched$output, "1\\. Coverage")
-  expect_match(fetched$output, "Explore has not changed accepted sources")
+  expect_match(fetched$output, "Explore has not accepted sources or run the pipeline")
   expect_match(fetched$output, "3\\. Problems")
   expect_false(grepl("wid-macro\\s+raw\\s+_new", fetched$output))
   expect_match(fetched$output, "dina sources include wid")
@@ -385,24 +454,26 @@ test_that("main dina CLI dispatches WID explore, include, and table previews", {
   expect_match(table$output, "comparison_status")
 })
 
-test_that("family WID review shows opposing observation revisions and accepts the saved evidence", {
+test_that("family WID review reports population input changes without export graph references", {
   source_cli_for_tests()
   root <- wid_fixture_root(current = TRUE, incoming_offset = 0)
   wid_fixture_mark_current_stale(root)
-  fixture <- file.path(Sys.getenv("DINA_WID_FIXTURE_DIR"), "wid-macro.dta")
-  raw <- haven::read_dta(fixture)
-  raw$value[1:2] <- raw$value[1:2] + c(10, -10)
-  haven::write_dta(raw, fixture)
+  population_fixture <- file.path(Sys.getenv("DINA_WID_FIXTURE_DIR"), "population.dta")
+  population_raw <- haven::read_dta(population_fixture)
+  population_raw$value[[1L]] <- population_raw$value[[1L]] + 100
+  haven::write_dta(population_raw, population_fixture)
   baseline <- dina_hash_path(file.path(root, "input_data", "wid"))
   explored <- run_dina_cli(c("sources", "explore", "wid", "--fetch"), root)
   expect_equal(explored$status, 0L, info = explored$output)
   record <- dina_review_read(root, "wid")
   expect_equal(record$status, "all_good")
   values <- dina_review_table(record, "review_values")
-  revised <- values[values$source_id == "wid-macro" & values$result == "revised", ]
-  expect_equal(nrow(revised), 2L)
-  expect_equal(sort(revised$difference), c(-10, 10))
-  expect_equal(sum(revised$difference), 0)
+  expect_true(nrow(values) > 0L)
+  expect_true(any(values$source_id == "population" & values$result == "revised"))
+  expect_match(explored$output, "Population estimates", fixed = TRUE)
+  expect_false(grepl("Export graph reference", explored$output, fixed = TRUE))
+  expect_false(grepl("sptinc992j", explored$output, fixed = TRUE))
+  expect_match(explored$output, "not with the final DINA series", fixed = TRUE)
   expect_equal(dina_hash_path(file.path(root, "input_data", "wid")), baseline)
   # The explicit selector remains supported but uses the same acceptance guards.
   included <- run_dina_cli(c("sources", "include", "wid", "--confirm", "--include-run", record$run), root)
@@ -411,29 +482,25 @@ test_that("family WID review shows opposing observation revisions and accepts th
   expect_null(dina_review_recommendation(root))
 })
 
-test_that("WID duplicate baseline keys are not reported as a successful comparison", {
+test_that("WID source-input review does not require a previous-series file", {
   source_cli_for_tests()
   root <- wid_fixture_root(current = TRUE)
   wid_fixture_mark_current_stale(root)
-  current <- file.path(root, "input_data", "wid", "macro_national_accounts_indicators.dta")
-  data <- haven::read_dta(current)
-  haven::write_dta(rbind(data, data[1, ]), current)
   result <- run_dina_cli(c("sources", "explore", "wid", "--fetch"), root)
   expect_equal(result$status, 0L, info = result$output)
-  expect_match(result$output, "Not checked: comparison keys are missing or duplicated", fixed = TRUE)
-  expect_equal(dina_review_read(root, "wid")$status, "blocked")
-  expect_equal(run_dina_cli(c("sources", "include", "wid", "--confirm"), root)$status, 1L)
+  expect_match(result$output, "Final-series revisions are checked only after the pipeline runs", fixed = TRUE)
+  expect_equal(dina_review_read(root, "wid")$status, "all_good")
 })
 
 test_that("WID family menu can fetch and prepare the same review as a typed command", {
   source_cli_for_tests()
   root <- wid_fixture_root()
-  input <- textConnection("2\n1\nq\n")
+  input <- textConnection("1\n\n2\n\nq\n")
   on.exit(close(input), add = TRUE)
   output <- capture.output(dina_review_family_menu(root, "wid", input, TRUE))
   menu <- dina_review_read(root, "wid")
   expect_equal(menu$status, "all_good")
-  expect_match(paste(output, collapse = "\n"), "dina sources explore wid --fetch", fixed = TRUE)
+  expect_match(paste(output, collapse = "\n"), "dina sources refresh wid", fixed = TRUE)
   rows <- dina_review_table(menu, "review_values")
   typed <- run_dina_cli(c("sources", "explore", "wid"), root)
   expect_equal(typed$status, 0L, info = typed$output)

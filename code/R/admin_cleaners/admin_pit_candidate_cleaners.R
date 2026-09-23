@@ -101,11 +101,13 @@ admin_pit_candidate_write_sheeted_workbook <- function(path, tables, sheet_names
   invisible(path)
 }
 
-admin_pit_candidate_read_chl_uta <- function(input_root, years) {
-  helper_paths <- c(
-    file.path(input_root, "code", "R", "source-helpers", "chl_uta.R"),
-    file.path(getwd(), "code", "R", "source-helpers", "chl_uta.R")
-  )
+admin_pit_candidate_read_chl_uta <- function(input_root, years, repo_root = getwd()) {
+  # Candidate input_root is deliberately a disposable staged data tree.  Code
+  # remains at repo_root, so never depend on getwd() to find this helper.
+  helper_paths <- unique(c(
+    file.path(repo_root, "code", "R", "source-helpers", "chl_uta.R"),
+    file.path(input_root, "code", "R", "source-helpers", "chl_uta.R")
+  ))
   helper_paths <- helper_paths[file.exists(helper_paths)]
   if (!length(helper_paths)) {
     stop("Missing Chile UTA helper code/R/source-helpers/chl_uta.R.", call. = FALSE)
@@ -113,6 +115,31 @@ admin_pit_candidate_read_chl_uta <- function(input_root, years) {
   source(helper_paths[[1L]], local = TRUE)
   uta <- chl_uta_load(input_root = input_root, years = years, allow_fetch = FALSE)
   uta[, c("uta", "year")]
+}
+
+# Chile's workbook has repeated triplets for different taxpayer populations.
+# Do not infer the desired triplet from janitor's generated suffixes: those
+# depend on how many repeated headers a particular release contains.  The
+# publisher labels the required one "Consolidado", so resolve it from that
+# declared label and fail clearly if a future layout no longer supplies it.
+admin_pit_candidate_chl_consolidated_columns <- function(layout, raw_names) {
+  label_columns <- which(vapply(layout, function(column) {
+    any(grepl("\\bconsolidado\\b", as.character(column), ignore.case = TRUE))
+  }, logical(1)))
+  if (length(label_columns) != 1L) {
+    stop("Chile PIT layout must contain exactly one 'Consolidado' column group.", call. = FALSE)
+  }
+  start <- label_columns[[1L]]
+  positions <- start + 0:2
+  if (max(positions) > length(raw_names)) {
+    stop("Chile PIT 'Consolidado' group does not contain people, income and tax columns.", call. = FALSE)
+  }
+  names <- janitor::make_clean_names(raw_names[positions])
+  expected <- c("^n.*personas", "^renta.*determinada", "^impuesto.*determinado")
+  if (!all(vapply(seq_along(expected), function(i) grepl(expected[[i]], names[[i]]), logical(1)))) {
+    stop("Chile PIT 'Consolidado' columns do not match the published people, income and tax layout.", call. = FALSE)
+  }
+  positions
 }
 
 admin_pit_candidate_clean_chl <- function(
@@ -130,17 +157,14 @@ admin_pit_candidate_clean_chl <- function(
   target_years <- coverage_years[coverage_years <= last_y]
 
   popdata <- haven::read_dta(file.path(input_root, "intermediary_data", "population", "SurveyPop.dta"))
-  raw_tabs <- admin_pit_candidate_read_workbook(tfile, sheet = "Datos", range = "A8:K5000", col_names = TRUE)
+  layout <- admin_pit_candidate_read_workbook(tfile, sheet = "Datos", range = "A1:ZZ8", col_names = FALSE)
+  raw_tabs <- admin_pit_candidate_read_workbook(tfile, sheet = "Datos", range = "A8:ZZ5000", col_names = TRUE)
+  consolidated <- admin_pit_candidate_chl_consolidated_columns(layout, names(raw_tabs))
+  raw_tabs <- janitor::clean_names(raw_tabs)
   raw_tabs <- raw_tabs |>
-    janitor::clean_names() |>
-    dplyr::select(ano_comercial, tramo_de_rentas, n_de_personas_3, renta_determinada_millones_de_pesos_3, impuesto_determinado_millones_de_pesos_3) |>
-    dplyr::rename(
-      year = ano_comercial,
-      tramo = tramo_de_rentas,
-      personas = n_de_personas_3,
-      renta = renta_determinada_millones_de_pesos_3,
-      impuesto = impuesto_determinado_millones_de_pesos_3
-    ) |>
+    dplyr::select(1L, 2L, dplyr::all_of(names(raw_tabs)[consolidated]))
+  names(raw_tabs) <- c("year", "tramo", "personas", "renta", "impuesto")
+  raw_tabs <- raw_tabs |>
     tidyr::separate(tramo, into = c("a", "tramo"), sep = "-", fill = "right", extra = "merge") |>
     tidyr::separate(tramo, into = c("tramo_uta", "b"), sep = "a", fill = "right", extra = "merge") |>
     dplyr::mutate(
@@ -151,7 +175,7 @@ admin_pit_candidate_clean_chl <- function(
     dplyr::select(year, tramo_uta, personas, renta, impuesto) |>
     dplyr::filter(year %in% target_years)
 
-  uta <- admin_pit_candidate_read_chl_uta(input_root, target_years[target_years >= 2005])
+  uta <- admin_pit_candidate_read_chl_uta(input_root, target_years[target_years >= 2005], repo_root = repo_root)
   chl_tabs <- dplyr::full_join(raw_tabs, uta, by = "year") |>
     dplyr::mutate(
       uta = stringr::str_replace_all(as.character(uta), stringr::coll("."), ""),
@@ -233,7 +257,7 @@ admin_pit_candidate_clean_chl <- function(
   for (year in target_years[target_years >= 2005]) {
     reduced_tab <- dplyr::filter(dplyr::ungroup(chl_tabs), year == !!year) |>
       dplyr::mutate(factor = 0) |>
-      dplyr::select(year, p)
+      dplyr::select(year, p, factor)
     reduced_vec <- reduced_tab$p
     for (i in seq_along(reduced_vec)) {
       pe <- reduced_vec[[i]]
