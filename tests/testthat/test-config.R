@@ -1,3 +1,9 @@
+config_test_baseline <- function(root) {
+  path <- file.path(root, "input_data", "_new", "previous_series", "dina_latam_3Oct2024.dta")
+  haven::write_dta(data.frame(year = 2022L, iso = "CO", p = "p90p100", widcode = "sptinc992j", value = .5), path)
+  path
+}
+
 test_that("config loads and renders Stata globals", {
   root <- mini_repo()
   cfg <- dina_config(root)
@@ -10,6 +16,8 @@ test_that("config loads and renders Stata globals", {
   expect_true(any(grepl("global bfm_replace \"no\"", lines, fixed = TRUE)))
   expect_true(any(grepl("global export_unit \"esn\"", lines, fixed = TRUE)))
   expect_true(any(grepl("global export_last_y 2024", lines, fixed = TRUE)))
+  expect_true(any(grepl("global dina_baseline_fingerprint", lines, fixed = TRUE)))
+  expect_true(any(grepl("global dina_config_countries", lines, fixed = TRUE)))
   expect_true(any(grepl('global previous_update "input_data/_new/previous_series/dina_latam_3Oct2024.dta"', lines, fixed = TRUE)))
 })
 
@@ -33,6 +41,7 @@ test_that("runtime config rejects comparison baselines outside the configured di
 
 test_that("runtime config files do not contain stale fallback values", {
   stata_07d <- readLines(file.path(repo_root_for_tests, "code", "Stata", "07d-export-results-to-wid.do"), warn = FALSE)
+  bootstrap <- readLines(file.path(repo_root_for_tests, "code", "Stata", "auxiliar", "dina_runtime_config.do"), warn = FALSE)
 
   expect_false(any(grepl("dina_latam_3Oct2024", stata_07d, fixed = TRUE)))
   expect_false(any(grepl("local ly = 2024", stata_07d, fixed = TRUE)))
@@ -41,6 +50,8 @@ test_that("runtime config files do not contain stale fallback values", {
   # The working repository may have a manually maintained legacy config.
   root <- mini_repo()
   expect_false(file.exists(file.path(root, "_config.do")))
+  expect_true(any(grepl("DINA_CONFIG_DO", bootstrap, fixed = TRUE)))
+  expect_false(any(grepl("run _config.do", bootstrap, fixed = TRUE)))
 })
 
 test_that("nested config set helper parses scalars and vectors", {
@@ -69,6 +80,7 @@ test_that("R config helper honors YAML override", {
 
 test_that("Stata runs receive a temporary runtime config", {
   root <- mini_repo()
+  config_test_baseline(root)
   session <- dina_update_start("2026", root = root)
   session <- dina_session_config_set(session, root = root, key = "years.last", value = "2024")
   fake_stata <- file.path(root, "fake-stata")
@@ -82,6 +94,11 @@ test_that("Stata runs receive a temporary runtime config", {
   Sys.chmod(fake_stata, "0755")
   task <- list(id = "runtime-test", type = "stata", script = "code/Stata/01a.do", inputs = list(), outputs = c("output/runtime-test.txt"))
 
+  session <- withr::with_envvar(c(DINA_STATA_CMD = fake_stata), {
+    check <- dina_settings_check(root, session, validate_baseline = TRUE, validate_runtime = FALSE)
+    dina_record_config_validation(root, session, check)
+  })
+
   result <- withr::with_envvar(c(DINA_STATA_CMD = fake_stata), {
     dina_run_task(task, root = root, session = session, dry_run = FALSE, force = TRUE)
   })
@@ -91,4 +108,58 @@ test_that("Stata runs receive a temporary runtime config", {
   expect_false(file.exists(runtime_path))
   copied <- readLines(file.path(root, "output", "runtime-config-copy.do"), warn = FALSE)
   expect_true(any(grepl("global last_y 2024", copied, fixed = TRUE)))
+  expect_true(any(grepl('global dina_config_scope "update:2026-update', copied, fixed = TRUE)))
+})
+
+test_that("every real task requires a current validation but previews remain non-mutating", {
+  root <- mini_repo(); config_test_baseline(root)
+  session <- dina_update_start("2026", root = root)
+  fake_stata <- file.path(root, "fake-stata")
+  marker <- file.path(root, "output", "stata-ran")
+  writeLines(c("#!/bin/sh", paste("touch", shQuote(marker))), fake_stata)
+  Sys.chmod(fake_stata, "0755")
+  task <- list(id = "runtime-test", type = "stata", script = "code/Stata/01a.do", inputs = list(), outputs = character())
+
+  expect_error(withr::with_envvar(c(DINA_STATA_CMD = fake_stata), {
+    dina_run_task(task, root = root, session = session, dry_run = FALSE, force = TRUE)
+  }), "dina update config check")
+  expect_false(file.exists(marker))
+
+  preview <- withr::with_envvar(c(DINA_STATA_CMD = fake_stata), {
+    dina_run_task(task, root = root, session = session, dry_run = TRUE, force = TRUE)
+  })
+  expect_equal(preview$status, "dry_run")
+  expect_false(file.exists(marker))
+})
+
+test_that("benchmark and update validation receipts are independent scopes", {
+  root <- mini_repo(); config_test_baseline(root)
+  benchmark_check <- dina_settings_check(root, session = NULL, validate_runtime = FALSE)
+  expect_true(benchmark_check$valid)
+  dina_record_config_validation(root, session = NULL, benchmark_check)
+  expect_equal(dina_config_validation_state(root, session = NULL)$code, "validated")
+  benchmark_runtime <- dina_render_config_do(
+    dina_session_config(NULL, root, expand_env = FALSE),
+    identity = dina_config_validation_identity(root, NULL, dina_config_validation_receipt(root, NULL))
+  )
+  expect_true(any(grepl('global dina_config_scope "benchmark"', benchmark_runtime, fixed = TRUE)))
+  expect_true(any(grepl("global last_y 2023", benchmark_runtime, fixed = TRUE)))
+
+  session <- dina_update_start("2026", root = root)
+  session <- dina_session_config_set(session, root = root, key = "years.last", value = "2024")
+  expect_equal(dina_config_validation_state(root, session = NULL)$code, "validated")
+  expect_equal(dina_config_validation_state(root, session)$code, "not_validated")
+
+  update_check <- dina_settings_check(root, session, validate_runtime = FALSE)
+  session <- dina_record_config_validation(root, session, update_check)
+  expect_equal(dina_config_validation_state(root, session)$code, "validated")
+  update_runtime <- dina_render_config_do(
+    dina_session_config(session, root, expand_env = FALSE),
+    identity = dina_config_validation_identity(root, session, dina_config_validation_receipt(root, session))
+  )
+  expect_true(any(grepl('global dina_config_scope "update:2026-update', update_runtime, fixed = TRUE)))
+  expect_true(any(grepl("global last_y 2024", update_runtime, fixed = TRUE)))
+  session <- dina_session_config_set(session, root = root, key = "years.last", value = "2025")
+  expect_equal(dina_config_validation_state(root, session)$code, "out_of_date")
+  expect_equal(dina_config_validation_state(root, session = NULL)$code, "validated")
 })

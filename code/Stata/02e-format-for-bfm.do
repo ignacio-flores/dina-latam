@@ -1,4 +1,4 @@
-run _config.do
+do "code/Stata/auxiliar/dina_runtime_config.do"
 local list_noquotes : subinstr global all_countries `"""' "" , all
 foreach c in "SLV" "PER" "DOM" "URY" "BRA" "CHL" "COL" "ECU" {
 	

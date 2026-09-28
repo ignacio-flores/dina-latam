@@ -1,6 +1,4 @@
-* Configuration file
-global all_countries " "COL" "ARG" "PER" "URY" "CRI" "ECU" "CHL" "BRA" "SLV" "MEX" "DOM" "
-global first_y 2000
-global last_y 2023
-global lang "eng"
-global mode "normal"
+* Retired configuration entry point. It is intentionally not a fallback.
+di as error "_config.do is retired and cannot configure a DINA run."
+di as error "Use `dina run`, or generate an explicit runtime file with `dina config stata --output PATH`."
+exit 198

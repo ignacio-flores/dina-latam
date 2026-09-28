@@ -119,9 +119,14 @@ For Pushover notifications, copy `config/pushover.local.R.example` to
 placeholders. The local credentials file is ignored by Git; server runs can
 instead use `PUSHOVER_USER_KEY` and `PUSHOVER_APP_TOKEN`.
 
-When `dina run` executes a Stata task, the CLI writes a temporary runtime Stata
-config, sets `DINA_CONFIG_DO` for that process, and removes the file after the
-task finishes.
+Every real `dina run` requires a current configuration validation: use
+`dina update config check` for the active update or `dina config check` for the
+benchmark. The CLI writes a scope-specific temporary Stata runtime config,
+sets `DINA_CONFIG_DO` for that process, and removes the file after the task
+finishes. Source-review status is recorded with a run but does not block a
+provisional pipeline test. Manual Stata runs must use an explicitly generated
+validated file from `dina config stata --output PATH` or
+`dina update config stata --output PATH`.
 ---
 
 ## Outputs

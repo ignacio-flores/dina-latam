@@ -3,6 +3,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 clear all
+do "code/Stata/auxiliar/dina_runtime_config.do"
 global codes "code/Stata/eff-tax-rates"
 
 // Create directory if it doesnt exist 
@@ -42,4 +43,4 @@ qui do "$codes/compute-eff-tax-rate-theo-PER.do"
 
 clear
 
-//DOM? 
+//DOM?

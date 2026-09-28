@@ -474,14 +474,15 @@ Compatibility:
     run = "Usage:
   dina run list
   dina run why TASK
-  dina run stale [--dry-run]
+  dina run stale [--benchmark] [--dry-run]
   dina run TASK [OPTIONS]
   dina run --task TASK [OPTIONS]
 
 What it does:
   Selects tasks from `config/pipeline.yml`, checks freshness, then executes
-  them. `dina run TASK` executes by default. Use --dry-run to print commands
-  without running scripts.
+  them. `dina run TASK` executes by default. A real run requires a current
+  configuration validation for its selected scope. Use --dry-run to print
+  commands without running scripts.
 
 Task selectors:
   01a                             One task, e.g. 01a-clean-macro-data.
@@ -499,6 +500,8 @@ Options:
                                   block NN.
   --to TASK                       End at a task; NN ends at last task in block NN.
   --dry-run                       Print commands without executing.
+  --benchmark                     Use the validated benchmark configuration
+                                  instead of the active update.
   --force                         Run even when a task appears current.
   --notify                        Send a Pushover message at completion/failure.
 
@@ -507,12 +510,13 @@ Subcommands:
                                   freshness status.
   why TASK                        Explains why one task is stale, missing,
                                   current, inactive, or failed.
-  stale [--dry-run]               Runs all stale, missing, never-run, or failed
+  stale [--benchmark] [--dry-run] Runs all stale, missing, never-run, or failed
                                   active tasks. Use --dry-run to preview.
 
 Stata:
-  Stata tasks need a runnable command. If `dina doctor` finds Stata but says it
-  is not configured, set DINA_STATA_CMD to the suggested executable path.
+  Validate first with `dina update config check` (or `dina config check` for
+  the benchmark). The check verifies the Stata runtime bootstrap and required
+  ado commands without running a project task.
 
 What it changes:
   By default, selected scripts may update data/output files and the CLI writes
@@ -829,7 +833,8 @@ dina_cli_operation <- function(name) {
 
 dina_cli_validate_configuration <- function(root, session, full = FALSE) {
   operation <- dina_cli_operation("configuration validation")
-  check <- dina_settings_print(root, session, full = full, validate_baseline = TRUE, progress = operation$progress)
+  check <- dina_settings_print(root, session, full = full, validate_baseline = TRUE,
+    validate_runtime = TRUE, progress = operation$progress)
   operation$finish(if (check$valid) "Completed" else "Needs attention")
   check
 }
@@ -3027,8 +3032,19 @@ dina_cmd_update <- function(root, args) {
       stop("`dina update config set` is retired. Use `dina update config edit` to review or change the working override.", call. = FALSE)
     } else if (identical(action, "edit")) {
       dina_update_config_edit(session, root = root)
+    } else if (identical(action, "stata")) {
+      flags <- dina_parse_flags(rest[-1])
+      path <- flags$output %||% dina_arg(flags$positional, 1L, NULL)
+      if (is.null(path) || !nzchar(path)) stop("Usage: dina update config stata --output PATH", call. = FALSE)
+      state <- dina_config_validation_state(root, session)
+      if (!identical(state$code, "validated")) stop("Update configuration is not validated. Run ", state$action, " first.", call. = FALSE)
+      full <- if (grepl("^/", path)) path else file.path(root, path)
+      identity <- dina_config_validation_identity(root, session, dina_config_validation_receipt(root, session))
+      dina_render_config_do(dina_session_config(session, root, expand_env = FALSE), full, identity)
+      dina_cli_ok(sprintf("Wrote validated update Stata runtime config %s", dina_relative(full, root)))
+      dina_cli_alert(sprintf("Use it with: %s", dina_cli_command(sprintf("export DINA_CONFIG_DO=\"%s\"", full))))
     } else {
-      stop("Usage: dina update config show [--full]\n       dina update config edit\n       dina update config check", call. = FALSE)
+      stop("Usage: dina update config show [--full]\n       dina update config edit\n       dina update config check\n       dina update config stata --output PATH", call. = FALSE)
     }
   } else if (identical(sub, "repo-status")) {
     session <- dina_load_session(root = root)
@@ -6242,7 +6258,8 @@ dina_cmd_run <- function(root, args) {
   }
   if (identical(sub, "stale")) {
     flags <- dina_parse_flags(args[-1])
-    statuses <- dina_all_task_status(root)
+    session <- if (isTRUE(flags$benchmark)) NULL else dina_load_session(root = root)
+    statuses <- dina_all_task_status(root, session = session)
     stale_ids <- names(statuses)[vapply(statuses, function(x) x$status %in% c("missing_outputs", "stale", "upstream_stale", "missing_inputs", "never_run", "failed"), logical(1))]
     if (!length(stale_ids)) {
       dina_cli_ok("No stale or missing active tasks.")
@@ -6251,7 +6268,7 @@ dina_cmd_run <- function(root, args) {
     tasks <- dina_task_map(root)[stale_ids]
     results <- list()
     for (task in tasks) {
-      result <- dina_cli_run_task(task, root, dry_run = isTRUE(flags[["dry-run"]]), force = isTRUE(flags$force))
+      result <- dina_cli_run_task(task, root, session = session, dry_run = isTRUE(flags[["dry-run"]]), force = isTRUE(flags$force))
       results[[task$id]] <- result
       dina_cli_cat(sprintf("%s: %s", result$task, dina_cli_dim(result$status)))
       if (!is.null(result$command)) dina_cli_cat(sprintf("  %s", dina_cli_command(paste(result$command, collapse = " "))))
@@ -6270,6 +6287,7 @@ dina_cmd_run <- function(root, args) {
     from = flags$from %||% NULL,
     to = flags$to %||% NULL
   )
+  session <- if (isTRUE(flags$benchmark)) NULL else dina_load_session(root = root)
   dry_run <- isTRUE(flags[["dry-run"]])
   notify <- isTRUE(flags$notify)
   completed <- FALSE
@@ -6289,7 +6307,7 @@ dina_cmd_run <- function(root, args) {
     }, add = TRUE)
   }
   for (task in tasks) {
-    result <- dina_cli_run_task(task, root, dry_run = dry_run, force = isTRUE(flags$force))
+    result <- dina_cli_run_task(task, root, session = session, dry_run = dry_run, force = isTRUE(flags$force))
     results[[task$id]] <- result
     dina_cli_cat(sprintf("%s: %s", result$task, dina_cli_dim(result$status)))
     if (!is.null(result$command)) dina_cli_cat(sprintf("  %s", dina_cli_command(paste(result$command, collapse = " "))))
@@ -6303,21 +6321,8 @@ dina_cmd_config <- function(root, args) {
   if (identical(sub, "show")) {
     cat(paste(readLines(dina_config_path(root), warn = FALSE), collapse = "\n"), "\n")
   } else if (identical(sub, "check")) {
-    cfg <- dina_config(root, expand_env = FALSE)
-    dina_cli_header("Config Check")
-    dina_cli_cat(dina_cli_key_value("Config:", dina_relative(dina_config_path(root), root)))
-    required <- c("project", "countries", "years", "run", "stata", "paths")
-    missing <- required[!vapply(required, function(name) !is.null(cfg[[name]]), logical(1))]
-    if (length(missing)) {
-      dina_cli_warn(sprintf("Missing top-level config keys: %s", paste(missing, collapse = ", ")))
-    } else {
-      dina_cli_ok("Required top-level config keys are present.")
-    }
-    if (file.exists(file.path(root, "_config.do"))) {
-      dina_cli_warn("_config.do exists but is no longer part of the CLI workflow.")
-    } else {
-      dina_cli_ok("_config.do is absent from the CLI workflow.")
-    }
+    check <- dina_cli_validate_configuration(root, session = NULL)
+    if (!check$valid) stop("Configuration needs attention; see the checks above.", call. = FALSE)
   } else if (identical(sub, "propose")) {
     stop("`dina config propose` is retired. Start or resume an update, then use `dina update config edit`.", call. = FALSE)
   } else if (identical(sub, "set")) {
@@ -6329,8 +6334,11 @@ dina_cmd_config <- function(root, args) {
       stop("Usage: dina config stata --output PATH", call. = FALSE)
     }
     full <- if (grepl("^/", path)) path else file.path(root, path)
-    dina_render_config_do(dina_config(root, expand_env = FALSE), full)
-    dina_cli_ok(sprintf("Wrote explicit Stata runtime config %s", dina_relative(full, root)))
+    state <- dina_config_validation_state(root, session = NULL)
+    if (!identical(state$code, "validated")) stop("Benchmark configuration is not validated. Run ", state$action, " first.", call. = FALSE)
+    identity <- dina_config_validation_identity(root, session = NULL, dina_config_validation_receipt(root, NULL))
+    dina_render_config_do(dina_session_config(NULL, root, expand_env = FALSE), full, identity)
+    dina_cli_ok(sprintf("Wrote validated benchmark Stata runtime config %s", dina_relative(full, root)))
     dina_cli_alert(sprintf("Use it with: %s", dina_cli_command(sprintf("export DINA_CONFIG_DO=\"%s\"", full))))
   } else if (identical(sub, "render")) {
     stop("Unknown config command: render. Use `dina config stata --output PATH` for manual Stata export.", call. = FALSE)

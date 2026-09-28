@@ -2,7 +2,7 @@
 //				    Goal: Calls dofiles preparing admin data	         //
 /////////////////////////////////////////////////////////////////////////////// 
 
-run _config.do
+do "code/Stata/auxiliar/dina_runtime_config.do"
 
 //just do it 
 local list_noquotes : subinstr global all_countries `"""' "" , all

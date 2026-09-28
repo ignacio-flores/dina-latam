@@ -170,10 +170,11 @@ test_that("failed and legacy configuration validation states are explicit", {
   expect_equal(session$config_validation$status, "failed")
   expect_equal(dina_config_validation_state(root, session)$code, "needs_attention")
   session$config_validation <- NULL; dina_save_session(session, root)
+  unlink(dina_config_validation_receipt_path(root, session))
   expect_equal(dina_config_validation_state(root, dina_load_session(root = root))$code, "not_validated")
 })
 
-test_that("export tasks preflight the declared configuration-validation requirement", {
+test_that("every task requires an explicit current configuration validation", {
   skip_if_not_installed("processx")
   source_cli_for_tests(); root <- mini_repo(); workspace_baseline(root); session <- workspace_session(root)
   fake_stata <- file.path(root, "fake-stata")
@@ -182,14 +183,16 @@ test_that("export tasks preflight the declared configuration-validation requirem
   Sys.chmod(fake_stata, "0755")
   task <- list(id = "export-fixture", type = "stata", requirements = "configuration_validation",
     script = "code/Stata/07d-export-results-to-wid.do", inputs = character(), outputs = marker)
-  messages <- character()
+  session <- withr::with_envvar(c(DINA_STATA_CMD = fake_stata), {
+    check <- dina_settings_check(root, session, validate_runtime = FALSE)
+    dina_record_config_validation(root, session, check)
+  })
   result <- withr::with_envvar(c(DINA_STATA_CMD = fake_stata), {
-    dina_run_task(task, root, session, dry_run = FALSE, force = TRUE, progress = function(message) messages <<- c(messages, message))
+    dina_run_task(task, root, session, dry_run = FALSE, force = TRUE)
   })
   expect_equal(result$status, "succeeded")
   expect_true(file.exists(marker))
   expect_equal(dina_load_session(root = root)$config_validation$status, "passed")
-  expect_match(paste(messages, collapse = "\n"), "required export preflight")
 
   bad_root <- mini_repo(); bad_session <- workspace_session(bad_root)
   bad_marker <- file.path(bad_root, "output", "export-preflight-ran")
@@ -197,7 +200,7 @@ test_that("export tasks preflight the declared configuration-validation requirem
   writeLines(c("#!/bin/sh", paste("touch", shQuote(bad_marker))), bad_stata); Sys.chmod(bad_stata, "0755")
   expect_error(withr::with_envvar(c(DINA_STATA_CMD = bad_stata), {
     dina_run_task(task, bad_root, bad_session, dry_run = FALSE, force = TRUE)
-  }), "requires a current successful configuration validation")
+  }), "dina update config check")
   expect_false(file.exists(bad_marker))
 })
 
@@ -367,6 +370,7 @@ test_that("configuration validation rejects an empty comparison period and inval
 
 test_that("configuration menus retain settings, origins and navigation on screen", {
   source_cli_for_tests(); root <- mini_repo(); workspace_baseline(root); session <- workspace_session(root)
+  initial_context <- dina_settings_lines(root, session)
   contexts <- list(); actions <- c("check", "full", "back"); pauses <- 0L
   dina_menu_select <- function(..., context) {
     contexts[[length(contexts) + 1L]] <<- context
@@ -374,7 +378,7 @@ test_that("configuration menus retain settings, origins and navigation on screen
   }
   dina_cli_prompt_value <- function(...) { pauses <<- pauses + 1L; "" }
   output <- paste(capture.output(dina_workspace_config(root, is_terminal = TRUE)), collapse = "\n")
-  expect_equal(contexts[[1]], dina_settings_lines(root, session))
+  expect_equal(contexts[[1]], initial_context)
   first <- paste(contexts[[1]], collapse = "\n")
   expect_match(first, "Benchmark: config/dina.yml", fixed = TRUE)
   expect_match(first, "Benchmark +This update")
@@ -383,7 +387,7 @@ test_that("configuration menus retain settings, origins and navigation on screen
   expect_match(output, "This update's editable file", fixed = TRUE)
   expect_match(output, "config.override.yml", fixed = TRUE)
   expect_true(all(nchar(contexts[[1]], type = "width") <= 80L))
-  expect_match(paste(contexts[[2]], collapse = "\n"), "Validated")
+  expect_match(paste(contexts[[2]], collapse = "\n"), "Needs attention")
   expect_match(output, "Effective YAML:")
   expect_equal(pauses, 2L)
   expect_equal(length(contexts), 3L)

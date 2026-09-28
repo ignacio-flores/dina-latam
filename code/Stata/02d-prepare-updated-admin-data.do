@@ -1,5 +1,5 @@
 //clean admin data with yearly updates 
-run _config.do
+do "code/Stata/auxiliar/dina_runtime_config.do"
 local list_noquotes : subinstr global all_countries `"""' "" , all
 
 //CHL 

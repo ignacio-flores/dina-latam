@@ -43,6 +43,11 @@ stata:
   batch_args:
     - -b
     - do
+  required_ados:
+    - rcall
+    - renvars
+    - kountry
+    - mipolate
 
 paths:
   input_data: input_data

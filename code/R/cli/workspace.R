@@ -109,7 +109,7 @@ dina_settings_lines <- function(root, session = dina_load_session(root = root), 
   validation <- dina_config_validation_state(root, session, check)
   lines <- c(lines, "", bold("  Validation"), paste("    Status:", validation$label),
     dina_cli_dim(wrap(paste("    ", validation$detail), 4L)),
-    dina_cli_dim("    Stata readiness is checked separately below; it is required only by Stata tasks."))
+    dina_cli_dim(wrap("Runtime readiness is checked during configuration validation and is required before every pipeline task.", 4L)))
   if (nzchar(validation$action %||% "")) {
     lines <- c(lines, dina_cli_dim(paste("    Next:", validation$action)))
   }
@@ -145,9 +145,10 @@ dina_settings_lines <- function(root, session = dina_load_session(root = root), 
 }
 
 dina_settings_print <- function(root, session = dina_load_session(root = root), full = FALSE, validate_baseline = TRUE,
-                                progress = NULL) {
-  check <- dina_settings_check(root, session, validate_baseline = validate_baseline, progress = progress)
-  if (isTRUE(validate_baseline) && !is.null(session)) {
+                                validate_runtime = FALSE, progress = NULL) {
+  check <- dina_settings_check(root, session, validate_baseline = validate_baseline,
+    validate_runtime = validate_runtime, progress = progress)
+  if (isTRUE(validate_baseline)) {
     session <- dina_record_config_validation(root, session, check, progress = progress)
     dina_progress(progress, if (check$valid) "Configuration validation passed." else "Configuration validation needs attention.")
   }

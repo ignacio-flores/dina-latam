@@ -24,6 +24,42 @@ Home shows recorded pipeline outcomes without scanning every task's input tree.
 Open Pipeline or use `dina run list` to inspect file freshness; this can take longer
 in large workspaces and does not run tasks.
 
+## Configuration scope and pipeline authorization
+
+Pipeline execution is authorized by a successful, current configuration
+validation—not by source-review status. The two runnable scopes are separate:
+
+```bash
+# The active update: config/dina.yml plus its config.override.yml
+dina update config check
+dina run
+
+# The benchmark, even while an update is active
+dina config check
+dina run --benchmark
+```
+
+Each check writes a scope-specific receipt containing the effective-config and
+comparison-baseline fingerprints, timestamp, and result. A configuration or
+baseline change makes only that scope's receipt out of date; rerun its explicit
+check before a real task starts. Source reviews are shown in the run record as
+advisory context and never reset, promote, or block a provisional run.
+
+Every Stata task receives a generated runtime configuration through
+`DINA_CONFIG_DO`; direct use of the old `_config.do` intentionally stops with
+migration guidance. For a manual Stata session, export a currently validated
+file first:
+
+```bash
+dina config stata --output /tmp/dina-benchmark.do
+dina update config stata --output /tmp/dina-update.do
+export DINA_CONFIG_DO=/tmp/dina-update.do
+```
+
+The configuration check verifies the chosen Stata executable, loads this same
+bootstrap, confirms the scope settings and comparison baseline, and checks the
+declared external ado dependencies. It does not execute a project pipeline task.
+
 Bare `dina` offers Configuration, Sources, Pipeline, and Results directly, with
 brief statuses and one secondary suggestion. `dina update status` uses the same
 status evidence. `dina commands` retains lifecycle actions and utilities.
@@ -177,7 +213,10 @@ dina run stale --dry-run
 `dina run list` separates recorded outcomes from file freshness and shows the
 last recorded run and log location. `dina run why TASK` explains a task.
 
-`dina run TASK` executes by default. Use `--dry-run` when you only want to see
+`dina run TASK` executes by default. It requires a current successful
+`dina update config check`; source-review status is advisory and does not block
+a provisional update run. Use `--benchmark` to run the validated benchmark
+configuration while an update is active. Use `--dry-run` when you only want to see
 the commands.
 
 ## Todo

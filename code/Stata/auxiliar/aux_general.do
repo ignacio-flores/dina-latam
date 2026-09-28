@@ -1,5 +1,5 @@
-//PRELIMINARY SETTINGS 
-run _config.do
+//PRELIMINARY SETTINGS
+do "code/Stata/auxiliar/dina_runtime_config.do"
 
 if $aux_part == "preliminary" {
 	
