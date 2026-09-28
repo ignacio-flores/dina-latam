@@ -56,7 +56,9 @@ dina_review_source_prerequisite_rows <- function(root, family) {
 
 dina_review_state_label <- function(state) {
   label <- as.character(state$label %||% "")
-  if (!(state$code %in% c("included", "included_stale")) || !startsWith(label, "Included")) return(label)
+  # Green denotes a currently usable inclusion only.  A stale inclusion is
+  # retained on disk, but needs a fresh review and must not look approved.
+  if (!identical(state$code, "included") || !startsWith(label, "Included")) return(label)
   paste0(dina_cli_success("Included"), substr(label, nchar("Included") + 1L, nchar(label)))
 }
 
@@ -438,6 +440,56 @@ dina_review_values <- function(root, family, engine, explored, prepared) {
   list(rows = rows, note = "Admin coverage is reviewed before acceptance. Direct auxiliary inputs are compared here; primary PIT files are validated by staging their cleaners. Individual PIT values are not compared row by row in this review.")
 }
 
+dina_review_admin_other_inputs <- function(summary, contract) {
+  if (!is.data.frame(summary) || !nrow(summary)) return(data.frame(stringsAsFactors = FALSE))
+  labels <- contract$cleaners$review_other_inputs %||% list()
+  value <- function(row, field) {
+    if (!(field %in% names(row))) return("")
+    out <- as.character(row[[field]][[1L]] %||% "")
+    if (is.na(out)) "" else out
+  }
+  rows <- lapply(seq_len(nrow(summary)), function(i) {
+    row <- summary[i, , drop = FALSE]
+    source_id <- value(row, "dependency_id")
+    label <- as.character((labels[[source_id]] %||% list(label = source_id))$label[[1L]])
+    incoming <- value(row, "incoming_rel")
+    current <- value(row, "current_rel")
+    changed <- value(row, "changed_overlap_years")
+    required <- value(row, "required_years")
+    severity <- value(row, "severity")
+    status <- value(row, "status")
+    change <- if (nzchar(changed)) {
+      paste("changed", dina_admin_pit_year_label(changed, max_chars = 20L))
+    } else if (!nzchar(incoming)) {
+      "not compared"
+    } else if (!nzchar(current)) {
+      "first candidate"
+    } else {
+      "unchanged in overlap"
+    }
+    readiness <- if (identical(severity, "blocked")) {
+      "blocked"
+    } else if (identical(severity, "warning")) {
+      "needs attention"
+    } else if (!nzchar(incoming) && identical(status, "carried_forward_aux")) {
+      "accepted retained"
+    } else if (!nzchar(incoming)) {
+      "not supplied"
+    } else {
+      "ready"
+    }
+    data.frame(
+      country = value(row, "country"), input = label,
+      incoming = if (nzchar(incoming)) "provided" else "not supplied",
+      coverage = if (nzchar(required)) dina_admin_pit_year_label(required, max_chars = 24L) else "—",
+      changes = change, status = readiness,
+      stringsAsFactors = FALSE, check.names = FALSE
+    )
+  })
+  out <- dina_review_bind(rows)
+  if (nrow(out)) out[order(out$country, out$input), , drop = FALSE] else out
+}
+
 dina_review_sna_focus_status <- function(values, problems, fallback = "all_good") {
   if (identical(fallback, "blocked")) return("blocked")
   blockers <- nrow(problems) && any(problems$severity %in% "Blocker", na.rm = TRUE)
@@ -588,6 +640,59 @@ dina_review_sna_reset_before_explore <- function(root, engine, progress = functi
   invisible(restored)
 }
 
+# An Explore is an update review, not a comparison against whichever candidate
+# happened to be included most recently.  For every family, keep the original
+# pre-include source state as the comparison baseline throughout an update.
+# Each include confirmation already stores that state as a recoverable backup;
+# restoring it here leaves the incoming _new candidate untouched and makes a
+# second Explore repeat the same evidence check the reviewer first saw.
+dina_review_family_confirmation_to_reset <- function(root, family) {
+  if (identical(family, "sna")) return(dina_review_sna_confirmation_to_reset(root))
+  base <- switch(family,
+    admin = file.path(root, "output", "experiments", "admin_pit_include", "confirms"),
+    surveys = file.path(root, "output", "experiments", "survey_population_include", "confirms"),
+    wid = file.path(root, "output", "experiments", "wid_include", "confirms"),
+    ""
+  )
+  if (!nzchar(base) || !dir.exists(base)) return(NULL)
+  manifests <- list.files(base, pattern = "^confirm_manifest\\.csv$", recursive = TRUE, full.names = TRUE)
+  if (!length(manifests)) return(NULL)
+  manifests <- manifests[order(file.info(manifests)$mtime, decreasing = TRUE)]
+  for (manifest_path in manifests) {
+    manifest <- dina_read_csv_table_or_empty(manifest_path)
+    if (!identical(dina_manifest_value(manifest, "status"), "confirmed")) next
+    confirm_root <- dirname(dirname(manifest_path))
+    # The restore report makes reset idempotent. A later Include creates a new
+    # confirmation and therefore a new one-time reset opportunity.
+    if (!file.exists(file.path(confirm_root, "tables", "restore_report.csv"))) return(confirm_root)
+  }
+  NULL
+}
+
+dina_review_reset_before_explore <- function(root, family, engine, progress = function(...) invisible(NULL)) {
+  if (identical(family, "sna")) return(dina_review_sna_reset_before_explore(root, engine, progress))
+  confirm_root <- dina_review_family_confirmation_to_reset(root, family)
+  if (is.null(confirm_root)) return(invisible(NULL))
+  restore <- switch(family,
+    admin = engine$admin_pit_include_restore_sources,
+    surveys = engine$survey_pop_restore_sources,
+    wid = engine$wid_include_restore_sources,
+    NULL
+  )
+  if (is.null(restore)) return(invisible(NULL))
+  progress(sprintf("Resetting the prior %s inclusion to its confirmed backup.", tolower(dina_review_families()[[family]])))
+  restored <- restore(root = root, confirm_run = confirm_root)
+  report <- restored$outputs$restore_report %||% data.frame()
+  statuses <- if ("restore_status" %in% names(report)) as.character(report$restore_status) else character()
+  failed <- length(statuses) && any(!statuses %in% c("staged", "removed_promoted_destination"))
+  if (failed) {
+    stop("Could not reset the prior ", family, " source inclusion completely. Inspect ", restored$paths$restore_report, call. = FALSE)
+  }
+  progress(sprintf("Prior %s inclusion reset: %s source file%s returned to the pre-include state.",
+    tolower(dina_review_families()[[family]]), nrow(report), if (nrow(report) == 1L) "" else "s"))
+  invisible(restored)
+}
+
 dina_review_explore <- function(root, family, flags = list(), input = "stdin", is_terminal = isatty(stdin())) {
   operation <- dina_cli_operation(paste(dina_review_families()[[family]], "source exploration"))
   completed <- FALSE
@@ -608,7 +713,7 @@ dina_review_explore <- function(root, family, flags = list(), input = "stdin", i
     }
   }
   operation$progress("Inspecting source inputs and saved review evidence.")
-  if (identical(family, "sna")) dina_review_sna_reset_before_explore(root, engine, operation$progress)
+  dina_review_reset_before_explore(root, family, engine, operation$progress)
   record <- list(family = family, status = "incomplete", reviewed_at = dina_now())
   dina_review_save(record, root)
   input_paths <- dina_review_inputs(root, family, engine)
@@ -668,6 +773,11 @@ dina_review_explore <- function(root, family, flags = list(), input = "stdin", i
   coverage <- dina_review_coverage(explored, values$rows, family, prepared)
   tables <- list(review_coverage = coverage, review_values = values$rows,
     review_problems = dina_review_problems(prepared), review_files = plan)
+  if (identical(family, "admin")) {
+    tables$other_admin_inputs <- dina_review_admin_other_inputs(
+      explored$outputs$aux_comparison_summary %||% data.frame(), prepared$contract
+    )
+  }
   if (identical(family, "sna")) {
     focus <- dina_review_sna_review_focus(root)
     scoped_values <- dina_review_sna_filter_scope(values$rows, sna_scope)
@@ -917,7 +1027,8 @@ dina_review_details <- function(record, input = "stdin", is_terminal = isatty(st
   details <- switch(record$family, surveys = c(pipeline_input_summary = "Direct pipeline-input summary", pipeline_input_audit = "Direct pipeline-input audit", survey_source_comparison = "Survey files and schema"),
     sna = c(direct_input_changes_audit = "Direct-input change audit", unresolved_new_values = "Unresolved new-year values",
       direct_input_checks = "Direct-input extraction checks", direct_input_problems = "Direct-input problems"), wid = c(include_detail = "Artifact checks"),
-    admin = c(aux_validation_report = "Auxiliary series checks", static_dependency_report = "Dependencies", cleaner_summary = "Cleaner outputs"))
+    admin = c(other_admin_inputs = "Other administrative inputs", aux_comparison_detail = "Other-input value audit",
+      aux_validation_report = "Auxiliary series checks", static_dependency_report = "Dependencies", cleaner_summary = "Cleaner outputs"))
   choices <- c(choices, details[file.exists(file.path(record$run, "tables", paste0(names(details), ".csv")))])
   repeat {
     selected <- dina_menu_select("Review details", lapply(names(choices), function(table) dina_menu_action(table, choices[[table]],

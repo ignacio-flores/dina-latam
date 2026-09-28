@@ -406,6 +406,55 @@ test_that("admin dependency blocks use the shared review language and preserve t
   expect_true(any(grepl("dina sources explore wid", triage$next_step, fixed = TRUE)))
 })
 
+test_that("admin review exposes non-PIT inputs separately from harmonized PIT values", {
+  source_cli_for_tests()
+  contract <- list(cleaners = list(review_other_inputs = list(
+    `bra-minwage` = list(label = "Minimum wage"),
+    `bra-admin-thresholds` = list(label = "Tax and social-security thresholds")
+  )))
+  summary <- data.frame(
+    country = c("BRA", "BRA"), dependency_id = c("bra-minwage", "bra-admin-thresholds"),
+    incoming_rel = c("input_data/_new/admin/BRA/wiki_minwage.csv", "input_data/_new/admin/BRA/admin_thresholds.csv"),
+    current_rel = c("input_data/admin_data/BRA/downloads/wiki_minwage.csv", "input_data/admin_data/BRA/downloads/admin_thresholds.csv"),
+    required_years = c("2007,2008,2009,2010,2011,2012,2013,2014,2015,2016,2017,2018,2019,2020,2021,2022,2023,2024", "2007,2008,2009,2010,2011,2012,2013,2014,2015,2016,2017,2018,2019,2020,2021,2022,2023,2024"),
+    changed_overlap_years = c("", "2023"), severity = c("info", "blocked"),
+    status = c("aux_validated_append_only", "blocked_aux_overlap_changed"), stringsAsFactors = FALSE
+  )
+  inputs <- dina_review_admin_other_inputs(summary, contract)
+  expect_equal(names(inputs), c("country", "input", "incoming", "coverage", "changes", "status"))
+  expect_equal(inputs$incoming, c("provided", "provided"))
+  expect_equal(inputs$changes, c("unchanged in overlap", "changed 2023"))
+  expect_equal(inputs$status, c("ready", "blocked"))
+  root <- tempfile("admin-other-inputs-")
+  dir.create(file.path(root, "tables"), recursive = TRUE)
+  utils::write.csv(inputs, file.path(root, "tables", "other_admin_inputs.csv"), row.names = FALSE)
+  output <- paste(capture.output(dina_review_print_admin_other_inputs(list(run = root))), collapse = "\n")
+  expect_match(output, "Other administrative inputs")
+  expect_match(output, "Minimum wage")
+  expect_match(output, "changed 2023", fixed = TRUE)
+})
+
+test_that("a fresh admin explore resets a prior inclusion to its original backup once", {
+  source_cli_for_tests()
+  root <- tempfile("admin-review-reset-")
+  confirm <- file.path(root, "output", "experiments", "admin_pit_include", "confirms", "confirm-a")
+  dir.create(file.path(confirm, "logs"), recursive = TRUE)
+  utils::write.csv(data.frame(key = "status", value = "confirmed"), file.path(confirm, "logs", "confirm_manifest.csv"), row.names = FALSE)
+  called <- NULL
+  engine <- list(admin_pit_include_restore_sources = function(root, confirm_run) {
+    called <<- confirm_run
+    list(
+      paths = list(restore_report = file.path(confirm_run, "tables", "restore_report.csv")),
+      outputs = list(restore_report = data.frame(restore_status = c("staged", "removed_promoted_destination")))
+    )
+  })
+  dina_review_reset_before_explore(root, "admin", engine)
+  expect_equal(called, confirm)
+  dir.create(file.path(confirm, "tables"), recursive = TRUE)
+  utils::write.csv(data.frame(restore_status = "staged"), file.path(confirm, "tables", "restore_report.csv"), row.names = FALSE)
+  expect_null(dina_review_family_confirmation_to_reset(root, "admin"))
+})
+
 test_that("explore is nonmutating and include accepts and restores the exact survey family", {
   skip_if_not_installed("haven")
   source_cli_for_tests()

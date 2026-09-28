@@ -2770,11 +2770,33 @@ dina_review_acceptance_watch_paths <- function(paths) {
   paths[!grepl("/code/", paths, fixed = TRUE)]
 }
 
-dina_review_included_watch_changed <- function(record) {
+dina_review_included_watch_changes <- function(record) {
   stored <- record$acceptance_watch %||% record$watch
   paths <- dina_review_acceptance_watch_paths(names(stored))
-  if (!length(paths)) return(TRUE)
-  !identical(dina_review_watch(paths), stored[paths])
+  if (!length(paths)) return("review evidence was not recorded")
+  current <- dina_review_watch(paths)
+  paths[!vapply(paths, function(path) identical(current[[path]], stored[[path]]), logical(1))]
+}
+
+dina_review_included_watch_changed <- function(record) {
+  length(dina_review_included_watch_changes(record)) > 0L
+}
+
+dina_review_included_stale_reason <- function(record) {
+  changed <- dina_review_included_watch_changes(record)
+  if (!length(changed)) return("The accepted review remains current.")
+  if (identical(changed, "review evidence was not recorded")) {
+    return("The accepted review predates tracked evidence. Re-explore once to record its current scope.")
+  }
+  configuration <- grepl("/(config/|config\\.override\\.yml$)", changed)
+  incoming <- grepl("/input_data/_new/", changed, fixed = FALSE)
+  source <- !configuration & !incoming
+  parts <- c(
+    if (any(configuration)) "the active update configuration changed",
+    if (any(incoming)) "incoming source files changed",
+    if (any(source)) "source files changed"
+  )
+  paste0("The accepted review is retained, but ", paste(parts, collapse = " and "), " after inclusion.")
 }
 
 dina_review_family_status <- function(root, family, record = dina_review_read(root, family)) {
@@ -2790,7 +2812,7 @@ dina_review_family_status <- function(root, family, record = dina_review_read(ro
   if (record$status == "included") changed <- dina_review_included_watch_changed(record)
   if (record$status == "included" && changed) {
     return(answer("included_stale", "Included · recheck needed",
-      "The accepted review is retained, but relevant evidence changed after inclusion.", "explore"))
+      dina_review_included_stale_reason(record), "explore"))
   }
   if (changed || record$status == "restored") return(answer("stale", "Explore again", "Relevant evidence changed since the saved review."))
   if (record$status == "included") return(answer("included", paste("Included ·", substr(record$included_at %||% record$reviewed_at, 1, 10)), "Saved candidate accepted; pipeline status is separate.", "table"))

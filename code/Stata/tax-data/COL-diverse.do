@@ -120,6 +120,9 @@ forvalues y = 2014/`lasty_col_tax' {
 			
 			qui gen year = `y' in 1 
 			qui gen country = "COL" in 1 
+			// Emit the canonical population field used by interpolation-ready PIT files.
+			// Its value is the total population read above from SurveyPop.dta.
+			qui rename poptot popsize
 			
 			// Create directory if it doesnt exist 
 			local dirpath "input_data/admin_data/COL/_clean"
@@ -137,5 +140,4 @@ forvalues y = 2014/`lasty_col_tax' {
 	}
 
 }
-
 

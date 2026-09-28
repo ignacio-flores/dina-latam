@@ -82,3 +82,13 @@ cleaners:
     bra-pit:
       - bra-minwage
       - bra-admin-thresholds
+  # These are reviewed separately from the harmonized PIT brackets.  Every
+  # auxiliary input used by a current PIT cleaner needs an explicit reviewer
+  # label, so a newly added dependency cannot disappear from the normal review.
+  review_other_inputs:
+    chl-uta:
+      label: UTA index
+    bra-minwage:
+      label: Minimum wage
+    bra-admin-thresholds:
+      label: Tax and social-security thresholds

@@ -524,6 +524,18 @@ dina_review_print_artifact_value_changes <- function(record, values, family) {
   invisible(NULL)
 }
 
+dina_review_print_admin_other_inputs <- function(record) {
+  path <- file.path(record$run, "tables", "other_admin_inputs.csv")
+  if (!file.exists(path)) return(invisible(NULL))
+  rows <- dina_read_csv_table_or_empty(path)
+  if (!nrow(rows)) return(invisible(NULL))
+  dina_cli_section("Other administrative inputs")
+  dina_cli_cat(dina_cli_dim("Non-PIT inputs used by the PIT cleaners. Incoming confirms that a replacement file was supplied; “unchanged in overlap” means accepted and incoming values were compared and matched."))
+  dina_print_data_frame_compact(rows, limit = nrow(rows))
+  dina_cli_cat(dina_cli_dim("Value audit: "), dina_cli_command("dina sources table admin aux_comparison_detail"))
+  invisible(rows)
+}
+
 dina_review_print_wid_population_changes <- function(record, values) {
   dina_cli_cat(dina_cli_emphasis("Population estimates"))
   baseline <- unique(as.character(values$baseline %||% character()))
@@ -1243,7 +1255,13 @@ dina_review_print <- function(record, country = NULL, limit = 12L, root = dina_r
     dina_cli_cat(dina_cli_emphasis("First WID population candidate"))
     dina_cli_cat(dina_cli_dim("New to this repository: total- and adult-population estimates for every configured country and run year. There is no accepted WID population input to compare with yet."))
   } else {
-    dina_cli_section(if (identical(record$family, "wid")) "Population input summary" else "Country summary")
+    dina_cli_section(if (identical(record$family, "wid")) {
+      "Population input summary"
+    } else if (identical(record$family, "admin")) {
+      "PIT — Country summary"
+    } else {
+      "Country summary"
+    })
   }
   summary <- if (identical(record$family, "wid")) {
     dina_review_bind(lapply(countries, function(ct) {
@@ -1270,7 +1288,7 @@ dina_review_print <- function(record, country = NULL, limit = 12L, root = dina_r
     }))
   }
   if (!identical(record$family, "wid") || wid_has_accepted) dina_review_show_rows(summary, limit = limit)
-  dina_cli_section("1. Coverage")
+  dina_cli_section(if (identical(record$family, "admin")) "1. PIT coverage" else "1. Coverage")
   if (identical(record$family, "wid")) {
     if (!wid_has_accepted) {
       dina_cli_cat(dina_cli_dim("Incoming coverage for that first candidate."))
@@ -1294,7 +1312,7 @@ dina_review_print <- function(record, country = NULL, limit = 12L, root = dina_r
     dina_review_show_rows(coverage, c("country", "source_id", "extension_years", "missing_in_new_years"), limit = limit)
   }
   dina_cli_cat(dina_cli_dim("Year coverage does not imply complete variable coverage."))
-  dina_cli_section("2. Value changes")
+  dina_cli_section(if (identical(record$family, "admin")) "2. PIT value changes" else "2. Value changes")
   if (identical(record$family, "sna")) {
     dina_review_print_sna_value_changes(values, confirmed_missing, include_detail, record, root = root)
   } else if (identical(record$family, "surveys")) {
@@ -1307,6 +1325,7 @@ dina_review_print <- function(record, country = NULL, limit = 12L, root = dina_r
     }
     dina_review_print_artifact_value_changes(record, values, record$family)
   }
+  if (identical(record$family, "admin")) dina_review_print_admin_other_inputs(record)
   if (identical(record$family, "sna")) {
     dina_cli_cat(dina_cli_dim("Review scope: direct CEI inputs declared in config/country_sna_explorer.yml → review_focus."))
   } else dina_cli_cat(record$comparison_note %||% "Comparison scope unavailable.")

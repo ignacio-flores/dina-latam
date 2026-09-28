@@ -67,6 +67,23 @@ admin_pit_include_read_contract <- function(
   if (is.null(contract$output_root) || is.null(contract$source_ids)) {
     stop("Invalid PIT admin include contract: missing output_root or source_ids.", call. = FALSE)
   }
+  auxiliary <- unique(unlist(contract$cleaners$auxiliary_sources %||% list(), use.names = FALSE))
+  review_inputs <- contract$cleaners$review_other_inputs %||% list()
+  missing_labels <- setdiff(auxiliary, names(review_inputs))
+  extra_labels <- setdiff(names(review_inputs), auxiliary)
+  if (length(missing_labels) || length(extra_labels)) {
+    stop(
+      "Invalid PIT admin include contract: review_other_inputs must label exactly the configured auxiliary sources",
+      if (length(missing_labels)) paste0("; missing: ", paste(missing_labels, collapse = ", ")) else "",
+      if (length(extra_labels)) paste0("; unknown: ", paste(extra_labels, collapse = ", ")) else "",
+      ".",
+      call. = FALSE
+    )
+  }
+  invalid_labels <- vapply(review_inputs, function(input) !is.list(input) || is.null(input$label) || !nzchar(as.character(input$label[[1L]])), logical(1))
+  if (any(invalid_labels)) {
+    stop("Invalid PIT admin include contract: every review_other_inputs entry needs a label.", call. = FALSE)
+  }
   contract$contract_path <- contract_path
   contract
 }

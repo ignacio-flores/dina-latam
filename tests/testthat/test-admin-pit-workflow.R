@@ -558,6 +558,7 @@ test_that("isolated COL cleaner uses a temporary patched do-file only", {
   admin_pit_expect_true(any(grepl('global route "/tmp/admin-pit-col-source"', lines, fixed = TRUE)))
   admin_pit_expect_true(any(grepl('forvalues y = 2015/`lasty_col_tax', lines, fixed = TRUE)))
   admin_pit_expect_true(any(grepl('"/tmp/admin-pit-col-output/total-`v\'-COL.xlsx"', lines, fixed = TRUE)))
+  admin_pit_expect_true(any(grepl("rename poptot popsize", lines, fixed = TRUE)))
   expect_equal(digest::digest(file = original, algo = "sha256"), before)
 })
 
@@ -580,7 +581,7 @@ test_that("main dina CLI dispatches admin PIT explore and table to isolated modu
   expect_match(explore$output, "Administrative tax data Explore")
   expect_match(explore$output, "Country summary")
   expect_match(explore$output, "2005-2022 \\(18y\\)")
-  expect_match(explore$output, "2\\. Value changes")
+  expect_match(explore$output, "2\\. PIT value changes")
   expect_match(explore$output, "Harmonized PIT inputs are compared")
   expect_match(explore$output, "dina sources table admin")
   admin_pit_expect_false(grepl("Experimental isolated source workflow", explore$output, fixed = TRUE))

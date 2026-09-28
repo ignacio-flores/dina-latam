@@ -77,6 +77,8 @@ test_that("source states distinguish empty, unfinished, stale and accepted revie
   state <- dina_review_family_status(root, "sna")
   expect_equal(state$code, "included_stale")
   expect_equal(state$label, "Included · recheck needed")
+  expect_equal(dina_review_state_label(state), "Included · recheck needed")
+  expect_match(state$reason, "incoming source files changed", fixed = TRUE)
   expect_equal(dina_review_recommendation(root)$proposal$command, "dina sources explore sna")
   record$status <- "inclusion_failed"; dina_review_save(record, root)
   expect_equal(dina_review_family_status(root, "sna")$code, "failed")
