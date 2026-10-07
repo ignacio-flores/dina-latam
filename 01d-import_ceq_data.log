@@ -1,0 +1,635 @@
+
+  ___  ____  ____  ____  ____ (R)
+ /__    /   ____/   /   ____/
+___/   /   /___/   /   /___/   16.1   Copyright 1985-2019 StataCorp LLC
+  Statistics/Data Analysis            StataCorp
+                                      4905 Lakeway Drive
+     MP - Parallel Edition            College Station, Texas 77845 USA
+                                      800-STATA-PC        http://www.stata.com
+                                      979-696-4600        stata@stata.com
+                                      979-696-4601 (fax)
+
+60-user 4-core Stata network perpetual license:
+       Serial number:  501606216487
+         Licensed to:  Ignacio Flores
+                       insead
+
+Notes:
+      1.  Stata is running in batch mode.
+      2.  Unicode is supported; see help unicode_advice.
+      3.  More than 2 billion observations are allowed; see help obs_advice.
+      4.  Maximum number of variables is set to 5000; see help set_maxvar.
+
+. do code/Stata/01d-import_ceq_data.do 
+
+. //---------------------------------------------------------------------------
+. //                                              IMPORT and CLEAN DATA from CE
+> Q
+. //---------------------------------------------------------------------------
+. 
+. //preliminary
+. global aux_part  ""preliminary"" 
+
+. qui do "code/Stata/auxiliar/aux_general.do"
+
+. 
+. //I. Cleaning and descriptives  .............................................
+> .
+. 
+. //I. 1 Clean new data ..........................................
+. local c "DOM"
+
+. local DOM_year 2007 
+
+. local DOM_cellr FR8:HG138
+
+. local sheet "E11.m+p FiscalInterventions"
+
+. local fname "DOM13WBR_PDI_E11_2011PPP_28Jul2020"
+
+. 
+. *chose variables without ssc 
+. qui import excel using ///
+>         "${ceq}E-sheets_LATAM_July18_2021/`c'/``c'_year'/PDI/`fname'.xlsx", /
+> //
+>         sheet("`sheet'") cellrange(``c'_cellr') ///
+>         firstrow clear case(lower)
+
+. qui drop if _n < 30     
+
+. drop in 101 
+(1 observation deleted)
+
+. 
+. *bulk renaming 
+. qui rename all* *
+
+. qui rename inkindhealthbenefits* inkheab*
+
+. qui rename inkindeducationbenefits* inkedub*
+
+. cap drop directtransfersinclcontri directtaxesandcontributio
+
+. qui rename (contributorypensionsidssper nccbonogaschoferespercapi ///
+>         directtaxespersonalincometax indirecttaxselectivopercapi ///
+>         indirecttaxitbispercapita) ///
+>         (contpeidss nccbonocho diretaxpit indtaxsele indtaxtbis)        
+
+.         
+. *detailed renaming      
+. qui renvars, trim(10)
+
+. qui rename (contributo neteducat nethealtht) (allcontrib education health)
+
+. qui gen ftile = (_n-1) * 10^3
+
+. qui gen country = "`c'"
+
+. qui gen year = 2013
+
+. qui ds country year ftile, not 
+
+. foreach v in `r(varlist)' {
+  2.         qui rename `v' new_`v'
+  3. }
+
+. qui replace ftile = 100000 if ftile == 99000 & country == "DOM"
+
+. 
+. *save (and eventually append) 
+. tempfile tf_new 
+
+. qui save `tf_new' 
+
+. 
+. //I. 2 Clean aggregated data....................................
+. 
+. foreach approach in  "incidence" "concentration" {
+  2.         *choose excel sheet 
+.         if "`approach'" == "incidence" local sheet "16. Incidence by decile"
+  3.         if "`approach'" == "concentration" local sheet "19. Conc shares by
+>  decile"
+  4.         
+.         *For both including and not-including SSC
+.         foreach ssc_type in "no_ssc" "yes_ssc" {
+  5.                 *choose cellrange 
+.                 if "`ssc_type'" == "no_ssc" local cellr B7:AI568
+  6.                 if "`ssc_type'" == "yes_ssc" local cellr B7:C568
+  7.                 
+.                 *chose variables without ssc 
+.                 qui import excel using "${ceq}CEQSI_15May2020.xlsx", ///
+>                         sheet("`sheet'") cellrange(`cellr') ///
+>                         firstrow clear case(lower)
+  8.                 qui renvars b c / country decile
+  9.         
+.                 *small fixes 
+.                 if "`approach'" == "incidence" {
+ 10.                         qui replace country = "Brazil (2008)" if country =
+> = "Brazil (2009)"
+ 11.                 }
+ 12.                 if "`approach'" == "concentration" {
+ 13.                         qui replace country = "Brazil (2008)" in 57/65
+ 14.                 }
+ 15.                 qui replace country = "Dominican Republic (2013)" ///
+>                         if country == "Dominican Republic (2006)"
+ 16.                 
+.                 *chose variable with ssc 
+.                 if "`ssc_type'" == "yes_ssc" {
+ 17.                         qui gen id = _n
+ 18.                         preserve
+ 19.                                 qui import excel using "${ceq}CEQSI_15May2
+> 020.xlsx", ///
+>                                         sheet("`sheet'") cellrange(AK7:BO568)
+>  ///
+>                                         firstrow clear case(lower)
+ 20.                                 qui gen id = _n
+ 21.                                 tempfile scc
+ 22.                                 qui save `scc'
+ 23.                         restore
+ 24.                         qui merge 1:1 id using `scc', nogen
+ 25.                         qui drop id
+ 26.                 }
+ 27.                 
+.                 *harmonise country names and years 
+.                 qui gen year = substr(country, -5, 4)
+ 28.                 qui replace country = substr(country, 1, length(country) -
+> 7)
+ 29.                 qui kountry country, from(other) stuck marker
+ 30.                 qui rename _ISO3N_ iso3n_var
+ 31.                 qui kountry iso3n_var, from(iso3n) to(iso3c) geo(undet)
+ 32.                 qui rename _ISO3C_ ISO
+ 33.                 qui drop MARKER iso3n*
+ 34.                 qui keep if inlist(GEO, "South America", "Central America"
+> , "Caribbean")
+ 35.                 qui replace year = "2014" if ISO == "PRY"
+ 36.                 qui destring year, replace 
+ 37.                 
+.                 *list countries 
+.                 qui egen ctry_yr = concat(ISO year), punct("_")
+ 38.                 qui levelsof ctry_yr, local(ctryrs) clean 
+ 39. 
+.                 *label deciles 
+.                 qui replace decile = "100" if decile == "Total"
+ 40.                 qui destring decile, replace
+ 41.                 qui label define decile 100 "Total"
+ 42.                 qui lab val decile decile
+ 43. 
+.                 *save 
+.                 tempfile tf_`ssc_type'
+ 44.                 save `tf_`ssc_type'', replace
+ 45.                 
+.                 //I. 2. Report availability .......................
+.                 preserve 
+ 46.                         *collapse 
+.                         qui drop decile
+ 47.                         qui ds country year ISO, not
+ 48.                         local vars `r(varlist)'
+ 49.                         qui collapse (firstnm) `vars', by(country year)
+ 50. 
+.                         * Generate marker of non-missing values per variable 
+> per year
+.                         qui ds country year, not
+ 51.                         foreach v of varlist `vars'{
+ 52.                                 qui gen x = "x" if !missing(`v')
+ 53.                                 qui replace x="" if missing(`v')
+ 54.                                 qui drop `v'
+ 55.                                 qui ren x `v'
+ 56.                         }
+ 57.                         
+.                         // Create directory if it doesnt exist 
+.                         local dirpath "output/data_reports"
+ 58.                         mata: st_numscalar("exists", direxists(st_local("d
+> irpath")))
+ 59.                         if (scalar(exists) == 0) {
+ 60.                                 mkdir "`dirpath'"
+ 61.                                 display "Created directory: `dirpath'"
+ 62.                         }
+ 63. 
+.                         export excel "output/data_reports/ceq_data_availabili
+> ty.xlsx", ///
+>                                 sheet("avail_`ssc_type'") sheetreplace first(
+> varl)
+ 64.                 restore 
+ 65.         }       
+ 66. 
+.         
+.         *Interpolate to 127 percentiles 
+.         qui use `tf_no_ssc', clear 
+ 67.         qui drop if decile == 100
+ 68.         if "`approach'" == "incidence" qui gen ftile = (decile - .5) * 10^
+> 4
+ 69.         if "`approach'" == "concentration" qui gen ftile = decile * 10^4
+ 70.         
+.         qui save `tf_no_ssc', replace 
+ 71. 
+.         // build 127 percentiles again from scratch
+.         local iter = 1 
+ 72.         tempfile tf_scratch 
+ 73.         foreach cy in `ctryrs' {
+ 74.                 *make room
+.                 clear
+ 75.                 quietly set obs 127
+ 76.                 *define country and year 
+.                 local iso = substr("`cy'", 1, 3)
+ 77.                 local t = substr("`cy'", 5, 4)
+ 78.                 *fill variables 
+.                 qui gen ctry_yr = "`cy'"
+ 79.                 qui gen ISO = "`iso'"
+ 80.                 qui gen year = `t'
+ 81.                 quietly gen ftile = (_n - 1) * 10^3 in 1/100
+ 82.                 quietly replace ftile = (99 + (_n - 100)/10) * 10^3 in 101
+> /109
+ 83.                 quietly replace ftile = (99.9 + (_n - 109)/100) * 10^3 in 
+> 110/118
+ 84.                 quietly replace ftile = (99.99 + (_n - 118)/1000) * 10^3 i
+> n 119/127     
+ 85.                 if `iter' == 0 qui append using `tf_scratch'
+ 86.                 qui save `tf_scratch', replace 
+ 87.                 local iter = 0 
+ 88.         }
+ 89. 
+.         *append clean cuts      
+.         quietly append using `tf_no_ssc'
+ 90.         quietly sort ISO ftile 
+ 91.         qui order ISO ctry_yr year ftile 
+ 92.         qui renvars, trim(10)
+ 93.         quietly ds ctry_yr ftile, not
+ 94.         local vars `r(varlist)' 
+ 95.         foreach var in `vars' {
+ 96.                 local l_`var': var label `var'
+ 97.         }
+ 98.         qui collapse (firstnm) `vars', by(ctry_yr ftile) 
+ 99.         qui rename (country ISO) (country_long country)
+100.         if "`approach'" == "concentration" drop d 
+101.         
+.         *bring more detailed data for DOM 
+.         qui merge 1:1 country year ftile using `tf_new', ///
+>                 keepusing(new_indirectta new_allcontrib new_health new_educat
+> ion) ///
+>                 nogen 
+102.         
+.         *list variables to inter-extrapolate 
+.         quietly ds country ctry_yr year ftile country_long decile GEO, not 
+103.         local vars `r(varlist)'
+104.         
+.         *inter-extrapolate concentration 
+.         if "`approach'" == "concentration" {
+105.                 foreach var in `vars' {
+106.                         bysort ctry_yr: gen cum_`var' = sum(`var') if !mis
+> sing(`var')
+107.                         qui levelsof ctry_yr if !missing(`var'), local(ctr
+> ies) clean 
+108.                         foreach c in `ctries' {
+109.                                 qui replace cum_`var' = 0 if ftile == 0 & 
+> ctry_yr == "`c'"
+110.                         }
+111.                         bysort ctry_yr: mipolate cum_`var' ftile, gen(cuml
+> ip_`var') linear
+112.                         bysort ctry_yr: mipolate cum_`var' ftile, gen(cums
+> ip_`var') spline
+113.                         bysort ctry_yr: gen sh_li_`var' = cumlip_`var'[_n+
+> 1] - cumlip_`var'
+114.                         bysort ctry_yr: gen sh_si_`var' = cumsip_`var'[_n+
+> 1] - cumsip_`var'
+115.                         *labels 
+.                         qui cap la variable `var' "`l_`var''"
+116.                         qui cap la variable cumlip_`var' ///
+>                                 "`l_`var'' (cumulative, linear interpolation)
+> "
+117.                         qui cap la variable cumsip_`var' ///
+>                                 "`l_`var'' (cumulative, spline interpolation)
+> "  
+118.                         qui cap la variable sh_li_`var' ///
+>                                 "`l_`var'' (fractile's share of total, linear
+>  interpolation)"
+119.                         qui cap la variable sh_si_`var' ///
+>                                 "`l_`var'' (fractile's share of total, spline
+>  interpolation)"   
+120.                 }
+121.         }
+122.         
+.         if "`approach'" == "incidence" {
+123.                 *inter-extrapolate eff rates 
+.                 qui foreach var in `vars' {
+124.                         bysort ctry_yr: mipolate `var' ftile, gen(ip_`var'
+> )
+125.                         bysort ctry_yr: mipolate ip_`var' ftile, gen(epf_`
+> var') forward 
+126.                         bysort ctry_yr: mipolate epf_`var' ftile, gen(epb_
+> `var') backward 
+127.                         quietly drop `var' ip_`var' epf_`var'
+128.                         quietly rename epb_`var' `var'
+129.                 }
+130.                 qui drop country GEO 
+131.         }
+132.         
+.         //save
+.         qui drop new_* 
+133.         cap drop *_new_*
+134.         
+.         qui save "${ceq}_clean/`approach'/no_ssc.dta", replace 
+135. 
+.         * II. Create graphs per country......................................
+> ...........
+. 
+.         //use aux for country colors
+.         global aux_part  ""graph_basics"" 
+136.         qui do "code/Stata/auxiliar/aux_general.do"
+137. 
+.         //
+.         qui replace ftile = ftile / 10^5
+138. 
+.         //II. 1 panel graphs..............................
+. 
+.         *qui renvars, trim(16)
+.         local indicators directtaxe indirectta vat allcontrib ///
+>                 conditiona directtran disposable indirectsu education health
+139.                 
+.         // Create directory if it doesnt exist 
+.         local dirpath "output/figures/ceq"
+140.         mata: st_numscalar("exists", direxists(st_local("dirpath")))
+141.         if (scalar(exists) == 0) {
+142.                 mkdir "`dirpath'"
+143.                 display "Created directory: `dirpath'"
+144.         }       
+145. 
+.         foreach ind in `indicators'{
+146.                 
+.                 local varlabel : var label `ind'
+147.                 
+.                 // Create directory if it doesnt exist 
+.                 local dirpath "output/figures/ceq/`approach'"
+148.                 mata: st_numscalar("exists", direxists(st_local("dirpath")
+> ))
+149.                 if (scalar(exists) == 0) {
+150.                         mkdir "`dirpath'"
+151.                         display "Created directory: `dirpath'"
+152.                 }
+153.                 // Create directory if it doesnt exist 
+.                 local dirpath "output/figures/ceq/`approach'/panel"
+154.                 mata: st_numscalar("exists", direxists(st_local("dirpath")
+> ))
+155.                 if (scalar(exists) == 0) {
+156.                         mkdir "`dirpath'"
+157.                         display "Created directory: `dirpath'"
+158.                 }
+159.                 // Create directory if it doesnt exist 
+.                 local dirpath "output/figures/ceq/`approach'/bunched"
+160.                 mata: st_numscalar("exists", direxists(st_local("dirpath")
+> ))
+161.                 if (scalar(exists) == 0) {
+162.                         mkdir "`dirpath'"
+163.                         display "Created directory: `dirpath'"
+164.                 }
+165.                 
+.                 *graph lorenz 
+.                 if "`approach'" == "concentration" {
+166.                         graph twoway ///
+>                                 (scatter cum_`ind' ftile, mfcolor(none) msize
+> (small)) ///
+>                                 (line cumlip_`ind' ftile, lwidth(thick)) ///
+>                                 (line cumsip_`ind' ftile) ///
+>                                 (function y = x, range(0 1) lcolor(black)) //
+> /
+>                                 if !missing(cum_`ind') ///
+>                                 , by(country year) aspectratio(1) $graph_sche
+> me ///
+>                                 yt("`varlabel'") xt("ftile")  ///
+>                                 legend(label(1 "CEQ estimate") ///
+>                                 label(2 "linear interpolation") label(3 "Spli
+> ne interp.") ///
+>                                 label(4 "45º line"))
+167.                 }
+168.                 if "`approach'" == "incidence" {
+169.                         graph twoway (scatter `ind' ftile, mfcolor(none)) 
+> ///
+>                                 if !missing(decile), by(country year) ///
+>                                 yt("`varlabel'") xt("ftile") $graph_scheme //
+> /
+>                                 legend(label(1 "CEQ") label(2 "Linear interp.
+> ")) 
+170.                 }
+171.                 qui graph export ///
+>                         "output/figures/ceq/`approach'/panel/no_ssc_`ind'.pdf
+> ", replace
+172.         }
+173. 
+.         //II. 2. bunched Graphs.............................
+.         qui keep if !missing(ctry_yr)
+174.         qui sort ctry_yr ftile
+175.         **loop over variables 
+.         foreach ind in `indicators' {
+176.                 
+.                 //loop over countries  
+.                 qui levelsof ctry_yr if !missing(`ind'), local(ctriys) clean 
+177.                 foreach cy in `ctriys' {
+178.                 
+.                         //details
+.                         local iso = lower(substr("`cy'", 1, 3)) 
+179.                         local c "c_`iso'"
+180.                         
+.                         if "`approach'" == "concentration" {
+181.                                 local l_`ind'_`approach' `l_`ind'_`approac
+> h'' ///
+>                                 (line cumlip_`ind' ftile if ctry_yr == "`cy'"
+> , ///
+>                                 lcolor($`c') lwidth(thick))     
+182.                         }
+183.                         if "`approach'" == "incidence" {
+184.                                 local l_`ind'_`approach' `l_`ind'_`approac
+> h'' ///
+>                                 (line `ind' ftile if ctry_yr == "`cy'", ///
+>                                 lcolor($`c') lwidth(thick))     
+185.                         }
+186.                 }
+187.                         
+.                 //Define title of y-axis 
+.                 local varlabel : var label `ind'
+188.                 local ytit "`varlabel'"
+189.                 
+.                 //Graph and save without legend
+.                 graph twoway `l_`ind'_`approach'' , ytitle("`ytit'") xtitle("
+> ") ///
+>                         $graph_scheme legend(off) 
+190.                 qui graph export ///
+>                         "output/figures/ceq/`approach'/bunched/no_scc_`ind'.p
+> df", replace       
+191.         }       
+192. }
+_ISO3N_MARKERiso3niso3c_ISO3C_GEO(note: file /tmp/St55408.000002 not found)
+file /tmp/St55408.000002 saved
+file output/data_reports/ceq_data_availability.xlsx saved
+_ISO3N_MARKERiso3niso3c_ISO3C_GEO(note: file /tmp/St55408.000006 not found)
+file /tmp/St55408.000006 saved
+file output/data_reports/ceq_data_availability.xlsx saved
+_ISO3N_MARKERiso3niso3c_ISO3C_GEO(note: file /tmp/St55408.000009 not found)
+file /tmp/St55408.000009 saved
+file output/data_reports/ceq_data_availability.xlsx saved
+_ISO3N_MARKERiso3niso3c_ISO3C_GEO(note: file /tmp/St55408.00000d not found)
+file /tmp/St55408.00000d saved
+file output/data_reports/ceq_data_availability.xlsx saved
+(2,686 missing values generated)
+(1152 missing values generated)
+(1152 missing values generated)
+(1,165 missing values generated)
+(1,165 missing values generated)
+(2,606 missing values generated)
+(128 missing values generated)
+(128 missing values generated)
+(149 missing values generated)
+(149 missing values generated)
+(2,726 missing values generated)
+(1664 missing values generated)
+(1664 missing values generated)
+(1,673 missing values generated)
+(1,673 missing values generated)
+(2,676 missing values generated)
+(1024 missing values generated)
+(1024 missing values generated)
+(1,038 missing values generated)
+(1,038 missing values generated)
+(2,726 missing values generated)
+(1664 missing values generated)
+(1664 missing values generated)
+(1,673 missing values generated)
+(1,673 missing values generated)
+(2,726 missing values generated)
+(1664 missing values generated)
+(1664 missing values generated)
+(1,673 missing values generated)
+(1,673 missing values generated)
+(2,756 missing values generated)
+(2048 missing values generated)
+(2048 missing values generated)
+(2,054 missing values generated)
+(2,054 missing values generated)
+(2,596 missing values generated)
+(22 missing values generated)
+(22 missing values generated)
+(2,596 missing values generated)
+(22 missing values generated)
+(22 missing values generated)
+(2,716 missing values generated)
+(1536 missing values generated)
+(1536 missing values generated)
+(1,546 missing values generated)
+(1,546 missing values generated)
+(2,596 missing values generated)
+(22 missing values generated)
+(22 missing values generated)
+(2,796 missing values generated)
+(2560 missing values generated)
+(2560 missing values generated)
+(2,562 missing values generated)
+(2,562 missing values generated)
+(2,736 missing values generated)
+(1792 missing values generated)
+(1792 missing values generated)
+(1,800 missing values generated)
+(1,800 missing values generated)
+(2,796 missing values generated)
+(2560 missing values generated)
+(2560 missing values generated)
+(2,562 missing values generated)
+(2,562 missing values generated)
+(2,816 missing values generated)
+(2816 missing values generated)
+(2816 missing values generated)
+(2,816 missing values generated)
+(2,816 missing values generated)
+(2,806 missing values generated)
+(2688 missing values generated)
+(2688 missing values generated)
+(2,689 missing values generated)
+(2,689 missing values generated)
+(2,636 missing values generated)
+(512 missing values generated)
+(512 missing values generated)
+(530 missing values generated)
+(530 missing values generated)
+(2,596 missing values generated)
+(22 missing values generated)
+(22 missing values generated)
+(2,716 missing values generated)
+(1536 missing values generated)
+(1536 missing values generated)
+(1,546 missing values generated)
+(1,546 missing values generated)
+(2,716 missing values generated)
+(1536 missing values generated)
+(1536 missing values generated)
+(1,546 missing values generated)
+(1,546 missing values generated)
+(2,766 missing values generated)
+(2176 missing values generated)
+(2176 missing values generated)
+(2,181 missing values generated)
+(2,181 missing values generated)
+(2,776 missing values generated)
+(2304 missing values generated)
+(2304 missing values generated)
+(2,308 missing values generated)
+(2,308 missing values generated)
+(2,766 missing values generated)
+(2176 missing values generated)
+(2176 missing values generated)
+(2,181 missing values generated)
+(2,181 missing values generated)
+(2,806 missing values generated)
+(2688 missing values generated)
+(2688 missing values generated)
+(2,689 missing values generated)
+(2,689 missing values generated)
+(2,716 missing values generated)
+(1536 missing values generated)
+(1536 missing values generated)
+(1,546 missing values generated)
+(1,546 missing values generated)
+(2,596 missing values generated)
+(22 missing values generated)
+(22 missing values generated)
+(2,596 missing values generated)
+(22 missing values generated)
+(22 missing values generated)
+(2,796 missing values generated)
+(2560 missing values generated)
+(2560 missing values generated)
+(2,562 missing values generated)
+(2,562 missing values generated)
+(2,796 missing values generated)
+(2560 missing values generated)
+(2560 missing values generated)
+(2,562 missing values generated)
+(2,562 missing values generated)
+(2,596 missing values generated)
+(22 missing values generated)
+(22 missing values generated)
+(2,816 missing values generated)
+(2816 missing values generated)
+(2816 missing values generated)
+(2,816 missing values generated)
+(2,816 missing values generated)
+(2,716 missing values generated)
+(2688 missing values generated)
+(2688 missing values generated)
+(2,689 missing values generated)
+(2,689 missing values generated)
+(2,716 missing values generated)
+(2688 missing values generated)
+(2688 missing values generated)
+(2,689 missing values generated)
+(2,689 missing values generated)
+(2,716 missing values generated)
+(2688 missing values generated)
+(2688 missing values generated)
+(2,689 missing values generated)
+(2,689 missing values generated)
+(2,716 missing values generated)
+(2688 missing values generated)
+(2688 missing values generated)
+(2,689 missing values generated)
+(2,689 missing values generated)
+
+. 
+. 
+end of do-file

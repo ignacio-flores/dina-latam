@@ -214,6 +214,22 @@ test_that("isolated PIT admin explorer detects supported sources, years, unsuppo
   admin_pit_expect_true(all(c("bra-minwage", "mex-admin-microdata") %in% result$outputs$unsupported_sources$source_id))
 })
 
+test_that("COL cleaner reads a staged incoming archive but the repository baseline", {
+  skip_if_not_installed("openxlsx")
+  root <- admin_pit_fixture_repo()
+  exploration <- run_admin_pit_explorer(root = root, write_outputs = FALSE)
+  stage <- file.path(tempdir(), paste0("col-stage-", as.integer(stats::runif(1) * 1e9)))
+  if (requireNamespace("withr", quietly = TRUE)) withr::defer(unlink(stage, recursive = TRUE), envir = parent.frame())
+  paths <- list(root = root, staged_repo = stage, input_repo = root)
+  admin_pit_include_prepare_staged_sources(root, paths, exploration, exploration$contract)
+
+  incoming <- admin_pit_include_col_source_dir(paths, exploration, source_set = "new")
+  accepted <- admin_pit_include_col_source_dir(paths, exploration, source_set = "old")
+  expect_true(dir.exists(incoming))
+  expect_true(file.exists(file.path(incoming, "16_Cuantiles_Ingreso_Bruto_Naturales_2023_F-210.xlsx")))
+  expect_equal(accepted, file.path(root, "input_data", "admin_data", "COL", "1_Cuantiles_Ingreso_Bruto_Naturales_2014-2022"))
+})
+
 test_that("PIT admin explorer reports Brazil min-wage dependency actions", {
   skip_if_not_installed("openxlsx")
   missing <- run_admin_pit_explorer(root = admin_pit_fixture_repo(minwage = "missing"), write_outputs = FALSE)

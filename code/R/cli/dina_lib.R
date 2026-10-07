@@ -106,6 +106,389 @@ dina_todo_path <- function(root = dina_repo_root()) {
   dina_path("config", "todo.yml", root = root)
 }
 
+# Trust regions are methodological settings, not source files.  Keeping them
+# separate from dina.yml makes the country-year decisions reviewable without
+# turning an update override into a second source of truth.
+dina_admin_trust_regions_path <- function(root = dina_repo_root()) {
+  dina_path("config", "admin_trust_regions.yml", root = root)
+}
+
+dina_admin_trust_regions <- function(root = dina_repo_root(), path = dina_admin_trust_regions_path(root)) {
+  x <- dina_read_yaml(path, default = list(version = 1L, decisions = list()))
+  x$decisions <- x$decisions %||% list()
+  x$profiles <- x$profiles %||% list()
+  x$country_field_profiles <- x$country_field_profiles %||% list()
+  x$overrides <- x$overrides %||% list()
+  x
+}
+
+dina_admin_trust_profile_for <- function(registry, decision, field) {
+  country <- toupper(trimws(as.character(decision$country %||% "")))
+  year <- suppressWarnings(as.integer(decision$year %||% NA))
+  name <- decision[[paste0(field, "_profile")]] %||% NULL
+  country_profiles <- registry$country_field_profiles[[country]] %||% list()
+  name <- name %||% country_profiles[[field]] %||% NULL
+  if (length(registry$overrides)) for (override in registry$overrides) {
+    if (!identical(toupper(as.character(override$country %||% "")), country)) next
+    years <- suppressWarnings(as.integer(unlist(override$years %||% override$year %||% integer(), use.names = FALSE)))
+    if (!length(years) || !year %in% years) next
+    name <- override[[paste0(field, "_profile")]] %||% name
+  }
+  profile <- registry$profiles[[as.character(name %||% "")]] %||% list()
+  list(
+    name = as.character(name %||% ""),
+    basis = as.character(decision[[paste0(field, "_basis")]] %||% profile$basis %||% decision$basis %||% "explicit_policy"),
+    rule = as.character(decision[[paste0(field, "_rule")]] %||% profile$rule %||% decision$rule %||% ""),
+    provenance_status = as.character(decision[[paste0(field, "_provenance_status")]] %||% profile$provenance_status %||% decision$provenance_status %||% "verified"),
+    provenance_note = as.character(decision[[paste0(field, "_provenance_note")]] %||% profile$provenance_note %||% decision$provenance_note %||% "")
+  )
+}
+
+dina_admin_trust_rows <- function(root = dina_repo_root(), path = dina_admin_trust_regions_path(root)) {
+  registry <- dina_admin_trust_regions(root, path)
+  decisions <- registry$decisions %||% list()
+  if (!length(decisions)) {
+    return(data.frame(country = character(), year = integer(), trust = numeric(), trust_wages = numeric(), basis = character(), rule = character(), provenance_status = character(), provenance_note = character(), status = character(), stringsAsFactors = FALSE))
+  }
+  rows <- lapply(decisions, function(x) {
+    trust <- dina_admin_trust_profile_for(registry, x, "trust")
+    wages <- dina_admin_trust_profile_for(registry, x, "trust_wages")
+    data.frame(
+      country = toupper(trimws(as.character(x$country %||% ""))),
+      year = suppressWarnings(as.integer(x$year %||% NA)),
+      trust = suppressWarnings(as.numeric(x$trust %||% NA)),
+      trust_wages = suppressWarnings(as.numeric(x$trust_wages %||% NA)),
+      basis = trimws(trust$basis), rule = trimws(trust$rule),
+      provenance_status = trimws(trust$provenance_status), provenance_note = trimws(trust$provenance_note),
+      trust_wages_basis = trimws(wages$basis), trust_wages_rule = trimws(wages$rule),
+      trust_wages_provenance_status = trimws(wages$provenance_status),
+      # `active` describes an entry in the currently selected configuration;
+      # it is deliberately not a source-acceptance state.  Read legacy
+      # `confirmed` entries as active so existing configurations remain valid.
+      status = {
+        value <- trimws(as.character(x$status %||% "active"))
+        if (identical(value, "confirmed")) "active" else value
+      },
+      stringsAsFactors = FALSE
+    )
+  })
+  do.call(rbind, rows)
+}
+
+dina_admin_trust_runtime_path <- function(root = dina_repo_root(), session = NULL) {
+  if (is.null(session)) return(file.path(root, "output", "experiments", "configuration_validation", "admin_trust_regions.csv"))
+  file.path(dina_update_dir(session$id, root), "admin_trust_regions.csv")
+}
+
+# Matches countries_bfm_02a in aux_general.do: these are the formatted PIT
+# tables actually consumed by the one-stage BFM correction. MEX's recovered
+# gpinter files feed effective-rate calculation; its separate two-stage BFM
+# decision is required only if an eligible diverse/wage input is supplied.
+dina_admin_trust_bfm_countries <- function() c("COL", "URY", "BRA", "DOM", "SLV", "ECU", "PER", "CHL")
+dina_admin_trust_bfm_2stage_countries <- function() c("ARG", "CRI", "MEX")
+dina_admin_trust_required_empty <- function() data.frame(country = character(), year = integer(), file = character(), sheet = character(), requires_trust_wages = logical(), wage_file = character(), stringsAsFactors = FALSE)
+
+dina_admin_trust_prepared_files <- function(root = dina_repo_root()) {
+  # 02e creates one gpinter workbook per country-year from these clean tables.
+  # Use the same pre/post choice as 02e so validation forecasts the files that
+  # the pipeline will actually consume, without treating every cleaner output
+  # as a separate decision.
+  countries <- dina_admin_trust_bfm_countries()
+  clean <- unlist(lapply(countries, function(country) {
+    component <- if (identical(country, "BRA")) "pre" else "pos"
+    file.path(root, "input_data", "admin_data", country, "_clean", sprintf("total-%s-%s.xlsx", component, country))
+  }), use.names = FALSE)
+  gpinter <- Sys.glob(file.path(root, "input_data", "admin_data", "*", "gpinter_*.xlsx"))
+  unique(c(clean[file.exists(clean)], gpinter))
+}
+
+dina_admin_trust_rows_from_file <- function(path) {
+  path <- normalizePath(path, winslash = "/", mustWork = FALSE)
+  country_match <- regmatches(path, regexec("/admin_data/([A-Z]{3})/", path, perl = TRUE))[[1L]]
+  if (length(country_match) != 2L) return(data.frame())
+  country <- country_match[[2L]]
+  base <- basename(path)
+  gpinter_match <- regmatches(base, regexec("^gpinter_[A-Z]{3}_([0-9]{4})\\.xlsx$", base, perl = TRUE))[[1L]]
+  fixed_year <- if (length(gpinter_match) == 2L) as.integer(gpinter_match[[2L]]) else NA_integer_
+  if (!requireNamespace("readxl", quietly = TRUE) || !file.exists(path)) return(data.frame())
+  sheets <- tryCatch(readxl::excel_sheets(path), error = function(e) character())
+  if (!length(sheets)) return(data.frame())
+  rows <- lapply(sheets, function(sheet) {
+    # Header-only reads keep the configuration check quick even when the
+    # formatted tables contain thousands of brackets. Values are read later
+    # only for a publisher-derived decision or reviewer evidence.
+    data <- tryCatch(readxl::read_excel(path, sheet = sheet, n_max = 0L, .name_repair = "minimal"), error = function(e) NULL)
+    if (is.null(data) || !"p" %in% tolower(names(data))) return(NULL)
+    year <- fixed_year
+    if (!is.finite(year) && grepl("^[0-9]{4}$", sheet)) year <- as.integer(sheet)
+    if (!is.finite(year) && "year" %in% tolower(names(data))) {
+      year_data <- tryCatch(readxl::read_excel(path, sheet = sheet, range = "A1:ZZ2", .name_repair = "minimal"), error = function(e) data.frame())
+      value <- suppressWarnings(as.integer(year_data[[which(tolower(names(year_data)) == "year")[1L]]]))
+      value <- value[is.finite(value)]
+      if (length(value)) year <- value[[1L]]
+    }
+    if (!is.finite(year)) return(NULL)
+    data.frame(country = country, year = year, file = path, sheet = sheet, stringsAsFactors = FALSE)
+  })
+  rows <- Filter(Negate(is.null), rows)
+  if (!length(rows)) return(data.frame())
+  do.call(rbind, rows)
+}
+
+dina_admin_trust_survey_years <- function(root = dina_repo_root(), country) {
+  files <- Sys.glob(file.path(root, "intermediary_data", "microdata", "raw", country, sprintf("%s_*_raw.dta", country)))
+  years <- suppressWarnings(as.integer(sub(paste0("^", country, "_([0-9]{4})_raw\\.dta$"), "\\1", basename(files))))
+  sort(unique(years[is.finite(years)]))
+}
+
+dina_admin_trust_required_rows <- function(root = dina_repo_root(), config = dina_config(root), files = dina_admin_trust_prepared_files(root)) {
+  rows <- Filter(Negate(is.null), lapply(files, dina_admin_trust_rows_from_file))
+  if (!length(rows)) return(dina_admin_trust_required_empty())
+  rows <- do.call(rbind, rows)
+  expected_clean <- vapply(seq_len(nrow(rows)), function(i) {
+    component <- if (identical(rows$country[[i]], "BRA")) "pre" else "pos"
+    grepl(paste0("/_clean/total-", component, "-", rows$country[[i]], "\\.xlsx$"), rows$file[[i]])
+  }, logical(1))
+  rows <- rows[grepl("/gpinter_[A-Z]{3}_[0-9]{4}\\.xlsx$", rows$file) | expected_clean, , drop = FALSE]
+  countries <- toupper(as.character(config$countries %||% character()))
+  rows <- rows[rows$country %in% countries & rows$country %in% dina_admin_trust_bfm_countries() &
+    rows$year >= as.integer(config$years$first) & rows$year <= as.integer(config$years$last), , drop = FALSE]
+  # A trust decision is meaningful only when 03a can combine the formatted
+  # PIT table with a prepared survey. This prevents an unused PIT sheet from
+  # becoming a configuration blocker.
+  eligible <- mapply(function(country, year) year %in% dina_admin_trust_survey_years(root, country), rows$country, rows$year)
+  rows <- rows[eligible, , drop = FALSE]
+  rows$requires_trust_wages <- FALSE
+  rows$wage_file <- NA_character_
+  rows <- rows[order(rows$country, rows$year, rows$file, rows$sheet), , drop = FALSE]
+  rows[!duplicated(rows[c("country", "year")]), , drop = FALSE]
+}
+
+# Two-stage BFM reads already-prepared diverse/wage tables directly, rather
+# than 02e's total-pre/total-pos workbooks. These are actual overlap years;
+# extrapolated BFM years deliberately do not require a trust decision.
+dina_admin_trust_required_2stage_rows <- function(root = dina_repo_root(), config = dina_config(root)) {
+  countries <- intersect(toupper(as.character(config$countries %||% character())), dina_admin_trust_bfm_2stage_countries())
+  if (!length(countries)) return(dina_admin_trust_required_empty())
+  files <- unlist(lapply(countries, function(country) c(
+    Sys.glob(file.path(root, "input_data", "admin_data", country, sprintf("diverse_%s_*.xlsx", country))),
+    Sys.glob(file.path(root, "input_data", "admin_data", country, sprintf("wage_%s_*.xlsx", country)))
+  )), use.names = FALSE)
+  if (!length(files)) return(dina_admin_trust_required_empty())
+  parsed <- lapply(files, function(path) {
+    base <- basename(path)
+    hit <- regmatches(base, regexec("^(?:diverse|wage)_([A-Z]{3})_([0-9]{4})\\.xlsx$", base, perl = TRUE))[[1L]]
+    if (length(hit) != 3L) return(NULL)
+    data.frame(country = hit[[2L]], year = as.integer(hit[[3L]]), kind = sub("_.*$", "", base), file = normalizePath(path, winslash = "/", mustWork = FALSE), sheet = "prepared", stringsAsFactors = FALSE)
+  })
+  parsed <- Filter(Negate(is.null), parsed)
+  if (!length(parsed)) return(dina_admin_trust_required_empty())
+  rows <- do.call(rbind, parsed)
+  # 03b starts from diverse_*; wage_* is an additional input for trust_wages.
+  rows <- rows[rows$kind == "diverse", , drop = FALSE]
+  if (!nrow(rows)) return(dina_admin_trust_required_empty())
+  wage_path <- function(country, year) {
+    path <- file.path(root, "input_data", "admin_data", country, sprintf("wage_%s_%s.xlsx", country, year))
+    if (file.exists(path)) normalizePath(path, winslash = "/", mustWork = FALSE) else NA_character_
+  }
+  rows$wage_file <- mapply(wage_path, rows$country, rows$year, USE.NAMES = FALSE)
+  rows$requires_trust_wages <- !is.na(rows$wage_file)
+  rows$kind <- NULL
+  rows <- rows[rows$year >= as.integer(config$years$first) & rows$year <= as.integer(config$years$last), , drop = FALSE]
+  eligible <- mapply(function(country, year) year %in% dina_admin_trust_survey_years(root, country), rows$country, rows$year)
+  rows <- rows[eligible, , drop = FALSE]
+  rows[order(rows$country, rows$year, rows$file), , drop = FALSE]
+}
+
+dina_admin_trust_required_all_rows <- function(root = dina_repo_root(), config = dina_config(root), files = dina_admin_trust_prepared_files(root)) {
+  one_stage <- dina_admin_trust_required_rows(root, config, files)
+  two_stage <- dina_admin_trust_required_2stage_rows(root, config)
+  rows <- rbind(one_stage, two_stage)
+  if (!nrow(rows)) return(rows)
+  rows <- rows[order(rows$country, rows$year, rows$file), , drop = FALSE]
+  rows[!duplicated(rows[c("country", "year")]), , drop = FALSE]
+}
+
+dina_admin_trust_p_values <- function(path, sheet = NULL) {
+  if (!requireNamespace("readxl", quietly = TRUE) || !file.exists(path)) return(numeric())
+  tryCatch({
+    data <- readxl::read_excel(path, sheet = sheet %||% 1L, .name_repair = "minimal")
+    column <- which(tolower(names(data)) == "p")
+    if (!length(column)) return(numeric())
+    sort(unique(suppressWarnings(as.numeric(data[[column[[1L]]]]))))
+  }, error = function(e) numeric())
+}
+
+# The documented source rule is deliberately positional: choose the first
+# strictly-positive bracket after a zero-starting bracket, rather than the
+# first available cutoff. This avoids treating a 0-starting tax bracket as a
+# meaningful top-income trust region.
+dina_admin_trust_publisher_cutoff <- function(path, sheet = NULL) {
+  unavailable <- list(valid = FALSE, trust = NA_real_, threshold = NA_real_, row = NA_integer_, rule = "first_positive_threshold", evidence = "prepared PIT table has no recognized threshold/p columns")
+  if (!requireNamespace("readxl", quietly = TRUE) || !file.exists(path)) return(unavailable)
+  data <- tryCatch(readxl::read_excel(path, sheet = sheet %||% 1L, .name_repair = "minimal"), error = function(e) NULL)
+  if (is.null(data)) return(unavailable)
+  names_lower <- tolower(names(data))
+  p_col <- which(names_lower == "p")
+  threshold_col <- which(names_lower %in% c("thr", "threshold", "thresholds"))
+  if (!length(p_col) || !length(threshold_col)) return(unavailable)
+  p <- suppressWarnings(as.numeric(data[[p_col[[1L]]]]))
+  threshold <- suppressWarnings(as.numeric(data[[threshold_col[[1L]]]]))
+  zero <- which(is.finite(threshold) & abs(threshold) <= 1e-10)
+  if (!length(zero)) {
+    unavailable$evidence <- "prepared PIT table has no zero-starting threshold; cannot apply first_positive_threshold"
+    return(unavailable)
+  }
+  candidate <- which(seq_along(threshold) > min(zero) & is.finite(threshold) & threshold > 0 & is.finite(p) & p > 0 & p < 1)
+  if (!length(candidate)) {
+    unavailable$evidence <- "prepared PIT table has no usable positive threshold after its zero-starting bracket"
+    return(unavailable)
+  }
+  i <- candidate[[1L]]
+  list(valid = TRUE, trust = p[[i]], threshold = threshold[[i]], row = i, rule = "first_positive_threshold",
+    evidence = sprintf("first positive threshold after zero bracket: threshold %s, p %s (row %s)", format(threshold[[i]], trim = TRUE, scientific = FALSE), format(p[[i]], trim = TRUE, scientific = FALSE), i))
+}
+
+dina_admin_trust_validate <- function(root = dina_repo_root(), config = dina_config(root), require_coverage = TRUE, files = dina_admin_trust_prepared_files(root), trust_path = dina_admin_trust_regions_path(root)) {
+  rows <- dina_admin_trust_rows(root, trust_path)
+  errors <- character()
+  if (nrow(rows)) {
+    if (any(!grepl("^[A-Z]{3}$", rows$country) | is.na(rows$year))) errors <- c(errors, "Trust-region decisions require an ISO3 country and year.")
+    if (any(!is.finite(rows$trust) | rows$trust <= 0 | rows$trust >= 1)) errors <- c(errors, "Trust-region trust values must be strictly between 0 and 1.")
+    wage_present <- !is.na(rows$trust_wages)
+    if (any(wage_present & (!is.finite(rows$trust_wages) | rows$trust_wages <= 0 | rows$trust_wages >= 1))) errors <- c(errors, "Trust-region trust_wages values must be strictly between 0 and 1 when supplied.")
+    allowed <- c("publisher_derived", "carried_forward", "explicit_policy")
+    if (any(!rows$basis %in% allowed)) errors <- c(errors, "Trust-region basis must be publisher_derived, carried_forward, or explicit_policy.")
+    if (any(!rows$provenance_status %in% c("verified", "legacy_unverified", "inferred_policy"))) errors <- c(errors, "Trust-region provenance_status must be verified, legacy_unverified, or inferred_policy.")
+    if (any(!rows$status %in% c("active", "proposed"))) errors <- c(errors, "Trust-region status must be active or proposed.")
+    if (anyDuplicated(paste(rows$country, rows$year))) errors <- c(errors, "Trust-region decisions must be unique by country and year.")
+  }
+  required <- dina_admin_trust_required_all_rows(root, config, files = files)
+  published <- rows[rows$basis == "publisher_derived", , drop = FALSE]
+  if (nrow(published) && nrow(required)) {
+    for (i in seq_len(nrow(published))) {
+      row <- published[i, , drop = FALSE]
+      source <- required[required$country == row$country & required$year == row$year, , drop = FALSE]
+      if (!nrow(source)) next
+      # Historical directory.xlsx values did not retain the source release,
+      # threshold row, or population version. Keep that gap visible, but do
+      # not rewrite a historical decision merely because today's source no
+      # longer reproduces it. Newly-derived values must reproduce exactly.
+      if (!identical(row$provenance_status[[1L]], "legacy_unverified")) {
+        cutoff <- dina_admin_trust_publisher_cutoff(source$file[[1L]], source$sheet[[1L]])
+        if (!isTRUE(cutoff$valid) || abs(cutoff$trust - row$trust) > 1e-6) {
+          errors <- c(errors, paste0("Publisher-derived trust for ", row$country, " ", row$year, " does not match the first positive threshold after the zero bracket."))
+        }
+      }
+    }
+  }
+  missing <- required[!paste(required$country, required$year) %in% paste(rows$country, rows$year), , drop = FALSE]
+  proposed <- rows$basis %in% "carried_forward" & paste(rows$country, rows$year) %in% paste(required$country, required$year)
+  if (any(proposed)) {
+    labels <- paste0(rows$country[proposed], " ", rows$year[proposed])
+    errors <- c(errors, paste0("Trust-region carry-forward proposals still need confirmation: ", paste(labels, collapse = ", "), ". Edit config/admin_trust_regions.yml and set basis: explicit_policy (or publisher_derived)."))
+  }
+  proposed_rows <- rows$status %in% "proposed" & paste(rows$country, rows$year) %in% paste(required$country, required$year)
+  if (any(proposed_rows)) {
+    labels <- paste0(rows$country[proposed_rows], " ", rows$year[proposed_rows])
+    errors <- c(errors, paste0("The proposed trust configuration is incomplete: ", paste(labels, collapse = ", "), ". Review every proposed row, then apply the complete proposal with `dina sources configure admin --apply`."))
+  }
+  if (isTRUE(require_coverage) && nrow(missing)) {
+    labels <- paste0(missing$country, " ", missing$year)
+    errors <- c(errors, paste0("Trust-region decisions are required for formatted PIT inputs: ", paste(labels, collapse = ", "), ". Run `dina sources explore admin`, then `dina sources configure admin`."))
+  }
+  wage_needed <- required$requires_trust_wages %in% TRUE
+  if (any(wage_needed)) {
+    keys <- paste(required$country[wage_needed], required$year[wage_needed])
+    corresponding <- rows[match(keys, paste(rows$country, rows$year)), , drop = FALSE]
+    missing_wages <- !is.finite(corresponding$trust_wages)
+    if (any(missing_wages)) {
+      errors <- c(errors, paste0("Two-stage BFM requires trust_wages decisions for: ", paste(keys[missing_wages], collapse = ", "), "."))
+    }
+  }
+  list(valid = !length(errors), errors = unique(errors), rows = rows, required = required, missing = missing)
+}
+
+dina_admin_trust_pit_evidence <- function(path, sheet = NULL) {
+  if (!requireNamespace("readxl", quietly = TRUE) || !file.exists(path)) return("prepared PIT table unavailable")
+  values <- tryCatch({
+    p <- dina_admin_trust_p_values(path, sheet)
+    p <- p[is.finite(p) & p > 0 & p < 1]
+    if (!length(p)) return("prepared PIT table has no usable p column")
+    sprintf("prepared PIT p range %s–%s (%s cutoffs)", format(min(p), trim = TRUE), format(max(p), trim = TRUE), length(p))
+  }, error = function(e) paste("prepared PIT table could not be read:", conditionMessage(e)))
+  values
+}
+
+dina_admin_trust_review <- function(root = dina_repo_root(), config = dina_config(root), files = dina_admin_trust_prepared_files(root), trust_path = dina_admin_trust_regions_path(root)) {
+  checked <- dina_admin_trust_validate(root, config, require_coverage = FALSE, files = files, trust_path = trust_path)
+  required <- checked$required
+  rows <- checked$rows
+  empty <- data.frame(country = character(), year = integer(), file = character(), sheet = character(), current_trust = numeric(), current_trust_wages = numeric(), basis = character(), rule = character(), provenance_status = character(), proposal_trust = numeric(), proposal_trust_wages = numeric(), status = character(), evidence = character(), next_step = character(), stringsAsFactors = FALSE)
+  provenance <- data.frame(country = character(), year = integer(), field = character(), basis = character(), reason = character(), likely_explanation = character(), stringsAsFactors = FALSE)
+  if (!nrow(required)) return(list(proposals = empty, decisions = empty, provenance = provenance, valid = TRUE))
+  out <- lapply(seq_len(nrow(required)), function(i) {
+    need <- required[i, , drop = FALSE]
+    hit <- rows[rows$country == need$country & rows$year == need$year, , drop = FALSE]
+    cutoff <- dina_admin_trust_publisher_cutoff(need$file, need$sheet)
+    evidence <- if (isTRUE(cutoff$valid)) cutoff$evidence else dina_admin_trust_pit_evidence(need$file, need$sheet)
+    if (nrow(hit)) {
+      state <- if (hit$basis[[1L]] %in% "carried_forward" || hit$status[[1L]] %in% "proposed") "configuration_pending" else "configured"
+      next_step <- if (identical(state, "configured")) "ready" else "Review this row with the complete proposed trust configuration."
+      return(data.frame(country = need$country, year = need$year, file = dina_relative(need$file, root), sheet = need$sheet,
+        current_trust = hit$trust[[1L]], current_trust_wages = hit$trust_wages[[1L]], basis = hit$basis[[1L]],
+        rule = hit$rule[[1L]], provenance_status = hit$provenance_status[[1L]],
+        proposal_trust = hit$trust[[1L]], proposal_trust_wages = hit$trust_wages[[1L]], status = state,
+        evidence = evidence, next_step = next_step, stringsAsFactors = FALSE))
+    }
+    previous <- rows[rows$country == need$country & rows$year < need$year & is.finite(rows$trust), , drop = FALSE]
+    if (nrow(previous) && identical(previous$basis[[which.max(previous$year)]], "publisher_derived") && isTRUE(cutoff$valid)) {
+      return(data.frame(country = need$country, year = need$year, file = dina_relative(need$file, root), sheet = need$sheet,
+        current_trust = NA_real_, current_trust_wages = NA_real_, basis = "publisher_derived", rule = cutoff$rule, provenance_status = "verified",
+        proposal_trust = cutoff$trust, proposal_trust_wages = NA_real_, status = "configuration_pending", evidence = cutoff$evidence,
+        next_step = "Review this source-derived row in the complete trust-configuration proposal.", stringsAsFactors = FALSE))
+    }
+    if (nrow(previous)) {
+      previous <- previous[which.max(previous$year), , drop = FALSE]
+      return(data.frame(country = need$country, year = need$year, file = dina_relative(need$file, root), sheet = need$sheet,
+        current_trust = NA_real_, current_trust_wages = NA_real_, basis = "carried_forward", rule = "", provenance_status = "inferred_policy",
+        proposal_trust = previous$trust[[1L]], proposal_trust_wages = previous$trust_wages[[1L]], status = "configuration_pending",
+        evidence = paste0(evidence, "; nearest active configuration: ", previous$year[[1L]]),
+        next_step = "Add this row to the complete trust-configuration proposal.", stringsAsFactors = FALSE))
+    }
+    data.frame(country = need$country, year = need$year, file = dina_relative(need$file, root), sheet = need$sheet,
+      current_trust = NA_real_, current_trust_wages = NA_real_, basis = "", rule = "", provenance_status = "", proposal_trust = NA_real_, proposal_trust_wages = NA_real_, status = "unresolved",
+      evidence = evidence, next_step = "Choose a trust region in config/admin_trust_regions.yml.", stringsAsFactors = FALSE)
+  })
+  proposals <- do.call(rbind, out)
+  legacy_trust <- rows[rows$provenance_status == "legacy_unverified", , drop = FALSE]
+  legacy_wages <- rows[rows$trust_wages_provenance_status == "legacy_unverified" & is.finite(rows$trust_wages), , drop = FALSE]
+  provenance_parts <- Filter(Negate(is.null), list(
+    if (nrow(legacy_trust)) data.frame(country = legacy_trust$country, year = legacy_trust$year, field = "trust", basis = legacy_trust$basis,
+      reason = "The migrated directory.xlsx stored the chosen value but no source release, threshold row, or population version.",
+      likely_explanation = "Likely derived from the then-current tax schedule using the first positive threshold after the zero bracket; it cannot be reproduced from today's prepared table without historical source provenance.", stringsAsFactors = FALSE),
+    if (nrow(legacy_wages)) data.frame(country = legacy_wages$country, year = legacy_wages$year, field = "trust_wages", basis = legacy_wages$trust_wages_basis,
+      reason = "The migrated directory.xlsx stored the wage trust value but no source release or threshold row.",
+      likely_explanation = "Likely derived from the then-current wage schedule using the same first-positive-threshold rule; the retained value is not enough to prove that provenance today.", stringsAsFactors = FALSE)
+  ))
+  if (length(provenance_parts)) provenance <- do.call(rbind, provenance_parts)
+  list(proposals = proposals, decisions = proposals[proposals$status == "configured", , drop = FALSE], provenance = provenance, valid = all(proposals$status == "configured"))
+}
+
+dina_write_admin_trust_runtime <- function(root = dina_repo_root(), session = NULL, config = dina_session_config(session, root, expand_env = FALSE)) {
+  check <- dina_admin_trust_validate(root, config)
+  if (!isTRUE(check$valid)) stop(check$errors[[1L]], call. = FALSE)
+  path <- dina_admin_trust_runtime_path(root, session)
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+  countries <- toupper(as.character(config$countries %||% character()))
+  scoped <- check$rows[check$rows$country %in% countries &
+    check$rows$year >= as.integer(config$years$first) & check$rows$year <= as.integer(config$years$last),
+    c("country", "year", "trust", "trust_wages", "basis"), drop = FALSE]
+  scoped <- scoped[order(scoped$country, scoped$year), , drop = FALSE]
+  utils::write.csv(scoped, path, row.names = FALSE, na = "")
+  path
+}
+
 dina_pushover_local_path <- function(root = dina_repo_root()) {
   dina_path("config", "pushover.local.R", root = root)
 }
@@ -131,6 +514,30 @@ dina_notify_init <- function(root = dina_repo_root(), overwrite = FALSE) {
   dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
   writeLines(dina_pushover_template(), path)
   list(path = path, created = TRUE)
+}
+
+# `notify init` creates a deliberately inert template.  Inspect its values
+# without loading them into pushoverr, so `dina doctor` never calls a service
+# or reports placeholder credentials as usable.
+dina_pushover_local_credentials <- function(root = dina_repo_root()) {
+  path <- dina_pushover_local_path(root)
+  if (!file.exists(path)) return(list(token = "", user = "", readable = FALSE))
+  lines <- paste(readLines(path, warn = FALSE), collapse = "\n")
+  extract <- function(pattern) {
+    hit <- regexec(pattern, lines, perl = TRUE)
+    matched <- regmatches(lines, hit)[[1L]]
+    if (length(matched) >= 2L) matched[[2L]] else ""
+  }
+  list(
+    token = extract("set_pushover_app\\s*\\(\\s*token\\s*=\\s*['\\\"]([^'\\\"]+)['\\\"]"),
+    user = extract("set_pushover_user\\s*\\(\\s*user\\s*=\\s*['\\\"]([^'\\\"]+)['\\\"]"),
+    readable = TRUE
+  )
+}
+
+dina_pushover_credential_is_usable <- function(value) {
+  value <- trimws(value %||% "")
+  nzchar(value) && !tolower(value) %in% c("xxxxxx", "your-token", "your-user-key", "replace-me", "placeholder")
 }
 
 dina_config <- function(root = dina_repo_root(), expand_env = TRUE, path = dina_config_path(root)) {
@@ -600,6 +1007,7 @@ dina_render_config_do <- function(config = dina_config(), path = NULL, identity 
     sprintf("global dina_baseline_fingerprint \"%s\"", baseline_fingerprint),
     sprintf("global dina_config_validated_at \"%s\"", validated_at),
     sprintf("global dina_config_countries \"%s\"", paste(config$countries %||% character(), collapse = ",")),
+    sprintf("global admin_trust_regions \"%s\"", identity$admin_trust_regions %||% ""),
     "",
     sprintf("global all_countries %s", dina_stata_quote_list(config$countries %||% character())),
     sprintf("global first_y %s", config$years$first %||% ""),
@@ -2782,34 +3190,77 @@ dina_review_read <- function(root, family) {
   dina_read_json(dina_review_pointer(root, family), default = NULL)
 }
 
+# Pipeline products may sit beside source files in legacy directories. They are
+# not source evidence and must not make an accepted review stale merely because
+# a pipeline task regenerated them.
+dina_review_watch_files <- function(path) {
+  if (!file.exists(path)) return(character())
+  files <- if (dir.exists(path)) {
+    sort(list.files(path, recursive = TRUE, full.names = TRUE, all.files = TRUE, no.. = TRUE))
+  } else path
+  files <- files[!dir.exists(files)]
+  generated <- "/(_clean|eff-tax-rate|gpinter_output)/|/gpinter_[^/]+\\.xlsx$|/sna_country_data/URY/cei\\.xlsx$"
+  files[!grepl(generated, files, perl = TRUE)]
+}
+
 # Cheap signatures are only for guidance. Acceptance verifies full hashes.
 dina_review_watch <- function(paths) {
   paths <- sort(unique(paths[!is.na(paths) & nzchar(paths)]))
   setNames(lapply(paths, function(path) {
     if (!file.exists(path)) return("absent")
-    files <- if (dir.exists(path)) sort(list.files(path, recursive = TRUE, full.names = TRUE, all.files = TRUE, no.. = TRUE)) else path
-    files <- files[!dir.exists(files)]
+    files <- dina_review_watch_files(path)
     info <- file.info(files)
     dina_need("digest")
     digest::digest(paste(files, info$size, as.numeric(info$mtime), collapse = "\n"), algo = "sha256")
   }), paths)
 }
 
-# A completed inclusion is an acceptance of source data under a configuration,
-# not an acceptance of the current implementation of the CLI.  Code changes
-# still invalidate an unaccepted review (where its evidence must be rebuilt),
-# but must not make an accepted family appear to have been un-included.
+# A completed inclusion is an acceptance of source data, not an acceptance of
+# the CLI implementation or its runtime configuration.  Those are separately
+# validated before a pipeline run.  In particular, adding a Stata preflight or
+# changing an update setting must never tell a reviewer to re-accept unchanged
+# source files.
 dina_review_acceptance_watch_paths <- function(paths) {
   paths <- as.character(paths %||% character())
-  paths[!grepl("/code/", paths, fixed = TRUE)]
+  paths[!grepl("(^|/)(code|config|output|intermediary_data)(/|$)|config\\.override\\.yml$", paths, perl = TRUE)]
 }
 
-dina_review_included_watch_changes <- function(record) {
+dina_review_included_watch_raw_changes <- function(record) {
   stored <- record$acceptance_watch %||% record$watch
   paths <- dina_review_acceptance_watch_paths(names(stored))
   if (!length(paths)) return("review evidence was not recorded")
   current <- dina_review_watch(paths)
   paths[!vapply(paths, function(path) identical(current[[path]], stored[[path]]), logical(1))]
+}
+
+# Older review records used a broader watcher and, in some cases, saved its
+# signature just before the inclusion copy finished.  A differing legacy
+# signature is not evidence of a later user edit.  Only call a review stale
+# when a watched source was actually changed after it was included.
+dina_review_paths_changed_after_inclusion <- function(paths, included_at) {
+  if (!length(paths) || is.null(included_at) || !nzchar(included_at)) return(character())
+  included <- as.POSIXct(included_at, format = "%Y-%m-%dT%H:%M:%S%z")
+  if (is.na(included)) return(character())
+  changed <- vapply(paths, function(path) {
+    if (!file.exists(path)) return(TRUE)
+    files <- dina_review_watch_files(path)
+    if (!length(files)) return(FALSE)
+    changed_at <- file.info(files)$ctime
+    # `included_at` is persisted to whole seconds while a just-promoted file
+    # retains sub-second filesystem time.  A small grace window prevents that
+    # same inclusion from immediately invalidating itself.
+    any(!is.na(changed_at) & changed_at > (included + 2))
+  }, logical(1))
+  paths[changed]
+}
+
+dina_review_included_watch_changes <- function(record) {
+  changed <- dina_review_included_watch_raw_changes(record)
+  if (!length(changed) || identical(changed, "review evidence was not recorded")) return(changed)
+  # When a legacy acceptance snapshot disagrees, retain it only where the
+  # filesystem shows a real edit after inclusion.  This makes the migration
+  # safe: a subsequent source edit still produces a recheck request.
+  intersect(changed, dina_review_paths_changed_after_inclusion(changed, record$included_at %||% record$reviewed_at %||% ""))
 }
 
 dina_review_included_watch_changed <- function(record) {
@@ -3210,6 +3661,66 @@ dina_task_status <- function(task, root = dina_repo_root(), session = NULL, seen
   list(id = task$id, stage = task$stage %||% NA_character_, language = dina_task_language(task), status = status, reasons = reasons)
 }
 
+# These are the files that must be present before a task can safely start.
+# Output freshness is deliberately not part of this check: it is a preflight
+# for avoiding partial pipelines, not a reason to skip a requested task.
+dina_task_missing_inputs <- function(task, root = dina_repo_root(), session = NULL) {
+  config_inputs <- "config/dina.yml"
+  if (!is.null(session)) {
+    override <- dina_session_config_override_path(session$id, root)
+    if (file.exists(override)) config_inputs <- c(config_inputs, dina_relative(override, root))
+  }
+  inputs <- unique(c(task$inputs %||% character(), task$script %||% character(), config_inputs))
+  paths <- dina_filter_ignored_paths(dina_expand_paths(inputs, root), root)
+  paths[!file.exists(paths)]
+}
+
+dina_legacy_prepared_input_issues <- function(root = dina_repo_root()) {
+  sources <- dina_sources(root)$sources %||% list()
+  legacy <- Filter(function(source) identical(source$family %||% "", "legacy_prepared"), sources)
+  if (!length(legacy)) return(character())
+  unlist(lapply(legacy, function(source) {
+    canonical <- as.character(source$canonical %||% character())
+    checksums <- unlist(source$checksums %||% list(), use.names = TRUE)
+    bad <- vapply(canonical, function(rel) {
+      path <- file.path(root, rel)
+      expected <- checksums[[basename(rel)]] %||% ""
+      !file.exists(path) || (nzchar(expected) && !identical(dina_hash_file(path), expected))
+    }, logical(1))
+    if (!any(bad)) return(character())
+    years <- regmatches(basename(canonical[bad]), gregexpr("[0-9]{4}", basename(canonical[bad]), perl = TRUE))
+    years <- sort(unique(unlist(years, use.names = FALSE)))
+    sprintf("legacy prepared %s PIT input(s) missing or altered for %s; recover the recorded %s workbooks before running", source$country %||% "", paste(years, collapse = ","), source$country %||% "")
+  }), use.names = FALSE)
+}
+
+dina_pipeline_input_preflight <- function(tasks, root = dina_repo_root(), session = NULL) {
+  # An input produced by an earlier selected task is expected to be absent at
+  # the start of a full run.  Do not confuse that ordinary dependency with a
+  # missing external/static input.
+  declared_outputs <- unlist(lapply(tasks, function(task) task$outputs %||% character()), use.names = FALSE)
+  output_matches <- function(path, declared) {
+    rel <- dina_relative(path, root)
+    any(vapply(declared, function(output) {
+      grepl(utils::glob2rx(output), rel, perl = TRUE)
+    }, logical(1)))
+  }
+  missing <- unlist(lapply(tasks, function(task) {
+    paths <- dina_task_missing_inputs(task, root = root, session = session)
+    paths <- paths[!vapply(paths, output_matches, logical(1), declared = declared_outputs)]
+    if (!length(paths)) return(character())
+    paste0(task$id, " :: ", dina_relative(paths, root))
+  }), use.names = FALSE)
+  missing <- c(missing, dina_legacy_prepared_input_issues(root))
+  if (!length(missing)) return(invisible(TRUE))
+  stop(
+    "Pipeline has not started because required inputs are missing:\n  - ",
+    paste(missing, collapse = "\n  - "),
+    "\nResolve these inputs, then run the same command again. Legacy prepared inputs are restored from the documented pre-fresh-start snapshot; no task process was launched.",
+    call. = FALSE
+  )
+}
+
 dina_all_task_status <- function(root = dina_repo_root(), session = dina_load_session(root = root)) {
   tasks <- dina_task_map(root)
   out <- lapply(tasks, dina_task_status, root = root, session = session)
@@ -3278,6 +3789,11 @@ dina_run_task <- function(task, root = dina_repo_root(), session = dina_load_ses
     return(list(task = task$id, status = "dry_run", command = command, reasons = status$reasons,
       configuration = validation$identity, source_reviews = source_advisory))
   }
+  missing_inputs <- dina_task_missing_inputs(task, root = root, session = session)
+  if (length(missing_inputs)) {
+    stop("Task ", task$id, " cannot start; missing input: ",
+      paste(dina_relative(missing_inputs, root), collapse = ", "), call. = FALSE)
+  }
   if (!nzchar(command[[1]]) || identical(command[[1]], "<DINA_STATA_CMD>")) {
     stop("No executable configured for task ", task$id, call. = FALSE)
   }
@@ -3286,10 +3802,25 @@ dina_run_task <- function(task, root = dina_repo_root(), session = dina_load_ses
   log_dir <- dina_path("output", "run_logs", run_id, root = root)
   dir.create(log_dir, recursive = TRUE, showWarnings = FALSE)
   runtime_config_do <- ""
+  stata_log <- ""
+  wrapper_do <- ""
   if (identical(task$type, "stata")) {
     dina_progress(progress, "Writing the Stata runtime configuration.")
     runtime_config_do <- dina_write_runtime_stata_config(config, validation$identity)
     on.exit(unlink(runtime_config_do), add = TRUE)
+    stata_log <- file.path(log_dir, paste0(task$id, ".stata.log"))
+    wrapper_do <- file.path(log_dir, paste0(task$id, ".wrapper.do"))
+    stata_path <- normalizePath(file.path(root, task$script), mustWork = FALSE)
+    stata_quote <- function(path) gsub('"', "'", path, fixed = TRUE)
+    writeLines(c(
+      "capture log close _all",
+      sprintf('log using "%s", text replace', stata_quote(stata_log)),
+      sprintf('capture noisily do "%s"', stata_quote(stata_path)),
+      "local dina_task_rc = _rc",
+      "capture log close _all",
+      "exit `dina_task_rc'"
+    ), wrapper_do)
+    command <- c(command[[1]], config$stata$batch_args %||% c("-b", "do"), wrapper_do)
   }
   override_path <- if (!is.null(session)) dina_session_config_override_path(session$id, root) else ""
   if (!file.exists(override_path)) {
@@ -3300,14 +3831,39 @@ dina_run_task <- function(task, root = dina_repo_root(), session = dina_load_ses
     DINA_CONFIG_YML = dina_config_path(root),
     DINA_CONFIG_OVERRIDE_YML = override_path
   )
-  dina_progress(progress, "Running %s; live command output follows.", task$id)
-  result <- processx::run(command[[1]], command[-1], wd = root, echo = TRUE, error_on_status = FALSE, env = env)
-  status_value <- if (identical(result$status, 0L)) "succeeded" else "failed"
+  dina_progress(progress, "Running %s. Live status will be reported while it works.", task$id)
+  process <- processx::process$new(command[[1]], command[-1], wd = root, stdout = "|", stderr = "|", env = env,
+    cleanup_tree = TRUE)
+  started <- Sys.time()
+  last_update <- started
+  while (process$is_alive()) {
+    Sys.sleep(1)
+    now <- Sys.time()
+    if (as.numeric(difftime(now, last_update, units = "secs")) >= 15) {
+      elapsed <- round(as.numeric(difftime(now, started, units = "secs")))
+      detail <- if (nzchar(stata_log) && file.exists(stata_log)) {
+        sprintf("; Stata log %s KiB", round(file.info(stata_log)$size / 1024, 1))
+      } else ""
+      dina_progress(progress, "Still running %s (%ss%s).", task$id, elapsed, detail)
+      last_update <- now
+    }
+  }
+  process$wait()
+  result <- list(status = process$get_exit_status(), stdout = process$read_all_output(), stderr = process$read_all_error())
+  stata_error <- FALSE
+  if (nzchar(stata_log) && file.exists(stata_log)) {
+    log_lines <- readLines(stata_log, warn = FALSE)
+    stata_error <- any(grepl("^r\\([1-9][0-9]*\\);$", trimws(log_lines)))
+  }
+  status_value <- if (identical(result$status, 0L) && !stata_error) "succeeded" else "failed"
   writeLines(result$stdout, file.path(log_dir, paste0(task$id, ".out.log")))
   writeLines(result$stderr, file.path(log_dir, paste0(task$id, ".err.log")))
   run_manifest <- list(task = task$id, status = status_value, command = command, run_id = run_id,
     ended_at = dina_now(), configuration = validation$identity, validation = validation$receipt,
-    source_reviews = source_advisory)
+    source_reviews = source_advisory, stata_log = if (nzchar(stata_log)) dina_relative(stata_log, root) else NULL,
+    failure = if (identical(status_value, "failed")) {
+      if (stata_error) "Stata reported an r() error; downstream tasks were not started." else sprintf("Command exited with status %s.", result$status)
+    } else NULL)
   dina_write_json(run_manifest, file.path(log_dir, "run-manifest.json"))
   if (!is.null(session)) {
     session$task_runs[[task$id]] <- c(list(status = status_value, command = command, run_id = run_id, ended_at = dina_now()),
@@ -3316,7 +3872,9 @@ dina_run_task <- function(task, root = dina_repo_root(), session = dina_load_ses
     dina_save_session(session, root)
   }
   dina_progress(progress, "%s; logs written to %s.", if (identical(status_value, "succeeded")) "Task completed" else "Task failed", dina_relative(log_dir, root))
-  list(task = task$id, status = status_value, command = command, exit_status = result$status, log_dir = dina_relative(log_dir, root))
+  list(task = task$id, status = status_value, command = command, exit_status = result$status,
+    log_dir = dina_relative(log_dir, root), stata_log = if (nzchar(stata_log)) dina_relative(stata_log, root) else NULL,
+    session = session)
 }
 
 dina_make_export <- function(path = dina_path("Makefile.dina", root = root), root = dina_repo_root()) {
@@ -3710,7 +4268,8 @@ dina_pushover_status <- function(root = dina_repo_root()) {
   config_token <- pushover$token %||% ""
   config_user <- pushover$user %||% ""
 
-  local_configured <- file.exists(local_path)
+  local <- dina_pushover_local_credentials(root)
+  local_configured <- dina_pushover_credential_is_usable(local$token) && dina_pushover_credential_is_usable(local$user)
   env_configured <- nzchar(env_token) && nzchar(env_user)
   config_configured <- nzchar(config_token) && nzchar(config_user)
   source <- if (local_configured) {
@@ -3728,6 +4287,7 @@ dina_pushover_status <- function(root = dina_repo_root()) {
     configured = local_configured || env_configured || config_configured,
     source = source,
     local_path = dina_relative(local_path, root),
+    local_file_present = local$readable,
     local_configured = local_configured,
     env_configured = env_configured,
     config_configured = config_configured,
@@ -3753,6 +4313,10 @@ dina_notify <- function(message, root = dina_repo_root(), title = "DINA-LatAm") 
   dina_need("pushoverr")
   args <- list(message = message, title = title)
   if (file.exists(dina_pushover_local_path(root))) {
+    local <- dina_pushover_local_credentials(root)
+    if (!dina_pushover_credential_is_usable(local$token) || !dina_pushover_credential_is_usable(local$user)) {
+      stop("Pushover setup is incomplete. Add a real app token and user key to config/pushover.local.R, then run `dina notify test`.", call. = FALSE)
+    }
     dina_source_pushover_local(root)
   } else {
     credentials <- dina_pushover_credentials(root)
@@ -3821,8 +4385,9 @@ dina_config_validation_snapshot <- function(root, session = dina_load_session(ro
   list(
     scope = dina_config_scope(session)$id,
     benchmark_config_hash = dina_hash_file(dina_config_path(root)),
+    trust_config_hash = dina_hash_file(dina_admin_trust_regions_path(root)),
     update_override_hash = if (nzchar(override)) dina_hash_file(override) else NA_character_,
-    effective_config_hash = if (!is.null(effective_config)) digest::digest(effective_config, algo = "sha256", serialize = TRUE) else NA_character_,
+    effective_config_hash = if (!is.null(effective_config)) digest::digest(list(config = effective_config, trust_config_hash = dina_hash_file(dina_admin_trust_regions_path(root))), algo = "sha256", serialize = TRUE) else NA_character_,
     baseline = dina_config_validation_baseline_signature(baseline, root, hash = hash_baseline)
   )
 }
@@ -3839,6 +4404,7 @@ dina_config_validation_identity <- function(root, session = NULL, receipt = NULL
     fingerprint = snapshot$effective_config_hash %||% "",
     effective_config_fingerprint = snapshot$effective_config_hash %||% "",
     baseline_fingerprint = baseline_fingerprint,
+    admin_trust_regions = dina_relative(dina_admin_trust_runtime_path(root, session), root),
     validated_at = receipt$checked_at %||% ""
   )
 }
@@ -3856,9 +4422,12 @@ dina_config_validation_state <- function(root, session = dina_load_session(root 
     dina_same_cheap_signature(receipt$baseline, snapshot$baseline)
   current <- identical(receipt$scope %||% "", snapshot$scope) &&
     same_hash(receipt$benchmark_config_hash, snapshot$benchmark_config_hash) &&
+    same_hash(receipt$trust_config_hash, snapshot$trust_config_hash) &&
     same_hash(receipt$update_override_hash, snapshot$update_override_hash) && same_baseline
   current <- current && same_hash(receipt$effective_config_hash, snapshot$effective_config_hash)
   if (!current) return(list(code = "out_of_date", label = "Validation out of date", detail = "Settings or the comparison baseline changed after the last validation.", action = action))
+  trust_runtime <- dina_admin_trust_runtime_path(root, session)
+  if (!file.exists(trust_runtime)) return(list(code = "needs_attention", label = "Needs attention", detail = paste0("The validated trust-region runtime table is missing. Run ", action, "."), action = action))
   checked_at <- receipt$checked_at %||% "unknown time"
   if (identical(receipt$status, "passed")) return(list(code = "validated", label = paste("Validated ·", checked_at), detail = "Settings and comparison baseline match the recorded validation.", action = ""))
   list(code = "needs_attention", label = paste("Needs attention ·", checked_at), detail = receipt$errors[[1L]] %||% "The last configuration validation did not pass.", action = action)
@@ -3872,6 +4441,10 @@ dina_record_config_validation <- function(root, session, check, progress = NULL)
     snapshot
   )
   dina_write_json(receipt, dina_config_validation_receipt_path(root, session))
+  if (isTRUE(check$valid)) {
+    dina_progress(progress, "Writing the validated trust-region runtime table.")
+    dina_write_admin_trust_runtime(root, session, check$config)
+  }
   if (is.null(session)) return(invisible(NULL))
   session$config_validation <- receipt
   session$updated_at <- dina_now()
@@ -3903,7 +4476,7 @@ dina_stata_runtime_preflight <- function(root, session, config, progress = NULL)
   lines <- c(
     "clear all",
     sprintf("do \"%s\"", bootstrap),
-    "foreach required in dina_config_scope dina_config_fingerprint dina_baseline_fingerprint dina_config_countries all_countries first_y last_y export_unit export_steps export_last_y previous_update {",
+    "foreach required in dina_config_scope dina_config_fingerprint dina_baseline_fingerprint dina_config_countries admin_trust_regions all_countries first_y last_y export_unit export_steps export_last_y previous_update {",
     "  if `\"${`required'}\"' == \"\" exit 198",
     "}",
     sprintf("if \"${dina_config_scope}\" != \"%s\" exit 198", stata_string(identity$scope)),
@@ -3980,6 +4553,8 @@ dina_settings_check <- function(root, session = dina_load_session(root = root), 
     if (!config$run$lang %in% c("eng", "esp")) errors <- c(errors, "run.lang must be eng or esp.")
     for (name in c("debug", "bfm_replace")) if (!is.logical(config$run[[name]]) || length(config$run[[name]]) != 1L || is.na(config$run[[name]])) errors <- c(errors, paste("run", name, "must be true or false."))
     for (name in c("units", "steps")) if (!length(unlist(config$run[[name]])) || anyNA(unlist(config$run[[name]]))) errors <- c(errors, paste("run", name, "must contain values."))
+    trust <- dina_admin_trust_validate(root, config)
+    errors <- c(errors, trust$errors)
     baseline <- character()
     if (isTRUE(validate_baseline)) {
       baseline_path <- config$export_validation$previous_update_file %||% ""

@@ -717,6 +717,9 @@ dina_review_explore <- function(root, family, flags = list(), input = "stdin", i
   record <- list(family = family, status = "incomplete", reviewed_at = dina_now())
   dina_review_save(record, root)
   input_paths <- dina_review_inputs(root, family, engine)
+  # Admin trust decisions are configuration-owned evidence for this exact
+  # review.  They must be rechecked if the analyst edits them before Include.
+  if (identical(family, "admin")) input_paths <- unique(c(input_paths, dina_admin_trust_regions_path(root)))
   before <- dina_review_hashes(input_paths)
   output <- flags[["output-dir"]] %||% NULL
   review_scope <- if (family %in% c("sna", "surveys")) dina_source_explore_scope(root, family = dina_review_families()[[family]]) else NULL
@@ -777,6 +780,23 @@ dina_review_explore <- function(root, family, flags = list(), input = "stdin", i
     tables$other_admin_inputs <- dina_review_admin_other_inputs(
       explored$outputs$aux_comparison_summary %||% data.frame(), prepared$contract
     )
+    # Review the exact formatted PIT workbooks produced in this candidate
+    # staging area.  Legacy gpinter files remain in scope for countries whose
+    # prepared inputs cannot be rebuilt from public raw sources.
+    cleaner_outputs <- prepared$outputs$cleaner_outputs %||% data.frame()
+    candidate_trust_files <- if (all(c("staged_to", "exists") %in% names(cleaner_outputs))) {
+      as.character(cleaner_outputs$staged_to[cleaner_outputs$exists %in% TRUE])
+    } else character()
+    legacy_trust_files <- Sys.glob(file.path(root, "input_data", "admin_data", "*", "gpinter_*.xlsx"))
+    trust <- dina_admin_trust_review(root, dina_session_config(dina_load_session(root = root), root, expand_env = FALSE),
+      files = unique(c(candidate_trust_files, legacy_trust_files)))
+    tables$trust_region_proposals <- trust$proposals
+    tables$trust_region_decisions <- trust$decisions
+    tables$trust_region_provenance <- trust$provenance
+    if (!isTRUE(trust$valid)) {
+      status <- "blocked"
+      comparison_error <- "The complete Admin configuration proposal is not ready. No Admin sources can be included until it is applied and the whole family is reviewed again. See trust-region-proposals and run `dina sources configure admin`."
+    }
   }
   if (identical(family, "sna")) {
     focus <- dina_review_sna_review_focus(root)
@@ -816,7 +836,8 @@ dina_review_explore <- function(root, family, flags = list(), input = "stdin", i
     files = nrow(plan), comparison_note = values$note, comparison_error = comparison_error,
     scope = if (!is.null(review_scope)) review_scope else "whole family", area_metadata = if (family == "wid") prepared$contract$area_metadata else NULL, inputs = after,
     candidates = dina_review_hashes(c(plan$from_rel, file.path(prepared$paths$root, "tables"), file.path(prepared$paths$root, "logs"))),
-    baseline = dina_review_hashes(if (nrow(plan)) file.path(root, plan$to_rel) else character()))
+    baseline = dina_review_hashes(if (nrow(plan)) file.path(root, plan$to_rel) else character()),
+    trust_config_hash = if (identical(family, "admin")) dina_hash_file(dina_admin_trust_regions_path(root)) else "")
   record$watch <- dina_review_watch(unique(c(input_paths, names(record$candidates), names(record$baseline))))
   dina_write_json(record, file.path(record$run, "review.json"))
   dina_review_save(record, root)
@@ -877,7 +898,18 @@ dina_review_table <- function(record, table) {
     names(outputs) <- dina_review_problem_tables()
     rows <- dina_review_problems(list(outputs = outputs))
     if (nrow(rows)) rows$country <- dina_review_country(rows, record$area_metadata)
-    if (nzchar(record$comparison_error %||% "")) rows <- dina_review_bind(list(data.frame(severity = "Blocker", reason = record$comparison_error, status = "comparison_failed"), rows))
+    if (nzchar(record$comparison_error %||% "")) {
+      # Trust decisions are an explicit Admin-review confirmation step, not a
+      # failed source comparison.  Retain that distinction in the saved
+      # problems view so the normal report can give an actionable message.
+      trust_pending <- identical(record$family, "admin") &&
+        grepl("^(Trust-region decisions need confirmation|Trust-region configuration decisions are incomplete|The complete Admin configuration proposal is not ready)", record$comparison_error)
+      rows <- dina_review_bind(list(data.frame(
+        severity = "Blocker",
+        reason = record$comparison_error,
+        status = if (trust_pending) "trust_region_confirmation_required" else "comparison_failed"
+      ), rows))
+    }
   }
   if (selection == "revisions") rows <- rows[rows$result == "revised", , drop = FALSE]
   if (selection == "added-values") rows <- rows[rows$result == "value added", , drop = FALSE]
@@ -885,9 +917,12 @@ dina_review_table <- function(record, table) {
   rows
 }
 
-dina_review_verify <- function(record) {
+dina_review_verify <- function(record, root = dina_repo_root()) {
   for (kind in c("inputs", "candidates", "baseline")) {
     if (!identical(dina_review_hashes(names(record[[kind]])), record[[kind]])) stop("Reviewed ", kind, " changed. Explore the family again before inclusion.", call. = FALSE)
+  }
+  if (identical(record$family, "admin") && !identical(record$trust_config_hash %||% "", dina_hash_file(dina_admin_trust_regions_path(root)))) {
+    stop("Trust-region configuration changed. Explore admin again before inclusion.", call. = FALSE)
   }
   invisible(TRUE)
 }
@@ -927,7 +962,7 @@ dina_review_include <- function(root, family, flags = list(), input = "stdin", i
     return(invisible(record))
   }
   if (!identical(record$status, "all_good")) stop("The family review has unresolved checks. Inspect dina sources table ", family, " before exploring again.", call. = FALSE)
-  dina_review_verify(record)
+  dina_review_verify(record, root)
   dina_review_assert_config_scope(record, root)
   dina_cli_header(paste("Include", dina_review_families()[[family]]))
   dina_cli_cat(dina_cli_dim("Include accepts the complete saved review. It does not run the pipeline."))
@@ -960,7 +995,7 @@ dina_review_include <- function(root, family, flags = list(), input = "stdin", i
   on.exit(if (!completed) operation$finish("Failed"), add = TRUE)
   engine <- dina_review_engine(root, family)
   operation$progress("Rechecking reviewed evidence before accepting source files.")
-  dina_review_verify(record)
+  dina_review_verify(record, root)
   dina_review_assert_config_scope(record, root)
   record$status <- "including"
   record$backup_root <- file.path(dirname(dirname(record$run)), "confirms")
@@ -1022,12 +1057,105 @@ dina_review_choose_family <- function(input = "stdin", is_terminal = isatty(stdi
     default = "quit", input = input, is_terminal = is_terminal)
 }
 
+dina_admin_trust_proposal_path <- function(root = dina_repo_root()) {
+  session <- dina_load_session(root = root)
+  base <- if (is.null(session)) file.path(root, "output", "experiments", "configuration_validation") else dina_update_dir(session$id, root)
+  file.path(base, "admin_trust_regions.proposed.yml")
+}
+
+dina_admin_trust_proposal <- function(root = dina_repo_root(), proposal_path = dina_admin_trust_proposal_path(root)) {
+  canonical <- dina_admin_trust_regions(root)
+  record <- dina_review_read(root, "admin")
+  review_path <- file.path(record$run %||% "", "tables", "trust_region_proposals.csv")
+  proposals <- if (nzchar(review_path) && file.exists(review_path)) utils::read.csv(review_path, stringsAsFactors = FALSE, check.names = FALSE) else dina_admin_trust_review(root, dina_session_config(dina_load_session(root = root), root, expand_env = FALSE))$proposals
+  additions <- proposals[proposals$status %in% c("configuration_pending", "unresolved") & !is.finite(proposals$current_trust), , drop = FALSE]
+  added_decisions <- lapply(seq_len(nrow(additions)), function(i) {
+    x <- additions[i, , drop = FALSE]
+    basis <- if (identical(as.character(x$basis), "carried_forward")) "explicit_policy" else as.character(x$basis)
+    rule <- as.character(x$rule %||% "")
+    provenance <- as.character(x$provenance_status %||% "")
+    if (is.na(rule)) rule <- ""
+    if (is.na(provenance)) provenance <- ""
+    if (!nzchar(rule) && identical(basis, "publisher_derived")) rule <- "first_positive_threshold"
+    if (!nzchar(provenance)) provenance <- if (identical(basis, "publisher_derived")) "verified" else "inferred_policy"
+    item <- list(country = as.character(x$country), year = as.integer(x$year), trust = as.numeric(x$proposal_trust),
+      basis = basis, rule = rule, provenance_status = provenance,
+      status = "proposed", change = "added", source_evidence = as.character(x$evidence %||% ""))
+    # An added row states its own method so a country-level historical profile
+    # cannot silently reinterpret a newly proposed policy carry-forward (or a
+    # newly verified source-derived value).
+    item$trust_basis <- item$basis
+    item$trust_rule <- item$rule
+    item$trust_provenance_status <- item$provenance_status
+    if (is.finite(x$proposal_trust_wages)) item$trust_wages <- as.numeric(x$proposal_trust_wages)
+    item
+  })
+  canonical$decisions <- c(canonical$decisions %||% list(), added_decisions)
+  canonical$proposal <- list(
+    generated_by = "dina sources configure admin",
+    instructions = "Rows with change: added and status: proposed were created by Admin Explore. Review the complete proposal, then run dina sources configure admin --apply. Applying the complete configuration does not accept source files.",
+    additions = lapply(added_decisions, function(x) list(country = x$country, year = x$year, basis = x$basis, rule = x$rule, change = x$change))
+  )
+  dir.create(dirname(proposal_path), recursive = TRUE, showWarnings = FALSE)
+  dina_write_yaml(canonical, proposal_path)
+  proposal_path
+}
+
+# A trust proposal is a complete candidate configuration.  Applying it changes
+# every proposed row to an active configuration entry in one operation; it
+# never promotes a source file or accepts an individual country/year.
+dina_admin_trust_activate_proposal <- function(proposal) {
+  proposal$decisions <- lapply(proposal$decisions %||% list(), function(row) {
+    if (identical(as.character(row$status %||% "active"), "proposed")) row$status <- "active"
+    row$change <- NULL
+    row
+  })
+  proposal$proposal <- NULL
+  proposal
+}
+
+dina_sources_configure_admin <- function(root = dina_repo_root(), flags = list()) {
+  path <- dina_admin_trust_regions_path(root)
+  proposal_path <- flags$proposal %||% dina_admin_trust_proposal_path(root)
+  if (!grepl("^/", proposal_path)) proposal_path <- file.path(root, proposal_path)
+  if (isTRUE(flags$apply)) {
+    if (!file.exists(proposal_path)) stop(paste0("No trust-region proposal found at ", dina_relative(proposal_path, root), ". Run `dina sources configure admin` first."), call. = FALSE)
+    config <- dina_session_config(dina_load_session(root = root), root, expand_env = FALSE)
+    proposal <- dina_admin_trust_activate_proposal(dina_admin_trust_regions(root, proposal_path))
+    candidate_path <- tempfile("admin-trust-config-", fileext = ".yml")
+    on.exit(unlink(candidate_path), add = TRUE)
+    dina_write_yaml(proposal, candidate_path)
+    check <- dina_admin_trust_validate(root, config, trust_path = candidate_path)
+    if (!isTRUE(check$valid)) stop(paste(check$errors, collapse = "\n"), call. = FALSE)
+    dina_write_yaml(proposal, path)
+    dina_cli_ok("Applied the complete trust-region configuration. No source files were accepted.")
+    dina_cli_cat(dina_cli_dim("Now rerun the whole Admin review: "), dina_cli_command("dina sources explore admin"))
+    return(invisible(path))
+  }
+  if (!file.exists(path)) dina_write_yaml(list(version = 2L, decisions = list()), path)
+  proposal_path <- dina_admin_trust_proposal(root, proposal_path)
+  dina_cli_header("Admin trust-region configuration")
+  dina_cli_cat(dina_cli_dim("Opening an editable configuration proposal. Rows marked change: added came from this Admin review. Saving or applying this proposal never accepts source files; Admin Include remains one whole-family action after a clean review."))
+  status <- tryCatch(dina_launch_editor(proposal_path), error = function(e) {
+    dina_cli_warn(conditionMessage(e)); 1L
+  })
+  if (!identical(status, 0L)) {
+    dina_cli_warn("Could not open the editor. Set DINA_CONFIG_EDITOR, edit the proposal path below, then apply it.")
+    dina_cli_cat(dina_relative(proposal_path, root))
+    return(invisible(proposal_path))
+  }
+  dina_cli_ok("Opened the editable trust-region proposal.")
+  dina_cli_cat(dina_cli_dim("Review the entire proposal, save it, then apply the complete configuration: "), dina_cli_command("dina sources configure admin --apply"))
+  invisible(proposal_path)
+}
+
 dina_review_details <- function(record, input = "stdin", is_terminal = isatty(stdin())) {
   choices <- c(coverage = "Coverage", revisions = "Numerical revisions", `added-values` = "Newly available values", `missing-values` = "Missing values", problems = "Extraction problems", files = "Files to include")
   details <- switch(record$family, surveys = c(pipeline_input_summary = "Direct pipeline-input summary", pipeline_input_audit = "Direct pipeline-input audit", survey_source_comparison = "Survey files and schema"),
     sna = c(direct_input_changes_audit = "Direct-input change audit", unresolved_new_values = "Unresolved new-year values",
       direct_input_checks = "Direct-input extraction checks", direct_input_problems = "Direct-input problems"), wid = c(include_detail = "Artifact checks"),
-    admin = c(other_admin_inputs = "Other administrative inputs", aux_comparison_detail = "Other-input value audit",
+    admin = c(trust_region_proposals = "Trust-region proposals", trust_region_decisions = "Confirmed trust-region decisions", trust_region_provenance = "Trust-region provenance flags",
+      other_admin_inputs = "Other administrative inputs", aux_comparison_detail = "Other-input value audit",
       aux_validation_report = "Auxiliary series checks", static_dependency_report = "Dependencies", cleaner_summary = "Cleaner outputs"))
   choices <- c(choices, details[file.exists(file.path(record$run, "tables", paste0(names(details), ".csv")))])
   repeat {
@@ -1044,6 +1172,8 @@ dina_review_family_menu <- function(root, family, input = "stdin", is_terminal =
     state <- dina_review_family_status(root, family)
     actions <- if (identical(family, "wid")) {
       c(refresh = "Refresh/download WID data", explore = "Explore", table = "Review details", include = "Include", back = "Choose another family")
+    } else if (identical(family, "admin")) {
+      c(list = "Find sources", explore = "Explore", configure = "Configure trust regions", table = "Review details", include = "Include", back = "Choose another family")
     } else {
       c(list = "Find sources", explore = "Explore", table = "Review details", include = "Include", back = "Choose another family")
     }
@@ -1064,6 +1194,9 @@ dina_review_family_menu <- function(root, family, input = "stdin", is_terminal =
     } else if (selected == "refresh") {
       dina_review_wid_refresh(root)
       dina_cli_hold_result("Press Enter to return to WID sources: ", input, is_terminal)
+    } else if (selected == "configure") {
+      dina_sources_configure_admin(root)
+      dina_cli_hold_result("Press Enter to return to Administrative tax data sources: ", input, is_terminal)
     } else if (selected == "list") {
       registry <- dina_print_source_list(root, list(family = family, `no-menu` = TRUE))
       if (length(registry)) dina_source_list_actions_menu(registry, root, list(family = family), input, is_terminal)
@@ -1098,6 +1231,11 @@ dina_cmd_sources <- function(root, args, input = "stdin", is_terminal = isatty(s
   }
   sub <- args[[1]]
   flags <- dina_parse_flags(args[-1])
+  if (identical(sub, "configure")) {
+    family <- dina_source_workflow_family(dina_arg(flags$positional, 1L, "admin"), command = sub)
+    if (!identical(family, "admin")) stop("Configuration is currently available only for admin trust regions. Use `dina sources configure admin`.", call. = FALSE)
+    return(dina_sources_configure_admin(root, flags))
+  }
   if (identical(sub, "refresh")) {
     family <- dina_source_workflow_family(dina_arg(flags$positional, 1L, "wid"), command = sub)
     if (!identical(family, "wid")) stop("Refresh is currently available only for WID. Use `dina sources refresh wid`.", call. = FALSE)

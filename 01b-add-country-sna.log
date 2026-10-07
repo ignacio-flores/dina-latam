@@ -1,0 +1,2146 @@
+
+  ___  ____  ____  ____  ____ (R)
+ /__    /   ____/   /   ____/
+___/   /   /___/   /   /___/   16.1   Copyright 1985-2019 StataCorp LLC
+  Statistics/Data Analysis            StataCorp
+                                      4905 Lakeway Drive
+     MP - Parallel Edition            College Station, Texas 77845 USA
+                                      800-STATA-PC        http://www.stata.com
+                                      979-696-4600        stata@stata.com
+                                      979-696-4601 (fax)
+
+60-user 4-core Stata network perpetual license:
+       Serial number:  501606216487
+         Licensed to:  Ignacio Flores
+                       insead
+
+Notes:
+      1.  Stata is running in batch mode.
+      2.  Unicode is supported; see help unicode_advice.
+      3.  More than 2 billion observations are allowed; see help obs_advice.
+      4.  Maximum number of variables is set to 5000; see help set_maxvar.
+
+. do code/Stata/01b-add-country-sna.do 
+
+. //Description:
+. //Get information from detailed national accounts (country by country)
+. 
+. clear all
+
+. 
+. //0. General settings -------------------------------------------------------
+> ---
+. 
+. //get list of paths 
+. global aux_part " "preliminary" " 
+
+. qui do "code/Stata/auxiliar/aux_general.do"
+
+. 
+. // Create directory if it doesnt exist 
+. local dirpath "output/figures/cei"
+
+. mata: st_numscalar("exists", direxists(st_local("dirpath")))
+
+. if (scalar(exists) == 0) {
+.         mkdir "`dirpath'"
+.         display "Created directory: `dirpath'"
+. }       
+
+. 
+. *prepare data for URY 
+. do "code/Stata/auxiliar/aux_sna_ury.do"
+
+. 
+. clear all
+
+. 
+. //0. General settings -------------------------------------------------------
+> ---
+. 
+. //get list of paths 
+. global aux_part " "preliminary" " 
+
+. qui do "code/Stata/auxiliar/aux_general.do"
+
+. 
+. //cell range
+. qui local cellr "E11:G64"
+
+. 
+. *prepare to treat different sectors 
+. global sna_sectors households gg row 
+
+. 
+. forvalues t = $first_y / $last_y {
+  2.         
+.         tempfile tf_all_`t' 
+  3.         foreach s in $sna_sectors {
+  4.                 
+.                 *define file name 
+.                 if "`s'" == "households" local filename "CSI_3.`t'_SC_S.1402.
+> xlsx"
+  5.                 if "`s'" == "gg" local filename "CSI_3.`t'_SC_S.1301.xlsx"
+  6.                 if "`s'" == "row" local filename "CSI_3.`t'_SC_S.2000.xlsx
+> "
+  7.                 
+.                 clear 
+  8.                 qui cap import excel ///
+>                         "input_data/sna_country_data/URY/`filename'", clear 
+  9.                 
+.                 di as result "Country SNA URY-`t' (`s'): " _continue 
+ 10.                 if _rc == 0 {
+ 11.                         di as text "found"
+ 12.                         *clean
+.                         local vars E F G  
+ 13.                         qui keep `vars'
+ 14.                         qui rename (`vars') (code code_long `s')
+ 15.                         qui drop if missing(code) | `s' == "0"
+ 16.                         tempfile tf_op_`s'_`t'
+ 17.                         qui gen n = _n 
+ 18.                         foreach op in pagar cobrar {
+ 19.                                 if "`op'" == "pagar" local x "u"
+ 20.                                 if "`op'" == "cobrar" local x "r"
+ 21.                                 preserve 
+ 22.                                         qui keep if strpos(code, "B") | st
+> rpos(code_long, "por `op'") 
+ 23.                                         if "`op'" == "cobrar" qui drop if 
+> strpos(code_long, "por pagar") 
+ 24.                                         if "`op'" == "pagar" qui drop if s
+> trpos(code_long, "por cobrar") 
+ 25.                                         qui destring `s', replace 
+ 26.                                         qui rename `s' `s'_`x' 
+ 27.                                         if "`op'" == "cobrar" qui merge m:
+> m code ///
+>                                                 using `tf_op_`s'_`t'', nogen
+ 28.                                         qui replace code_long ///
+>                                                 = subinstr(code_long, " por `
+> op'", "", .)
+ 29.                                         sort n 
+ 30.                                         qui save `tf_op_`s'_`t'', replace 
+ 31.                                 restore 
+ 32.                         }
+ 33.                         qui use `tf_op_`s'_`t'', clear 
+ 34.                         if "`s'" != "households" qui merge m:m code using 
+> `tf_all_`t'', nogen
+ 35.                         sort n 
+ 36.                         drop n 
+ 37.                         qui save `tf_all_`t'', replace 
+ 38.                         
+.                 }
+ 39.                 else {
+ 40.                         di as error "not found"
+ 41.                 }
+ 42.         }
+ 43.         
+.         if _N != 0 {
+ 44.                 qui export excel using "input_data/sna_country_data/URY/ce
+> i.xlsx", ///
+>                         sheet("`t'", replace) firstrow(variables) 
+ 45.         }
+ 46. }
+Country SNA URY-2000 (households): not found
+Country SNA URY-2000 (gg): not found
+Country SNA URY-2000 (row): not found
+Country SNA URY-2001 (households): not found
+Country SNA URY-2001 (gg): not found
+Country SNA URY-2001 (row): not found
+Country SNA URY-2002 (households): not found
+Country SNA URY-2002 (gg): not found
+Country SNA URY-2002 (row): not found
+Country SNA URY-2003 (households): not found
+Country SNA URY-2003 (gg): not found
+Country SNA URY-2003 (row): not found
+Country SNA URY-2004 (households): not found
+Country SNA URY-2004 (gg): not found
+Country SNA URY-2004 (row): not found
+Country SNA URY-2005 (households): not found
+Country SNA URY-2005 (gg): not found
+Country SNA URY-2005 (row): not found
+Country SNA URY-2006 (households): not found
+Country SNA URY-2006 (gg): not found
+Country SNA URY-2006 (row): not found
+Country SNA URY-2007 (households): not found
+Country SNA URY-2007 (gg): not found
+Country SNA URY-2007 (row): not found
+Country SNA URY-2008 (households): not found
+Country SNA URY-2008 (gg): not found
+Country SNA URY-2008 (row): not found
+Country SNA URY-2009 (households): not found
+Country SNA URY-2009 (gg): not found
+Country SNA URY-2009 (row): not found
+Country SNA URY-2010 (households): not found
+Country SNA URY-2010 (gg): not found
+Country SNA URY-2010 (row): not found
+Country SNA URY-2011 (households): not found
+Country SNA URY-2011 (gg): not found
+Country SNA URY-2011 (row): not found
+Country SNA URY-2012 (households): found
+Country SNA URY-2012 (gg): found
+Country SNA URY-2012 (row): found
+Country SNA URY-2013 (households): not found
+Country SNA URY-2013 (gg): not found
+Country SNA URY-2013 (row): not found
+Country SNA URY-2014 (households): not found
+Country SNA URY-2014 (gg): not found
+Country SNA URY-2014 (row): not found
+Country SNA URY-2015 (households): not found
+Country SNA URY-2015 (gg): not found
+Country SNA URY-2015 (row): not found
+Country SNA URY-2016 (households): found
+Country SNA URY-2016 (gg): found
+Country SNA URY-2016 (row): found
+Country SNA URY-2017 (households): found
+Country SNA URY-2017 (gg): found
+Country SNA URY-2017 (row): found
+Country SNA URY-2018 (households): found
+Country SNA URY-2018 (gg): found
+Country SNA URY-2018 (row): found
+Country SNA URY-2019 (households): found
+Country SNA URY-2019 (gg): found
+Country SNA URY-2019 (row): found
+Country SNA URY-2020 (households): found
+Country SNA URY-2020 (gg): found
+Country SNA URY-2020 (row): found
+Country SNA URY-2021 (households): found
+Country SNA URY-2021 (gg): found
+Country SNA URY-2021 (row): found
+Country SNA URY-2022 (households): found
+Country SNA URY-2022 (gg): found
+Country SNA URY-2022 (row): found
+Country SNA URY-2023 (households): not found
+Country SNA URY-2023 (gg): not found
+Country SNA URY-2023 (row): not found
+Country SNA URY-2024 (households): not found
+Country SNA URY-2024 (gg): not found
+Country SNA URY-2024 (row): not found
+
+. 
+. 
+. 
+. 
+end of do-file
+
+. clear 
+
+. 
+. //define some variables of interest 
+. local pir "ratio_d43d44"
+
+. local tra "ratio_d75_d7"  
+
+. global list_ratios pir tra 
+
+. 
+. //first year
+. local first_yr = $first_y 
+
+. local last_yr= $last_y
+
+. 
+. local cellr_PER "A21:U40"
+
+. local cellr_BRA_bloque1 "A30:X56"
+
+. local cellr_BRA "A26:U53"
+
+. local cellr_CHL "E27:Q48" 
+
+. local cellr_COL "F49:T146"  
+
+. local cellr_MEX "A68:S153" 
+
+. local cellr_CRI "A27:AY69"
+
+. local cellr_URY "A1:H38"
+
+. local cellr_DOM "D10:Q42"
+
+. 
+. *select codes and hh sect 
+. global vars_PER K L P G M N O U S
+
+. global vars_CHL I J N E K L M Q P
+
+. global vars_COL J K O F L M N T R
+
+. global vars_MEX A1 A2 I H C E G S N
+
+. global vars_CRI Z AA AT G AD AM AS AY AW
+
+. global vars_BRA K L P G M N O U S
+
+. global vars_DOM J K O F L M N P Q
+
+. 
+. *list of codes to fetch 
+. local dcodes 11 1 44 43 4 5 61 62 752 75 7
+
+. local bcodes 2 3 5
+
+. 
+. //loop over countries with integrated accounts
+. foreach c in $ctries_cei {
+  2.         
+.         //define country folder and file 
+.         local folder_`c' "input_data/sna_country_data/`c'"
+  3.         if "`c'" == "BRA" local file_`c' "`folder_`c''/contas_economicas_a
+> _precos_correntes_2000a2021.xls"
+  4.         if inlist("`c'", "CHL", "PER") local file_`c' "`folder_`c''/CEI_me
+> rged"
+  5.         *if "`c'" == "COL" local file_`c' "`folder_`c''/cuentas-economicas
+> -integradas-2019provisional"
+.         if "`c'" == "COL" local file_`c' "`folder_`c''/anex-CuentasNalANuales
+> -CuentasEconomicasIntegradas-2023p"
+  6.         if "`c'" == "DOM" local file_`c' "`folder_`c''/cei"
+  7.         //Mexico, Costa Rica and Uruguay defined below
+. 
+.         //1. Brazil ---------------------------------------------------------
+> -------
+.         
+.         //import data 
+.         if "`c'" == "BRA" {
+  8.                 qui import excel `file_`c'', clear cellrange(`cellr_`c'_bl
+> oque1') ///
+>                         sheet("Familias")
+  9.                 qui rename (A B) (code code_long)
+ 10.                 qui drop in 13
+ 11.                 local iter = 0 
+ 12.                 foreach j in `c(ALPHA)'{
+ 13.                         if "`j'" >= "C" {
+ 14.                                 local name = 2000 + `iter'
+ 15.                                 cap qui rename `j' v`name'
+ 16.                                 cap qui label var v`name' "`name'"
+ 17.                                 *adapt to lcu (million reais)
+.                                 cap replace v`name' = v`name' * 10^6
+ 18.                                 if _rc == 0 local iter = `iter' + 1
+ 19.                         }
+ 20.                 }
+ 21.                 
+.                 *get rid of D7 uses 
+.                 qui replace code = "D.7u" in 25
+ 22.                 
+.                 //save data in memory
+.                 forvalues y = `first_yr'/`last_yr' {
+ 23.                         
+.                         //save aggregates for household sector 
+.                         foreach n in `dcodes' {
+ 24.                                 cap qui levelsof v`y' if code == "D.`n'", 
+> ///
+>                                         local(hh_d`n'r_`c'_`y') clean 
+ 25.                                 if "`hh_d`n'r_`c'_`y''" == "" local hh_d`n
+> 'r_`c'_`y' = 0        
+ 26.                         }
+ 27.                         
+.                         *GOS/MI/BPI
+.                         foreach j in `bcodes' {
+ 28.                                 cap qui levelsof v`y' if code == "  B.`j'"
+> , ///
+>                                         local(hh_b`j'g_`c'_`y') clean
+ 29.                         }
+ 30.                         
+.                         //save ratios 
+.                         *property incomes 
+.                         cap local ratio_d43_d4_`c'_`y' = ///
+>                                 `hh_d43r_`c'_`y'' / `hh_d4r_`c'_`y'' 
+ 31.                         cap local ratio_d44_d4_`c'_`y' = ///
+>                                 `hh_d44r_`c'_`y'' / `hh_d4r_`c'_`y''
+ 32.                         cap local ratio_d43_b5g_`c'_`y' = ///
+>                                 `hh_d43r_`c'_`y'' / `hh_b5g_`c'_`y'' 
+ 33.                         cap local ratio_d44_b5g_`c'_`y' = ///
+>                                 `hh_d44r_`c'_`y'' / `hh_b5g_`c'_`y'' 
+ 34.                         cap local ratio_d43d44_`c'_`y' = ///
+>                                 `ratio_d43_d4_`c'_`y'' + `ratio_d44_d4_`c'_`y
+> ''
+ 35.                         *transfers  
+.                         cap local ratio_d75_d7_`c'_`y' = ///
+>                                 `hh_d75r_`c'_`y'' / `hh_d7r_`c'_`y'' 
+ 36.                         cap local ratio_d75_b5g_`c'_`y' = ///
+>                                 `hh_d75r_`c'_`y'' / `hh_b5g_`c'_`y''
+ 37.                         
+.                         //display 
+.                         *di as result "`c' `y' d44 : `ratio_d44_d4_`c'_`y''"
+.                         *di as result "`c' `y' d43 : `ratio_d43_d4_`c'_`y''"
+.                         *di as result "`c' `y' d43 + d44 : `ratio_d43d44_`c'_
+> `y''"
+.                 }       
+ 38.         }
+ 39. 
+.         //2. Chile, Colombia, Costa Rica, Ecuador and Mexico ----------------
+> -------
+.         if inlist("`c'", "BRA", "CHL", "PER", "COL", ///
+>                 "ECU", "MEX", "CRI", "URY", "DOM") {
+ 40.                 
+.                 *define magnitudes 
+.                 local mag * 1
+ 41.                 if inlist("`c'", "CHL", "COL") local mag * 10^9 
+ 42.                 if inlist("`c'", "MEX", "CRI", "BRA", "URY", "DOM", "PER")
+>  {
+ 43.                         local mag * 10^6 
+ 44.                 } 
+ 45.                 if inlist("`c'", "ECU") local mag * 10^3 
+ 46.                 
+.                 forvalues y = `first_yr' / `last_yr' {
+ 47.                         
+.                         //define locals 
+.                         local y_sheet "`y'"
+ 48.                         local sp ""
+ 49.                         local b2 "B.2"
+ 50.                         local b3 "B.3"
+ 51.                         local b5 "B.5"
+ 52.         
+.                         //exceptions 
+.                         if "`c'" == "ECU" {
+ 53.                                 local file_`c' "`folder_`c''/ceinivel2sd"
+ 54.                                 local cellr_ECU "A26:BV68"
+ 55.                                 global vars_ECU A B BQ J AU BL BP BV BT
+ 56.                                 if `y' <= 2014 local y_sheet "D `y'"
+ 57.                                 if `y' == 2015 local y_sheet "`y'"
+ 58.                                 if `y' == 2016 local y_sheet "`y'sd"
+ 59.                                 if `y' >= 2017 {
+ 60.                                         local file_`c' "`folder_`c''/CEI20
+> 07-2020p"
+ 61.                                         local cellr_ECU "A26:Y90"
+ 62.                                         global vars_ECU A B S J P Q R X V
+ 63.                                         local y_sheet "CEI_`y'p"
+ 64.                                 }
+ 65.                                 if `y' >= 2018 {
+ 66.                                         local y_sheet "CEI_`y'"
+ 67.                                         local file_`c' "`folder_`c''/mcs_c
+> ei_2018_2023p"
+ 68.                                         local cellr_ECU "A38:BD128" 
+ 69.                                         global vars_ECU A B AY W AK AT AX 
+> BD BB
+ 70.                                 }
+ 71.                                 if `y' >= 2021 {
+ 72.                                         local y_sheet "CEI_`y'"
+ 73.                                 }
+ 74.                                 if `y' == 2023 {
+ 75.                                         local y_sheet "CEI_`y'p"
+ 76.                                 }
+ 77.                         }
+ 78.                         if inlist("`c'", "ECU", "MEX") local sp " "
+ 79.                         if inlist("`c'", "ECU", "MEX", "COL", "PER") local
+>  b5 "B.5b"
+ 80.                         if inlist("`c'", "CHL") local b2_b3 "B.2b/B.3b"
+ 81.                         
+.                         *exceptions for MEX
+.                         if "`c'" == "MEX" {
+ 82.                                 local num = `y' - 2000
+ 83.                                 local nam = "CSI_`num'"
+ 84.                                 local file_`c' "`folder_`c''/`nam'"
+ 85.                                 local y_sheet "Tabulado"
+ 86.                         }
+ 87.                         
+.                         *exceptions for BRA
+.                         if "`c'" == "BRA" {
+ 88.                                 local file_`c' "`folder_`c''/single_year/C
+> EI`y'"
+ 89.                                 local y_sheet "CEI"
+ 90.                                 local sp "   "
+ 91.                         }
+ 92.                         
+.                         *exeptions for CRI
+.                         if "`c'" == "CRI" {
+ 93.                                 local y_sheet "CEI`y'"
+ 94.                                 if `y' >= 2017 {
+ 95.                                         local y_sheet "CUENTAS CORRIENTES"
+ 96.                                         local cellr_CRI "A26:AU91"
+ 97.                                         global vars_CRI B C AO AN E M AE A
+> S AU                                                   
+ 98.                                 }
+ 99.                                 local file_`c' "`folder_`c''/Cuentas_Econo
+> micas_Integradas_`y'"
+100.                         }
+101.                         
+.                         *exceptions for URY
+.                         local firstr ""
+102.                         if "`c'" == "URY" {
+103.                                 local y_sheet "`y'"
+104.                                 local file_`c' "`folder_`c''/cei.xlsx"
+105.                                 local firstr firstrow
+106.                         }
+107.                         
+.                         //import data 
+.                         di as result "`c'- `y'" 
+108.                         qui cap import excel `file_`c'' , clear ///
+>                                 cellrange(`cellr_`c'') sheet("`y_sheet'") `fi
+> rstr'
+109.                         
+.                         di as text "importing `file_`c'' ... " _continue
+110.                                 
+.                         //if file and sheet exist...    
+.                         if _rc == 0 {           
+111.                             
+.                                 di as text "found"
+112.                 
+.                                 //rename variables 
+.                                 if "`c'" == "MEX" qui split A, parse(-)
+113.                                 if "`c'" != "URY" {
+114.                                         qui rename (${vars_`c'}) ///
+>                                                 (code code_long households_r 
+> households_u ///
+>                                                 NFC_r FC_r GG_r TOT_r ROW_r)
+115.                                 }
+116.                                 *if ("`c'" == "ECU" & `y' == 2018) exit 1
+.         
+.                                 *drop if unnecesary     
+.                                 if "`c'" == "ECU" qui drop if inlist(code, "C
+> ódigo", "0", "")
+117.                                 
+.                                 foreach v in households_r households_u NFC_r 
+> ///
+>                                         FC_r GG_r TOT_r  ROW_r {
+118.                                         cap destring `v', replace 
+119.                                         cap replace `v' = . if `v' == 0 
+120.                                 }
+121.                                         
+.                                 //save household aggregates in memory   
+.                                 if "`c'" != "BRA" {
+122.                                         foreach n in `dcodes' {
+123.                                                 if !inlist("`n'", "61", "5
+> ", "43") {
+124.                                                         local var househol
+> ds_r
+125.                                                 } 
+126.                                                 else local var households_
+> u 
+127.                                                 cap qui levelsof `var' ///
+>                                                         if inlist(code, "D.`n
+> '`sp'", ///
+>                                                                 "`sp'D.`n'", 
+> "D`n'", "D.`n'"), ///
+>                                                                 local(hh_d`n'
+> r_`c'_`y') clean
+128.                                                 if "`hh_d`n'r_`c'_`y''" ==
+>  "" {
+129.                                                         local hh_d`n'r_`c'
+> _`y' = 0
+130.                                                 } 
+131.                                                 local hh_d`n'r_`c'_`y' = `
+> hh_d`n'r_`c'_`y'' `mag'
+132.                                         }
+133.                                 }
+134.                                 
+.                                 //save other sectors in memory  
+.                                 foreach n in 4 41 42 43 44 {
+135.                                         foreach var in NFC_r FC_r GG_r TOT
+> _r ROW_r {
+136.                                                 
+.                                                 cap qui levelsof `var' ///
+>                                                         if inlist(code, "D.`n
+> '`sp'", ///
+>                                                                 "`sp'D.`n'", 
+> "D`n'", "D.`n'"), ///
+>                                                                 local(`var'_d
+> `n'r_`c'_`y') clean
+137.                                                 if "``var'_d`n'r_`c'_`y''"
+>  == "" {
+138.                                                         local `var'_d`n'r_
+> `c'_`y' = 0
+139.                                                 } 
+140.                                                 local `var'_d`n'r_`c'_`y' 
+> = ///
+>                                                         ``var'_d`n'r_`c'_`y''
+>  `mag'     
+141.                                         } 
+142.                                 }
+143.                                 
+.                 
+.                                 *GOS/MI/BPI
+.                                 foreach j in `bcodes' {
+144.                                         
+.                                         *collect household data
+.                                         cap qui levelsof households_r ///
+>                                                 if inlist(code, "`b`j''`sp'",
+>  "B.`j'b", "B`j'b", ///
+>                                                 "B.`j'b`sp'", "`sp'B.`j'", "B
+> .`j'b  ") & ///
+>                                                 !missing(households_r), local
+> (hh_b`j'g_`c'_`y') clean                                           
+145.                                         if inlist("`c'", "CHL", "ECU") & `
+> j' == 2 {
+146.                                                 if ("`c'" == "ECU" & `y' <
+>  2018) {
+147.                                                         cap qui levelsof h
+> ouseholds_r ///
+>                                                         if inlist(code, "B.2b
+> /B.3b", "B.2b  y B.3b", ///
+>                                                         "B.2b  / B.3b") & !mi
+> ssing(households_r), ///
+>                                                         local(hh_b`j'g_`c'_`y
+> ') clean
+148.                                                 }
+149.                                                 if "`c'" == "CHL" {
+150.                                                         cap qui levelsof h
+> ouseholds_r ///
+>                                                         if inlist(code, "B.2b
+> /B.3b", "B.2b  y B.3b", ///
+>                                                         "B.2b  / B.3b") & !mi
+> ssing(households_r), ///
+>                                                         local(hh_b`j'g_`c'_`y
+> ') clean
+151.                                                 }
+152.                                         }
+153.                                         if "`hh_b`j'g_`c'_`y''" == "" loca
+> l hh_b`j'g_`c'_`y' = 0
+154.                                         local hh_b`j'g_`c'_`y' = `hh_b`j'g
+> _`c'_`y'' `mag'
+155.                                         
+.                                         *collect bpi for other IS
+.                                         if `j' == 5 & !inlist("`c'", "URY") {
+156.                                                 
+.                                                 foreach i in "NFC" "FC" "GG" 
+> "TOT" {
+157.                                                         
+.                                                         qui levelsof `i'_r if
+>  ///
+>                                                                 inlist(code, 
+> "`b`j''`sp'", "B.`j'b", ///
+>                                                                 "B`j'b", "B.`
+> j'b`sp'", "`sp'B.`j'") & ///
+>                                                                 !missing(`i'_
+> r) & `i'_r != 0 , ///
+>                                                                 local(`i'_b`j
+> 'g_`c'_`y') clean
+158.                                                         
+.                                                 if "``i'_b`j'g_`c'_`y''" == "
+> " {
+159.                                                         
+.                                                         local `i'_b`j'g_`c'_`
+> y' = 0
+160.                                                         
+.                                                 }       
+161.                                                 local `i'_b`j'g_`c'_`y' = 
+> ``i'_b`j'g_`c'_`y'' `mag'     
+162.                                                 }
+163.                                                 
+.                                         }
+164.                                 }
+165.                                 
+.                                 //save ratios 
+.                                 *property incomes       
+.                                 local ratio_d43_d4_`c'_`y' = ///
+>                                         `hh_d43r_`c'_`y'' / `hh_d4r_`c'_`y'' 
+166.                                 local ratio_d44_d4_`c'_`y' = ///
+>                                         `hh_d44r_`c'_`y'' / `hh_d4r_`c'_`y''
+167.                                 local ratio_d43d44_`c'_`y' = ///
+>                                         `ratio_d43_d4_`c'_`y'' + `ratio_d44_d
+> 4_`c'_`y''
+168.                                 local ratio_d44_b5g_`c'_`y' = ///
+>                                         `hh_d44r_`c'_`y'' / `hh_b5g_`c'_`y'' 
+169.                                 *transfers      
+.                                 local ratio_d75_d7_`c'_`y' = ///
+>                                         `hh_d75r_`c'_`y'' / `hh_d7r_`c'_`y'' 
+170.                                 local ratio_d75_b5g_`c'_`y' = ///
+>                                         `hh_d75r_`c'_`y'' / `hh_b5g_`c'_`y'' 
+171.                                 *inform 
+.                                 *di as result "`c' `y' d44: `ratio_d44_d4_`c'
+> _`y''"
+.                                 *di as result "`c' `y' d43: `ratio_d43_d4_`c'
+> _`y''"
+.                                 *di as result "`c' `y' d43 + d44: `ratio_d43d
+> 44_`c'_`y''"
+.                         }
+172.                         else {
+173.                             di as error "not found" 
+174.                         
+.                         }
+175.                 }
+176.         }
+177. }       
+PER- 2000
+importing input_data/sna_country_data/PER/CEI_merged ... not found
+PER- 2001
+importing input_data/sna_country_data/PER/CEI_merged ... not found
+PER- 2002
+importing input_data/sna_country_data/PER/CEI_merged ... not found
+PER- 2003
+importing input_data/sna_country_data/PER/CEI_merged ... not found
+PER- 2004
+importing input_data/sna_country_data/PER/CEI_merged ... not found
+PER- 2005
+importing input_data/sna_country_data/PER/CEI_merged ... not found
+PER- 2006
+importing input_data/sna_country_data/PER/CEI_merged ... not found
+PER- 2007
+importing input_data/sna_country_data/PER/CEI_merged ... found
+PER- 2008
+importing input_data/sna_country_data/PER/CEI_merged ... found
+PER- 2009
+importing input_data/sna_country_data/PER/CEI_merged ... found
+PER- 2010
+importing input_data/sna_country_data/PER/CEI_merged ... found
+PER- 2011
+importing input_data/sna_country_data/PER/CEI_merged ... found
+PER- 2012
+importing input_data/sna_country_data/PER/CEI_merged ... found
+PER- 2013
+importing input_data/sna_country_data/PER/CEI_merged ... found
+PER- 2014
+importing input_data/sna_country_data/PER/CEI_merged ... found
+PER- 2015
+importing input_data/sna_country_data/PER/CEI_merged ... found
+PER- 2016
+importing input_data/sna_country_data/PER/CEI_merged ... found
+PER- 2017
+importing input_data/sna_country_data/PER/CEI_merged ... found
+PER- 2018
+importing input_data/sna_country_data/PER/CEI_merged ... found
+PER- 2019
+importing input_data/sna_country_data/PER/CEI_merged ... found
+PER- 2020
+importing input_data/sna_country_data/PER/CEI_merged ... found
+PER- 2021
+importing input_data/sna_country_data/PER/CEI_merged ... found
+PER- 2022
+importing input_data/sna_country_data/PER/CEI_merged ... found
+PER- 2023
+importing input_data/sna_country_data/PER/CEI_merged ... found
+PER- 2024
+importing input_data/sna_country_data/PER/CEI_merged ... not found
+DOM- 2000
+importing input_data/sna_country_data/DOM/cei ... not found
+DOM- 2001
+importing input_data/sna_country_data/DOM/cei ... not found
+DOM- 2002
+importing input_data/sna_country_data/DOM/cei ... not found
+DOM- 2003
+importing input_data/sna_country_data/DOM/cei ... not found
+DOM- 2004
+importing input_data/sna_country_data/DOM/cei ... not found
+DOM- 2005
+importing input_data/sna_country_data/DOM/cei ... not found
+DOM- 2006
+importing input_data/sna_country_data/DOM/cei ... not found
+DOM- 2007
+importing input_data/sna_country_data/DOM/cei ... not found
+DOM- 2008
+importing input_data/sna_country_data/DOM/cei ... not found
+DOM- 2009
+importing input_data/sna_country_data/DOM/cei ... not found
+DOM- 2010
+importing input_data/sna_country_data/DOM/cei ... not found
+DOM- 2011
+importing input_data/sna_country_data/DOM/cei ... not found
+DOM- 2012
+importing input_data/sna_country_data/DOM/cei ... not found
+DOM- 2013
+importing input_data/sna_country_data/DOM/cei ... not found
+DOM- 2014
+importing input_data/sna_country_data/DOM/cei ... not found
+DOM- 2015
+importing input_data/sna_country_data/DOM/cei ... not found
+DOM- 2016
+importing input_data/sna_country_data/DOM/cei ... not found
+DOM- 2017
+importing input_data/sna_country_data/DOM/cei ... not found
+DOM- 2018
+importing input_data/sna_country_data/DOM/cei ... not found
+DOM- 2019
+importing input_data/sna_country_data/DOM/cei ... not found
+DOM- 2020
+importing input_data/sna_country_data/DOM/cei ... not found
+DOM- 2021
+importing input_data/sna_country_data/DOM/cei ... not found
+DOM- 2022
+importing input_data/sna_country_data/DOM/cei ... not found
+DOM- 2023
+importing input_data/sna_country_data/DOM/cei ... not found
+DOM- 2024
+importing input_data/sna_country_data/DOM/cei ... not found
+URY- 2000
+importing input_data/sna_country_data/URY/cei.xlsx ... not found
+URY- 2001
+importing input_data/sna_country_data/URY/cei.xlsx ... not found
+URY- 2002
+importing input_data/sna_country_data/URY/cei.xlsx ... not found
+URY- 2003
+importing input_data/sna_country_data/URY/cei.xlsx ... not found
+URY- 2004
+importing input_data/sna_country_data/URY/cei.xlsx ... not found
+URY- 2005
+importing input_data/sna_country_data/URY/cei.xlsx ... not found
+URY- 2006
+importing input_data/sna_country_data/URY/cei.xlsx ... not found
+URY- 2007
+importing input_data/sna_country_data/URY/cei.xlsx ... not found
+URY- 2008
+importing input_data/sna_country_data/URY/cei.xlsx ... not found
+URY- 2009
+importing input_data/sna_country_data/URY/cei.xlsx ... not found
+URY- 2010
+importing input_data/sna_country_data/URY/cei.xlsx ... not found
+URY- 2011
+importing input_data/sna_country_data/URY/cei.xlsx ... not found
+URY- 2012
+importing input_data/sna_country_data/URY/cei.xlsx ... found
+URY- 2013
+importing input_data/sna_country_data/URY/cei.xlsx ... not found
+URY- 2014
+importing input_data/sna_country_data/URY/cei.xlsx ... not found
+URY- 2015
+importing input_data/sna_country_data/URY/cei.xlsx ... not found
+URY- 2016
+importing input_data/sna_country_data/URY/cei.xlsx ... found
+URY- 2017
+importing input_data/sna_country_data/URY/cei.xlsx ... found
+URY- 2018
+importing input_data/sna_country_data/URY/cei.xlsx ... found
+URY- 2019
+importing input_data/sna_country_data/URY/cei.xlsx ... found
+URY- 2020
+importing input_data/sna_country_data/URY/cei.xlsx ... found
+URY- 2021
+importing input_data/sna_country_data/URY/cei.xlsx ... found
+URY- 2022
+importing input_data/sna_country_data/URY/cei.xlsx ... found
+URY- 2023
+importing input_data/sna_country_data/URY/cei.xlsx ... not found
+URY- 2024
+importing input_data/sna_country_data/URY/cei.xlsx ... not found
+CRI- 2000
+importing input_data/sna_country_data/CRI/Cuentas_Economicas_Integradas_2000 ..
+> . not found
+CRI- 2001
+importing input_data/sna_country_data/CRI/Cuentas_Economicas_Integradas_2001 ..
+> . not found
+CRI- 2002
+importing input_data/sna_country_data/CRI/Cuentas_Economicas_Integradas_2002 ..
+> . not found
+CRI- 2003
+importing input_data/sna_country_data/CRI/Cuentas_Economicas_Integradas_2003 ..
+> . not found
+CRI- 2004
+importing input_data/sna_country_data/CRI/Cuentas_Economicas_Integradas_2004 ..
+> . not found
+CRI- 2005
+importing input_data/sna_country_data/CRI/Cuentas_Economicas_Integradas_2005 ..
+> . not found
+CRI- 2006
+importing input_data/sna_country_data/CRI/Cuentas_Economicas_Integradas_2006 ..
+> . not found
+CRI- 2007
+importing input_data/sna_country_data/CRI/Cuentas_Economicas_Integradas_2007 ..
+> . not found
+CRI- 2008
+importing input_data/sna_country_data/CRI/Cuentas_Economicas_Integradas_2008 ..
+> . not found
+CRI- 2009
+importing input_data/sna_country_data/CRI/Cuentas_Economicas_Integradas_2009 ..
+> . not found
+CRI- 2010
+importing input_data/sna_country_data/CRI/Cuentas_Economicas_Integradas_2010 ..
+> . not found
+CRI- 2011
+importing input_data/sna_country_data/CRI/Cuentas_Economicas_Integradas_2011 ..
+> . not found
+CRI- 2012
+importing input_data/sna_country_data/CRI/Cuentas_Economicas_Integradas_2012 ..
+> . found
+CRI- 2013
+importing input_data/sna_country_data/CRI/Cuentas_Economicas_Integradas_2013 ..
+> . found
+CRI- 2014
+importing input_data/sna_country_data/CRI/Cuentas_Economicas_Integradas_2014 ..
+> . found
+CRI- 2015
+importing input_data/sna_country_data/CRI/Cuentas_Economicas_Integradas_2015 ..
+> . found
+CRI- 2016
+importing input_data/sna_country_data/CRI/Cuentas_Economicas_Integradas_2016 ..
+> . found
+CRI- 2017
+importing input_data/sna_country_data/CRI/Cuentas_Economicas_Integradas_2017 ..
+> . found
+CRI- 2018
+importing input_data/sna_country_data/CRI/Cuentas_Economicas_Integradas_2018 ..
+> . found
+CRI- 2019
+importing input_data/sna_country_data/CRI/Cuentas_Economicas_Integradas_2019 ..
+> . found
+CRI- 2020
+importing input_data/sna_country_data/CRI/Cuentas_Economicas_Integradas_2020 ..
+> . found
+CRI- 2021
+importing input_data/sna_country_data/CRI/Cuentas_Economicas_Integradas_2021 ..
+> . found
+CRI- 2022
+importing input_data/sna_country_data/CRI/Cuentas_Economicas_Integradas_2022 ..
+> . not found
+CRI- 2023
+importing input_data/sna_country_data/CRI/Cuentas_Economicas_Integradas_2023 ..
+> . not found
+CRI- 2024
+importing input_data/sna_country_data/CRI/Cuentas_Economicas_Integradas_2024 ..
+> . not found
+BRA- 2000
+importing input_data/sna_country_data/BRA/single_year/CEI2000 ... found
+BRA- 2001
+importing input_data/sna_country_data/BRA/single_year/CEI2001 ... found
+BRA- 2002
+importing input_data/sna_country_data/BRA/single_year/CEI2002 ... found
+BRA- 2003
+importing input_data/sna_country_data/BRA/single_year/CEI2003 ... found
+BRA- 2004
+importing input_data/sna_country_data/BRA/single_year/CEI2004 ... found
+BRA- 2005
+importing input_data/sna_country_data/BRA/single_year/CEI2005 ... found
+BRA- 2006
+importing input_data/sna_country_data/BRA/single_year/CEI2006 ... found
+BRA- 2007
+importing input_data/sna_country_data/BRA/single_year/CEI2007 ... found
+BRA- 2008
+importing input_data/sna_country_data/BRA/single_year/CEI2008 ... found
+BRA- 2009
+importing input_data/sna_country_data/BRA/single_year/CEI2009 ... found
+BRA- 2010
+importing input_data/sna_country_data/BRA/single_year/CEI2010 ... found
+BRA- 2011
+importing input_data/sna_country_data/BRA/single_year/CEI2011 ... found
+BRA- 2012
+importing input_data/sna_country_data/BRA/single_year/CEI2012 ... found
+BRA- 2013
+importing input_data/sna_country_data/BRA/single_year/CEI2013 ... found
+BRA- 2014
+importing input_data/sna_country_data/BRA/single_year/CEI2014 ... found
+BRA- 2015
+importing input_data/sna_country_data/BRA/single_year/CEI2015 ... found
+BRA- 2016
+importing input_data/sna_country_data/BRA/single_year/CEI2016 ... found
+BRA- 2017
+importing input_data/sna_country_data/BRA/single_year/CEI2017 ... found
+BRA- 2018
+importing input_data/sna_country_data/BRA/single_year/CEI2018 ... found
+BRA- 2019
+importing input_data/sna_country_data/BRA/single_year/CEI2019 ... found
+BRA- 2020
+importing input_data/sna_country_data/BRA/single_year/CEI2020 ... found
+BRA- 2021
+importing input_data/sna_country_data/BRA/single_year/CEI2021 ... found
+BRA- 2022
+importing input_data/sna_country_data/BRA/single_year/CEI2022 ... not found
+BRA- 2023
+importing input_data/sna_country_data/BRA/single_year/CEI2023 ... not found
+BRA- 2024
+importing input_data/sna_country_data/BRA/single_year/CEI2024 ... not found
+CHL- 2000
+importing input_data/sna_country_data/CHL/CEI_merged ... not found
+CHL- 2001
+importing input_data/sna_country_data/CHL/CEI_merged ... not found
+CHL- 2002
+importing input_data/sna_country_data/CHL/CEI_merged ... not found
+CHL- 2003
+importing input_data/sna_country_data/CHL/CEI_merged ... found
+CHL- 2004
+importing input_data/sna_country_data/CHL/CEI_merged ... found
+CHL- 2005
+importing input_data/sna_country_data/CHL/CEI_merged ... found
+CHL- 2006
+importing input_data/sna_country_data/CHL/CEI_merged ... found
+CHL- 2007
+importing input_data/sna_country_data/CHL/CEI_merged ... found
+CHL- 2008
+importing input_data/sna_country_data/CHL/CEI_merged ... found
+CHL- 2009
+importing input_data/sna_country_data/CHL/CEI_merged ... found
+CHL- 2010
+importing input_data/sna_country_data/CHL/CEI_merged ... found
+CHL- 2011
+importing input_data/sna_country_data/CHL/CEI_merged ... found
+CHL- 2012
+importing input_data/sna_country_data/CHL/CEI_merged ... found
+CHL- 2013
+importing input_data/sna_country_data/CHL/CEI_merged ... found
+CHL- 2014
+importing input_data/sna_country_data/CHL/CEI_merged ... found
+CHL- 2015
+importing input_data/sna_country_data/CHL/CEI_merged ... found
+CHL- 2016
+importing input_data/sna_country_data/CHL/CEI_merged ... found
+CHL- 2017
+importing input_data/sna_country_data/CHL/CEI_merged ... found
+CHL- 2018
+importing input_data/sna_country_data/CHL/CEI_merged ... found
+CHL- 2019
+importing input_data/sna_country_data/CHL/CEI_merged ... found
+CHL- 2020
+importing input_data/sna_country_data/CHL/CEI_merged ... found
+CHL- 2021
+importing input_data/sna_country_data/CHL/CEI_merged ... found
+CHL- 2022
+importing input_data/sna_country_data/CHL/CEI_merged ... found
+CHL- 2023
+importing input_data/sna_country_data/CHL/CEI_merged ... found
+CHL- 2024
+importing input_data/sna_country_data/CHL/CEI_merged ... found
+COL- 2000
+importing input_data/sna_country_data/COL/anex-CuentasNalANuales-CuentasEconomi
+> casIntegradas-2023p ... not found
+COL- 2001
+importing input_data/sna_country_data/COL/anex-CuentasNalANuales-CuentasEconomi
+> casIntegradas-2023p ... not found
+COL- 2002
+importing input_data/sna_country_data/COL/anex-CuentasNalANuales-CuentasEconomi
+> casIntegradas-2023p ... not found
+COL- 2003
+importing input_data/sna_country_data/COL/anex-CuentasNalANuales-CuentasEconomi
+> casIntegradas-2023p ... not found
+COL- 2004
+importing input_data/sna_country_data/COL/anex-CuentasNalANuales-CuentasEconomi
+> casIntegradas-2023p ... not found
+COL- 2005
+importing input_data/sna_country_data/COL/anex-CuentasNalANuales-CuentasEconomi
+> casIntegradas-2023p ... not found
+COL- 2006
+importing input_data/sna_country_data/COL/anex-CuentasNalANuales-CuentasEconomi
+> casIntegradas-2023p ... not found
+COL- 2007
+importing input_data/sna_country_data/COL/anex-CuentasNalANuales-CuentasEconomi
+> casIntegradas-2023p ... not found
+COL- 2008
+importing input_data/sna_country_data/COL/anex-CuentasNalANuales-CuentasEconomi
+> casIntegradas-2023p ... not found
+COL- 2009
+importing input_data/sna_country_data/COL/anex-CuentasNalANuales-CuentasEconomi
+> casIntegradas-2023p ... not found
+COL- 2010
+importing input_data/sna_country_data/COL/anex-CuentasNalANuales-CuentasEconomi
+> casIntegradas-2023p ... not found
+COL- 2011
+importing input_data/sna_country_data/COL/anex-CuentasNalANuales-CuentasEconomi
+> casIntegradas-2023p ... not found
+COL- 2012
+importing input_data/sna_country_data/COL/anex-CuentasNalANuales-CuentasEconomi
+> casIntegradas-2023p ... not found
+COL- 2013
+importing input_data/sna_country_data/COL/anex-CuentasNalANuales-CuentasEconomi
+> casIntegradas-2023p ... not found
+COL- 2014
+importing input_data/sna_country_data/COL/anex-CuentasNalANuales-CuentasEconomi
+> casIntegradas-2023p ... found
+COL- 2015
+importing input_data/sna_country_data/COL/anex-CuentasNalANuales-CuentasEconomi
+> casIntegradas-2023p ... found
+COL- 2016
+importing input_data/sna_country_data/COL/anex-CuentasNalANuales-CuentasEconomi
+> casIntegradas-2023p ... found
+COL- 2017
+importing input_data/sna_country_data/COL/anex-CuentasNalANuales-CuentasEconomi
+> casIntegradas-2023p ... found
+COL- 2018
+importing input_data/sna_country_data/COL/anex-CuentasNalANuales-CuentasEconomi
+> casIntegradas-2023p ... found
+COL- 2019
+importing input_data/sna_country_data/COL/anex-CuentasNalANuales-CuentasEconomi
+> casIntegradas-2023p ... found
+COL- 2020
+importing input_data/sna_country_data/COL/anex-CuentasNalANuales-CuentasEconomi
+> casIntegradas-2023p ... found
+COL- 2021
+importing input_data/sna_country_data/COL/anex-CuentasNalANuales-CuentasEconomi
+> casIntegradas-2023p ... found
+COL- 2022
+importing input_data/sna_country_data/COL/anex-CuentasNalANuales-CuentasEconomi
+> casIntegradas-2023p ... found
+COL- 2023
+importing input_data/sna_country_data/COL/anex-CuentasNalANuales-CuentasEconomi
+> casIntegradas-2023p ... found
+COL- 2024
+importing input_data/sna_country_data/COL/anex-CuentasNalANuales-CuentasEconomi
+> casIntegradas-2023p ... not found
+ECU- 2000
+importing input_data/sna_country_data/ECU/ceinivel2sd ... not found
+ECU- 2001
+importing input_data/sna_country_data/ECU/ceinivel2sd ... not found
+ECU- 2002
+importing input_data/sna_country_data/ECU/ceinivel2sd ... not found
+ECU- 2003
+importing input_data/sna_country_data/ECU/ceinivel2sd ... not found
+ECU- 2004
+importing input_data/sna_country_data/ECU/ceinivel2sd ... not found
+ECU- 2005
+importing input_data/sna_country_data/ECU/ceinivel2sd ... not found
+ECU- 2006
+importing input_data/sna_country_data/ECU/ceinivel2sd ... not found
+ECU- 2007
+importing input_data/sna_country_data/ECU/ceinivel2sd ... found
+ECU- 2008
+importing input_data/sna_country_data/ECU/ceinivel2sd ... found
+ECU- 2009
+importing input_data/sna_country_data/ECU/ceinivel2sd ... found
+ECU- 2010
+importing input_data/sna_country_data/ECU/ceinivel2sd ... found
+ECU- 2011
+importing input_data/sna_country_data/ECU/ceinivel2sd ... found
+ECU- 2012
+importing input_data/sna_country_data/ECU/ceinivel2sd ... found
+ECU- 2013
+importing input_data/sna_country_data/ECU/ceinivel2sd ... found
+ECU- 2014
+importing input_data/sna_country_data/ECU/ceinivel2sd ... found
+ECU- 2015
+importing input_data/sna_country_data/ECU/ceinivel2sd ... found
+ECU- 2016
+importing input_data/sna_country_data/ECU/ceinivel2sd ... found
+ECU- 2017
+importing input_data/sna_country_data/ECU/CEI2007-2020p ... found
+ECU- 2018
+importing input_data/sna_country_data/ECU/mcs_cei_2018_2023p ... found
+ECU- 2019
+importing input_data/sna_country_data/ECU/mcs_cei_2018_2023p ... found
+ECU- 2020
+importing input_data/sna_country_data/ECU/mcs_cei_2018_2023p ... found
+ECU- 2021
+importing input_data/sna_country_data/ECU/mcs_cei_2018_2023p ... found
+ECU- 2022
+importing input_data/sna_country_data/ECU/mcs_cei_2018_2023p ... found
+ECU- 2023
+importing input_data/sna_country_data/ECU/mcs_cei_2018_2023p ... found
+ECU- 2024
+importing input_data/sna_country_data/ECU/mcs_cei_2018_2023p ... not found
+MEX- 2000
+importing input_data/sna_country_data/MEX/CSI_0 ... not found
+MEX- 2001
+importing input_data/sna_country_data/MEX/CSI_1 ... not found
+MEX- 2002
+importing input_data/sna_country_data/MEX/CSI_2 ... not found
+MEX- 2003
+importing input_data/sna_country_data/MEX/CSI_3 ... found
+MEX- 2004
+importing input_data/sna_country_data/MEX/CSI_4 ... found
+MEX- 2005
+importing input_data/sna_country_data/MEX/CSI_5 ... found
+MEX- 2006
+importing input_data/sna_country_data/MEX/CSI_6 ... found
+MEX- 2007
+importing input_data/sna_country_data/MEX/CSI_7 ... found
+MEX- 2008
+importing input_data/sna_country_data/MEX/CSI_8 ... found
+MEX- 2009
+importing input_data/sna_country_data/MEX/CSI_9 ... found
+MEX- 2010
+importing input_data/sna_country_data/MEX/CSI_10 ... found
+MEX- 2011
+importing input_data/sna_country_data/MEX/CSI_11 ... found
+MEX- 2012
+importing input_data/sna_country_data/MEX/CSI_12 ... found
+MEX- 2013
+importing input_data/sna_country_data/MEX/CSI_13 ... found
+MEX- 2014
+importing input_data/sna_country_data/MEX/CSI_14 ... found
+MEX- 2015
+importing input_data/sna_country_data/MEX/CSI_15 ... found
+MEX- 2016
+importing input_data/sna_country_data/MEX/CSI_16 ... found
+MEX- 2017
+importing input_data/sna_country_data/MEX/CSI_17 ... found
+MEX- 2018
+importing input_data/sna_country_data/MEX/CSI_18 ... found
+MEX- 2019
+importing input_data/sna_country_data/MEX/CSI_19 ... found
+MEX- 2020
+importing input_data/sna_country_data/MEX/CSI_20 ... found
+MEX- 2021
+importing input_data/sna_country_data/MEX/CSI_21 ... found
+MEX- 2022
+importing input_data/sna_country_data/MEX/CSI_22 ... found
+MEX- 2023
+importing input_data/sna_country_data/MEX/CSI_23 ... found
+MEX- 2024
+importing input_data/sna_country_data/MEX/CSI_24 ... found
+
+. 
+. * NOTE: INCLUDE COMPUTATION OF EMPLOYEE SSC FOR CRI
+. 
+. //3. build a summary dataset from scratch -----------------------------------
+> ---
+. 
+. //call graph basics  
+. global aux_part " "graph_basics" " 
+
+. do "code/Stata/auxiliar/aux_general.do"
+
+. //PRELIMINARY SETTINGS
+. do "code/Stata/auxiliar/dina_runtime_config.do"
+
+. * Load the single configuration authority for a DINA task.
+. * `dina run` supplies DINA_CONFIG_DO; manual runs must supply an explicitly
+. * generated and validated file through the same environment variable.
+. 
+. if "${dina_runtime_config_loaded}" != "yes" {
+.     local dina_config_do : environment DINA_CONFIG_DO
+.     if "`dina_config_do'" == "" {
+.         di as error "DINA runtime configuration is required."
+.         di as error "Run through `dina run`, or generate one with `dina confi
+> g stata --output PATH`."
+.         exit 198
+.     }
+.     capture confirm file "`dina_config_do'"
+.     if _rc {
+.         di as error "DINA_CONFIG_DO does not point to a readable file: `dina_
+> config_do'"
+.         exit 601
+.     }
+.     quietly do "`dina_config_do'"
+.     foreach required in dina_config_scope dina_config_fingerprint dina_baseli
+> ne_fingerprint dina_config_countries all_countries first_y last_y lang debug 
+> bfm_replace all_units all_steps export_unit export_steps export_last_y previo
+> us_update {
+  2.         if `"${`required'}"' == "" {
+  3.             di as error "Generated DINA runtime configuration is missing `
+> required'."
+  4.             exit 198
+  5.         }
+  6.     }
+.     global dina_runtime_config_loaded "yes"
+. }
+
+. 
+end of do-file
+
+. 
+. if $aux_part == "preliminary" {
+.         
+.         if "${bfm_replace}" == "yes" global ext ""
+.         if "${bfm_replace}" == "no" global ext "_norep"
+. 
+.         //first and last years for loops 
+.         if "${debug}" == "yes" {
+.                 global snapops totpop adults active 
+.                 global unit_list " "ind" "esn" "pch" "act" "  
+.                 global all_steps ///
+>                         "  "raw"  "natinc" "por"  "psp" "bfm${ext}_pre" "resc
+> aled" "pon" "pod" " 
+.                 //      
+.                 global units_06a " "esn" "pch" "        
+.                 //"uprofits"
+.                 global steps_dec ///
+>                         " "raw" "bfm${ext}_pre" "rescaled" "natinc" "pon" "po
+> d" "psp"" //"uprofits"
+.                 global steps_06b ///
+>                         " "raw" "natinc" "bfm${ext}_pre" "rescaled" "pon" "po
+> d" " //"uprofits"  
+.                 global steps_06c natinc raw rescaled bfm${ext}_pre  //uprofit
+> s 
+.                 global steps_06d natinc pon pod psp por 
+.         }
+.         
+.         //full mode 
+.         else {
+.                 global snapops totpop adults active 
+.                 global unit_list ${all_units} //" "ind" "esn" "pch" "act" "  
+.                 *global all_steps ///
+>                 *       "  "raw"  "natinc" "por"  "psp" "bfm${ext}_pre" "resc
+> aled" "pon" "pod" " 
+.                 //      
+.                 global units_06a ${all_units} ///" "ind" "esn" "pch" "act" " 
+>    
+>                 //"uprofits"
+.                 global steps_dec ///
+>                         " "raw" "bfm${ext}_pre" "rescaled" "natinc" "pon" "po
+> d" "psp"" //"uprofits"
+.                 global steps_06b ///
+>                          " "raw" "natinc" "bfm${ext}_pre" "rescaled" "pon" "p
+> od" " //"uprofits"  
+.                 global steps_06c natinc raw rescaled bfm${ext}_pre  //uprofit
+> s 
+.                 global steps_06d natinc pon pod psp por 
+.         }
+.         
+.         //total income variables for bfm 
+.         global y_postax_tot "ind_pos_tot" 
+.         global y_pretax_tot "ind_pre_tot" 
+.         global y_postax_tot_bra "ind_pos_totesn"
+.         global y_pretax_tot_bra "ind_pre_totesn"
+.         global y_postax_tot_per "ind_pos_totnb"
+.         global y_pretax_tot_per "ind_pre_totnb"
+.         global y_postax_tot_dom "ind_pos_totcor"
+. 
+.         //wage variables for bfm2stg
+.         global y_postax_wag "ind_pos_wag"
+.         global y_pretax_wag "ind_pre_wag"
+.         global y_pretax_wag_cri "ind_pre_wag_gross"
+.         global y_postax_formal_wage "ind_pos_fwag"
+.         global y_pretax_formal_wage "ind_pre_fwag"
+.         global y_pretax_formal_wage_cri "ind_pre_fwag_gross"
+.         global y_postax_private_wage "ind_pos_prwag"
+.         global y_postax_formal_private_wage_arg "ind_pos_prfwag"
+.         
+.         //wid variables (weird names)
+.         global inflation_wid inyixx
+.         global xppp_eur xlceup
+.         
+.         //get date
+.         local date "$S_DATE"
+.         local date = subinstr("`date'", " ", "", .)
+.         di as result "`date'"
+.         
+.         //paths
+.         global summary results/summary/
+.         global microfiles results/syn_microfiles/
+.         global efftaxes results/eff_taxes/
+.         global svypath Data/CEPAL/surveys/
+.         global taxpath Data/Tax-data/
+.         global auxpath code/Stata/auxiliar/
+.         global adofile code/Stata/ado_files/
+.         global all_thetas results/all_thetas.xlsx
+.         global pseudo_thetas results/pseudo_thetas.xlsx
+.         global mp_norep_pos results/bfm${ext}_pos/merging_points.xlsx
+.         global mp_norep_pre results/bfm${ext}_pre/merging_points.xlsx
+.         global w_adj 
+.         global sna_folder Data/national_accounts/
+.         global figs_cov figures/compare_steps/coverage/
+.         global figs_t figures/bfm${ext}_pos/thetas_test/
+.         global figs_tail figures/upper_tail
+.         global figs_regi figures/region 
+.         global figs_decomp figures/decomposition
+.         global figs_gic figures/gic
+.         global figs_ratesca figures/eff_rates_sca
+.         global figs_expsca figures/exp_incidence_sca
+.         global inflation_data Data/infl_xrates_wid_wb.xlsx
+.         global export_wid Data/export_series/dina_latam_`date'.dta
+.         global export_wid_momo Data/export_series/dina_latam_`date'_amory.dta
+.         global export_wid_extrap Data/export_series/dina_latam_extrap_`date'.
+> dta
+.         global export_wid_wide Data/export_series/dina_latam_wide_`date'.dta
+.         global wb_xrates Data/World_Bank/xrates/wb-xrates.xls 
+.         global sna_wid_merged Data/national_accounts/UNDATA-WID-Merged.dta
+.         global sna_wid_oecd Data/national_accounts/UNDATA-WID-OECD-Merged.dta
+.         global sna_wid_oecd_wb Data/national_accounts/UNDATA-WID-OECD-WB-Merg
+> ed.dta
+.         global tax_comp Data/Tax-data/OECD-CIAT-CEPAL/
+.         global exports Data/Export_series/dina_latam_
+.         global popdata Data/Population/SurveyPop.dta    
+.         global ceq input_data/CEQ/
+.         //global tax_tots Data/national_accounts/OECD/tax-database.dta
+.         global govt_exp Data/expenditure_all_countries.dta
+.         
+.         //Paths to export graphs 
+.         global figs_path "figures/`type'/snacompare"
+.         
+.         //lists of countries 
+.         global areas_wid_latam  ///
+>                 " "AR" "BO" "BR" "CL" "CO" "CR" "DO" "EC" "GT" "HN" "MX" "NI"
+>  "PA" "PE" "PY" "SV" "VE" "UY" "
+.         global extra_count " "BOL" "GTM" "HND" "NIC" "PAN" "VEN" "      
+.         global really_all_countries " ${all_countries} ${extra_count} "      
+>            
+.         global ctries_cei " "PER" "DOM" "URY" "CRI" "BRA" "CHL" "COL" "ECU" "
+> MEX" "      
+. 
+.         //list of countries with tax data
+.         global countries_tax " "DOM"  "BRA" "CHL" "ARG" "COL" "PER"  "URY" "M
+> EX" "SLV" "CRI" "ECU" "
+.                 
+.         //BFM 
+.         global countries_bfm_02a " "COL" "URY" "BRA" "DOM" "SLV" "ECU" "PER" 
+> "CHL" "
+.         global countries_2stage " "ARG" "CRI" "MEX" " // "CHL" 
+.         global t_limit = 10 
+.                 
+.         //normal / exceptional countries, with respect to SNA aggregation    
+>    
+.         global norm_countries " "MEX" "BRA" "COL" "DOM" "SLV" "PER" "URY" "CR
+> I" "PRY" " //"ARG"
+.         global exep_countries " "CHL" "BOL" " // "ECU"  
+.         global scal_list "  "pre_ben" "pre_cap" "pre_imp" "pre_mix" "pre_mir"
+>  "pre_wag" "
+.         
+.         global oecd_taxes pit cit prl imo wea est otp gog goo oth
+.         
+.         // Define list of variables (components) for each step and unit 
+.         
+.         *list components of income 
+.         local normvarlist "wag pen cap imp mix"
+.         local exepvarlist "wag pen cap mir"
+.         
+.         *list variables for each step/unit
+.         global unit_list2 " "esn" "ind" "esb" "pch" "
+.         foreach uni in $unit_list2 {
+  2.                 foreach g in "norm" "exep" { 
+  3.                         *list for raw and bfm
+.                         foreach s in "raw" "bfm" "res" {
+  4.                                 *loop over variables 
+.                                 foreach v in ``g'varlist' {     
+  5.                                         *define suffix  
+.                                         if inlist("`s'", "raw", "bfm") local 
+> sf ""
+  6.                                         if inlist("`s'", "res", "upr") loc
+> al sf "_sca"
+  7.                                         *list variables 
+.                                         if "`uni'" == "ind" & "`v'" != "pen" 
+>  {                 
+  8.                                                 local act_`s'_`g' ///
+>                                                         "`act_`s'_`g'' `uni'_
+> pre_`v'`sf'"
+  9.                                                 if "`s'" == "raw" {
+ 10.                                                         local act_por_`g' 
+> ///
+>                                                                 "`act_por_`g'
+> ' `uni'_pos_`v'`sf'"               
+ 11.                                                 }       
+ 12.                                         }
+ 13.                                         
+.                                         *add variable to the list 
+.                                         local `uni'_`s'_`g' "``uni'_`s'_`g'' 
+> `uni'_pre_`v'`sf'" 
+ 14.                                         if "`s'" == "raw" {
+ 15.                                                 local `uni'_por_`g' "``uni
+> '_por_`g'' `uni'_pos_`v'`sf'" 
+ 16.                                         }
+ 17.                                 } 
+ 18.                                 
+.                                 *define global using local 
+.                                 global `uni'_`s'_`g' ``uni'_`s'_`g''
+ 19.                                 di as result "`uni'_`s'_`g': ${`uni'_`s'_`
+> g'}"
+ 20.                                 if "`s'" == "raw" {
+ 21.                                         global `uni'_por_`g' ``uni'_por_`g
+> ''
+ 22.                                         di as result "`uni'_por_`g': ${`un
+> i'_por_`g'}"
+ 23.                                 }
+ 24.                                 
+.                                 if "`uni'" == "ind" {
+ 25.                                         *Define as a global 
+.                                         global act_`s'_`g' `act_`s'_`g''
+ 26.                                         di as result "act_`s'_`g': ${act_`
+> s'_`g'}"
+ 27.                                         if "`s'" == "raw" {
+ 28.                                                 global act_por_`g' `act_po
+> r_`g''
+ 29.                                                 di as result "act_por_`g':
+>  ${act_por_`g'}"
+ 30.                                         }
+ 31.                                 }
+ 32.                                 
+.                                 *Add uprofits and other incomes 
+.                                 if "`s'" == "res" {
+ 33.                                         global `uni'_upr_`g' ${`uni'_`s'_`
+> g'} `uni'_upr_2 
+ 34.                                         global `uni'_nat_`g' ${`uni'_upr_`
+> g'} ///
+>                                                 `uni'_tax_indg_pre `uni'_pre_
+> lef
+ 35.                                         global `uni'_pod_`g' `uni'_pre_mbe
+> _sca `uni'_pod_tot_wmbe       
+ 36.                                         global `uni'_psp_`g' `uni'_pre_mbe
+> _sca `uni'_psp_tot_wmbe       
+ 37.                                         global `uni'_pon_`g' ${`uni'_pod_`
+> g'} ///
+>                                                 `uni'_pon_hea `uni'_pon_edu `
+> uni'_pon_oex
+ 38.                                         if "`uni'" == "ind" {
+ 39.                                                 global act_upr_`g' ${act_`
+> s'_`g'} `uni'_upr_2 
+ 40.                                                 global act_nat_`g' ${act_u
+> pr_`g'} ///
+>                                                         `uni'_tax_indg_pre `u
+> ni'_pre_lef
+ 41.                                                 global act_pod_`g' `uni'_p
+> re_mbe_sca `uni'_pod_tot_wmbe
+ 42.                                                 global act_psp_`g' `uni'_p
+> re_mbe_sca `uni'_psp_tot_wmbe
+ 43.                                                 global act_pon_`g' ${act_p
+> od_`g'} ///
+>                                                         `uni'_pon_hea `uni'_p
+> on_edu `uni'_pon_oex
+ 44.                                         }       
+ 45.                                 } 
+ 46.                         }
+ 47.                 }
+ 48.         }
+.         
+.         //create main folders 
+.         local dirpath "intermediary_data"
+.         mata: st_numscalar("exists", direxists(st_local("dirpath")))
+.         if (scalar(exists) == 0) {
+.                 mkdir "`dirpath'"
+.                 display "Created directory: `dirpath'"
+.         }
+.         
+.         //create main folders 
+.         local dirpath "intermediary_data/microdata"
+.         mata: st_numscalar("exists", direxists(st_local("dirpath")))
+.         if (scalar(exists) == 0) {
+.                 mkdir "`dirpath'"
+.                 display "Created directory: `dirpath'"
+.         }
+.         
+.         // Create directory if it doesnt exist 
+.         local dirpath "output"
+.         mata: st_numscalar("exists", direxists(st_local("dirpath")))
+.         if (scalar(exists) == 0) {
+.                 mkdir "`dirpath'"
+.                 display "Created directory: `dirpath'"
+.         }
+.         
+.         // Create directory if it doesnt exist 
+.         local dirpath "output/figures"
+.         mata: st_numscalar("exists", direxists(st_local("dirpath")))
+.         if (scalar(exists) == 0) {
+.                 mkdir "`dirpath'"
+.                 display "Created directory: `dirpath'"
+.         }
+.         
+.         
+.         //country-years for 2 stage bfm correction
+.         global years_ARG "2000 2001 2002 2003 2004 2005 2006 2007 2008 2009 2
+> 010 2011 2012 2013 2014 2015"
+.         global years_CRI "2010 2011 2012 2013 2014 2015 2016"
+.         global years_CHL "2000 2001 2002 2003 2004 " //2005 2006 2007 2008 20
+> 09
+.         global years_MEX " 2010 2012 2014"
+.         global years_SLV "2003 2004 2005 2006 2007 2008 2009 2010 2011 2012 2
+> 013 2014 2015 2016 2017"
+.         
+.         *isos for latam in WID
+.         global isos_latam_wid (iso=="AG" | iso=="AI" | iso=="AR" | iso=="AW" 
+> | iso=="BB" ///
+>         | iso=="BL" | iso=="BO" | iso=="BR" | iso=="BS" | iso=="BQ" | iso=="B
+> Z" ///
+>         | iso=="CL" | iso=="CO" | iso=="CR" | iso=="CU" | iso=="CW" | iso=="D
+> M" ///
+>         | iso=="DO" | iso=="EC" | iso=="FK" | iso=="GD" | iso=="GP" | iso=="G
+> T" ///
+>         | iso=="GY" | iso=="HN" | iso=="HT" | iso=="JM" | iso=="KN" | iso=="K
+> Y" ///
+>         | iso=="LC" | iso=="MF" | iso=="MQ" | iso=="MX" | iso=="NI" | iso=="P
+> A" ///
+>         | iso=="PE" | iso=="PR" | iso=="PY" | iso=="SR" | iso=="SV" | iso=="S
+> X" ///
+>         | iso=="TC" | iso=="TT" | iso=="VC" | iso=="VE" | iso=="VG" | iso=="V
+> I" ///
+>         | iso=="UY")
+.         
+.         
+.         //country long names 
+.         global lname_ARG_eng "Argentina"
+.         global lname_BOL_eng "Bolivia"
+.         global lname_BRA_eng "Brazil" 
+.         global lname_CHL_eng "Chile" 
+.         global lname_COL_eng "Colombia" 
+.         global lname_CRI_eng "Costa Rica"
+.         global lname_ECU_eng "Ecuador"
+.         global lname_PRY_eng "Paraguay"
+.         global lname_PER_eng "Peru"
+.         global lname_MEX_eng "Mexico"
+.         global lname_URY_eng "Uruguay"
+.         global lname_SLV_eng "El Salvador"
+.         global lname_VEN_eng "Venezuela"
+.         global lname_DOM_eng "Dominican Republic"
+.         
+. 
+. }
+
+. 
+. //GRAPH SETTINGS 
+. if ($aux_part == "graph_basics") {
+. 
+.         //country colors
+.         global c_arg "eltblue"
+.         global c_bol "eltgreen"
+.         global c_bra "midgreen"
+.         global c_chl "cranberry"
+.         global c_col "gold"
+.         global c_cri "purple"
+.         global c_ecu "stone"
+.         global c_dom "black"
+.         global c_pry "lavender"
+.         global c_per "gs7"
+.         global c_mex "dkgreen"
+.         global c_ury "ebblue"
+.         global c_slv "maroon"
+.         global c_ven "red"
+.         global c_nic "orange"
+.         global c_gtm "gs15"
+.         global c_hnd "sienna"
+.         
+.         //variable colors 
+.         global c_kap "cranberry*0.3"
+.         global c_cap "cranberry"
+.         global c_wag "ebblue" 
+.         global c_ben "midgreen"
+.         global c_pen "midgreen*0.5"
+.         global c_mix "gold" 
+.         global c_mir "stone" 
+.         global c_imp "ebblue*.5" 
+.         global c_upr "cranberry*0.5"
+.         global c_lef "gray*.3"
+.         global c_indg "gray*0.7"
+.         global c_mbe "dkgreen*.8"
+.         global c_wmbe "gray*.5"
+.         
+.         //step colors 
+.         global c_urb "gs9"
+.         global c_raw "cranberry*.25"
+.         global c_bfm "cranberry*.5"
+.         global c_res "cranberry*.75"
+.         global c_upr2 "erose" // cranberry*0.5
+.         *global c_upr "dkgreen"
+.         global c_nat "cranberry"
+.         global c_pon "navy"
+.         global c_pod "navy*.75"
+.         global c_psp "navy*.5"
+.         global c_por "navy*.25"
+.         
+.         //colors for taxes
+.         *on personal income 
+.         global c_1000 "ebblue"
+.         global c_1100 "ebblue*.8"
+.         global c_1110 "ebblue*.8"
+.         global c_1120 "ebblue*.4"
+.         *on corporate income 
+.         global c_1200 "cranberry*.55"
+.         global c_1300 "cranberry*.4"
+.         *ssc
+.         global c_2000 "midgreen*.7"
+.         global c_2100 "dkgreen*.8"
+.         global c_2200 "dkgreen*.6"
+.         global c_2300 "dkgreen*.4"
+.         global c_2400 "dkgreen*.2"
+.         *payroll and workforce
+.         global c_3000 "midgreen*0.4"
+.         *property 
+.         global c_4000 "cranberry*.9"
+.         global c_4200 "cranberry*1"
+.         global c_4100 "cranberry*.85"
+.         global c_4300 "cranberry*.7"
+.         global c_4999 "cranberry*.25"
+.         global c_4400 "cranberry*.4"
+.         global c_4500 "cranberry*.2"
+.         global c_4600 "cranberry*.1"
+.         
+.         *goods and services 
+.         global c_5000 "black*.5"
+.         global c_5100 "black*.5"
+.         global c_5110 "black*.3"
+.         global c_5999 "black*.15"
+.         *other 
+.         global c_6000 "black*.5"
+. 
+.         //s1 scheme colors
+.         global color_1  "dkgreen"
+.         global color_2  "orange_red"
+.         global color_3  "navy"
+.         global color_4  "maroon"
+.         global color_5  "teal"
+.         global color_6  "orange"
+.         global color_7  "magenta"
+.         global color_8  "cyan"
+.         global color_9  "ref"
+.         global color_10 "lime"  
+.         
+.         // decomposition colours
+.         global c_wit    "lavender"
+.         global c_bet    "sienna"
+.         global c_top1   "red"
+.         global c_bot99  "orange"
+.         
+.         
+.         //country long names 
+.         global lname_arg "Argentina"
+.         global lname_bol "Bolivia"
+.         global lname_bra "Brazil" 
+.         global lname_chl "Chile" 
+.         global lname_col "Colombia" 
+.         global lname_cri "Costa Rica"
+.         global lname_ecu "Ecuador"
+.         global lname_pry "Paraguay"
+.         global lname_per "Perú"
+.         global lname_mex "Mexico"
+.         global lname_ury "Uruguay"
+.         global lname_slv "El Salvador"
+.         global lname_ven "Venezuela"
+.         global lname_dom "República Dominicana"
+.         
+.         //group labels 
+.         global lname_t1  "Top 1%"
+.         global lname_t10 "Top 10%"
+.         global lname_m40 "Middle 40%"
+.         global lname_b50 "Bottom 50%"
+.         
+.         //variable labels (english)
+.         global labcom_cap_eng "Property income"
+.         global labcom_mix_eng "Mixed income"
+.         global labcom_kap_eng "Capital & GOS"
+.         global labcom_imp_eng "Imputed Rents"
+.         global labcom_wag_eng "Wages"
+.         global labcom_ben_eng "Pensions & benefits"
+.         global labcom_pen_eng "Pensions"
+.         global labcom_mir_eng "Mixed & GOS"
+.         global labcom_upr_eng "Und. profits"
+.         global labcom_indg_eng "Taxes on prod."
+.         global labcom_lef_eng "Other"
+.         global labcom_mbe_eng "Monetary Benefits"
+.         global labcom_wmbe_eng "Post-tax Market inc."
+.         global labcom_hea_eng "Health gov. expenditure"
+.         global labcom_edu_eng "Education gov. expenditure"
+.         global labcom_oex_eng "Other gov. expenditure"
+. 
+.         //variable labels (español)
+.         global labcom_cap_esp "Capital"
+.         global labcom_mix_esp "Mixto"
+.         global labcom_imp_esp "Alquileres"
+.         global labcom_wag_esp "Salarios"
+.         global labcom_ben_esp "Transferencias"
+.         global labcom_pen_esp "Pensiones"
+.         global labcom_mir_esp "Mixto & alquil."
+.         global labcom_upr_esp "Gan. retenidas"
+.         global labcom_indg_esp "Impuestos indir."
+.         global labcom_lef_esp "Otros"
+.         
+.         //step labels (english)
+.         global lab_urb_eng "Urban areas"
+.         global lab_raw_eng "Raw Survey"
+.         global lab_bfm_eng "Corrected Survey"
+.         global lab_res_eng "Scaled Household Inc."
+.         global lab_upr_eng "Sca. + Undis. Profits"
+.         global lab_nat_eng "Pretax National Inc."
+.         global lab_pod_eng "Postax disposable"
+.         global lab_psp_eng "Postax spendable"
+.         global lab_pon_eng "Postax national"
+.         global lab_por_eng "Postax raw"
+.         
+.         //step labels (español)
+.         global lab_urb_esp "Areas urbanas"
+.         global lab_raw_esp "Encuesta CEPAL"
+.         global lab_bfm_esp "Encuesta + DGII"
+.         global lab_res_esp "Escalado sec. hogares"
+.         global lab_upr_esp "+ Util .retenidas"
+.         global lab_nat_esp "Ingreso Nacional"
+.         
+.         
+.         //labels for taxes (english)
+.         *on income
+.         global lab_1000_eng "On income"
+.         global lab_1100_eng "Personal inc."
+.         global lab_1110_eng "Pers. inc"
+.         global lab_1120_eng "Pers. cap. gains"
+.         global lab_1200_eng "Corporate inc."
+.         global lab_1300_eng "Other inc. tax"
+.         *ssc
+.         global lab_2000_eng "SSC"
+.         global lab_2100_eng "SSC: Employees"
+.         global lab_2200_eng "SSC: Employers"
+.         global lab_2300_eng "SSC: Self emp"
+.         global lab_2400_eng "SSC: Other"
+.         *payroll
+.         global lab_3000_eng "Payroll taxes"
+.         *property
+.         global lab_4000_eng "On property"
+.         global lab_4100_eng "Imov. property"
+.         global lab_4200_eng "Wealth tax"
+.         global lab_4300_eng "Estate & inherit"
+.         global lab_4999_eng "Other on property"
+.         global lab_4400_eng "Fin. transactions"
+.         global lab_4500_eng "Non-recurrent"
+.         global lab_4600_eng "Other on prop"
+.         *on goods and products 
+.         global lab_5000_eng "On production"
+.         *global lab_5100_eng "Sales taxes"
+.         global lab_5111_eng "VAT"
+.         global lab_5110_eng "Gral. sale taxes"
+.         global lab_5999_eng "Other on prod."
+.         *other 
+.         global lab_6000_eng "Other"
+.         global lab_7000_eng "Other"
+.         
+.         *more on taxes 
+.         global lab_tot "Total taxes"
+.         global lab_pit_tot "Total property and income taxes"
+.         global lab_pit_corp "Corporate property and income taxes"
+.         global lab_pit_hh "Households' property and income taxes"
+.         global lab_ssc "Social security contributions"
+.         global lab_indg "Indirect taxes on goods and services, gross of subsi
+> dies"
+.         
+.         *even more on taxes             
+.         global labtax_pit "Pers. inc. tax"              
+.         global labtax_cit "Corp. inc. tax"              
+.         global labtax_prl "Payroll"             
+.         global labtax_imo "Immov. property"             
+.         global labtax_wea "Wealth tax"          
+.         global labtax_est "Estate, inherit. & gifts"            
+.         global labtax_otp "Other on property"           
+.         global labtax_gog "Gral. on goods & serv."              
+.         global labtax_goo "Other goods & serv."         
+.         global labtax_oth "Other taxes"
+.         
+.         *and even more 
+.         global c_wea "cranberry*.8"
+.         global c_cit "cranberry"
+.         global c_imo "cranberry*.2"
+.         global c_prl "ebblue*.5"
+.         global c_pit "ebblue*.8"
+.         global c_goo "black*.2"
+.         global c_gog "black*.3"
+.         global c_est "cranberry*.4"
+.         global c_otp "cranberry*.6"
+.         global c_oth "black*.1"
+.         
+.         *label etr 
+.         global etr_indg "Indirect"
+.         global etr_corp "On inc. & prop. (corp)"
+.         global etr_pih "On inc. & prop. (hlds)"
+.         global indg_c_etr "black*.3"
+.         global corp_c_etr "maroon*.9"
+.         global pih_c_etr "ebblue*0.8"
+.         
+.         *label exr 
+.         global exr_oex "Other in-kind"
+.         global exr_hea "Health"
+.         global exr_edu "Education"
+.         global oex_c_exr "black*.3"
+.         global hea_c_exr "maroon*.9"
+.         global edu_c_exr "ebblue*0.8"
+.         
+.         
+.         //axis label options 
+.         global ylab_opts labsize(medium) grid labels angle(horizontal)
+.         global xlab_opts labsize(medium) grid labels angle(horizontal)
+.         global xlab_opts labsize(medium) grid labels angle(45)
+. 
+.         
+.         //axis label options 
+.         global ylab_opts_white labsize(medium) angle(horizontal)
+.         *global xlab_opts_white labsize(medium) angle(horizontal)
+.         global xlab_opts_white labsize(medium) angle(45)
+.         
+.         //last bit of a graph
+.         global graph_scheme scheme(s1color) subtitle(,fcolor(white) ///
+>         lcolor(bluishgray)) graphregion(color(white)) ///
+>         plotregion(lcolor(bluishgray)) scale(1.2)
+.         
+. }
+
+. 
+. //GET LIST OF CASES WITH SURVEY-TAX DATA OVERLAP
+. if ($aux_part == "tax_svy_overlap") {
+.     
+.         if "${bfm_replace}" == "yes" {
+.             local ext ""
+.         }
+.         if "${bfm_replace}" == "no" {
+.             local ext "_norep"
+.         }
+.         
+.         preserve
+.                 foreach x in "" "_2stage" { 
+  2.                         foreach z in "pos" "pre" {      
+  3.                                 //bring list of overlaps 
+.                                 cap import excel ///
+>                                         "output/bfm_summary/bfm`ext'_`z'/merg
+> ing_points.xlsx", ///
+>                                         sheet("country_years`x'") firstrow cl
+> ear                
+  4.                                 if !_rc {
+  5.                                         //save if it exists 
+.                                         quietly ds 
+  6.                                         quietly split `r(varlist)', parse(
+> _) gen(v)     
+  7.                                         
+.                                         //exceptions 
+.                                         quietly drop if v1 == "CHL" & inlist(
+> v2, "2000", "2003")
+  8.                                         quietly drop if v1 == "ECU" & inli
+> st(v2, "2011")
+  9.                                         
+.                                         //list years 
+.                                         quietly levelsof v1, local(countries`
+> x'_`z') clean
+ 10.                                         foreach c in `countries`x'_`z'' {
+ 11.                                                 if ("`c'_years" != "") loc
+> al `c'_first_list ``c'_years'
+ 12.                                         
+.                                                 quietly levelsof v2 if v1 == 
+> "`c'", local(`c'_years) clean
+ 13.                                                 if ("``c'_first_list'" != 
+> "") local `c'_years "``c'_years' ``c'_first_list'"
+ 14.                                                 global `c'_overlap_years `
+> `c'_years'
+ 15.                                                 di as result "`c': ${`c'_o
+> verlap_years}"
+ 16.                                         }
+ 17.                                 }
+ 18.                         }
+ 19.                 }
+.         restore
+.         
+.         foreach c in `countries_pos' `countries_pre' `countries_2stage_pos' `
+> countries_2stage_pre' {
+  2.                 display as text "`c': ${`c'_years}"     
+  3.                 local all_overlaps "`all_overlaps' "`c'" "
+  4.         }
+.         global overlap_countries " `all_overlaps' "
+. }
+
+. 
+. //EXCHANGE RATES TO GET LCU C URRENCIES 
+. if ($aux_part == "old_currencies") {
+.         
+.                 *list all currencies to change 
+.                 global old_currencies ARG_aus BRA_crr BRA_cru VEN_bol ///
+>                         SLV_col URY_npe MEX_npe 
+.                 
+.                 *arg (austral to peso)
+.                 global xr_ARG_aus = 1/10000  
+.                 global yr_ARG_aus = 1992
+.                 
+.                 *bra (cruzeiro real to real)
+.                 global xr_BRA_crr = 1/2750
+.                 global yr_BRA_crr = 1994 
+. 
+.                 *bra (cruzeiro to cruzeiro real)
+.                 global xr_BRA_cru = 1/1000
+.                 global yr_BRA_cru = 1993 // originally 1993
+.                 
+.                 *ven (bolivar to bolivar fuerte)
+.                 global xr_VEN_bol = 1/1000
+.                 global yr_VEN_bol = 2008
+.                 
+.                 *slv (colones to dollar) 
+.                 global xr_SLV_col = 1/8.75 
+.                 global yr_SLV_col = 2001 
+.                 
+.                 *ury (nuevos pesos to peso uruguayo)
+.                 global xr_URY_npe = 1/1000
+.                 global yr_URY_npe = 1993 // originally 1993
+.                 
+.                 *mex (nuevos pesos to peso)
+.                 global xr_MEX_npe = 1/1000
+.                 global yr_MEX_npe = 1993
+.                 
+. } 
+
+. 
+. //GET LIST OF CASES TO EXTRAPOLATE BFM CORRECTION 
+. 
+. if ($aux_part == "list_bfm_extrap") {
+. 
+.         //Get list of countries and years to adjust
+.         preserve 
+.                 quietly import excel "intermediary_data/weight_adjusters/inde
+> x.xlsx", ///
+>                         sheet("country_years_03e") firstrow clear
+.                 quietly split country_year, parse(_) gen(v)     
+.                 quietly levelsof v1, local(countries) clean
+.                 global extrap_countries `countries'
+.                 foreach c in $extrap_countries {
+  2.                         quietly levelsof v2 if v1 == "`c'", local(`c'_year
+> s) clean
+  3.                         global `c'_extrap_years ``c'_years'
+  4.                 }
+.         restore 
+.         
+. }
+
+. 
+. //SELECT COUNTRIES FOR WHICH WE USE AVERAGE SCALING FACTORS (& OTHER)
+. 
+. if ($aux_part == "aver_countries") {
+. 
+.         global fix_countries DOM CRI URY SLV ARG BRA CHL ECU PER MEX COL 
+. 
+. }
+
+. 
+end of do-file
+
+. 
+. //make room for data 
+. qui clear 
+
+. local n_ctries = wordcount( `"${ctries_cei}"' )
+
+. local n_obs = (`last_yr' - `first_yr' + 1) * `n_ctries'
+
+. set obs `n_obs'
+number of observations (_N) was 0, now 225
+
+. qui gen country = ""
+
+. 
+. *make room for variables 
+. foreach n in `dcodes' {
+  2.         qui gen D`n'_cei = . 
+  3. }
+
+. foreach n in `bcodes' {
+  2.         qui gen B`n'g_cei = .
+  3.         if `n' == 5{
+  4.                 foreach i in "NFC" "FC" "GG" "TOT"{
+  5.                         qui gen `i'_B`n'g_cei = . 
+  6.                 }
+  7.         }
+  8. }
+
+. foreach n in 4 41 42 43 44 {
+  2.         foreach var in NFC_r FC_r GG_r TOT_r ROW_r {
+  3.                 qui gen `var'_D`n'_cei = . 
+  4.         }
+  5. }       
+
+. foreach var in "year" "ratio_d43d44" ///
+>         "ratio_d43_d4" "ratio_d44_d4" "ratio_d44_b5g" ///
+>         "ratio_d75_d7" "ratio_d75_b5g" {
+  2.         qui gen `var' = .
+  3. }
+
+. order country year
+
+. 
+. //loop over countries and years  
+. local iter = 1 
+
+. foreach c in $ctries_cei {
+  2.         forvalues y = `first_yr' / `last_yr' {
+  3.                 
+.                 //fill values 
+.                 qui replace country = "`c'" in `iter'
+  4.                 qui replace year = `y' in `iter'
+  5.                 
+.                 //Fill variables 
+.                 foreach n in `dcodes' {
+  6.                         if !inlist("`hh_d`n'r_`c'_`y''", "", "0") {
+  7.                                 qui replace D`n'_cei = `hh_d`n'r_`c'_`y'' 
+> in `iter'
+  8.                         } 
+  9.                 }
+ 10.                 
+.                 foreach j in `bcodes' {
+ 11.                         if !inlist("`hh_b`j'g_`c'_`y''", "", "0") {
+ 12.                                 qui replace B`j'g_cei = `hh_b`j'g_`c'_`y''
+>  in `iter'
+ 13.                         } 
+ 14.                         if `j' == 5 {
+ 15.                                 foreach i in "NFC" "FC" "GG" "TOT" {
+ 16.                                         if !inlist("``i'_b`j'g_`c'_`y''", 
+> "", "0") {
+ 17.                                                 qui replace `i'_B`j'g_cei 
+> = ``i'_b`j'g_`c'_`y'' ///
+>                                                         in `iter'
+ 18.                                         } 
+ 19.                                 }
+ 20.                         }
+ 21.                 }
+ 22.                 
+.                 foreach var in "ratio_d43d44" ///
+>                         "ratio_d43_d4" "ratio_d44_d4" "ratio_d44_b5g" ///
+>                         "ratio_d75_d7" "ratio_d75_b5g" {
+ 23.                         if "``var'_`c'_`y''" != "" {
+ 24.                                 qui replace `var' = ``var'_`c'_`y'' in `it
+> er' 
+ 25.                         } 
+ 26.                 }
+ 27.                 foreach n in 4 41 42 43 44 {
+ 28.                         foreach var in NFC_r FC_r GG_r TOT_r ROW_r { 
+ 29.                                 if !inlist("``var'_d`n'r_`c'_`y''", "", "0
+> ") {
+ 30.                                         qui replace `var'_D`n'_cei = ``var
+> '_d`n'r_`c'_`y'' ///
+>                                                 in `iter'
+ 31.                                 }
+ 32.                         }
+ 33.                 }
+ 34.                 
+.                 //add one to counter 
+.                 local iter = `iter' + 1
+ 35.         }
+ 36.         
+.         //prepare lines for graph
+.         foreach var in $list_ratios {
+ 37.                 
+.                 //define color 
+.                 local c1 = strlower("`c'")
+ 38.                 local c2 "c_`c1'"
+ 39.                 //lines 
+.                 local lines_`var' `lines_`var'' ///
+>                         (connected `var' year if country == "`c'", ///
+>                         lcolor($`c2') lwidth(thick) msize(tiny) msymbol(O) //
+> /
+>                         mfcolor($`c2') mcolor($`c2'))   
+ 40.                 //prepare tags 
+.                 qui sum year if country == "`c'" & !missing(``var'')
+ 41.                 if !inlist("`c'", "CRI", "COL") local xtext_`c' = r(min)  
+>       
+ 42.                 else local xtext_`c' = r(max)   
+ 43.                 qui sum ``var'' if year == `xtext_`c'' & country == "`c'" 
+> ///
+>                         & !missing(``var'')
+ 44.                 if r(mean) != . {
+ 45.                         local ytext = (1 - r(mean)) * 100
+ 46.                         if !inlist("`c'", "CRI", "COL") local text_loc_`va
+> r' "`text_loc_`var'' text(`ytext' `xtext_`c'' "`c'", orientation(horizontal) 
+> placement(nw) color($`c2') size(small)) "
+ 47.                         else local text_loc_`var' "`text_loc_`var'' text(`
+> ytext' `xtext_`c'' "`c'", orientation(horizontal) placement(ne) color($`c2') 
+> size(small)) "
+ 48.                 }       
+ 49.         }
+ 50. }
+
+. 
+. //define labels 
+. local lab_pir "Matching Property Inc. (%)"
+
+. local lab_tra "Share of remittences in transfers, in % (D75/D7)"
+
+. 
+. //define ratios of interest 
+. foreach var in $list_ratios {
+  2.         
+.         local ylabs ""
+  3.         if "`var'" == "pir" local ylabs 50(10)100 
+  4.         
+.         *get proportional 
+.         if "`var'" == "pir" qui gen `var' = (1 - ``var'') * 100
+  5.         else qui gen `var' = ``var'' * 100
+  6. 
+.         //graph result 
+.         qui sum `var', meanonly 
+  7.         local avg = r(mean)
+  8.         local avg_tag = `avg' + 2
+  9.         graph twoway `lines_`var'' if !missing(`var') & `var' != 0  ///
+>                 , legend(off) `text_loc_`var''  ///
+>                 text(`avg_tag' 1996 "AVG", color(black * 0.3)) ///
+>                 ytitle("`lab_`var''") xtitle("") ///
+>                 yline(`avg', lcolor(black*0.3) lwidth(thick)) ///
+>                 ylabels(`ylabs', $ylab_opts_white ) ///
+>                 xlabels(1995(5)2025, $xlab_opts_white ) $graph_scheme
+ 10.         qui graph export "output/figures/cei/`var'.pdf", replace        
+ 11.         qui graph export "output/figures/cei/`var'.png", replace 
+ 12. 
+. }
+
+. 
+. *save to merge 
+. tempfile savetomerge 
+
+. qui rename country _ISO3C_ 
+
+. qui save `savetomerge', replace 
+
+. 
+. *open SNA file 
+. qui use "intermediary_data/national_accounts/UNDATA-WID-Merged.dta", clear 
+
+. 
+. *merge with SNA data
+. qui merge m:1 _ISO3C_ year using `savetomerge' , nogen update replace
+
+. 
+. //ignore aggregated data for ECU (OS + MI)
+. qui replace B2g_cei = . if country == "ECU" & year <= 2017
+
+. qui replace HH_B2g_R = . if country == "ECU" & year <= 2017
+
+. 
+. //save
+. qui save "intermediary_data/national_accounts/UNDATA-WID-Merged.dta" , replac
+> e  
+
+. 
+. 
+end of do-file

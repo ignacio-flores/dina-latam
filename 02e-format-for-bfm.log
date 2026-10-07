@@ -1,0 +1,198 @@
+
+  ___  ____  ____  ____  ____ (R)
+ /__    /   ____/   /   ____/
+___/   /   /___/   /   /___/   16.1   Copyright 1985-2019 StataCorp LLC
+  Statistics/Data Analysis            StataCorp
+                                      4905 Lakeway Drive
+     MP - Parallel Edition            College Station, Texas 77845 USA
+                                      800-STATA-PC        http://www.stata.com
+                                      979-696-4600        stata@stata.com
+                                      979-696-4601 (fax)
+
+60-user 4-core Stata network perpetual license:
+       Serial number:  501606216487
+         Licensed to:  Ignacio Flores
+                       insead
+
+Notes:
+      1.  Stata is running in batch mode.
+      2.  Unicode is supported; see help unicode_advice.
+      3.  More than 2 billion observations are allowed; see help obs_advice.
+      4.  Maximum number of variables is set to 5000; see help set_maxvar.
+
+. do code/Stata/02e-format-for-bfm.do 
+
+. do "code/Stata/auxiliar/dina_runtime_config.do"
+
+. * Load the single configuration authority for a DINA task.
+. * `dina run` supplies DINA_CONFIG_DO; manual runs must supply an explicitly
+. * generated and validated file through the same environment variable.
+. 
+. if "${dina_runtime_config_loaded}" != "yes" {
+.     local dina_config_do : environment DINA_CONFIG_DO
+.     if "`dina_config_do'" == "" {
+.         di as error "DINA runtime configuration is required."
+.         di as error "Run through `dina run`, or generate one with `dina confi
+> g stata --output PATH`."
+.         exit 198
+.     }
+.     capture confirm file "`dina_config_do'"
+.     if _rc {
+.         di as error "DINA_CONFIG_DO does not point to a readable file: `dina_
+> config_do'"
+.         exit 601
+.     }
+.     quietly do "`dina_config_do'"
+.     foreach required in dina_config_scope dina_config_fingerprint dina_baseli
+> ne_fingerprint dina_config_countries all_countries first_y last_y lang debug 
+> bfm_replace all_units all_steps export_unit export_steps export_last_y previo
+> us_update {
+  2.         if `"${`required'}"' == "" {
+  3.             di as error "Generated DINA runtime configuration is missing `
+> required'."
+  4.             exit 198
+  5.         }
+  6.     }
+.     global dina_runtime_config_loaded "yes"
+. }
+
+. 
+end of do-file
+
+. local list_noquotes : subinstr global all_countries `"""' "" , all
+
+. foreach c in "SLV" "PER" "DOM" "URY" "BRA" "CHL" "COL" "ECU" {
+  2.         
+.         if strpos("`list_noquotes'", "`c'") > 0 {
+  3.                 
+.                 *define locals for each country 
+.                 local vars year country component average
+  4.                 local component "postax"
+  5.                 if inlist("`c'" , "BRA") local component "pretax"
+  6.                 local short = substr("`component'", 1, 3)
+  7.                 
+.                 //CHECK IF GPINTER HAS BEEN APPLIED 
+.                 if "`c'" != "URY" {
+  8.                     local dirpath "input_data/admin_data/`c'/gpinter_outpu
+> t/"
+  9.                         mata: st_numscalar("exists", direxists(st_local("d
+> irpath")))
+ 10.                         if (scalar(exists) == 0) {
+ 11.                                 di as error "Directory not found input_dat
+> a/admin_data/`c'/gpinter_output/"
+ 12.                                 di as error  "You need to apply gpinter to
+>  the _clean data before moving forward"
+ 13.                                 exit 1 
+ 14.                         }
+ 15.                 }
+ 16.                 
+.                 *store worksheet names 
+.                 cap import excel using ///
+>                         "input_data/admin_data/`c'/gpinter_output/total-`shor
+> t'-`c'.xlsx", describe             
+ 17.                 if _rc == 0 {
+ 18.                         local nws_`c' = r(N_worksheet) 
+ 19.                         forvalues x = 1/`nws_`c'' {
+ 20.                                 local nam = r(worksheet_`x')
+ 21.                                 local nam2 =  regexm("`nam'", "([0-9]+)")
+ 22.                                 if `nam2' {
+ 23.                                         local num_part : display regexs(1)
+ 24.                                         local sheet_`c'_`num_part' `nam'
+ 25.                                         *di as result "sheet `c'-`num_part
+> ': `sheet_`c'_`num_part''"
+.                                 }
+ 26.                         }
+ 27.                 
+.                 }
+ 28.                 
+.                 *loop over years 
+.                 forvalues t = $first_y/$last_y {
+ 29.                     
+.                         if ("`c'" == "SLV" & `t' == 2000) continue 
+ 30.                         
+.                         clear
+ 31.                         *import data 
+.                         if "`c'" == "URY" {
+ 32.                                 cap import excel using ///
+>                                         "input_data/admin_data/`c'/gpinter_`c
+> '_`t'.xlsx", firstrow
+ 33.                         }
+ 34.                         else{
+ 35.                                 if "`sheet_`c'_`t''" != "" {
+ 36.                                         qui import excel using ///
+>                                                 "input_data/admin_data/`c'/gp
+> inter_output/total-`short'-`c'.xlsx", /// 
+>                                                 sheet("`sheet_`c'_`t''") firs
+> trow clear 
+ 37.                                 }       
+ 38.                         }
+ 39.                         *check if file exists...        
+.                         qui cap assert _N == 0
+ 40.                         if _rc != 0 {           
+ 41.                                 
+.                                 *get rid of thr 0
+.                                 if "`c'" == "URY" {
+ 42.                                         cap confirm string var thr
+ 43.                                         if _rc==0 {
+ 44.                                                 qui replace thr = subinstr
+> (thr, ",", ".", .)
+ 45.                                                 di as result "`c' `t'"
+ 46.                                                 destring thr, replace 
+ 47.                                         }
+ 48.                                         qui drop if thr == 0 
+ 49.                                         *collapse doubled thr
+.                                         quietly collapse (min) p ///
+>                                         (mean) bracketavg male female _* Miss
+> * *inc ///
+>                                          (firstnm) average totalpop (max) top
+> avg, by(thr) 
+ 50.                                 }
+ 51.                                 else {
+ 52.                                         foreach v in `vars' {
+ 53.                                                 cap replace `v' = `v'[1]
+ 54.                                         }
+ 55.                                         qui drop if thr == 0
+ 56.                                         foreach v in `vars' {
+ 57.                                                 if "`v'" != "average" cap 
+> replace `v' = "" if _n != 1 
+ 58.                                                 else cap replace `v' = . i
+> f _n != 1 
+ 59.                                         }
+ 60.                                 }
+ 61.                                 
+.                                 if "`c'" == "COL" {
+ 62.                                         qui replace thr = round(thr) if th
+> r < 1 
+ 63.                                 }
+ 64.                                 
+.                                 *check increasing vakues 
+.                                 qui gen n = _n / 100
+ 65.                                 qui gen tester = thr - thr[_n-1] if p > .5
+ 66.                                 assert tester >= -1e-12
+ 67.                                 qui replace thr = thr + n if tester == 0 
+ 68.                                 qui gen tester2 = thr - thr[_n-1] if p > .
+> 5
+ 69.                                 assert tester2 > -1e-12 
+ 70.                                 qui drop n tester tester2
+ 71.                                 
+.                                 *export 1 file per year 
+.                                 export excel using "input_data/admin_data/`c'
+> /gpinter_`c'_`t'.xlsx", /// 
+>                                         firstrow(variables) keepcellfmt repla
+> ce
+ 72.                         }
+ 73.                         else {
+ 74.                                 di as error "input_data/admin_data/`c'/gpi
+> nter_output/total-`short'-`c'.xlsx, sheet(`component', `c', `t') not found"
+ 75.                         }
+ 76.                 }
+ 77.         }       
+ 78. }
+Directory not found input_data/admin_data/SLV/gpinter_output/
+You need to apply gpinter to the _clean data before moving forward
+--Break--
+r(1);
+
+end of do-file
+--Break--
+r(1);

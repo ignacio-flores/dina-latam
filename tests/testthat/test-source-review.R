@@ -389,6 +389,19 @@ test_that("problem presentation aggregates checks into reviewer triage", {
   expect_false(grepl("D11_cei|D752_cei|FC_r_D43_cei", output))
 })
 
+test_that("Admin trust configuration is not presented as a failed source review", {
+  source_cli_for_tests()
+  problems <- data.frame(
+    country = "Family", year = NA_integer_, severity = "Blocker",
+    status = "trust_region_confirmation_required",
+    stringsAsFactors = FALSE
+  )
+  triage <- dina_review_problem_triage(problems)
+  expect_equal(triage$issue, "Complete Admin configuration proposal required")
+  expect_match(triage$next_step, "Review and apply the complete proposal")
+  expect_false(grepl("could not complete", triage$issue, ignore.case = TRUE))
+})
+
 test_that("admin dependency blocks use the shared review language and preserve their next steps", {
   source_cli_for_tests()
   problems <- data.frame(

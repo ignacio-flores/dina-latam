@@ -1,0 +1,27 @@
+{smcl}
+{txt}{sf}{ul off}{.-}
+      name:  {res}<unnamed>
+       {txt}log:  {res}/Users/iflores/Documents/GitHub/dina-latam/output/ineqstats/log/ind_natinc_28Sep2026.smcl
+  {txt}log type:  {res}smcl
+ {txt}opened on:  {res}28 Sep 2026, 14:48:49
+step: natinc
+{txt}{hline 138}
+                                                            INEQSTATS Settings
+{hline 138}
+Areas (11):{res} COL ARG PER URY CRI ECU CHL BRA SLV MEX DOM
+{txt}Period: {res}2000{txt}-{res}2024
+{txt}Weight: {res}_weight{txt} 
+Unit: {res}ind
+{txt}Decomposing by: {res}ind_pre_wag_sca ind_pre_pen_sca ind_pre_cap_sca ind_pre_imp_sca ind_pre_mix_sca ind_upr_2 ind_tax_indg_pre ind_pre_lef
+{txt}Survey type: {res}bfm_norep_pre
+{txt}edad/age: {res}20
+{txt}{hline 138}
+{p}
+number of observations (_N)  was 0,
+now 275
+{p_end}
+{err}observations must be between 1 and 1048576
+{txt}{search r(198), local:r(198);}
+
+end of do-file
+{search r(198), local:r(198);}

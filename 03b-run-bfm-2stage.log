@@ -1,0 +1,641 @@
+
+  ___  ____  ____  ____  ____ (R)
+ /__    /   ____/   /   ____/
+___/   /   /___/   /   /___/   16.1   Copyright 1985-2019 StataCorp LLC
+  Statistics/Data Analysis            StataCorp
+                                      4905 Lakeway Drive
+     MP - Parallel Edition            College Station, Texas 77845 USA
+                                      800-STATA-PC        http://www.stata.com
+                                      979-696-4600        stata@stata.com
+                                      979-696-4601 (fax)
+
+60-user 4-core Stata network perpetual license:
+       Serial number:  501606216487
+         Licensed to:  Ignacio Flores
+                       insead
+
+Notes:
+      1.  Stata is running in batch mode.
+      2.  Unicode is supported; see help unicode_advice.
+      3.  More than 2 billion observations are allowed; see help obs_advice.
+      4.  Maximum number of variables is set to 5000; see help set_maxvar.
+
+. do code/Stata/03b-run-bfm-2stage.do 
+
+. /*===========================================================================
+> ==*
+> Goal: correct CEPAL surveys with bfmcorr command for cases with tax and wage 
+> data and save theta coefficients for analysis and further extrapolations
+> Authors: Mauricio De ROSA, Ignacio FLORES, Marc MORGAN
+> Date: Feb/2020
+> Stage 1: wages
+> Stage 2: diverse
+> *============================================================================
+> =*/
+. 
+. //general settings
+. clear all
+
+. 
+. //preliminary
+. global aux_part  ""preliminary"" 
+
+. quietly do "code/Stata/auxiliar/aux_general.do"
+
+. 
+. //define macros 
+. if "${bfm_replace}" == "yes" {
+.         global types " "rep" "
+. }               
+
+. if "${bfm_replace}" == "no" {
+.         global types " "norep" "
+. }               
+
+. 
+. // --------------------------------------------------------------------------
+> ---
+. 
+. //Loop over countries 
+. foreach c in $countries_2stage {
+  2.         
+.         local pf "pos"
+  3.         if inlist("`c'", "CRI") local pf "pre"
+  4.         
+.         //Loop over years 
+.         foreach t in ${years_`c'} {
+  5.                         
+.                 //Define file paths
+.                 local taxfile "input_data/admin_data/`c'/diverse_`c'_`t'.xlsx
+> "
+  6.                 local svyfile "intermediary_data/microdata/raw/`c'/`c'_`t'
+> _raw.dta"
+  7.                 local wagefile "input_data/admin_data/`c'/wage_`c'_`t'.xls
+> x"
+  8.                 
+.                 // 1. CHECK WHAT DATA IS AVAILABLE AND REPORT ---------------
+> -----------
+.                 
+.                 //Check if tax data exists
+.                 cap confirm file `taxfile' 
+  9.                 local fileornot  = _rc 
+ 10.                 if (`fileornot' != 0) {
+ 11.                         cap confirm file `wagefile'
+ 12.                         local fileornot = _rc
+ 13.                 }
+ 14.                 
+.                 di as result "`c' `t' - fileornot: `fileornot'"
+ 15.                 
+.                 if (`fileornot' == 0) {
+ 16.                         
+.                         //Check if survey data also exists 
+.                         cap confirm file `svyfile'
+ 17.                         if !_rc {
+ 18.                         
+.                                 di as result "`c' `t': Both survey and tax da
+> ta " _continue
+ 19.                                 di as result "exist, combining datasets (0
+> 2b)... " _continue
+ 20.                                 di as text "at $S_TIME"
+ 21. 
+.                                 //Get trust region
+.                                 quietly import excel "input_data/admin_data/d
+> irectory.xlsx", ///
+>                                         sheet("trust") firstrow clear
+ 22.                                 quietly destring trust trust_wages, replac
+> e     
+ 23.                                 quietly sum trust if country == "`c'" & ye
+> ar == `t'
+ 24.                                 local trust_`c'_`t' = r(mean)
+ 25.                                 
+.                                 //Run code if trust exists 
+.                                 quietly sum trust_wages if country == "`c'" &
+>  year == `t'
+ 26.                                 if ("`r(mean)'" != "") {
+ 27.                                         local trustw_`c'_`t' = `r(mean)'
+ 28. 
+.                                 
+.                                         // 2. TREAT RAW SURVEYS -------------
+> -----------------------
+.                                 
+.                                         //locals
+.                                         local id "id_hogar"
+ 29.                                         local age "edad"
+ 30.                                         local yrtrust = `trust_`c'_`t''
+ 31.                                         local yrtrustw = `trustw_`c'_`t''
+ 32.                                         local w ${y_`pf'tax_formal_wage}
+ 33.                                         local raw_weight "_fep" 
+ 34.                                         if ("`c'" == "ARG") {
+ 35.                                                 local raw_weight "n_fep"
+ 36.                                                 local w ${y_`pf'tax_privat
+> e_wage}
+ 37.                                         }
+ 38.                                         if ("`c'" == "SLV") local w ${y_`p
+> f'tax_wag}
+ 39.                                         if ("`c'" == "CRI") local w ${y_`p
+> f'tax_formal_wage_cri}
+ 40.                                                 
+.                                         //Open raw data
+.                                         use `svyfile', clear
+ 41. 
+.                                         //Define diverse (non-wage) income co
+> ncepts 
+.                                         if ("`c'" == "SLV") {
+ 42.                                                 quietly gen y_div = 0
+ 43.                                                 quietly replace y_div = ${
+> y_`pf'tax_tot} ///
+>                                                         if (${y_`pf'tax_tot} 
+> > ind_`pf'_wag ) 
+ 44.                                         }
+ 45.                                         if inlist("`c'", "MEX", "ARG") {
+ 46.                                                 quietly gen y_div = 0
+ 47.                                                 quietly replace y_div = ${
+> y_`pf'tax_tot}
+ 48.                                         }
+ 49.                                         if ("`c'" == "CRI") {
+ 50.                                                 quietly gen y_div = ind_`p
+> f'_mix + ind_`pf'_cap 
+ 51.                                         }
+ 52.                                         local div "y_div"
+ 53.                                         
+.                                         //Ensure weights are constant within 
+> household
+.                                         quietly count if ///
+>                                                 `raw_weight' == 0 | missing(`
+> raw_weight') ///
+>                                                 | `raw_weight' < 1
+ 54.                                         display as text "   -" _continue  
+ 55.                                         display as text "`r(N)' obs " _con
+> tinue  
+ 56.                                         display as text "with null weight"
+ 57.                                         quietly drop if `raw_weight' == 0
+ 58.                                         egen weight2 = mean(`raw_weight'),
+>  by(`id')
+ 59.                                         cap assert weight2 == `raw_weight'
+ 60.                                         
+.                                         //Inform change of weights in log
+.                                         if r(N) == 0 {
+ 61.                                                 tempvar w_change
+ 62.                                                 quietly gen `w_change' = /
+> //
+>                                                         (`raw_weight' - weigh
+> t2) / `raw_weight' * 100
+ 63.                                                 quietly sum `w_change' 
+ 64.                                                 local min_ch = round(`r(mi
+> n)', 1)
+ 65.                                                 local max_ch = round(`r(ma
+> x)', 1)
+ 66.                                                 di as text ///
+>                                                         "Weights not constant
+>  within household in " ///
+>                                                         _continue
+ 67.                                                 di as text "raw survey for
+>  `c' - `t'"
+ 68.                                                 di as result ///
+>                                                         "...the average weigh
+> t of the household " _continue
+ 69.                                                 di as result ///
+>                                                         "was attributed to it
+> s members: weights " _continue
+ 70.                                                 di as result "incresed/dec
+> reased from " _continue
+ 71.                                                 if (`min_ch' < -1 | `max_c
+> h' > 1) di as error "`min_ch'% to `max_ch'% " _continue
+ 72.                                                 if (`min_ch' > -1 | `max_c
+> h' < 1) di as result "`min_ch'% to `max_ch'% " _continue
+ 73.                                                 di as result "(rounded to 
+> the nearest integer)"
+ 74.                                         }
+ 75.                                         
+.                                         //Write definitive weights 
+.                                         quietly replace `raw_weight' = weight
+> 2
+ 76.                                         quietly drop weight2
+ 77.                                         quietly drop if `raw_weight'==. | 
+> `raw_weight' < 1
+ 78.                                         
+.                                         //Save total population
+.                                         quietly sum `raw_weight' 
+ 79.                                         local orig_weights = r(sum)
+ 80.                                         di as text "Population in raw surv
+> ey: " ///
+>                                                 round(`orig_weights' / 100000
+> 0, 0.1) " million"
+ 81.                                         
+.                                         //Get age groups
+.                                         xtile age_group = `age', nquantiles(1
+> 0)
+ 82.                                                                         
+.                                         // 3. COMBINE SURVEY AND TAX DATA ---
+> -----------------------
+.                                         // loopy loop 
+.                                         
+.                                         tempfile tf 
+ 83.                                         quietly save `tf'
+ 84.                                         
+.                                         foreach type in $types {
+ 85.                                         
+.                                                 // Details for file replace /
+>  no-replace distinction
+.                                                 if ("`type'" == "rep") local 
+> command ""
+ 86.                                                 if ("`type'" == "rep") loc
+> al ext ""
+ 87.                                                 if ("`type'" == "norep") l
+> ocal command "noreplace"
+ 88.                                                 if ("`type'" == "norep") l
+> ocal ext "_norep"
+ 89.                                                 
+.                                                         
+.                                                 //path to files 
+.                                                 local corrfile ///
+>                                                         "intermediary_data/mi
+> crodata/bfm`ext'_`pf'/`c'_`t'_bfm`ext'_`pf'.dta"                           
+ 90.                                                 local MPgraph_wages ///
+>                                                         "output/figures/MP/`c
+> '_`t'_MP.pdf"      
+ 91.                                                 local MPgraph "output/figu
+> res/MP/`c'_`t'_MP.pdf"                                        
+ 92.                                                 local export_results_wages
+>  ///
+>                                                         "output/bfm_summary/b
+> fm`ext'_`pf'/bfm_summary_wages_`c'.xlsx"
+ 93.                                                 local export_results "outp
+> ut/bfm_summary/bfm`ext'_`pf'/bfm_summary_`c'.xlsx"            
+ 94.                                                 local mpfile_wages ///
+>                                                         "output/bfm_summary/b
+> fm`ext'_`pf'/merging_points_wages.xlsx"
+ 95.                                                 local mpfile "output/bfm_s
+> ummary/bfm`ext'_`pf'/merging_points.xlsx"
+ 96.                                                 
+.                                                 //exceptions (only 1st stage)
+.                                                 if inlist("`c'", "MEX", "ARG"
+> ) { 
+ 97.                                                         local export_resul
+> ts_wages "`export_results'"
+ 98.                                                         local mpfile_wages
+>  "`mpfile'"
+ 99.                                                         local MPgraph_wage
+> s "`MPgraph'"
+100.                                                 } 
+101.                                                                           
+>               
+.                                                 //find program
+.                                                 sysdir set PERSONAL "code/Sta
+> ta/ado/bfm_stata_ado/."
+102.                                                 clear programs
+103.                                                 quietly use `tf', clear   
+>                               
+104.                                                                           
+>                       
+.                                                 //3.1 Apply 1st-stage BFM cor
+> rection (wages) -----------
+.                                                 
+.                                                 di as result "adjusting wage 
+> distribution..."
+105.                                                 `capornot' bfmcorr_experim
+> ents using `wagefile', ///
+>                                                         weight(`raw_weight') 
+> income(ind_`pf'_wag) ///
+>                                                         taxincome(`w') househ
+> olds(`id') taxu(i) ///
+>                                                         trust(`yrtrustw') the
+> talimit(${t_limit}) ///
+>                                                         holdmargins(sexo age_
+> group) /*slope(-1)*/ ///
+>                                                         pen(50) sampletop(0.0
+> 1) `command'       
+106.                                                                 
+.                                                 cap assert _N == 0
+107.                                                 if _rc!= 0 {
+108.                                                 
+.                                                         //save merging points
+>  
+.                                                         preserve        
+109.                                                                 //get the 
+> data
+.                                                                 tempname thet
+> a_w adj_factors_w
+110.                                                                 matrix def
+> ine `theta_w' = e(theta)
+111.                                                                 matrix def
+> ine `adj_factors_w' = e(adj_factors)
+112.                                                                 local mpoi
+> nt_w = e(mergingpoint)
+113.                                                                 
+.                                                                 //write it do
+> wn
+.                                                                 clear
+114.                                                                 mat list `
+> theta_w'
+115.                                                                 svmat `the
+> ta_w', names(v)
+116.                                                                 quietly re
+> name (v1 v2 v3 v4 v5 v6) ///
+>                                                                         (p bi
+> g_t small_t antitonic extrap thr)
+117.                                                                 quietly ge
+> n mpoint = `mpoint_w' in 1
+118.                                                                 
+.                                                                 //export it
+.                                                                 qui export ex
+> cel `mpfile_wages', ///
+>                                                                         first
+> row(variables) sheet("`c'`t'") ///
+>                                                                         sheet
+> replace 
+119.                                                                 
+.                                                         restore 
+120.                                                         
+.                                                         //Save microdata 
+.                                                         save `tf', replace 
+121.                                                         
+.                                                         //save list of countr
+> y-years
+.                                                         local ctry_yr_list`ex
+> t' "`ctry_yr_list`ext'' `c'_`t'"
+122.                                                         
+.                                                         //if done with 1st st
+> age 
+.                                                         if inlist("`c'", "MEX
+> ", "ARG") save `corrfile', replace  
+123.                                                         
+.                                                         //postestimation comm
+> ands 
+.                                                         postbfm biasplot
+124.                                                         graph export `MPgr
+> aph_wages', replace 
+125.                                                         postbfm summarize,
+>  export(`export_results_wages') ///
+>                                                                 year(`t') rep
+> lace               
+126.                                                 
+.                                                         //3.2. 2nd-stage BFM 
+> correction (diverse inc.) ----
+.                                                         
+.                                                         if !inlist("`c'", "ME
+> X", "ARG") {
+127.                                                                 quietly us
+> e `tf', clear
+128.                                                         
+.                                                                 // change new
+>  variable names
+.                                                                 foreach _var 
+> in _weight _hid _pid _factor _expand _expanded_weight {
+129.                                                                         ca
+> p rename `_var' w`_var'
+130.                                                                 }
+131.                                                                 
+.                                                                 local cor_wei
+> ght "w_weight"
+132.                                                                 gen w_corr
+> ection = . 
+133.                                                                 tostring _
+> correction, gen(_correction1)
+134.                                                                 replace w_
+> correction = 1 if _correction1 == "1"
+135.                                                                 replace w_
+> correction = 2 if _correction1 == "2"
+136.                                                                 label defi
+> ne w_correction 1 "reweighted" 2 "replaced"
+137.                                                                 label valu
+> es w_correction w_correction
+138.                                                                 label var 
+> w_correction "Correction type (wage)"
+139.                                                                 label var 
+> w_weight "corrected survey weight (wage)"
+140.                                                                 label var 
+> w_factor "income adjustment factor (wage)"
+141.                                                                 label var 
+> w_hid "household ID (wage)"
+142.                                                                 label var 
+> w_pid "personal ID (wage)"
+143.                                                                 drop _corr
+> ection _correction1
+144.                                                                 
+.                                                                 //Write defin
+> itive weights 
+.                                                                 quietly drop 
+> if `cor_weight' == 0
+145.                                                                 egen weigh
+> t2 = mean(`cor_weight'), by(`id')
+146.                                                                 cap assert
+>  weight2 == `cor_weight'
+147.                                                                 quietly re
+> place `cor_weight' = weight2
+148.                                                                 quietly dr
+> op weight2
+149.                                                                 quietly dr
+> op if `cor_weight'==. | `cor_weight' < 1
+150.                                                                           
+>                       
+.                                                                 //dummy for w
+> age distribution
+.                                                                 quietly gen w
+> age = 0
+151.                                                                 quietly re
+> place wage = 1 if (`w' > 0)
+152.                                                                 
+.                                                                 di as result 
+> "adjusting diverse distribution..."
+153.                                                                 
+.                                                                 bfmcorr_exper
+> iments using `taxfile', ///
+>                                                                         weigh
+> t(`cor_weight') income(`div') ///
+>                                                                         house
+> holds(w_hid) taxu(i) ///
+>                                                                         trust
+> (`yrtrust') ///
+>                                                                         holdm
+> argins(sexo age_group wage) ///
+>                                                                         theta
+> limit(${t_limit}) /*slope(-1)*/ ///
+>                                                                         pen(5
+> 0) sampletop(0.01) `command' 
+154.                                                                 
+.                                                                 //save mergin
+> g points 
+.                                                                 preserve     
+>    
+155.                                                                         //
+> get the data
+.                                                                         tempn
+> ame theta adj_factors
+156.                                                                         ma
+> trix define `theta' = e(theta)
+157.                                                                         ma
+> trix define `adj_factors' = e(adj_factors)
+158.                                                                         lo
+> cal mpoint = e(mergingpoint)
+159.                                                                         
+.                                                                         //wri
+> te it down
+.                                                                         clear
+160.                                                                         ma
+> t list `theta'
+161.                                                                         sv
+> mat `theta', names(v)
+162.                                                                         qu
+> ietly rename (v1 v2 v3 v4 v5 v6) ///
+>                                                                              
+>    (p big_t small_t antitonic extrap thr)
+163.                                                                         qu
+> ietly gen mpoint = `mpoint' in 1
+164.                                                                         
+.                                                                         //exp
+> ort it
+.                                                                         quiet
+> ly export excel `mpfile', ///
+>                                                                              
+>    firstrow(variables) sheet("`c'`t'") ///
+>                                                                              
+>    sheetreplace    
+165.                                                                 restore 
+166.                                                                 
+.                                                                 //Save microd
+> ata 
+.                                                                 save `corrfil
+> e', replace 
+167.                                                                 
+.                                                                 //postestimat
+> ion commands 
+.                                                                 postbfm biasp
+> lot
+168.                                                                 graph expo
+> rt `MPgraph', replace 
+169.                                                                 postbfm su
+> mmarize, export(`export_results') ///
+>                                                                         year(
+> `t') replace               
+170.                                                                 
+.                                                         }
+171.                                                 }
+172.                                                 else {
+173.                                                         di as error "wage 
+> and diverse distributions" _continue
+174.                                                         di as error " were
+>  not adjusted"
+175.                                                         exit 10
+176.                                                 }
+177.                                         }                       
+178.                                 }
+179.                                 
+.                                 // 4. REPORT DATA-AVAILABILITY FOR NON TREATE
+> D YEARS -----------
+.                                 
+.                                 //Report if trust is missing
+.                                 else {
+180.                                         di as error "Trust region is not d
+> efined for " _continue
+181.                                         di as error "`c' - `t', skipping .
+> .. "
+182.                                 }
+183.                         }               
+184.                         else {
+185.                                 di as text "`c' `t': tax data exists but s
+> urvey does not"
+186.                         }               
+187.                 }       
+188.                 else {  
+189.                         cap confirm file `svyfile'              
+190.                         if !_rc {
+191.                                 di as text "`c' `t': Survey data exists, b
+> ut tax data does not"
+192.                         }               
+193.                         else {
+194.                                 di as text "`c' `t': Both survey and tax d
+> ata" _continue
+195.                                 di as text " do not exist for this year"
+196.                         }
+197.                 }
+198.         }       
+199. }
+ARG 2000 - fileornot: 601
+ARG 2000: Survey data exists, but tax data does not
+ARG 2001 - fileornot: 601
+ARG 2001: Survey data exists, but tax data does not
+ARG 2002 - fileornot: 601
+ARG 2002: Survey data exists, but tax data does not
+ARG 2003 - fileornot: 601
+ARG 2003: Survey data exists, but tax data does not
+ARG 2004 - fileornot: 601
+ARG 2004: Survey data exists, but tax data does not
+ARG 2005 - fileornot: 601
+ARG 2005: Survey data exists, but tax data does not
+ARG 2006 - fileornot: 601
+ARG 2006: Survey data exists, but tax data does not
+ARG 2007 - fileornot: 601
+ARG 2007: Survey data exists, but tax data does not
+ARG 2008 - fileornot: 601
+ARG 2008: Survey data exists, but tax data does not
+ARG 2009 - fileornot: 601
+ARG 2009: Survey data exists, but tax data does not
+ARG 2010 - fileornot: 601
+ARG 2010: Survey data exists, but tax data does not
+ARG 2011 - fileornot: 601
+ARG 2011: Survey data exists, but tax data does not
+ARG 2012 - fileornot: 601
+ARG 2012: Survey data exists, but tax data does not
+ARG 2013 - fileornot: 601
+ARG 2013: Survey data exists, but tax data does not
+ARG 2014 - fileornot: 601
+ARG 2014: Survey data exists, but tax data does not
+ARG 2015 - fileornot: 601
+ARG 2015: Both survey and tax data do not exist for this year
+CRI 2010 - fileornot: 601
+CRI 2010: Survey data exists, but tax data does not
+CRI 2011 - fileornot: 601
+CRI 2011: Survey data exists, but tax data does not
+CRI 2012 - fileornot: 601
+CRI 2012: Survey data exists, but tax data does not
+CRI 2013 - fileornot: 601
+CRI 2013: Survey data exists, but tax data does not
+CRI 2014 - fileornot: 601
+CRI 2014: Survey data exists, but tax data does not
+CRI 2015 - fileornot: 601
+CRI 2015: Survey data exists, but tax data does not
+CRI 2016 - fileornot: 601
+CRI 2016: Survey data exists, but tax data does not
+MEX 2010 - fileornot: 601
+MEX 2010: Survey data exists, but tax data does not
+MEX 2012 - fileornot: 601
+MEX 2012: Survey data exists, but tax data does not
+MEX 2014 - fileornot: 601
+MEX 2014: Survey data exists, but tax data does not
+
+. 
+. 
+. //record list of countries and years corrected 
+. foreach type in $types {
+  2.                                         
+.         // Details for file replace / no-replace distinction
+.         if ("`type'" == "rep") local command ""
+  3.         if ("`type'" == "rep") local ext ""
+  4.         if ("`type'" == "norep") local command "noreplace"
+  5.         if ("`type'" == "norep") local ext "_norep"
+  6. 
+.         //start from scratch 
+.         clear
+  7.         local obs_mp = wordcount("`ctry_yr_list`ext''")
+  8.         set obs `obs_mp'
+  9.         quietly gen country_year = ""
+ 10.         
+.         //loop over values 
+.         forvalues n = 1 / `obs_mp' {
+ 11.                 local wd_`n': word `n' of `ctry_yr_list`ext''
+ 12.                 quietly replace country_year = "`wd_`n''" in `n'
+ 13.         }
+ 14.         
+.         //save results 
+.         local mpfile "output/bfm_summary/bfm`ext'_`pf'/merging_points.xlsx"
+ 15.         quietly export excel `mpfile', firstrow(variables) ///
+>                 sheet("country_years_2stage") sheetreplace keepcellfmt  
+ 16. 
+. }
+number of observations (_N) was 0, now 0
+observations must be between 1 and 1048576
+r(198);
+
+end of do-file
+r(198);

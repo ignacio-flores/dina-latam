@@ -1,0 +1,611 @@
+
+  ___  ____  ____  ____  ____ (R)
+ /__    /   ____/   /   ____/
+___/   /   /___/   /   /___/   16.1   Copyright 1985-2019 StataCorp LLC
+  Statistics/Data Analysis            StataCorp
+                                      4905 Lakeway Drive
+     MP - Parallel Edition            College Station, Texas 77845 USA
+                                      800-STATA-PC        http://www.stata.com
+                                      979-696-4600        stata@stata.com
+                                      979-696-4601 (fax)
+
+60-user 4-core Stata network perpetual license:
+       Serial number:  501606216487
+         Licensed to:  Ignacio Flores
+                       insead
+
+Notes:
+      1.  Stata is running in batch mode.
+      2.  Unicode is supported; see help unicode_advice.
+      3.  More than 2 billion observations are allowed; see help obs_advice.
+      4.  Maximum number of variables is set to 5000; see help set_maxvar.
+
+. do code/Stata/01e-clean-survey-data.do 
+
+. /*===========================================================================
+> ==*
+> Goal: Clean and prepare country surveys
+> The do file's goal is to create the main income variables that are going
+> to be used in the entire project (PART I-III). In PART IV, it creates differe
+> nt 
+> alternatives of proxies of capital ownership, in order to impute undistribute
+> d 
+> profits at a later stage.
+> *============================================================================
+> =*/
+. 
+. //General--------------------------------------------------------------------
+> ---
+.  
+. clear all
+
+. global aux_part  ""preliminary"" 
+
+. qui do "code/Stata/auxiliar/aux_general.do"  
+
+. 
+. *which surveys do I clean?
+. local countries "$all_countries"
+
+. 
+. * DINA_SURVEY_REVIEW_INPUTS: _fep edad id_hogar id_pers sexo sys_pe yoemp_pe 
+> yjub_pe gan_pe ycap_pe yotr_pe yaim_he yto_pe yto_he categ5_p paren_ee sector
+> _ee ramar_ee tamest_ee li lp pobreza
+. 
+. // Create directory if it doesnt exist
+.         local dirpath "intermediary_data/microdata/raw"
+
+.         mata: st_numscalar("exists", direxists(st_local("dirpath")))
+
+.         if (scalar(exists) == 0) {
+.                 mkdir "`dirpath'"
+.                 display "Created directory: `dirpath'"
+Created directory: intermediary_data/microdata/raw
+.         }
+
+.  
+.  
+. //loop over countries and years 
+. foreach c in `countries' {  
+  2.         
+.         //manage pre/post tax prefixes 
+.         local pf "pos"
+  3.         local pre_lab "`pre_lab'"
+  4.         
+.         //exceptions 
+.         if inlist("`c'", "BRA", "CRI"){
+  5.                 local pf "pre"
+  6.                 local pre_lab "pretax"
+  7.         } 
+  8.         
+.         forvalues  y = $first_y / $last_y {
+  9. 
+.                 //open file 
+.                 qui clear
+ 10.                 qui cap use "input_data/surveys_CEPAL/`c'/`c'_`y'N.dta", c
+> lear
+ 11.                 
+.                 *Only run when data exists
+.                 qui cap assert _N == 0
+ 12.                 if _rc != 0 {
+ 13.                 
+.                         //report activity in log 
+.                         di as text "01e - part 1: Cleaning survey in " _conti
+> nue 
+ 14.                         di as result "`c' - `y' " _continue 
+ 15.                         di as text "at $S_TIME"
+ 16. 
+.                         *----------------------------------------------------
+> ---------------
+.                         *PART 0: preliminary
+.                         *----------------------------------------------------
+> ---------------
+. 
+.                         //
+.                         cap qui replace _fep = round(_fep) 
+ 17.                         * Calculating household size
+.                         qui gen mem = 1
+ 18.                         qui egen hh_size = sum(mem), by(id_hogar)
+ 19.                         *tag adults / number of adults in the household
+.                         qui gen  adults = 0
+ 20.                         qui replace adults = 1 if edad > 19
+ 21.                         qui egen adults_house = sum(adults), by(id_hogar) 
+> // nº of adults
+ 22.                         *Social benefits (other than pensions)
+.                         *qui gen y_sbe  = yoemp4
+. 
+.                         *----------------------------------------------------
+> ---------------
+.                         *PART I: create income variables
+.                         *----------------------------------------------------
+> ---------------
+.                 
+.                         *put 0 where null 
+.                         mvencode sys_pe yoemp_pe yjub_pe gan_pe ycap_pe yotr_
+> pe ///
+>                                 yaim_he yto_pe yto_he, mv(0) override 
+ 23. 
+.                         * Ia: income variables 
+.                         qui gen `pf'_wag_svy = sys_pe + yoemp_pe        
+ 24.                         qui gen `pf'_pen_svy = yjub_pe // + yoemp4
+ 25.                         qui gen `pf'_mix_svy = gan_pe
+ 26.                         qui gen `pf'_bus_svy  = gan_pe if categ5_p==1 
+ 27.                         qui replace `pf'_bus_svy = 0 if `pf'_bus_svy==.
+ 28.                         qui gen `pf'_cap_svy = ycap_pe
+ 29.                         qui gen `pf'_oth_svy = yotr_pe
+ 30.                         qui gen `pf'_ben_svy = `pf'_pen_svy + `pf'_oth_svy
+ 31.                         qui gen `pf'_imp_svy = yaim_he / adults_house
+ 32.                         qui replace `pf'_imp_svy = 0 if edad < 20
+ 33.                         qui gen `pf'_kap_svy = `pf'_cap_svy + `pf'_imp_svy
+ 34.                         qui gen `pf'_mir_svy = `pf'_mix_svy + `pf'_imp_svy
+ 35.                         qui gen `pf'_tot_svy =  `pf'_wag_svy + `pf'_pen_sv
+> y + ///
+>                                 `pf'_mix_svy + `pf'_cap_svy + `pf'_oth_svy 
+ 36.                         qui gen `pf'_totnb_svy  = `pf'_tot_svy - `pf'_bus_
+> svy
+ 37.                         
+.                         if "`c'" == "BRA" {
+ 38.                                 qui gen `pf'_otn_svy = yotn_pe
+ 39.                                 qui replace `pf'_tot_svy = `pf'_tot_svy + 
+> `pf'_otn_svy
+ 40.                         }
+ 41.                         
+.                         * Ib: formal wages
+.                         
+.                         //define cases without formality info 
+.                         if      ("`c'" == "BRA" & `y' == 1990) ///
+>                                 | ("`c'" == "ARG" & inrange(`y', 2000, 2002))
+>  ///
+>                                 | ("`c'" == "BOL" & inrange(`y', 2014, 2015))
+>  ///
+>                                 | ("`c'" == "SLV" & inrange(`y', 2000, 2001))
+>  ///
+>                                 | ("`c'" == "CRI" & inrange(`y', 2000, 2001))
+>  ///
+>                                 | ("`c'" == "URY" & `y' == 2000) ///
+>                                 /*| ("`c'" == "MEX" & `y' == 2000)*/ {
+ 42.                                 qui cap gen formal = 0
+ 43.                         }
+ 44.                         
+.                         //define formality 
+.                         else {
+ 45.                                 qui cap gen formal = 0
+ 46.                                 qui cap replace formal = 1 ///
+>                                         if (cotiza_ee==1 | afilia_ee==1) & `p
+> f'_wag_svy > 0
+ 47.                         }
+ 48.                         
+.                         //formal wages and formal private sector 
+.                         qui gen `pf'_fwag_svy = 0
+ 49.                         qui gen `pf'_prfwag_svy = 0 
+ 50.                         qui gen `pf'_prwag_svy = 0 
+ 51.                         qui replace `pf'_fwag_svy = `pf'_wag_svy if formal
+>  == 1
+ 52.                         qui replace `pf'_prwag_svy = `pf'_wag_svy if secto
+> r_ee == 2
+ 53.                         qui replace `pf'_prfwag_svy = `pf'_fwag_svy if sec
+> tor_ee==2
+ 54.                         
+.                         *Ic: income labels
+.                         local endlab "(survey) - `pre_lab'"
+ 55.                         qui la var `pf'_wag_svy "Wages"
+ 56.                         qui la var `pf'_fwag_svy "Formal wages `endlab'"
+ 57.                         qui la var `pf'_prwag_svy "Wages from private sect
+> or `endlab'"
+ 58.                         qui la var `pf'_prfwag_svy "Private sector formal 
+> wages `endlab'"
+ 59.                         qui la var `pf'_pen_svy "Pensions `endlab'"
+ 60.                         qui la var `pf'_mix_svy "Mixed income `endlab'"
+ 61.                         qui la var `pf'_cap_svy "Capital income `endlab'"
+ 62.                         qui la var `pf'_oth_svy "Other transfer incomes th
+> an pensions `endlab'"
+ 63.                         qui la var `pf'_ben_svy "Total Social benefits `en
+> dlab'"
+ 64.                         qui la var `pf'_imp_svy "Imputed rents `endlab'"
+ 65.                         qui la var `pf'_kap_svy "All capital & mixed incom
+> e `endlab'"
+ 66.                         qui la var `pf'_mir_svy "Mixed income plus imputed
+>  rents `endlab'"
+ 67.                         qui la var `pf'_tot_svy "Total income `endlab'"
+ 68.                         qui la var `pf'_totnb_svy "Total non-business inco
+> me `endlab'"
+ 69.                         
+.                         *check for extreme values 
+.                         if "`c'" == "ARG" local extreme = 500 
+ 70.                         if "`c'" != "ARG" local extreme = 1000
+ 71.                         
+.                         qui sum `pf'_tot_svy [w=_fep], meanonly 
+ 72.                         local ai = r(mean) 
+ 73.                         qui gen excluder = `pf'_tot_svy / `ai'
+ 74.                         qui count if excluder >= `extreme'
+ 75.                         local ctr = r(N)
+ 76.                         
+.                         /*
+>                         di "average income: `ai'" 
+>                         sum excluder, d
+>                         qui sum _fep, meanonly 
+>                         local aw = r(mean) 
+>                         qui gen excluder2 = _fep / `aw' 
+>                         di "average weight: `aw'"
+>                         sum excluder2, d
+>                         exit 1
+>                         */
+.                         if `ctr' > 0 {
+ 77.                                 di as text "extreme values: " _continue
+ 78.                                 di as result `ctr'
+ 79.                                 list id* edad categ5_p excluder if exclude
+> r >= `extreme'
+ 80.                                 qui drop if excluder >= `extreme'       
+ 81.                         }
+ 82.                         cap drop excluder 
+ 83.                 }
+ 84.                 
+.                 // Create directory if it doesnt exist 
+.                 local dirpath "intermediary_data/microdata/raw/`c'"
+ 85.                 mata: st_numscalar("exists", direxists(st_local("dirpath")
+> ))
+ 86.                 if (scalar(exists) == 0) {
+ 87.                         mkdir "`dirpath'"
+ 88.                         display "Created directory: `dirpath'"
+ 89.                 }
+ 90.                 
+.                 // Save microdata 
+.                 qui cap assert _N == 0
+ 91.                 if _rc != 0 {           
+ 92.                         qui save ///
+>                                 "intermediary_data/microdata/raw/`c'/`c'_`y'_
+> raw.dta", replace
+ 93.                 }       
+ 94.         }
+ 95. }
+Created directory: intermediary_data/microdata/raw/COL
+01e - part 1: Cleaning survey in COL - 2002 at 14:42:15
+01e - part 1: Cleaning survey in COL - 2003 at 14:42:16
+01e - part 1: Cleaning survey in COL - 2004 at 14:42:17
+01e - part 1: Cleaning survey in COL - 2005 at 14:42:18
+01e - part 1: Cleaning survey in COL - 2008 at 14:42:19
+01e - part 1: Cleaning survey in COL - 2009 at 14:42:20
+01e - part 1: Cleaning survey in COL - 2010 at 14:42:22
+01e - part 1: Cleaning survey in COL - 2011 at 14:42:24
+01e - part 1: Cleaning survey in COL - 2012 at 14:42:25
+01e - part 1: Cleaning survey in COL - 2013 at 14:42:27
+01e - part 1: Cleaning survey in COL - 2014 at 14:42:28
+01e - part 1: Cleaning survey in COL - 2015 at 14:42:30
+01e - part 1: Cleaning survey in COL - 2016 at 14:42:31
+01e - part 1: Cleaning survey in COL - 2017 at 14:42:33
+01e - part 1: Cleaning survey in COL - 2018 at 14:42:34
+01e - part 1: Cleaning survey in COL - 2019 at 14:42:36
+01e - part 1: Cleaning survey in COL - 2020 at 14:42:37
+01e - part 1: Cleaning survey in COL - 2021 at 14:42:39
+01e - part 1: Cleaning survey in COL - 2022 at 14:42:40
+01e - part 1: Cleaning survey in COL - 2023 at 14:42:42
+01e - part 1: Cleaning survey in COL - 2024 at 14:42:43
+01e - part 1: Cleaning survey in ARG - 2000 at 14:42:45
+Created directory: intermediary_data/microdata/raw/ARG
+01e - part 1: Cleaning survey in ARG - 2001 at 14:42:45
+01e - part 1: Cleaning survey in ARG - 2002 at 14:42:45
+01e - part 1: Cleaning survey in ARG - 2003 at 14:42:45
+extreme values: 1
+
+       +-------------------------------------------------------------------+
+78652. |       id_hogar        |       id_pers        |        edad        |
+       |          22381        |             1        |          38        |
+       |-------------------------------------------------------------------|
+       |                                               categ5_p | excluder |
+       | Asalariados (puede incluir o no el servicio doméstico) | 643.4277 |
+       +-------------------------------------------------------------------+
+01e - part 1: Cleaning survey in ARG - 2004 at 14:42:45
+01e - part 1: Cleaning survey in ARG - 2005 at 14:42:46
+01e - part 1: Cleaning survey in ARG - 2006 at 14:42:46
+extreme values: 1
+
+        +--------------------------------------------------+
+        | id_hogar   id_pers   edad    categ5_p   excluder |
+        |--------------------------------------------------|
+ 92318. |    26765         1     47   Empleador    852.417 |
+        +--------------------------------------------------+
+01e - part 1: Cleaning survey in ARG - 2007 at 14:42:46
+01e - part 1: Cleaning survey in ARG - 2008 at 14:42:46
+01e - part 1: Cleaning survey in ARG - 2009 at 14:42:46
+01e - part 1: Cleaning survey in ARG - 2010 at 14:42:47
+01e - part 1: Cleaning survey in ARG - 2011 at 14:42:47
+01e - part 1: Cleaning survey in ARG - 2012 at 14:42:47
+01e - part 1: Cleaning survey in ARG - 2013 at 14:42:47
+01e - part 1: Cleaning survey in ARG - 2014 at 14:42:48
+01e - part 1: Cleaning survey in ARG - 2016 at 14:42:48
+01e - part 1: Cleaning survey in ARG - 2017 at 14:42:48
+01e - part 1: Cleaning survey in ARG - 2018 at 14:42:48
+01e - part 1: Cleaning survey in ARG - 2019 at 14:42:49
+01e - part 1: Cleaning survey in ARG - 2020 at 14:42:49
+01e - part 1: Cleaning survey in ARG - 2021 at 14:42:49
+01e - part 1: Cleaning survey in ARG - 2022 at 14:42:49
+01e - part 1: Cleaning survey in ARG - 2023 at 14:42:50
+01e - part 1: Cleaning survey in ARG - 2024 at 14:42:50
+01e - part 1: Cleaning survey in PER - 2000 at 14:42:50
+Created directory: intermediary_data/microdata/raw/PER
+01e - part 1: Cleaning survey in PER - 2001 at 14:42:50
+01e - part 1: Cleaning survey in PER - 2002 at 14:42:50
+01e - part 1: Cleaning survey in PER - 2003 at 14:42:50
+01e - part 1: Cleaning survey in PER - 2004 at 14:42:51
+01e - part 1: Cleaning survey in PER - 2005 at 14:42:51
+01e - part 1: Cleaning survey in PER - 2006 at 14:42:51
+01e - part 1: Cleaning survey in PER - 2007 at 14:42:51
+01e - part 1: Cleaning survey in PER - 2008 at 14:42:51
+01e - part 1: Cleaning survey in PER - 2009 at 14:42:52
+01e - part 1: Cleaning survey in PER - 2010 at 14:42:52
+01e - part 1: Cleaning survey in PER - 2011 at 14:42:52
+01e - part 1: Cleaning survey in PER - 2012 at 14:42:52
+01e - part 1: Cleaning survey in PER - 2013 at 14:42:52
+01e - part 1: Cleaning survey in PER - 2014 at 14:42:53
+01e - part 1: Cleaning survey in PER - 2015 at 14:42:53
+01e - part 1: Cleaning survey in PER - 2016 at 14:42:53
+01e - part 1: Cleaning survey in PER - 2017 at 14:42:54
+01e - part 1: Cleaning survey in PER - 2018 at 14:42:54
+01e - part 1: Cleaning survey in PER - 2019 at 14:42:54
+01e - part 1: Cleaning survey in PER - 2020 at 14:42:55
+01e - part 1: Cleaning survey in PER - 2021 at 14:42:55
+01e - part 1: Cleaning survey in PER - 2022 at 14:42:55
+01e - part 1: Cleaning survey in PER - 2023 at 14:42:55
+01e - part 1: Cleaning survey in PER - 2024 at 14:42:56
+01e - part 1: Cleaning survey in URY - 2000 at 14:42:56
+Created directory: intermediary_data/microdata/raw/URY
+01e - part 1: Cleaning survey in URY - 2001 at 14:42:56
+     yotr_pe: 52954 missing values recoded
+01e - part 1: Cleaning survey in URY - 2002 at 14:42:56
+     yotr_pe: 54755 missing values recoded
+01e - part 1: Cleaning survey in URY - 2003 at 14:42:56
+     yotr_pe: 53854 missing values recoded
+01e - part 1: Cleaning survey in URY - 2004 at 14:42:56
+     yotr_pe: 53727 missing values recoded
+01e - part 1: Cleaning survey in URY - 2005 at 14:42:56
+     yotr_pe: 51404 missing values recoded
+01e - part 1: Cleaning survey in URY - 2007 at 14:42:57
+01e - part 1: Cleaning survey in URY - 2008 at 14:42:57
+01e - part 1: Cleaning survey in URY - 2009 at 14:42:57
+01e - part 1: Cleaning survey in URY - 2010 at 14:42:58
+01e - part 1: Cleaning survey in URY - 2011 at 14:42:58
+01e - part 1: Cleaning survey in URY - 2012 at 14:42:58
+01e - part 1: Cleaning survey in URY - 2013 at 14:42:58
+01e - part 1: Cleaning survey in URY - 2014 at 14:42:59
+01e - part 1: Cleaning survey in URY - 2015 at 14:42:59
+01e - part 1: Cleaning survey in URY - 2016 at 14:42:59
+01e - part 1: Cleaning survey in URY - 2017 at 14:43:00
+01e - part 1: Cleaning survey in URY - 2018 at 14:43:00
+01e - part 1: Cleaning survey in URY - 2019 at 14:43:00
+01e - part 1: Cleaning survey in URY - 2020 at 14:43:01
+01e - part 1: Cleaning survey in URY - 2021 at 14:43:01
+01e - part 1: Cleaning survey in URY - 2022 at 14:43:01
+01e - part 1: Cleaning survey in URY - 2023 at 14:43:01
+01e - part 1: Cleaning survey in URY - 2024 at 14:43:01
+01e - part 1: Cleaning survey in CRI - 2000 at 14:43:01
+Created directory: intermediary_data/microdata/raw/CRI
+01e - part 1: Cleaning survey in CRI - 2001 at 14:43:01
+01e - part 1: Cleaning survey in CRI - 2002 at 14:43:02
+01e - part 1: Cleaning survey in CRI - 2003 at 14:43:02
+01e - part 1: Cleaning survey in CRI - 2004 at 14:43:02
+01e - part 1: Cleaning survey in CRI - 2005 at 14:43:02
+01e - part 1: Cleaning survey in CRI - 2006 at 14:43:02
+01e - part 1: Cleaning survey in CRI - 2007 at 14:43:02
+01e - part 1: Cleaning survey in CRI - 2008 at 14:43:02
+01e - part 1: Cleaning survey in CRI - 2009 at 14:43:02
+01e - part 1: Cleaning survey in CRI - 2010 at 14:43:02
+01e - part 1: Cleaning survey in CRI - 2011 at 14:43:03
+01e - part 1: Cleaning survey in CRI - 2012 at 14:43:03
+01e - part 1: Cleaning survey in CRI - 2013 at 14:43:03
+01e - part 1: Cleaning survey in CRI - 2014 at 14:43:03
+01e - part 1: Cleaning survey in CRI - 2015 at 14:43:03
+01e - part 1: Cleaning survey in CRI - 2016 at 14:43:03
+01e - part 1: Cleaning survey in CRI - 2017 at 14:43:03
+01e - part 1: Cleaning survey in CRI - 2018 at 14:43:03
+01e - part 1: Cleaning survey in CRI - 2019 at 14:43:03
+01e - part 1: Cleaning survey in CRI - 2020 at 14:43:03
+01e - part 1: Cleaning survey in CRI - 2021 at 14:43:04
+01e - part 1: Cleaning survey in CRI - 2022 at 14:43:04
+01e - part 1: Cleaning survey in CRI - 2023 at 14:43:04
+01e - part 1: Cleaning survey in CRI - 2024 at 14:43:04
+Created directory: intermediary_data/microdata/raw/ECU
+01e - part 1: Cleaning survey in ECU - 2001 at 14:43:04
+01e - part 1: Cleaning survey in ECU - 2003 at 14:43:04
+extreme values: 4
+
+       +-------------------------------------------------------------------+
+34182. |       id_hogar        |       id_pers        |        edad        |
+       |           7992        |             3        |          31        |
+       |-------------------------------------------------------------------|
+       |                                               categ5_p | excluder |
+       |                                                     NA | 2007.023 |
+       +-------------------------------------------------------------------+
+
+       +-------------------------------------------------------------------+
+38732. |       id_hogar        |       id_pers        |        edad        |
+       |           9165        |             1        |          66        |
+       |-------------------------------------------------------------------|
+       |                                               categ5_p | excluder |
+       |                                                     NA | 2006.978 |
+       +-------------------------------------------------------------------+
+
+       +-------------------------------------------------------------------+
+38947. |       id_hogar        |       id_pers        |        edad        |
+       |           9217        |             1        |          39        |
+       |-------------------------------------------------------------------|
+       |                                               categ5_p | excluder |
+       | Asalariados (puede incluir o no el servicio doméstico) | 1362.135 |
+       +-------------------------------------------------------------------+
+
+       +-------------------------------------------------------------------+
+57148. |       id_hogar        |       id_pers        |        edad        |
+       |          13524        |             1        |          33        |
+       |-------------------------------------------------------------------|
+       |                                               categ5_p | excluder |
+       | Asalariados (puede incluir o no el servicio doméstico) | 2712.873 |
+       +-------------------------------------------------------------------+
+01e - part 1: Cleaning survey in ECU - 2005 at 14:43:04
+01e - part 1: Cleaning survey in ECU - 2006 at 14:43:04
+extreme values: 2
+
+       +--------------------------------------------------+
+       | id_hogar   id_pers   edad    categ5_p   excluder |
+       |--------------------------------------------------|
+12447. |     3152         1     34   Empleador   2349.346 |
+62495. |    15076         1     68   Empleador   2221.137 |
+       +--------------------------------------------------+
+01e - part 1: Cleaning survey in ECU - 2007 at 14:43:05
+01e - part 1: Cleaning survey in ECU - 2008 at 14:43:05
+01e - part 1: Cleaning survey in ECU - 2009 at 14:43:05
+01e - part 1: Cleaning survey in ECU - 2010 at 14:43:05
+01e - part 1: Cleaning survey in ECU - 2011 at 14:43:05
+01e - part 1: Cleaning survey in ECU - 2012 at 14:43:05
+01e - part 1: Cleaning survey in ECU - 2013 at 14:43:06
+01e - part 1: Cleaning survey in ECU - 2014 at 14:43:06
+01e - part 1: Cleaning survey in ECU - 2015 at 14:43:06
+01e - part 1: Cleaning survey in ECU - 2016 at 14:43:06
+01e - part 1: Cleaning survey in ECU - 2017 at 14:43:07
+01e - part 1: Cleaning survey in ECU - 2018 at 14:43:07
+01e - part 1: Cleaning survey in ECU - 2019 at 14:43:07
+01e - part 1: Cleaning survey in ECU - 2020 at 14:43:07
+01e - part 1: Cleaning survey in ECU - 2021 at 14:43:07
+01e - part 1: Cleaning survey in ECU - 2022 at 14:43:08
+     yjub_pe: 1 missing value recoded
+      yto_pe: 1 missing value recoded
+01e - part 1: Cleaning survey in ECU - 2023 at 14:43:09
+01e - part 1: Cleaning survey in ECU - 2024 at 14:43:09
+01e - part 1: Cleaning survey in CHL - 2000 at 14:43:10
+Created directory: intermediary_data/microdata/raw/CHL
+01e - part 1: Cleaning survey in CHL - 2003 at 14:43:11
+01e - part 1: Cleaning survey in CHL - 2006 at 14:43:11
+      gan_pe: 3 missing values recoded
+01e - part 1: Cleaning survey in CHL - 2009 at 14:43:12
+01e - part 1: Cleaning survey in CHL - 2011 at 14:43:12
+01e - part 1: Cleaning survey in CHL - 2013 at 14:43:13
+01e - part 1: Cleaning survey in CHL - 2015 at 14:43:13
+01e - part 1: Cleaning survey in CHL - 2017 at 14:43:14
+01e - part 1: Cleaning survey in CHL - 2020 at 14:43:15
+01e - part 1: Cleaning survey in CHL - 2022 at 14:43:15
+01e - part 1: Cleaning survey in CHL - 2024 at 14:43:16
+Created directory: intermediary_data/microdata/raw/BRA
+01e - part 1: Cleaning survey in BRA - 2001 at 14:43:16
+01e - part 1: Cleaning survey in BRA - 2002 at 14:43:17
+01e - part 1: Cleaning survey in BRA - 2003 at 14:43:18
+01e - part 1: Cleaning survey in BRA - 2004 at 14:43:19
+01e - part 1: Cleaning survey in BRA - 2005 at 14:43:19
+01e - part 1: Cleaning survey in BRA - 2006 at 14:43:20
+01e - part 1: Cleaning survey in BRA - 2007 at 14:43:21
+01e - part 1: Cleaning survey in BRA - 2008 at 14:43:22
+01e - part 1: Cleaning survey in BRA - 2009 at 14:43:23
+01e - part 1: Cleaning survey in BRA - 2011 at 14:43:24
+01e - part 1: Cleaning survey in BRA - 2012 at 14:43:25
+01e - part 1: Cleaning survey in BRA - 2013 at 14:43:26
+01e - part 1: Cleaning survey in BRA - 2014 at 14:43:26
+01e - part 1: Cleaning survey in BRA - 2015 at 14:43:27
+01e - part 1: Cleaning survey in BRA - 2016 at 14:43:28
+01e - part 1: Cleaning survey in BRA - 2017 at 14:43:29
+01e - part 1: Cleaning survey in BRA - 2018 at 14:43:30
+01e - part 1: Cleaning survey in BRA - 2019 at 14:43:31
+01e - part 1: Cleaning survey in BRA - 2020 at 14:43:32
+01e - part 1: Cleaning survey in BRA - 2021 at 14:43:33
+     yaim_he: 5 missing values recoded
+      yto_he: 5 missing values recoded
+01e - part 1: Cleaning survey in BRA - 2022 at 14:43:34
+01e - part 1: Cleaning survey in BRA - 2023 at 14:43:35
+01e - part 1: Cleaning survey in BRA - 2024 at 14:43:36
+01e - part 1: Cleaning survey in SLV - 2000 at 14:43:37
+Created directory: intermediary_data/microdata/raw/SLV
+01e - part 1: Cleaning survey in SLV - 2001 at 14:43:38
+01e - part 1: Cleaning survey in SLV - 2002 at 14:43:38
+01e - part 1: Cleaning survey in SLV - 2003 at 14:43:38
+01e - part 1: Cleaning survey in SLV - 2004 at 14:43:38
+01e - part 1: Cleaning survey in SLV - 2005 at 14:43:38
+01e - part 1: Cleaning survey in SLV - 2006 at 14:43:39
+01e - part 1: Cleaning survey in SLV - 2007 at 14:43:39
+01e - part 1: Cleaning survey in SLV - 2009 at 14:43:39
+01e - part 1: Cleaning survey in SLV - 2010 at 14:43:39
+01e - part 1: Cleaning survey in SLV - 2012 at 14:43:40
+01e - part 1: Cleaning survey in SLV - 2013 at 14:43:40
+extreme values: 1
+
+       +--------------------------------------------------+
+       | id_hogar   id_pers   edad    categ5_p   excluder |
+       |--------------------------------------------------|
+ 5322. |     1441         1     65   Empleador   1519.968 |
+       +--------------------------------------------------+
+01e - part 1: Cleaning survey in SLV - 2014 at 14:43:40
+01e - part 1: Cleaning survey in SLV - 2015 at 14:43:40
+01e - part 1: Cleaning survey in SLV - 2016 at 14:43:40
+01e - part 1: Cleaning survey in SLV - 2017 at 14:43:41
+01e - part 1: Cleaning survey in SLV - 2018 at 14:43:41
+01e - part 1: Cleaning survey in SLV - 2019 at 14:43:41
+01e - part 1: Cleaning survey in SLV - 2020 at 14:43:41
+01e - part 1: Cleaning survey in SLV - 2021 at 14:43:42
+01e - part 1: Cleaning survey in SLV - 2022 at 14:43:42
+01e - part 1: Cleaning survey in SLV - 2023 at 14:43:42
+     yjub_pe: 1 missing value recoded
+      yto_pe: 1 missing value recoded
+01e - part 1: Cleaning survey in SLV - 2024 at 14:43:42
+01e - part 1: Cleaning survey in MEX - 2000 at 14:43:42
+Created directory: intermediary_data/microdata/raw/MEX
+01e - part 1: Cleaning survey in MEX - 2002 at 14:43:42
+01e - part 1: Cleaning survey in MEX - 2004 at 14:43:43
+01e - part 1: Cleaning survey in MEX - 2006 at 14:43:43
+01e - part 1: Cleaning survey in MEX - 2008 at 14:43:43
+01e - part 1: Cleaning survey in MEX - 2010 at 14:43:44
+01e - part 1: Cleaning survey in MEX - 2012 at 14:43:45
+01e - part 1: Cleaning survey in MEX - 2014 at 14:43:45
+extreme values: 1
+
+        +---------------------------------------------------+
+        |  id_hogar   id_pers   edad    categ5_p   excluder |
+        |---------------------------------------------------|
+140675. | 2.108e+10         1     74   Empleador   1126.342 |
+        +---------------------------------------------------+
+01e - part 1: Cleaning survey in MEX - 2016 at 14:43:46
+extreme values: 2
+
+        +-------------------------------------------------------+
+        |  id_hogar   id_pers   edad        categ5_p   excluder |
+        |-------------------------------------------------------|
+ 91306. | 1.106e+10         1     63       Empleador   1521.973 |
+154401. | 1.908e+10         1     65   Cuenta propia   3193.303 |
+        +-------------------------------------------------------+
+01e - part 1: Cleaning survey in MEX - 2018 at 14:43:47
+01e - part 1: Cleaning survey in MEX - 2020 at 14:43:47
+01e - part 1: Cleaning survey in MEX - 2022 at 14:43:48
+01e - part 1: Cleaning survey in MEX - 2024 at 14:43:49
+01e - part 1: Cleaning survey in DOM - 2000 at 14:43:49
+Created directory: intermediary_data/microdata/raw/DOM
+01e - part 1: Cleaning survey in DOM - 2001 at 14:43:50
+01e - part 1: Cleaning survey in DOM - 2002 at 14:43:50
+01e - part 1: Cleaning survey in DOM - 2003 at 14:43:50
+01e - part 1: Cleaning survey in DOM - 2004 at 14:43:50
+01e - part 1: Cleaning survey in DOM - 2005 at 14:43:50
+01e - part 1: Cleaning survey in DOM - 2006 at 14:43:50
+01e - part 1: Cleaning survey in DOM - 2007 at 14:43:50
+01e - part 1: Cleaning survey in DOM - 2008 at 14:43:50
+01e - part 1: Cleaning survey in DOM - 2009 at 14:43:50
+01e - part 1: Cleaning survey in DOM - 2010 at 14:43:50
+01e - part 1: Cleaning survey in DOM - 2011 at 14:43:50
+01e - part 1: Cleaning survey in DOM - 2012 at 14:43:50
+01e - part 1: Cleaning survey in DOM - 2013 at 14:43:50
+01e - part 1: Cleaning survey in DOM - 2014 at 14:43:50
+01e - part 1: Cleaning survey in DOM - 2015 at 14:43:51
+01e - part 1: Cleaning survey in DOM - 2016 at 14:43:51
+01e - part 1: Cleaning survey in DOM - 2017 at 14:43:51
+01e - part 1: Cleaning survey in DOM - 2018 at 14:43:51
+01e - part 1: Cleaning survey in DOM - 2019 at 14:43:51
+01e - part 1: Cleaning survey in DOM - 2020 at 14:43:52
+01e - part 1: Cleaning survey in DOM - 2021 at 14:43:52
+01e - part 1: Cleaning survey in DOM - 2022 at 14:43:52
+01e - part 1: Cleaning survey in DOM - 2023 at 14:43:52
+01e - part 1: Cleaning survey in DOM - 2024 at 14:43:52
+
+. 
+. *------------------------------------------------------------------------
+. *PART I.I Country adjustments
+. *------------------------------------------------------------------------
+.                         
+. * Brazil
+. qui do "code/Stata/BRA/svy_adj_BRA.do"
+lower not allowed
+r(101);
+
+end of do-file
+r(101);

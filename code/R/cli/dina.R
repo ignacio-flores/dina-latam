@@ -670,8 +670,10 @@ What it manages:
 
 Subcommands:
   init                            Creates ignored `config/pushover.local.R`
-                                  with placeholder credentials. Use --force to
-                                  overwrite the placeholder file.
+                                  with placeholder credentials. Add both
+                                  values, then run `dina notify test`.
+                                  Initialization alone never sends or enables
+                                  notifications. Use --force to overwrite.
   test                            Sends a test message using the local file or
                                   environment fallback.
 
@@ -2578,6 +2580,8 @@ dina_cmd_doctor <- function(root) {
   }
   if (!isTRUE(result$pushover$enabled)) {
     dina_cli_alert("notifications.pushover.enabled is false; explicit `dina notify test` and `--notify` still send when configured.")
+  } else if (isTRUE(result$pushover$configured)) {
+    dina_cli_ok("Automatic completion/failure notifications are enabled for `dina run`.")
   }
   invisible(result)
 }
@@ -6266,12 +6270,17 @@ dina_cmd_run <- function(root, args) {
       return(invisible(list()))
     }
     tasks <- dina_task_map(root)[stale_ids]
+    if (!isTRUE(flags[["dry-run"]])) dina_pipeline_input_preflight(tasks, root = root, session = session)
     results <- list()
     for (task in tasks) {
       result <- dina_cli_run_task(task, root, session = session, dry_run = isTRUE(flags[["dry-run"]]), force = isTRUE(flags$force))
       results[[task$id]] <- result
+      if (!is.null(result$session)) session <- result$session
       dina_cli_cat(sprintf("%s: %s", result$task, dina_cli_dim(result$status)))
       if (!is.null(result$command)) dina_cli_cat(sprintf("  %s", dina_cli_command(paste(result$command, collapse = " "))))
+      if (identical(result$status, "failed")) {
+        stop(sprintf("Task %s failed. Downstream tasks were not started; inspect %s.", task$id, result$log_dir), call. = FALSE)
+      }
     }
     return(invisible(results))
   }
@@ -6289,7 +6298,17 @@ dina_cmd_run <- function(root, args) {
   )
   session <- if (isTRUE(flags$benchmark)) NULL else dina_load_session(root = root)
   dry_run <- isTRUE(flags[["dry-run"]])
-  notify <- isTRUE(flags$notify)
+  notification_status <- dina_pushover_status(root)
+  notification_requested <- isTRUE(flags$notify) || isTRUE(notification_status$enabled)
+  if (isTRUE(flags$notify) && !isTRUE(notification_status$configured)) {
+    stop("Pushover was requested but is not configured. Add credentials with `dina notify init`, then verify delivery with `dina notify test`.", call. = FALSE)
+  }
+  notify <- notification_requested && isTRUE(notification_status$configured)
+  if (notification_requested && !notify) {
+    dina_cli_warn("Automatic Pushover notification is enabled but credentials are incomplete; no notification will be sent. Run `dina notify init`, then `dina notify test`.")
+  } else if (notify) {
+    dina_cli_alert("Pushover will notify you when this run completes or stops with an error.")
+  }
   completed <- FALSE
   results <- list()
   if (notify) {
@@ -6306,11 +6325,18 @@ dina_cmd_run <- function(root, args) {
       )
     }, add = TRUE)
   }
+  if (!dry_run) {
+    dina_pipeline_input_preflight(tasks, root = root, session = session)
+  }
   for (task in tasks) {
     result <- dina_cli_run_task(task, root, session = session, dry_run = dry_run, force = isTRUE(flags$force))
     results[[task$id]] <- result
+    if (!is.null(result$session)) session <- result$session
     dina_cli_cat(sprintf("%s: %s", result$task, dina_cli_dim(result$status)))
     if (!is.null(result$command)) dina_cli_cat(sprintf("  %s", dina_cli_command(paste(result$command, collapse = " "))))
+    if (identical(result$status, "failed")) {
+      stop(sprintf("Task %s failed. Downstream tasks were not started; inspect %s.", task$id, result$log_dir), call. = FALSE)
+    }
   }
   completed <- TRUE
 }
@@ -6488,8 +6514,14 @@ dina_cmd_notify <- function(root, args) {
     result <- dina_notify_init(root, overwrite = isTRUE(flags$force))
     if (result$created) {
       dina_cli_ok(sprintf("Created %s", dina_relative(result$path, root)))
+      dina_cli_alert("Add your Pushover app token and user key there, then run `dina notify test`. Initialization does not enable notifications.")
     } else {
-      dina_cli_warn(sprintf("%s already exists. Pass --force to overwrite the placeholder template.", dina_relative(result$path, root)))
+      status <- dina_pushover_status(root)
+      if (isTRUE(status$configured)) {
+        dina_cli_ok(sprintf("%s contains usable credentials. Run `dina notify test` to verify delivery.", dina_relative(result$path, root)))
+      } else {
+        dina_cli_warn(sprintf("%s exists but does not contain usable credentials. Add both values, then run `dina notify test`.", dina_relative(result$path, root)))
+      }
     }
   } else {
     stop("Unknown notify command: ", sub, call. = FALSE)

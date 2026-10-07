@@ -1,0 +1,140 @@
+
+  ___  ____  ____  ____  ____ (R)
+ /__    /   ____/   /   ____/
+___/   /   /___/   /   /___/   16.1   Copyright 1985-2019 StataCorp LLC
+  Statistics/Data Analysis            StataCorp
+                                      4905 Lakeway Drive
+     MP - Parallel Edition            College Station, Texas 77845 USA
+                                      800-STATA-PC        http://www.stata.com
+                                      979-696-4600        stata@stata.com
+                                      979-696-4601 (fax)
+
+60-user 4-core Stata network perpetual license:
+       Serial number:  501606216487
+         Licensed to:  Ignacio Flores
+                       insead
+
+Notes:
+      1.  Stata is running in batch mode.
+      2.  Unicode is supported; see help unicode_advice.
+      3.  More than 2 billion observations are allowed; see help obs_advice.
+      4.  Maximum number of variables is set to 5000; see help set_maxvar.
+
+. do code/Stata/04b-build-pretax-surveys.do 
+
+. /////////////////////////////////////////////////////////////////////////////
+> ///
+> //      Calculates effective tax rates for country-years for which we have 
+. //              no data. After that, it computes pre-tax incomes for correcte
+> d surveys
+. /////////////////////////////////////////////////////////////////////////////
+> ///
+> 
+. //make room
+. clear all
+
+. 
+. //preliminary settings 
+. global aux_part  ""preliminary"" 
+
+. quietly do "code/Stata/auxiliar/aux_general.do"
+
+. 
+. //define macros 
+. if "${bfm_replace}" == "yes" local ext ""
+
+. if "${bfm_replace}" == "no" local ext "_norep"
+
+. 
+. //define paths 
+. global codes            "code/Stata"
+
+. global data_svy         "intermediary_data/microdata/"
+
+. global data_tax         "input_data/admin_data"
+
+. *global pre_aux         "Data/Tax-data/auxiliar-pre-tax"
+. 
+. *----------------------------------------------------------------------------
+> ---
+. * I. We create effective tax rates as average of each country, 
+. * to fill the gap when it does not exist.
+. *----------------------------------------------------------------------------
+> ---
+. 
+. foreach c in $all_countries     {  
+  2.         forvalues  year = $first_y / $last_y {
+  3.         
+.                 local eff_tax_file ///
+>                         "$data_tax/`c'/eff-tax-rate/`c'_effrates_`year'.dta" 
+  4.                 local syneff_tax_file   ///
+>                         "$data_tax/`c'/eff-tax-rate/`c'_effrates_syn.dta" 
+  5.                 
+.                 *Take the first eff_tax_rate file, and merge with all the fol
+> lowing
+.                 local year_p = `year' + 1
+  6.                 qui cap confirm file `eff_tax_file' 
+  7.                 if _rc==0 {
+  8.                         di as result  "`eff_tax_file' found"
+  9.                         qui cap use `eff_tax_file', clear
+ 10.                         
+.                         qui cap gen eff_tax_rate_ipol_`year' = eff_tax_rate_i
+> pol
+ 11.                         qui cap gen eff_ss_rate_ipol_`year'  = eff_ss_rate
+> _ipol
+ 12.                         
+.                         qui cap drop eff_tax_rate_ipol
+ 13.                         qui cap drop eff_ss_rate_ipol
+ 14.                         
+.                         forvalues  x = `year_p' / $last_y {
+ 15.                                 qui cap confirm file ///
+>                                         "$data_tax/`c'/eff-tax-rate/`c'_effra
+> tes_`x'.dta"
+ 16.                                 if _rc==0 {
+ 17.                                         qui cap merge 1:1 p_merge using //
+> /
+>                                                 "$data_tax/`c'/eff-tax-rate/`
+> c'_effrates_`x'.dta" ///
+>                                                 , gen(merge_`x')
+ 18.                                         qui cap gen eff_tax_rate_ipol_`x' 
+> = eff_tax_rate_ipol
+ 19.                                         qui cap gen eff_ss_rate_ipol_`x'  
+> = eff_ss_rate_ipol
+ 20.                                         qui cap drop eff_tax_rate_ipol
+ 21.                                         qui cap drop eff_ss_rate_ipol
+ 22. 
+.                                 }
+ 23.                         }
+ 24.                         continue, break                         
+ 25.                 } 
+ 26.                 else {
+ 27.                         *di as text "`eff_tax_file' not found"
+.                 }               
+ 28.         }
+ 29.         
+.         //write them down
+.         qui cap egen eff_tax_rate_ipol_syn = rmean(eff_tax_rate_ipol*)
+ 30.         qui cap egen eff_ss_rate_ipol_syn  = rmean(eff_ss_rate_ipol*)
+ 31.         
+.         //keep selected variables 
+.         qui cap confirm variable eff_ss_rate_ipol_syn 
+ 32.                 if !_rc {
+ 33.                         qui keep eff_tax_rate_ipol_syn eff_ss_rate_ipol_sy
+> n p_merge
+ 34.                 }
+ 35.                 else {
+ 36.                         qui keep eff_tax_rate_ipol_syn p_merge
+ 37.                 }
+ 38.         
+.         //save 
+.         *qui cap duplicates drop p_merge
+.         *assert !missing(eff_tax_rate_ipol_syn)
+.         qui save `syneff_tax_file', replace
+ 39. }
+input_data/admin_data/COL/eff-tax-rate/COL_effrates_2014.dta found
+file input_data/admin_data/ARG/eff-tax-rate/ARG_effrates_syn.dta could not be
+    opened
+r(603);
+
+end of do-file
+r(603);

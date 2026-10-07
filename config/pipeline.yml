@@ -26,9 +26,10 @@ tasks:
     stage: macro
     type: stata
     script: code/Stata/01c-import-tax-composition.do
-    deps: []
+    deps:
+      - 01a-clean-macro-data
     inputs:
-      - input_data/OECD-CIAT-CEPAL
+      - input_data/OECD-CIAT-CEPAL/tot_tax_pct_gdp_2024.csv
     outputs:
       - output/figures/total-taxes
 
@@ -73,10 +74,11 @@ tasks:
     type: stata
     script: code/Stata/01g-add-public-spending-data.do
     deps:
-      - 01a-clean-macro-data
+      - 01c-import-tax-composition
     inputs:
       - input_data/expenditure_durrer_gethin_fisherpost
       - input_data/wid/public_spending_gdp_shares.dta
+      - intermediary_data/national_accounts/UNDATA-WID-OECD-Merged.dta
     outputs:
       - output/figures/spending
 
@@ -152,7 +154,14 @@ tasks:
     inputs:
       - input_data/admin_data
     outputs:
-      - input_data/admin_data/*/gpinter_*.xlsx
+      - input_data/admin_data/SLV/gpinter_SLV_*.xlsx
+      - input_data/admin_data/PER/gpinter_PER_*.xlsx
+      - input_data/admin_data/DOM/gpinter_DOM_*.xlsx
+      - input_data/admin_data/URY/gpinter_URY_*.xlsx
+      - input_data/admin_data/BRA/gpinter_BRA_*.xlsx
+      - input_data/admin_data/CHL/gpinter_CHL_*.xlsx
+      - input_data/admin_data/COL/gpinter_COL_*.xlsx
+      - input_data/admin_data/ECU/gpinter_ECU_*.xlsx
 
   - id: 03a-run-bfm
     stage: bfm
@@ -164,6 +173,7 @@ tasks:
     inputs:
       - intermediary_data/microdata/raw
       - input_data/admin_data
+      - config/admin_trust_regions.yml
     outputs:
       - intermediary_data/microdata/bfm_norep_pre
       - output/bfm_summary
@@ -176,6 +186,7 @@ tasks:
       - 03a-run-bfm
     inputs:
       - intermediary_data/microdata/bfm_norep_pre
+      - config/admin_trust_regions.yml
     outputs:
       - intermediary_data/microdata/bfm_norep_pos
 
@@ -188,6 +199,7 @@ tasks:
       - 03b-run-bfm-2stage
     inputs:
       - output/bfm_summary
+      - config/admin_trust_regions.yml
     outputs:
       - output/bfm_summary/pseudo_thetas.xlsx
 
@@ -210,6 +222,7 @@ tasks:
       - 02e-format-for-bfm
     inputs:
       - input_data/admin_data
+      - input_data/admin_data/MEX/gpinter_MEX_2009.xlsx
     outputs:
       - output/efftax
 
@@ -268,6 +281,7 @@ tasks:
     script: code/Stata/05c-impute-pretax.do
     deps:
       - 05b-rescale-and-impute
+      - 01g-add-public-spending-data
     inputs:
       - intermediary_data/microdata/rescaled
     outputs:

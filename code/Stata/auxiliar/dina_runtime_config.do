@@ -15,7 +15,7 @@ if "${dina_runtime_config_loaded}" != "yes" {
         exit 601
     }
     quietly do "`dina_config_do'"
-    foreach required in dina_config_scope dina_config_fingerprint dina_baseline_fingerprint dina_config_countries all_countries first_y last_y lang debug bfm_replace all_units all_steps export_unit export_steps export_last_y previous_update {
+    foreach required in dina_config_scope dina_config_fingerprint dina_baseline_fingerprint dina_config_countries admin_trust_regions all_countries first_y last_y lang debug bfm_replace all_units all_steps export_unit export_steps export_last_y previous_update {
         if `"${`required'}"' == "" {
             di as error "Generated DINA runtime configuration is missing `required'."
             exit 198

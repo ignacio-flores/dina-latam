@@ -1,0 +1,419 @@
+
+  ___  ____  ____  ____  ____ (R)
+ /__    /   ____/   /   ____/
+___/   /   /___/   /   /___/   16.1   Copyright 1985-2019 StataCorp LLC
+  Statistics/Data Analysis            StataCorp
+                                      4905 Lakeway Drive
+     MP - Parallel Edition            College Station, Texas 77845 USA
+                                      800-STATA-PC        http://www.stata.com
+                                      979-696-4600        stata@stata.com
+                                      979-696-4601 (fax)
+
+60-user 4-core Stata network perpetual license:
+       Serial number:  501606216487
+         Licensed to:  Ignacio Flores
+                       insead
+
+Notes:
+      1.  Stata is running in batch mode.
+      2.  Unicode is supported; see help unicode_advice.
+      3.  More than 2 billion observations are allowed; see help obs_advice.
+      4.  Maximum number of variables is set to 5000; see help set_maxvar.
+
+. do code/Stata/04c-create-raw-postax-units.do 
+
+. /////////////////////////////////////////////////////////////////////////////
+> ///
+> //
+. //                                                      Title:  
+. //                       Authors: Mauricio DE ROSA, Ignacio FLORES, Marc MORG
+> AN 
+. //                                                                      Year:
+>  2020
+. //
+. /////////////////////////////////////////////////////////////////////////////
+> ///
+> 
+. clear all
+
+. 
+. //0. General settings -------------------------------------------------------
+> ---
+. 
+. //define macros 
+. if "${bfm_replace}" == "yes" local ext ""
+
+. if "${bfm_replace}" == "no" local ext "_norep"
+
+. 
+. //get list of paths 
+. global aux_part " "preliminary" " 
+
+. qui do "code/Stata/auxiliar/aux_general.do"
+
+. local lang $lang 
+
+. 
+. global area " ${all_countries} "
+
+. local z = 1 
+
+. foreach c in $area {
+  2.         forvalues y = ${first_y}/${last_y} {
+  3.                 clear 
+  4.                 
+.                 if `z' == 1 {
+  5.                         di as result "{hline 80}"
+  6.                         display as result ///
+>                                 "Creating raw post-tax variables for units ..
+> ."
+  7.                         di as result "{hline 80}"
+  8.                         local z = 0 
+  9.                 }       
+ 10.                         
+.                 *inform activity
+.                 di as text "`c' `y': " _continue
+ 11.                 
+.                 //confirm corrected survey exists 
+.                 capture confirm file ///
+>                         "intermediary_data/microdata/bfm`ext'_pre/`c'_`y'_bfm
+> `ext'_pre.dta"
+ 12.                 
+.                 //open it
+.                 if _rc==0 {
+ 13.                         qui use ///
+>                                 "intermediary_data/microdata/bfm`ext'_pre/`c'
+> _`y'_bfm`ext'_pre.dta", clear
+ 14.                         
+.                         cap drop __*
+ 15.                         
+.                         *loop over income items 
+.                         foreach v in wag pen cap imp mix {
+ 16.                                 
+.                                 *compute sum of incomes by couple (narrow)
+.                                 cap drop esn_pos_`v'
+ 17.                                 qui egen esn_pos_`v' = sum(ind_pos_`v'/mar
+> ried) ///
+>                                         if married <= 2, by(id_hogar)
+ 18.                                 qui replace esn_pos_`v' = ///
+>                                         ind_pos_`v' if missing(married)
+ 19.                                 qui cap la var esn_pos_`v' ///
+>                                         "Eq-split narrow posttax inc. `v'"   
+>    
+ 20.                                         
+.                                 *compute sum of incomes by adults (broad)
+.                                 cap drop esb_pos_`v'
+ 21.                                 qui egen esb_pos_`v' = ///
+>                                         sum(ind_pos_`v'/adults_house), by(id_
+> hogar)
+ 22.                                 qui la var esb_pos_`v' ///
+>                                         "Eq-split broad `posttax inc. `v'"   
+>    
+ 23.                                 
+.                                 *compute sum of incomes by household 
+.                                 cap drop pch_pos_`v'
+ 24.                                 qui egen pch_pos_`v' = ///
+>                                         sum(ind_pos_`v' / hh_size), by(id_hog
+> ar)
+ 25.                                 qui la var pch_pos_`v' ///
+>                                         "Per capita hld. posttax inc. `v'"
+ 26.                         }
+ 27.                         
+.                         *save 
+.                         qui save ///
+>                                 "intermediary_data/microdata/bfm`ext'_pre/`c'
+> _`y'_bfm`ext'_pre.dta" ///
+>                                 , replace
+ 28.                         
+.                         *report activity        
+.                         di as result "done"     
+ 29.                 }
+ 30.                 else {
+ 31.                         di as text "intermediary_data/microdata/bfm`ext'_p
+> re/`c'_`y'_bfm`ext'_pre.dta not found."
+ 32.                 }
+ 33.         }
+ 34. }       
+-------------------------------------------------------------------------------
+> -
+Creating raw post-tax variables for units ...
+-------------------------------------------------------------------------------
+> -
+COL 2000: intermediary_data/microdata/bfm_pre/COL_2000_bfm_pre.dta not found.
+COL 2001: intermediary_data/microdata/bfm_pre/COL_2001_bfm_pre.dta not found.
+COL 2002: intermediary_data/microdata/bfm_pre/COL_2002_bfm_pre.dta not found.
+COL 2003: intermediary_data/microdata/bfm_pre/COL_2003_bfm_pre.dta not found.
+COL 2004: intermediary_data/microdata/bfm_pre/COL_2004_bfm_pre.dta not found.
+COL 2005: intermediary_data/microdata/bfm_pre/COL_2005_bfm_pre.dta not found.
+COL 2006: intermediary_data/microdata/bfm_pre/COL_2006_bfm_pre.dta not found.
+COL 2007: intermediary_data/microdata/bfm_pre/COL_2007_bfm_pre.dta not found.
+COL 2008: intermediary_data/microdata/bfm_pre/COL_2008_bfm_pre.dta not found.
+COL 2009: intermediary_data/microdata/bfm_pre/COL_2009_bfm_pre.dta not found.
+COL 2010: intermediary_data/microdata/bfm_pre/COL_2010_bfm_pre.dta not found.
+COL 2011: intermediary_data/microdata/bfm_pre/COL_2011_bfm_pre.dta not found.
+COL 2012: intermediary_data/microdata/bfm_pre/COL_2012_bfm_pre.dta not found.
+COL 2013: intermediary_data/microdata/bfm_pre/COL_2013_bfm_pre.dta not found.
+COL 2014: intermediary_data/microdata/bfm_pre/COL_2014_bfm_pre.dta not found.
+COL 2015: intermediary_data/microdata/bfm_pre/COL_2015_bfm_pre.dta not found.
+COL 2016: intermediary_data/microdata/bfm_pre/COL_2016_bfm_pre.dta not found.
+COL 2017: intermediary_data/microdata/bfm_pre/COL_2017_bfm_pre.dta not found.
+COL 2018: intermediary_data/microdata/bfm_pre/COL_2018_bfm_pre.dta not found.
+COL 2019: intermediary_data/microdata/bfm_pre/COL_2019_bfm_pre.dta not found.
+COL 2020: intermediary_data/microdata/bfm_pre/COL_2020_bfm_pre.dta not found.
+COL 2021: intermediary_data/microdata/bfm_pre/COL_2021_bfm_pre.dta not found.
+COL 2022: intermediary_data/microdata/bfm_pre/COL_2022_bfm_pre.dta not found.
+COL 2023: intermediary_data/microdata/bfm_pre/COL_2023_bfm_pre.dta not found.
+COL 2024: intermediary_data/microdata/bfm_pre/COL_2024_bfm_pre.dta not found.
+ARG 2000: intermediary_data/microdata/bfm_pre/ARG_2000_bfm_pre.dta not found.
+ARG 2001: intermediary_data/microdata/bfm_pre/ARG_2001_bfm_pre.dta not found.
+ARG 2002: intermediary_data/microdata/bfm_pre/ARG_2002_bfm_pre.dta not found.
+ARG 2003: intermediary_data/microdata/bfm_pre/ARG_2003_bfm_pre.dta not found.
+ARG 2004: intermediary_data/microdata/bfm_pre/ARG_2004_bfm_pre.dta not found.
+ARG 2005: intermediary_data/microdata/bfm_pre/ARG_2005_bfm_pre.dta not found.
+ARG 2006: intermediary_data/microdata/bfm_pre/ARG_2006_bfm_pre.dta not found.
+ARG 2007: intermediary_data/microdata/bfm_pre/ARG_2007_bfm_pre.dta not found.
+ARG 2008: intermediary_data/microdata/bfm_pre/ARG_2008_bfm_pre.dta not found.
+ARG 2009: intermediary_data/microdata/bfm_pre/ARG_2009_bfm_pre.dta not found.
+ARG 2010: intermediary_data/microdata/bfm_pre/ARG_2010_bfm_pre.dta not found.
+ARG 2011: intermediary_data/microdata/bfm_pre/ARG_2011_bfm_pre.dta not found.
+ARG 2012: intermediary_data/microdata/bfm_pre/ARG_2012_bfm_pre.dta not found.
+ARG 2013: intermediary_data/microdata/bfm_pre/ARG_2013_bfm_pre.dta not found.
+ARG 2014: intermediary_data/microdata/bfm_pre/ARG_2014_bfm_pre.dta not found.
+ARG 2015: intermediary_data/microdata/bfm_pre/ARG_2015_bfm_pre.dta not found.
+ARG 2016: intermediary_data/microdata/bfm_pre/ARG_2016_bfm_pre.dta not found.
+ARG 2017: intermediary_data/microdata/bfm_pre/ARG_2017_bfm_pre.dta not found.
+ARG 2018: intermediary_data/microdata/bfm_pre/ARG_2018_bfm_pre.dta not found.
+ARG 2019: intermediary_data/microdata/bfm_pre/ARG_2019_bfm_pre.dta not found.
+ARG 2020: intermediary_data/microdata/bfm_pre/ARG_2020_bfm_pre.dta not found.
+ARG 2021: intermediary_data/microdata/bfm_pre/ARG_2021_bfm_pre.dta not found.
+ARG 2022: intermediary_data/microdata/bfm_pre/ARG_2022_bfm_pre.dta not found.
+ARG 2023: intermediary_data/microdata/bfm_pre/ARG_2023_bfm_pre.dta not found.
+ARG 2024: intermediary_data/microdata/bfm_pre/ARG_2024_bfm_pre.dta not found.
+PER 2000: intermediary_data/microdata/bfm_pre/PER_2000_bfm_pre.dta not found.
+PER 2001: intermediary_data/microdata/bfm_pre/PER_2001_bfm_pre.dta not found.
+PER 2002: intermediary_data/microdata/bfm_pre/PER_2002_bfm_pre.dta not found.
+PER 2003: intermediary_data/microdata/bfm_pre/PER_2003_bfm_pre.dta not found.
+PER 2004: intermediary_data/microdata/bfm_pre/PER_2004_bfm_pre.dta not found.
+PER 2005: intermediary_data/microdata/bfm_pre/PER_2005_bfm_pre.dta not found.
+PER 2006: intermediary_data/microdata/bfm_pre/PER_2006_bfm_pre.dta not found.
+PER 2007: intermediary_data/microdata/bfm_pre/PER_2007_bfm_pre.dta not found.
+PER 2008: intermediary_data/microdata/bfm_pre/PER_2008_bfm_pre.dta not found.
+PER 2009: intermediary_data/microdata/bfm_pre/PER_2009_bfm_pre.dta not found.
+PER 2010: intermediary_data/microdata/bfm_pre/PER_2010_bfm_pre.dta not found.
+PER 2011: intermediary_data/microdata/bfm_pre/PER_2011_bfm_pre.dta not found.
+PER 2012: intermediary_data/microdata/bfm_pre/PER_2012_bfm_pre.dta not found.
+PER 2013: intermediary_data/microdata/bfm_pre/PER_2013_bfm_pre.dta not found.
+PER 2014: intermediary_data/microdata/bfm_pre/PER_2014_bfm_pre.dta not found.
+PER 2015: intermediary_data/microdata/bfm_pre/PER_2015_bfm_pre.dta not found.
+PER 2016: intermediary_data/microdata/bfm_pre/PER_2016_bfm_pre.dta not found.
+PER 2017: intermediary_data/microdata/bfm_pre/PER_2017_bfm_pre.dta not found.
+PER 2018: intermediary_data/microdata/bfm_pre/PER_2018_bfm_pre.dta not found.
+PER 2019: intermediary_data/microdata/bfm_pre/PER_2019_bfm_pre.dta not found.
+PER 2020: intermediary_data/microdata/bfm_pre/PER_2020_bfm_pre.dta not found.
+PER 2021: intermediary_data/microdata/bfm_pre/PER_2021_bfm_pre.dta not found.
+PER 2022: intermediary_data/microdata/bfm_pre/PER_2022_bfm_pre.dta not found.
+PER 2023: intermediary_data/microdata/bfm_pre/PER_2023_bfm_pre.dta not found.
+PER 2024: intermediary_data/microdata/bfm_pre/PER_2024_bfm_pre.dta not found.
+URY 2000: intermediary_data/microdata/bfm_pre/URY_2000_bfm_pre.dta not found.
+URY 2001: intermediary_data/microdata/bfm_pre/URY_2001_bfm_pre.dta not found.
+URY 2002: intermediary_data/microdata/bfm_pre/URY_2002_bfm_pre.dta not found.
+URY 2003: intermediary_data/microdata/bfm_pre/URY_2003_bfm_pre.dta not found.
+URY 2004: intermediary_data/microdata/bfm_pre/URY_2004_bfm_pre.dta not found.
+URY 2005: intermediary_data/microdata/bfm_pre/URY_2005_bfm_pre.dta not found.
+URY 2006: intermediary_data/microdata/bfm_pre/URY_2006_bfm_pre.dta not found.
+URY 2007: intermediary_data/microdata/bfm_pre/URY_2007_bfm_pre.dta not found.
+URY 2008: intermediary_data/microdata/bfm_pre/URY_2008_bfm_pre.dta not found.
+URY 2009: intermediary_data/microdata/bfm_pre/URY_2009_bfm_pre.dta not found.
+URY 2010: intermediary_data/microdata/bfm_pre/URY_2010_bfm_pre.dta not found.
+URY 2011: intermediary_data/microdata/bfm_pre/URY_2011_bfm_pre.dta not found.
+URY 2012: intermediary_data/microdata/bfm_pre/URY_2012_bfm_pre.dta not found.
+URY 2013: intermediary_data/microdata/bfm_pre/URY_2013_bfm_pre.dta not found.
+URY 2014: intermediary_data/microdata/bfm_pre/URY_2014_bfm_pre.dta not found.
+URY 2015: intermediary_data/microdata/bfm_pre/URY_2015_bfm_pre.dta not found.
+URY 2016: intermediary_data/microdata/bfm_pre/URY_2016_bfm_pre.dta not found.
+URY 2017: intermediary_data/microdata/bfm_pre/URY_2017_bfm_pre.dta not found.
+URY 2018: intermediary_data/microdata/bfm_pre/URY_2018_bfm_pre.dta not found.
+URY 2019: intermediary_data/microdata/bfm_pre/URY_2019_bfm_pre.dta not found.
+URY 2020: intermediary_data/microdata/bfm_pre/URY_2020_bfm_pre.dta not found.
+URY 2021: intermediary_data/microdata/bfm_pre/URY_2021_bfm_pre.dta not found.
+URY 2022: intermediary_data/microdata/bfm_pre/URY_2022_bfm_pre.dta not found.
+URY 2023: intermediary_data/microdata/bfm_pre/URY_2023_bfm_pre.dta not found.
+URY 2024: intermediary_data/microdata/bfm_pre/URY_2024_bfm_pre.dta not found.
+CRI 2000: intermediary_data/microdata/bfm_pre/CRI_2000_bfm_pre.dta not found.
+CRI 2001: intermediary_data/microdata/bfm_pre/CRI_2001_bfm_pre.dta not found.
+CRI 2002: intermediary_data/microdata/bfm_pre/CRI_2002_bfm_pre.dta not found.
+CRI 2003: intermediary_data/microdata/bfm_pre/CRI_2003_bfm_pre.dta not found.
+CRI 2004: intermediary_data/microdata/bfm_pre/CRI_2004_bfm_pre.dta not found.
+CRI 2005: intermediary_data/microdata/bfm_pre/CRI_2005_bfm_pre.dta not found.
+CRI 2006: intermediary_data/microdata/bfm_pre/CRI_2006_bfm_pre.dta not found.
+CRI 2007: intermediary_data/microdata/bfm_pre/CRI_2007_bfm_pre.dta not found.
+CRI 2008: intermediary_data/microdata/bfm_pre/CRI_2008_bfm_pre.dta not found.
+CRI 2009: intermediary_data/microdata/bfm_pre/CRI_2009_bfm_pre.dta not found.
+CRI 2010: intermediary_data/microdata/bfm_pre/CRI_2010_bfm_pre.dta not found.
+CRI 2011: intermediary_data/microdata/bfm_pre/CRI_2011_bfm_pre.dta not found.
+CRI 2012: intermediary_data/microdata/bfm_pre/CRI_2012_bfm_pre.dta not found.
+CRI 2013: intermediary_data/microdata/bfm_pre/CRI_2013_bfm_pre.dta not found.
+CRI 2014: intermediary_data/microdata/bfm_pre/CRI_2014_bfm_pre.dta not found.
+CRI 2015: intermediary_data/microdata/bfm_pre/CRI_2015_bfm_pre.dta not found.
+CRI 2016: intermediary_data/microdata/bfm_pre/CRI_2016_bfm_pre.dta not found.
+CRI 2017: intermediary_data/microdata/bfm_pre/CRI_2017_bfm_pre.dta not found.
+CRI 2018: intermediary_data/microdata/bfm_pre/CRI_2018_bfm_pre.dta not found.
+CRI 2019: intermediary_data/microdata/bfm_pre/CRI_2019_bfm_pre.dta not found.
+CRI 2020: intermediary_data/microdata/bfm_pre/CRI_2020_bfm_pre.dta not found.
+CRI 2021: intermediary_data/microdata/bfm_pre/CRI_2021_bfm_pre.dta not found.
+CRI 2022: intermediary_data/microdata/bfm_pre/CRI_2022_bfm_pre.dta not found.
+CRI 2023: intermediary_data/microdata/bfm_pre/CRI_2023_bfm_pre.dta not found.
+CRI 2024: intermediary_data/microdata/bfm_pre/CRI_2024_bfm_pre.dta not found.
+ECU 2000: intermediary_data/microdata/bfm_pre/ECU_2000_bfm_pre.dta not found.
+ECU 2001: intermediary_data/microdata/bfm_pre/ECU_2001_bfm_pre.dta not found.
+ECU 2002: intermediary_data/microdata/bfm_pre/ECU_2002_bfm_pre.dta not found.
+ECU 2003: intermediary_data/microdata/bfm_pre/ECU_2003_bfm_pre.dta not found.
+ECU 2004: intermediary_data/microdata/bfm_pre/ECU_2004_bfm_pre.dta not found.
+ECU 2005: intermediary_data/microdata/bfm_pre/ECU_2005_bfm_pre.dta not found.
+ECU 2006: intermediary_data/microdata/bfm_pre/ECU_2006_bfm_pre.dta not found.
+ECU 2007: intermediary_data/microdata/bfm_pre/ECU_2007_bfm_pre.dta not found.
+ECU 2008: intermediary_data/microdata/bfm_pre/ECU_2008_bfm_pre.dta not found.
+ECU 2009: intermediary_data/microdata/bfm_pre/ECU_2009_bfm_pre.dta not found.
+ECU 2010: intermediary_data/microdata/bfm_pre/ECU_2010_bfm_pre.dta not found.
+ECU 2011: intermediary_data/microdata/bfm_pre/ECU_2011_bfm_pre.dta not found.
+ECU 2012: intermediary_data/microdata/bfm_pre/ECU_2012_bfm_pre.dta not found.
+ECU 2013: intermediary_data/microdata/bfm_pre/ECU_2013_bfm_pre.dta not found.
+ECU 2014: intermediary_data/microdata/bfm_pre/ECU_2014_bfm_pre.dta not found.
+ECU 2015: intermediary_data/microdata/bfm_pre/ECU_2015_bfm_pre.dta not found.
+ECU 2016: intermediary_data/microdata/bfm_pre/ECU_2016_bfm_pre.dta not found.
+ECU 2017: intermediary_data/microdata/bfm_pre/ECU_2017_bfm_pre.dta not found.
+ECU 2018: intermediary_data/microdata/bfm_pre/ECU_2018_bfm_pre.dta not found.
+ECU 2019: intermediary_data/microdata/bfm_pre/ECU_2019_bfm_pre.dta not found.
+ECU 2020: intermediary_data/microdata/bfm_pre/ECU_2020_bfm_pre.dta not found.
+ECU 2021: intermediary_data/microdata/bfm_pre/ECU_2021_bfm_pre.dta not found.
+ECU 2022: intermediary_data/microdata/bfm_pre/ECU_2022_bfm_pre.dta not found.
+ECU 2023: intermediary_data/microdata/bfm_pre/ECU_2023_bfm_pre.dta not found.
+ECU 2024: intermediary_data/microdata/bfm_pre/ECU_2024_bfm_pre.dta not found.
+CHL 2000: intermediary_data/microdata/bfm_pre/CHL_2000_bfm_pre.dta not found.
+CHL 2001: intermediary_data/microdata/bfm_pre/CHL_2001_bfm_pre.dta not found.
+CHL 2002: intermediary_data/microdata/bfm_pre/CHL_2002_bfm_pre.dta not found.
+CHL 2003: intermediary_data/microdata/bfm_pre/CHL_2003_bfm_pre.dta not found.
+CHL 2004: intermediary_data/microdata/bfm_pre/CHL_2004_bfm_pre.dta not found.
+CHL 2005: intermediary_data/microdata/bfm_pre/CHL_2005_bfm_pre.dta not found.
+CHL 2006: intermediary_data/microdata/bfm_pre/CHL_2006_bfm_pre.dta not found.
+CHL 2007: intermediary_data/microdata/bfm_pre/CHL_2007_bfm_pre.dta not found.
+CHL 2008: intermediary_data/microdata/bfm_pre/CHL_2008_bfm_pre.dta not found.
+CHL 2009: intermediary_data/microdata/bfm_pre/CHL_2009_bfm_pre.dta not found.
+CHL 2010: intermediary_data/microdata/bfm_pre/CHL_2010_bfm_pre.dta not found.
+CHL 2011: intermediary_data/microdata/bfm_pre/CHL_2011_bfm_pre.dta not found.
+CHL 2012: intermediary_data/microdata/bfm_pre/CHL_2012_bfm_pre.dta not found.
+CHL 2013: intermediary_data/microdata/bfm_pre/CHL_2013_bfm_pre.dta not found.
+CHL 2014: intermediary_data/microdata/bfm_pre/CHL_2014_bfm_pre.dta not found.
+CHL 2015: intermediary_data/microdata/bfm_pre/CHL_2015_bfm_pre.dta not found.
+CHL 2016: intermediary_data/microdata/bfm_pre/CHL_2016_bfm_pre.dta not found.
+CHL 2017: intermediary_data/microdata/bfm_pre/CHL_2017_bfm_pre.dta not found.
+CHL 2018: intermediary_data/microdata/bfm_pre/CHL_2018_bfm_pre.dta not found.
+CHL 2019: intermediary_data/microdata/bfm_pre/CHL_2019_bfm_pre.dta not found.
+CHL 2020: intermediary_data/microdata/bfm_pre/CHL_2020_bfm_pre.dta not found.
+CHL 2021: intermediary_data/microdata/bfm_pre/CHL_2021_bfm_pre.dta not found.
+CHL 2022: intermediary_data/microdata/bfm_pre/CHL_2022_bfm_pre.dta not found.
+CHL 2023: intermediary_data/microdata/bfm_pre/CHL_2023_bfm_pre.dta not found.
+CHL 2024: intermediary_data/microdata/bfm_pre/CHL_2024_bfm_pre.dta not found.
+BRA 2000: intermediary_data/microdata/bfm_pre/BRA_2000_bfm_pre.dta not found.
+BRA 2001: intermediary_data/microdata/bfm_pre/BRA_2001_bfm_pre.dta not found.
+BRA 2002: intermediary_data/microdata/bfm_pre/BRA_2002_bfm_pre.dta not found.
+BRA 2003: intermediary_data/microdata/bfm_pre/BRA_2003_bfm_pre.dta not found.
+BRA 2004: intermediary_data/microdata/bfm_pre/BRA_2004_bfm_pre.dta not found.
+BRA 2005: intermediary_data/microdata/bfm_pre/BRA_2005_bfm_pre.dta not found.
+BRA 2006: intermediary_data/microdata/bfm_pre/BRA_2006_bfm_pre.dta not found.
+BRA 2007: intermediary_data/microdata/bfm_pre/BRA_2007_bfm_pre.dta not found.
+BRA 2008: intermediary_data/microdata/bfm_pre/BRA_2008_bfm_pre.dta not found.
+BRA 2009: intermediary_data/microdata/bfm_pre/BRA_2009_bfm_pre.dta not found.
+BRA 2010: intermediary_data/microdata/bfm_pre/BRA_2010_bfm_pre.dta not found.
+BRA 2011: intermediary_data/microdata/bfm_pre/BRA_2011_bfm_pre.dta not found.
+BRA 2012: intermediary_data/microdata/bfm_pre/BRA_2012_bfm_pre.dta not found.
+BRA 2013: intermediary_data/microdata/bfm_pre/BRA_2013_bfm_pre.dta not found.
+BRA 2014: intermediary_data/microdata/bfm_pre/BRA_2014_bfm_pre.dta not found.
+BRA 2015: intermediary_data/microdata/bfm_pre/BRA_2015_bfm_pre.dta not found.
+BRA 2016: intermediary_data/microdata/bfm_pre/BRA_2016_bfm_pre.dta not found.
+BRA 2017: intermediary_data/microdata/bfm_pre/BRA_2017_bfm_pre.dta not found.
+BRA 2018: intermediary_data/microdata/bfm_pre/BRA_2018_bfm_pre.dta not found.
+BRA 2019: intermediary_data/microdata/bfm_pre/BRA_2019_bfm_pre.dta not found.
+BRA 2020: intermediary_data/microdata/bfm_pre/BRA_2020_bfm_pre.dta not found.
+BRA 2021: intermediary_data/microdata/bfm_pre/BRA_2021_bfm_pre.dta not found.
+BRA 2022: intermediary_data/microdata/bfm_pre/BRA_2022_bfm_pre.dta not found.
+BRA 2023: intermediary_data/microdata/bfm_pre/BRA_2023_bfm_pre.dta not found.
+BRA 2024: intermediary_data/microdata/bfm_pre/BRA_2024_bfm_pre.dta not found.
+SLV 2000: intermediary_data/microdata/bfm_pre/SLV_2000_bfm_pre.dta not found.
+SLV 2001: intermediary_data/microdata/bfm_pre/SLV_2001_bfm_pre.dta not found.
+SLV 2002: intermediary_data/microdata/bfm_pre/SLV_2002_bfm_pre.dta not found.
+SLV 2003: intermediary_data/microdata/bfm_pre/SLV_2003_bfm_pre.dta not found.
+SLV 2004: intermediary_data/microdata/bfm_pre/SLV_2004_bfm_pre.dta not found.
+SLV 2005: intermediary_data/microdata/bfm_pre/SLV_2005_bfm_pre.dta not found.
+SLV 2006: intermediary_data/microdata/bfm_pre/SLV_2006_bfm_pre.dta not found.
+SLV 2007: intermediary_data/microdata/bfm_pre/SLV_2007_bfm_pre.dta not found.
+SLV 2008: intermediary_data/microdata/bfm_pre/SLV_2008_bfm_pre.dta not found.
+SLV 2009: intermediary_data/microdata/bfm_pre/SLV_2009_bfm_pre.dta not found.
+SLV 2010: intermediary_data/microdata/bfm_pre/SLV_2010_bfm_pre.dta not found.
+SLV 2011: intermediary_data/microdata/bfm_pre/SLV_2011_bfm_pre.dta not found.
+SLV 2012: intermediary_data/microdata/bfm_pre/SLV_2012_bfm_pre.dta not found.
+SLV 2013: intermediary_data/microdata/bfm_pre/SLV_2013_bfm_pre.dta not found.
+SLV 2014: intermediary_data/microdata/bfm_pre/SLV_2014_bfm_pre.dta not found.
+SLV 2015: intermediary_data/microdata/bfm_pre/SLV_2015_bfm_pre.dta not found.
+SLV 2016: intermediary_data/microdata/bfm_pre/SLV_2016_bfm_pre.dta not found.
+SLV 2017: intermediary_data/microdata/bfm_pre/SLV_2017_bfm_pre.dta not found.
+SLV 2018: intermediary_data/microdata/bfm_pre/SLV_2018_bfm_pre.dta not found.
+SLV 2019: intermediary_data/microdata/bfm_pre/SLV_2019_bfm_pre.dta not found.
+SLV 2020: intermediary_data/microdata/bfm_pre/SLV_2020_bfm_pre.dta not found.
+SLV 2021: intermediary_data/microdata/bfm_pre/SLV_2021_bfm_pre.dta not found.
+SLV 2022: intermediary_data/microdata/bfm_pre/SLV_2022_bfm_pre.dta not found.
+SLV 2023: intermediary_data/microdata/bfm_pre/SLV_2023_bfm_pre.dta not found.
+SLV 2024: intermediary_data/microdata/bfm_pre/SLV_2024_bfm_pre.dta not found.
+MEX 2000: intermediary_data/microdata/bfm_pre/MEX_2000_bfm_pre.dta not found.
+MEX 2001: intermediary_data/microdata/bfm_pre/MEX_2001_bfm_pre.dta not found.
+MEX 2002: intermediary_data/microdata/bfm_pre/MEX_2002_bfm_pre.dta not found.
+MEX 2003: intermediary_data/microdata/bfm_pre/MEX_2003_bfm_pre.dta not found.
+MEX 2004: intermediary_data/microdata/bfm_pre/MEX_2004_bfm_pre.dta not found.
+MEX 2005: intermediary_data/microdata/bfm_pre/MEX_2005_bfm_pre.dta not found.
+MEX 2006: intermediary_data/microdata/bfm_pre/MEX_2006_bfm_pre.dta not found.
+MEX 2007: intermediary_data/microdata/bfm_pre/MEX_2007_bfm_pre.dta not found.
+MEX 2008: intermediary_data/microdata/bfm_pre/MEX_2008_bfm_pre.dta not found.
+MEX 2009: intermediary_data/microdata/bfm_pre/MEX_2009_bfm_pre.dta not found.
+MEX 2010: intermediary_data/microdata/bfm_pre/MEX_2010_bfm_pre.dta not found.
+MEX 2011: intermediary_data/microdata/bfm_pre/MEX_2011_bfm_pre.dta not found.
+MEX 2012: intermediary_data/microdata/bfm_pre/MEX_2012_bfm_pre.dta not found.
+MEX 2013: intermediary_data/microdata/bfm_pre/MEX_2013_bfm_pre.dta not found.
+MEX 2014: intermediary_data/microdata/bfm_pre/MEX_2014_bfm_pre.dta not found.
+MEX 2015: intermediary_data/microdata/bfm_pre/MEX_2015_bfm_pre.dta not found.
+MEX 2016: intermediary_data/microdata/bfm_pre/MEX_2016_bfm_pre.dta not found.
+MEX 2017: intermediary_data/microdata/bfm_pre/MEX_2017_bfm_pre.dta not found.
+MEX 2018: intermediary_data/microdata/bfm_pre/MEX_2018_bfm_pre.dta not found.
+MEX 2019: intermediary_data/microdata/bfm_pre/MEX_2019_bfm_pre.dta not found.
+MEX 2020: intermediary_data/microdata/bfm_pre/MEX_2020_bfm_pre.dta not found.
+MEX 2021: intermediary_data/microdata/bfm_pre/MEX_2021_bfm_pre.dta not found.
+MEX 2022: intermediary_data/microdata/bfm_pre/MEX_2022_bfm_pre.dta not found.
+MEX 2023: intermediary_data/microdata/bfm_pre/MEX_2023_bfm_pre.dta not found.
+MEX 2024: intermediary_data/microdata/bfm_pre/MEX_2024_bfm_pre.dta not found.
+DOM 2000: intermediary_data/microdata/bfm_pre/DOM_2000_bfm_pre.dta not found.
+DOM 2001: intermediary_data/microdata/bfm_pre/DOM_2001_bfm_pre.dta not found.
+DOM 2002: intermediary_data/microdata/bfm_pre/DOM_2002_bfm_pre.dta not found.
+DOM 2003: intermediary_data/microdata/bfm_pre/DOM_2003_bfm_pre.dta not found.
+DOM 2004: intermediary_data/microdata/bfm_pre/DOM_2004_bfm_pre.dta not found.
+DOM 2005: intermediary_data/microdata/bfm_pre/DOM_2005_bfm_pre.dta not found.
+DOM 2006: intermediary_data/microdata/bfm_pre/DOM_2006_bfm_pre.dta not found.
+DOM 2007: intermediary_data/microdata/bfm_pre/DOM_2007_bfm_pre.dta not found.
+DOM 2008: intermediary_data/microdata/bfm_pre/DOM_2008_bfm_pre.dta not found.
+DOM 2009: intermediary_data/microdata/bfm_pre/DOM_2009_bfm_pre.dta not found.
+DOM 2010: intermediary_data/microdata/bfm_pre/DOM_2010_bfm_pre.dta not found.
+DOM 2011: intermediary_data/microdata/bfm_pre/DOM_2011_bfm_pre.dta not found.
+DOM 2012: intermediary_data/microdata/bfm_pre/DOM_2012_bfm_pre.dta not found.
+DOM 2013: intermediary_data/microdata/bfm_pre/DOM_2013_bfm_pre.dta not found.
+DOM 2014: intermediary_data/microdata/bfm_pre/DOM_2014_bfm_pre.dta not found.
+DOM 2015: intermediary_data/microdata/bfm_pre/DOM_2015_bfm_pre.dta not found.
+DOM 2016: intermediary_data/microdata/bfm_pre/DOM_2016_bfm_pre.dta not found.
+DOM 2017: intermediary_data/microdata/bfm_pre/DOM_2017_bfm_pre.dta not found.
+DOM 2018: intermediary_data/microdata/bfm_pre/DOM_2018_bfm_pre.dta not found.
+DOM 2019: intermediary_data/microdata/bfm_pre/DOM_2019_bfm_pre.dta not found.
+DOM 2020: intermediary_data/microdata/bfm_pre/DOM_2020_bfm_pre.dta not found.
+DOM 2021: intermediary_data/microdata/bfm_pre/DOM_2021_bfm_pre.dta not found.
+DOM 2022: intermediary_data/microdata/bfm_pre/DOM_2022_bfm_pre.dta not found.
+DOM 2023: intermediary_data/microdata/bfm_pre/DOM_2023_bfm_pre.dta not found.
+DOM 2024: intermediary_data/microdata/bfm_pre/DOM_2024_bfm_pre.dta not found.
+
+. 
+end of do-file

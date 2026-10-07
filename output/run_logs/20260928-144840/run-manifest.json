@@ -1,0 +1,56 @@
+{
+  "task": "05b-rescale-and-impute",
+  "status": "succeeded",
+  "command": ["/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp", "-b", "do", "code/Stata/05b-rescale-and-impute.do"],
+  "run_id": "20260928-144840",
+  "ended_at": "2026-09-28T14:48:46+0200",
+  "configuration": {
+    "scope": "update:2026-update-06-29",
+    "fingerprint": "c705ced5cf0c4f6bab544c669e66b5ea0830e4ddf22d4523b0d25bda56f8a1ea",
+    "effective_config_fingerprint": "c705ced5cf0c4f6bab544c669e66b5ea0830e4ddf22d4523b0d25bda56f8a1ea",
+    "baseline_fingerprint": "8e823b0c7408aa4ba5383eb53fa163b355c0c89a4e3b012905a050206687c647",
+    "validated_at": "2026-09-28T13:12:22+0200"
+  },
+  "validation": {
+    "status": "passed",
+    "checked_at": "2026-09-28T13:12:22+0200",
+    "errors": [],
+    "scope": "update:2026-update-06-29",
+    "benchmark_config_hash": "25bfc7e631a65641ae983cdfeebdf7dce05f40a8e265b923df12585504dcbf70",
+    "update_override_hash": "11524e9ec2eb8b72d49f98049cb600680fdbe7f7268a8c0238f66fa377a7af62",
+    "effective_config_hash": "c705ced5cf0c4f6bab544c669e66b5ea0830e4ddf22d4523b0d25bda56f8a1ea",
+    "baseline": {
+      "path": "input_data/_new/previous_series/dina_latam_7Nov2025.dta",
+      "exists": true,
+      "size": 127406249,
+      "mtime": "2025-11-10T14:05:12+0100",
+      "sha256": "8e823b0c7408aa4ba5383eb53fa163b355c0c89a4e3b012905a050206687c647"
+    }
+  },
+  "source_reviews": [
+    {
+      "family": "wid",
+      "status": "included",
+      "label": "Included · 2026-09-24",
+      "detail": "Saved candidate accepted; pipeline status is separate."
+    },
+    {
+      "family": "surveys",
+      "status": "included",
+      "label": "Included · 2026-09-28",
+      "detail": "Saved candidate accepted; pipeline status is separate."
+    },
+    {
+      "family": "admin",
+      "status": "included_stale",
+      "label": "Included · recheck needed",
+      "detail": "The accepted review is retained, but source files changed after inclusion."
+    },
+    {
+      "family": "sna",
+      "status": "included_stale",
+      "label": "Included · recheck needed",
+      "detail": "The accepted review is retained, but source files changed after inclusion."
+    }
+  ]
+}

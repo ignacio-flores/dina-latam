@@ -1,0 +1,231 @@
+
+  ___  ____  ____  ____  ____ (R)
+ /__    /   ____/   /   ____/
+___/   /   /___/   /   /___/   16.1   Copyright 1985-2019 StataCorp LLC
+  Statistics/Data Analysis            StataCorp
+                                      4905 Lakeway Drive
+     MP - Parallel Edition            College Station, Texas 77845 USA
+                                      800-STATA-PC        http://www.stata.com
+                                      979-696-4600        stata@stata.com
+                                      979-696-4601 (fax)
+
+60-user 4-core Stata network perpetual license:
+       Serial number:  501606216487
+         Licensed to:  Ignacio Flores
+                       insead
+
+Notes:
+      1.  Stata is running in batch mode.
+      2.  Unicode is supported; see help unicode_advice.
+      3.  More than 2 billion observations are allowed; see help obs_advice.
+      4.  Maximum number of variables is set to 5000; see help set_maxvar.
+
+. do /Users/iflores/Documents/GitHub/dina-latam/output/experiments/admin_pit_in
+> clude/runs/review-20261002-165455-file109683289d6ba/logs/accepted-baseline/cl
+> eaner-COL-wrapper.do 
+
+. capture log close _all
+
+. log using "/Users/iflores/Documents/GitHub/dina-latam/output/experiments/admi
+> n_pit_include/runs/review-20261002-165455-file109683289d6ba/logs/accepted-bas
+> eline/cleaner-COL.stata.log", text replace
+(note: file /Users/iflores/Documents/GitHub/dina-latam/output/experiments/admin
+> _pit_include/runs/review-20261002-165455-file109683289d6ba/logs/accepted-base
+> line/cleaner-COL.stata.log not found)
+-------------------------------------------------------------------------------
+      name:  <unnamed>
+       log:  /Users/iflores/Documents/GitHub/dina-latam/output/experiments/admi
+> n_pit_include/runs/review-20261002-165455-file109683289d6ba/logs/accepted-bas
+> eline/cleaner-COL.stata.log
+  log type:  text
+ opened on:   2 Oct 2026, 17:20:14
+
+. capture noisily do "/Users/iflores/Documents/GitHub/dina-latam/output/experim
+> ents/admin_pit_include/runs/review-20261002-165455-file109683289d6ba/logs/acc
+> epted-baseline/cleaner-COL-isolated.do"
+
+. cd "/Users/iflores/Documents/GitHub/dina-latam"
+/Users/iflores/Documents/GitHub/dina-latam
+
+. 
+. //preliminary
+. global aux_part  ""preliminary"" 
+
+. quietly do "code/Stata/auxiliar/aux_general.do"
+
+. 
+. local lasty_col_tax = 2022
+
+. forvalues y = 2014/`lasty_col_tax' {
+  2.         
+.         *remember total population 
+.         di as result "`y' ", _continue
+  3.         qui use "intermediary_data/population/SurveyPop.dta", clear
+  4.         qui sum totpop_ie if country == "COL" & year == `y'
+  5.         local totalpop = r(sum)
+  6.         
+.         *open tax data 
+.         local n = `y' - 2007    
+  7. global route "/Users/iflores/Documents/GitHub/dina-latam/input_data/admin_
+> data/COL/1_Cuantiles_Ingreso_Bruto_Naturales_2014-2022"
+  8. 
+.         global fil "`n'_Cuantiles_Ingreso_Bruto_Naturales_`y'_F-210"
+  9.         local sn 
+ 10.         if `y' == 2014 {
+ 11.                 local cr A9:BY990
+ 12.         }
+ 13.         if `y' == 2015 local cr A9:BY992
+ 14.         if `y' == 2016 local cr A9:BY991
+ 15.         if `y' == 2017 local cr A9:CC995
+ 16.         if `y' == 2018 local cr A9:CC996
+ 17.         if `y' == 2019 local cr A9:CG997
+ 18.         if `y' == 2019 local cr A9:CG997
+ 19.         if `y' == 2020 local cr A9:DL998
+ 20.         if `y' == 2021 local cr A9:DL998
+ 21.         if `y' == 2022 {
+ 22.                 local cr B14:DM1002
+ 23.                 local sn "Ag cuantiles ingreso bruto"
+ 24.         } 
+ 25.         if `y' == 2023 {
+ 26.                 local cr B14:DM999
+ 27.                 local sn "Ag cuantiles ingreso bruto"
+ 28.         } 
+ 29.         di as result "`cr' ", _continue
+ 30.         di as result "pop: " `totalpop'
+ 31.         
+.         qui import excel "${route}/${fil}.xlsx", clear cellrange("`cr'") firs
+> trow sheet("`sn'")
+ 32.         
+.         *clean 
+.         qui drop if missing(Númerodecasos)
+ 33.         qui drop if missing(Cuantil)
+ 34.         qui rename Númerodecasos n
+ 35.         if (`y' < 2017) qui rename Totalingresosrecibidosporcon pre_inc
+ 36.         if (`y' >= 2017) qui rename Totalingresosbrutos1 pre_inc
+ 37.         qui rename Impuestonetoderenta net_tax 
+ 38.         qui keep n pre_inc net_tax
+ 39.         
+.         *transform to pesos 
+.         format %20.0gc pre_inc
+ 40.         format %20.0gc net_tax
+ 41.         
+.         qui replace pre_inc = (pre_inc * 1000000) / n // promedio por bracket
+>  en millones de pesos
+ 42.         qui gen pos_inc = pre_inc - (net_tax * 1000000) / n // promedio po
+> r bracket en millones de pesos
+ 43.         qui gen eff_tax_rate = (pre_inc-pos_inc) / pre_inc
+ 44.         
+.         foreach v in /*pre*/ pos {
+ 45.                 cap drop __*
+ 46.         
+.                 tempvar F freq wy weight poptot inc_avg topavg 
+ 47.         
+.                 qui gen `weight' = n
+ 48.                 qui set obs `=_N+1'
+ 49.                 
+.                 qui replace `weight' = `totalpop' - `_N' - 1 if missing(n)
+ 50.                 qui replace pre_inc = . if missing(n)
+ 51.         
+.                 
+.                 // Total average
+.                 qui gen `poptot' = `totalpop'
+ 52.                 qui sum `v'_inc [w=`weight']
+ 53.                 local inc_tot = r(sum)
+ 54.                 qui gen `inc_avg' = `inc_tot'/`poptot' 
+ 55.                 gsort -`v'_inc
+ 56.                 qui     gen `freq' = `weight'/`poptot'
+ 57.                 qui     gen `F' = 1- sum(`freq')
+ 58.                 sort `v'_inc
+ 59. 
+.                 gsort -`F'
+ 60.                 sort `F'
+ 61.                 cap drop ftile
+ 62.                 qui egen ftile = cut(`F'), at(0(0.01)0.99 0.991(0.001)0.99
+> 9 ///
+>                         0.9991(0.0001)0.9999 0.99991(0.00001)0.99999 1)
+ 63.                         
+.                 // Top average 
+.                 gsort -`F'
+ 64.                 qui gen `wy' = `v'_inc*`weight'
+ 65.                 qui gen `topavg' = sum(`wy')/sum(`weight')
+ 66.                 sort `F'
+ 67.                 
+.                 preserve
+ 68.                         qui replace `v' = `v' / 1000000
+ 69.                         qui drop if `v' < 0 | missing(n)
+ 70.                         // Interval thresholds
+.                         qui collapse ///
+>                                 (min) poptot = `poptot' thr = `v'_inc topavg 
+> = `topavg'  ///
+>                                 (mean) bracketavg = `v'_inc average = `inc_av
+> g' eff_tax_rate ///
+>                                 [w=`weight'], by (ftile)
+ 71.                         foreach vari in thr bracketavg topavg {
+ 72.                                 format %20.0gc `vari'
+ 73.                                 qui replace `vari' = `vari' * 1000000
+ 74.                         }       
+ 75.                         sort ftile      
+ 76.                         qui replace ftile = round(ftile * 100000)
+ 77.                         qui gen p = ftile / 100000
+ 78.                         qui drop ftile
+ 79.                         sort thr
+ 80.                         qui drop if thr == 0 
+ 81.                         assert bracketavg > bracketavg[_n-1] if !missing(b
+> racketavg[_n-1])
+ 82. 
+.                 
+.                         qui drop if missing(bracketavg) 
+ 83.                         qui drop if bracketavg == thr
+ 84.                         qui drop if thr < 1000000
+ 85.                         
+.                         qui gen year = `y' in 1 
+ 86.                         qui gen country = "COL" in 1 
+ 87.                         // Emit the canonical population field used by int
+> erpolation-ready PIT files.
+.                         // Its value is the total population read above from 
+> SurveyPop.dta.
+.                         qui rename poptot popsize
+ 88.                         
+.                         // Create directory if it doesnt exist 
+.                         local dirpath "/Users/iflores/Documents/GitHub/dina-l
+> atam/output/experiments/admin_pit_include/runs/review-20261002-165455-file109
+> 683289d6ba/baseline_repo/input_data/admin_data/COL/_clean"
+ 89.                         mata: st_numscalar("exists", direxists(st_local("d
+> irpath")))
+ 90.                         if (scalar(exists) == 0) {
+ 91.                                 mkdir "`dirpath'"
+ 92.                                 display "Created directory: `dirpath'"
+ 93.                         }       
+ 94.                         
+.                         qui export excel using ///
+>                                 "/Users/iflores/Documents/GitHub/dina-latam/o
+> utput/experiments/admin_pit_include/runs/review-20261002-165455-file109683289
+> d6ba/baseline_repo/input_data/admin_data/COL/_clean/total-`v'-COL.xlsx", ///
+>                                 firstrow(                       variables)  s
+> heet("`y'", modify) 
+ 95.                 restore
+ 96.                 
+.         }
+ 97. 
+. }
+2014  A9:BY990  pop: 46295743
+2015  A9:BY992  pop: 46817675
+2016  A9:BY991  pop: 47341327
+2017  A9:CC995  pop: 47868585
+2018  A9:CC996  pop: 48392823
+2019  A9:CG997  pop: 48916049
+2020  A9:DL998  pop: 49427861
+2021  A9:DL998  pop: 49494851
+2022  B14:DM1002  pop: 50040055
+
+. 
+. 
+end of do-file
+
+. local cleaner_rc = _rc
+
+. capture log close _all
+
+. exit `cleaner_rc'
+
+end of do-file

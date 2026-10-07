@@ -132,6 +132,48 @@ test_that("every real task requires a current validation but previews remain non
   expect_false(file.exists(marker))
 })
 
+test_that("Stata r() errors fail the task even when its command exits zero", {
+  skip_if_not_installed("processx")
+  root <- mini_repo(); config_test_baseline(root); session <- dina_update_start("2026", root = root)
+  fake_stata <- file.path(root, "fake-stata")
+  writeLines(c(
+    "#!/bin/sh",
+    "for arg in \"$@\"; do wrapper=\"$arg\"; done",
+    "log=$(echo \"$wrapper\" | sed 's/\\.wrapper\\.do$/.stata.log/')",
+    "printf 'r(198);\\n' > \"$log\"",
+    "exit 0"
+  ), fake_stata)
+  Sys.chmod(fake_stata, "0755")
+  task <- list(id = "stata-error", type = "stata", script = "code/Stata/01a.do", inputs = character(), outputs = character())
+  session <- withr::with_envvar(c(DINA_STATA_CMD = fake_stata), {
+    check <- dina_settings_check(root, session, validate_baseline = TRUE, validate_runtime = FALSE)
+    dina_record_config_validation(root, session, check)
+  })
+  result <- withr::with_envvar(c(DINA_STATA_CMD = fake_stata), {
+    dina_run_task(task, root = root, session = session, dry_run = FALSE, force = TRUE)
+  })
+  expect_equal(result$status, "failed")
+  expect_true(file.exists(file.path(root, result$stata_log)))
+  expect_equal(dina_load_session(root = root)$task_runs[["stata-error"]]$status, "failed")
+})
+
+test_that("pipeline input preflight blocks before any task process starts", {
+  root <- mini_repo(); session <- dina_update_start("2026", root = root)
+  task <- list(id = "missing-input", type = "stata", script = "code/Stata/01a.do",
+    inputs = "input_data/required.xlsx", outputs = character())
+  expect_error(dina_pipeline_input_preflight(list(task), root = root, session = session),
+    "required inputs are missing")
+})
+
+test_that("Pushover templates are not treated as configured credentials", {
+  root <- mini_repo()
+  dina_notify_init(root)
+  status <- dina_pushover_status(root)
+  expect_true(status$local_file_present)
+  expect_false(status$local_configured)
+  expect_false(status$configured)
+})
+
 test_that("benchmark and update validation receipts are independent scopes", {
   root <- mini_repo(); config_test_baseline(root)
   benchmark_check <- dina_settings_check(root, session = NULL, validate_runtime = FALSE)

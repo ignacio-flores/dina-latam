@@ -1,0 +1,376 @@
+
+  ___  ____  ____  ____  ____ (R)
+ /__    /   ____/   /   ____/
+___/   /   /___/   /   /___/   16.1   Copyright 1985-2019 StataCorp LLC
+  Statistics/Data Analysis            StataCorp
+                                      4905 Lakeway Drive
+     MP - Parallel Edition            College Station, Texas 77845 USA
+                                      800-STATA-PC        http://www.stata.com
+                                      979-696-4600        stata@stata.com
+                                      979-696-4601 (fax)
+
+60-user 4-core Stata network perpetual license:
+       Serial number:  501606216487
+         Licensed to:  Ignacio Flores
+                       insead
+
+Notes:
+      1.  Stata is running in batch mode.
+      2.  Unicode is supported; see help unicode_advice.
+      3.  More than 2 billion observations are allowed; see help obs_advice.
+      4.  Maximum number of variables is set to 5000; see help set_maxvar.
+
+. do code/Stata/07a-export-synthetic-microfiles.do 
+
+. /////////////////////////////////////////////////////////////////////////////
+> ///
+> //
+. //                                      Title: EXPORT SYNTHETIC MICRO-FILES 
+. //                       Authors: Mauricio DE ROSA, Ignacio FLORES, Marc MORG
+> AN 
+. //                                                                      Year:
+>  2020
+. //
+. /////////////////////////////////////////////////////////////////////////////
+> ///
+> 
+. clear all
+
+. 
+. //0. General settings -------------------------------------------------------
+> ---
+. 
+. //get list of paths 
+. global aux_part " "preliminary" " 
+
+. qui do "code/Stata/auxiliar/aux_general.do"
+
+. local lang $lang 
+
+. 
+. *get list of countries and years 
+. global steps " ${all_steps} "
+
+. global units " ${all_units} "
+
+. 
+. *get date 
+. local date "$S_DATE"
+
+. local date = subinstr("`date'", " ", "", .)
+
+. 
+. *make room 
+. foreach u in $units {
+  2.         global efftax_`u' output/efftax/efftax_`u'_`date'.xlsx
+  3.         qui cap erase "${efftax_`u'}"
+  4. }
+
+. 
+. 
+. //use WID deflator and PPP rates fetched by `dina sources include wid`
+. quietly use "input_data/wid/prices_deflator_ppp_eur.dta", clear
+
+. qui sum year if defl_xxxx == 1  
+
+. local xppp_yr = r(mean)
+
+. qui label var defl_xxxx "GDP deflator year `xppp_yr'"
+
+. quietly drop if year < 2000 
+
+. qui order country countrycode year defl_xxxx xppp_eur   
+
+. tempfile td_ixd 
+
+. qui save `td_ixd'
+
+. 
+. //prepare file for long format 
+. tempfile tf_lformat_detail tf_lformat_grouped tf_lformat_efftax 
+
+. local iter_lformat_detail = 1 
+
+. local iter_lformat_grouped = 1 
+
+. 
+. //create folders if necessary 
+. local dirpath "output/synthetic_microfiles"
+
+. mata: st_numscalar("exists", direxists(st_local("dirpath")))
+
+. if (scalar(exists) == 0) {
+.         mkdir "`dirpath'"
+.         display "Created directory: `dirpath'"
+. }
+
+. 
+. *loop over units 
+. foreach unit in $units {
+  2.         di as result "unit: `unit'"
+  3.         
+.         *loop over steps 
+.         foreach step in $steps {        
+  4.                 local s1 = substr("`step'", 1, 3)
+  5.                 di as text "step: `s1'"
+  6.                 
+.                 *erase microfiles if they already exist 
+.                 global mfile_`s1' output/synthetic_microfiles/smicrofile_`uni
+> t'_`s1'_`date'.xlsx
+  7.                 qui cap erase "${mfile_`s1'}"
+  8.                 
+.                 local iter_1st_`sheet' = 1
+  9.                 
+.                 *loop over results-sheets 
+.                 foreach sheet in "Summary" "Composition" {
+ 10.                         
+.                         *define temporary file 
+.                         tempfile tf_`s1'_`sheet'_`unit'
+ 11.                         di as text " -sheet: `sheet'"
+ 12.                         local iter_1st_`sheet' = 1
+ 13.                                 
+.                         *import sheet 
+.                         qui import excel ///
+>                                 "output/ineqstats/ineqstats_`step'_`unit'.xls
+> x", ///
+>                                 sheet("`sheet'") firstrow clear
+ 14.                                 
+.                         *save step and unit 
+.                         qui gen step = "`s1'" 
+ 15.                         qui gen unit = "`unit'"
+ 16.                         qui order step unit country year 
+ 17.                                 
+.                         *Exclude some cases and missings
+.                         qui do "code/Stata/auxiliar/aux_exclude_ctries.do"   
+>    
+ 18.                         qui replace exclude = 1 if country == "DOM" & year
+>  < 2012
+ 19.                         ***********ACTIVATE SUPERLIGHT VERSION FOR DEBUGGI
+> NG
+.                         *qui replace exclude = 1 if !inlist(country, "CHL", "
+> BRA")
+.                         *qui replace exclude = 1 if year < 2018
+.                         ***********ACTIVATE SUPERLIGHT VERSION FOR DEBUGGING
+.                         qui drop if exclude == 1
+ 20.                         qui drop exclude 
+ 21.                         
+.                         *Deal with estimate summary   
+.                         if "`sheet'" == "Summary" {
+ 22.                                 *list countries and corresponding years 
+.                                 qui drop if missing(average) 
+ 23.                                 qui levelsof country, clean local(ctries) 
+ 24.                                 foreach c in `ctries' {
+ 25.                                         qui levelsof year if country == "`
+> c'", ///
+>                                                 clean local(`c'_years)
+ 26.                                 }
+ 27.                                 
+.                                 *append and save
+.                                 local namesheet "Summary-estimates"
+ 28.                                 
+.                                 *append and save in wide format 
+.                                 preserve 
+ 29.                                         cap confirm file `tf_`s1'_`sheet'_
+> `unit'' 
+ 30.                                         if _rc == 0 qui append using `tf_`
+> s1'_`sheet'_`unit''
+ 31.                                         qui save `tf_`s1'_`sheet'_`unit'',
+>  replace 
+ 32.                                 restore 
+ 33.                                 
+.                                 *transform to long format  
+.                                 qui rename (gini average adpop) ///
+>                                         (tot_gini tot_average tot_adpop)
+ 34.                                 qui reshape long tot_ b50_ m40_ t10_ t1_, 
+> ///
+>                                         i(country year step unit) j(variable)
+>  string                    
+ 35.                                 qui rename *_ value*
+ 36.                                 qui reshape long value, ///
+>                                         i(country year step unit variable) j(
+> group) string
+ 37.                                 qui drop if missing(value)
+ 38.                                 
+.                                 *save in long format 
+.                                 qui order step unit country year group variab
+> le 
+ 39.                                 qui sort step unit country year group vari
+> able 
+ 40.                                 
+.                                 *save long version 
+.                                 qui replace variable = "inc_sh" if variable =
+> = "sh"
+ 41.                                 cap confirm file `tf_lformat_grouped'
+ 42.                                 if _rc == 0 /*& `iter_1st_`sheet'' == 1*/ 
+> {
+ 43.                                         qui append using `tf_lformat_group
+> ed'
+ 44.                                 }
+ 45.                                 qui save `tf_lformat_grouped', replace
+ 46.                         }
+ 47.                         
+.                         *Deal with composition
+.                         if "`sheet'" == "Composition" { 
+ 48.                                 
+.                                 local namesheet "Summary-composition"
+ 49.                                 *check sum is 100%
+.                                 foreach x in tot t1 t10 m40 b50 {
+ 50.                                         qui egen check_`x' = rowtotal(`x'_
+> *)
+ 51.                                         qui replace check_`x' = round(chec
+> k_`x' * 10^2) 
+ 52.                                         *assert check_`x' == 10^2 | check_
+> `x' == 0
+.                                         qui drop check_`x'
+ 53.                                 }
+ 54.                                 
+.                                 qui gen keepit = 0
+ 55.                                 foreach c in $countries_tax {
+ 56.                                         qui replace keepit = 1 if country 
+> == "`c'"
+ 57.                                 }
+ 58.                                 
+.                                 qui keep if keepit == 1 
+ 59.                                 qui drop keepit 
+ 60.                                 
+.                                 *keep only years with data 
+.                                 qui egen auxi1 = rowtotal(tot_*)
+ 61.                                 qui drop if auxi1 == 0 
+ 62.                                 qui drop auxi1 
+ 63.                                 
+.                                 *rename composition variables
+.                                 cap rename (*_sh_`unit'_*) (*_*)
+ 64.                                 cap rename (*_sca) (*)
+ 65.                                 cap rename (*_pre*) (**)
+ 66.                                 
+.                                 *save wide version
+.                                 preserve 
+ 67.                                         cap confirm file `tf_`s1'_`sheet'_
+> `unit'' 
+ 68.                                         if _rc == 0 append using `tf_`s1'_
+> `sheet'_`unit''
+ 69.                                         qui save `tf_`s1'_`sheet'_`unit'',
+>  replace 
+ 70.                                 restore 
+ 71.                                 
+.                                 *reshape 
+.                                 qui reshape long tot_ b50_ m40_ t10_ t1_, ///
+>                                         i(country year step unit) j(variable)
+>  string
+ 72.                                 qui rename (*_) (value*)        
+ 73.                                 qui reshape long value, ///
+>                                         i(country year step unit variable) j(
+> group) string                                              
+ 74.                                 *save long version 
+.                                 qui replace variable = variable + "_sh"
+ 75.                                 foreach bit in `unit' tax pod pon {
+ 76.                                         qui replace variable = ///
+>                                                 subinstr(variable, "`bit'_", 
+> "", .)
+ 77.                                 } 
+ 78.                                 qui append using `tf_lformat_grouped'
+ 79.                                 qui save `tf_lformat_grouped', replace
+ 80.                         }
+ 81.                         
+.                         *end first iteration 
+.                         local iter_1st_`sheet' = `iter_1st_`sheet'' + 1      
+>    
+ 82.                         
+.                         //reopen unified sheet in synthetic micro files and e
+> fftax
+.                         qui use `tf_`s1'_`sheet'_`unit'', clear 
+ 83.                         //reorganise composition 
+.                         if "`sheet'" == "Composition" { 
+ 84.                                 qui order country year tot_* b50_* m40_* t
+> 10_* t1_*
+ 85.                         }
+ 86.                         *save summary of estimates 
+.                         qui export excel "${mfile_`s1'}", ///
+>                                 sheet("`namesheet'", replace) firstrow(var) k
+> eepcellfmt 
+ 87.                         *save a summary for efftax too 
+.                         if "`s1'" == "nat" {
+ 88.                                 qui export excel "${efftax_`unit'}", ///
+>                                         sheet("`namesheet'", replace) firstro
+> w(var) keepcellfmt 
+ 89.                         }
+ 90.                 }
+ 91.                 
+.                 //save cpi and xrates 
+.                 //save for input in other dofiles 
+.                 preserve 
+ 92.                         qui use `td_ixd', clear 
+ 93.                         qui export excel "${mfile_`s1'}", firstrow(variabl
+> es) ///
+>                                 sheet("inflation-xrates") sheetreplace keepce
+> llfmt  
+ 94.                 restore 
+ 95.                 
+.                 //save sheets   
+.                 di as text " -saving individual country sheets..."
+ 96.                         
+.                 //loop over countries 
+.                 foreach c in `ctries' {
+ 97.                         foreach t in ``c'_years' {
+ 98.                                 qui cap import excel ///
+>                                         "output/ineqstats/ineqstats_`step'_`u
+> nit'.xlsx", ///
+>                                         sheet("`c'`t'") firstrow clear
+ 99.                                 if _rc == 0 {
+100.         
+.                                         qui rename (s) (bckt_sh)
+101.                                         cap drop topavg_* topsh_* topshbck
+> t_*
+102.                                         foreach v in country year gini ave
+> rage {
+103.                                                 qui replace `v' = ///
+>                                                         `v'[1] if missing(`v'
+> )
+104.                                         }
+105.                                         *round p 
+.                                         qui replace p = round(p*10^5)
+106.                                         qui recast int p
+107.                                         qui replace p = p/10^5
+108.                                         *format variables 
+.                                         qui ds country year average p, not 
+109.                                         foreach v in `r(Varlist)' {
+110.                                                 format %3.2f `v'
+111.                                         }
+112.                                         *save step and unit 
+.                                         qui gen step = "`s1'" 
+113.                                         qui gen unit = "`unit'"
+114.                                         qui order step unit country year 
+115.                                         
+.                                         foreach bit in pre `unit' pod pon sca
+>  tax pre {
+116.                                                 cap rename `bit'_* *
+117.                                                 cap rename *_`bit' *
+118.                                                 cap rename _`bit'_* *
+119.                                         }
+120.                                         
+.                                         qui export excel "${mfile_`s1'}", ///
+>                                                 sheet("`c'`t'") firstrow(var)
+>  keepcellfmt 
+121.                                                 
+.                                         *save in long format too 
+.                                         if `iter_lformat_detail' == 0 {
+122.                                                 qui append using `tf_lform
+> at_detail'
+123.                                         } 
+124.                                         local iter_lformat_detail = 0 
+125.                                         qui save `tf_lformat_detail', repl
+> ace 
+126.                                 }               
+127.                         }
+128.                 }                       
+129.         }
+130. }
+unit: ind
+step: nat
+ -sheet: Summary
+ -sheet: Composition
+ -saving individual country sheets...
+step: pon
+ -sheet: Summary
+ -sheet: Composition
+ -saving individual country sheets...

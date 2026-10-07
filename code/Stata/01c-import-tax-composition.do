@@ -15,7 +15,9 @@ local unit $unit
 
 //0. Clean data ----------------------------------------------------------------
 
-*bring newest 
+*The current OECD download contains the historical series as well as the
+*latest release.  Do not require a retired companion workbook just to obtain
+*older years.
 qui import delimited "input_data/OECD-CIAT-CEPAL/tot_tax_pct_gdp_2024.csv" ,  clear
 qui keep ref_area time_period obs_value revenue_code 
 qui rename (ref_area time_period obs_value)(country year c) 
@@ -35,80 +37,15 @@ foreach i in $all_countries {
 }
 qui gen country = iso_long 
 qui drop iso_long 
-qui keep if year >= 2022
+qui keep if year >= 1990
 tempfile tf_newer 
 qui rename _TOTALTAX tax_total
 qui drop if missing(country) 
 qui save `tf_newer'
 
-*import longer series 
-qui import excel "input_data/OECD-CIAT-CEPAL/tot_tax_pct_gdp_2023.xlsx" , ///
-	cellrange(A4:BQ998) sheet("OECD.Stat export") firstrow clear
-
-*rename variables 
-drop D E
-qui rename (Government B C Total) ///
-	(group country year tax_total)	
-foreach i in `c(ALPHA)'{
-	if "`i'" >= "G" local list1 "`list1' `i'"
-	if inlist("`i'", "A", "B") {
-		foreach j in `c(ALPHA)'{
-			if "`i'" == "A" local list`i' "`list`i'' `i'`j'"
-			if "`i'" == "B" & "`j'" <= "Q" local list`i' "`list`i'' `i'`j'"
-		}
-	}
-}
-
-*Display list of codes and rename more variables 
-foreach i in `list1' `listA' `listB' {
-	qui levelsof `i' in 1, local(full_name_`i') clean 
-	local code_`i' = substr("`full_name_`i''", 1, 4)
-	*count 0s 
-	local count0_`code_`i'' = ///
-		length("`code_`i''") - length(subinstr("`code_`i''", "0", "", .))
-	*add space 
-	local space ""
-	local m = 4 - `count0_`code_`i''' 
-	forvalues n = 1/`m' {
-		local space "`space'   "
-	}
-	qui label var `i' "`full_name_`i''"
-	qui replace `i' = "0" if `i' == ".."
-	qui local code_name_`code_`i'' "`full_name_`i''" 
-	qui rename `i' _`code_`i''
-	di as result "`space'`full_name_`i''"
-}
-
-*destring 
-qui drop if _n < 3
-qui replace tax_total = "" if tax_total == ".."
-qui destring tax_total year _* `v', replace 
-
 *clean countries and groups
-qui replace country = group if !missing(group) & missing(country) 
-qui replace group = "OECD - Economies" in 1 
-qui replace group = "Other - Groups" if group == "Other Groups"
-qui replace group = "" if !strpos(group, "-")
-foreach v in group country {
-	qui replace `v' = `v'[_n - 1] if missing(`v')
-}
-
-*harmonise country names 
-qui kountry country, from(other) stuck marker
-qui rename _ISO3N_ iso3 
-qui kountry iso3, from(iso3n) to(iso3c) 
-qui rename _ISO3C_ iso
-drop iso3 MARKER 
-
-*marker for LA-G10 countries 
-qui gen la_g10 = .
-qui replace la_g10 = 1 if country == "Latin America and the Caribbean" 
-foreach c in $countries_tax {
-	qui replace la_g10 = 1 if iso == "`c'"
-}
-
-qui append using `tf_newer'
-sort iso year 
+qui use `tf_newer', clear
+sort iso year
 ds _* 
 foreach tax in `r(varlist)' tax_total {
 	replace `tax' = 0 if missing(`tax')

@@ -1,0 +1,481 @@
+
+  ___  ____  ____  ____  ____ (R)
+ /__    /   ____/   /   ____/
+___/   /   /___/   /   /___/   16.1   Copyright 1985-2019 StataCorp LLC
+  Statistics/Data Analysis            StataCorp
+                                      4905 Lakeway Drive
+     MP - Parallel Edition            College Station, Texas 77845 USA
+                                      800-STATA-PC        http://www.stata.com
+                                      979-696-4600        stata@stata.com
+                                      979-696-4601 (fax)
+
+60-user 4-core Stata network perpetual license:
+       Serial number:  501606216487
+         Licensed to:  Ignacio Flores
+                       insead
+
+Notes:
+      1.  Stata is running in batch mode.
+      2.  Unicode is supported; see help unicode_advice.
+      3.  More than 2 billion observations are allowed; see help obs_advice.
+      4.  Maximum number of variables is set to 5000; see help set_maxvar.
+
+. do code/Stata/01f-adjust-country-survey-data.do 
+
+. /*===========================================================================
+> ==*
+> Goal: Make country specific adjustments to raw survey data
+> Author: De Rosa, Flores, Morgan
+> *============================================================================
+> =*/
+. 
+. clear all
+
+. 
+. //preliminary 
+. global aux_part  ""preliminary"" 
+
+. qui do "code/Stata/auxiliar/aux_general.do"
+
+. 
+. //needed for Stata 15/Windows
+. cap set matsize 11000 
+
+. 
+. foreach c in "ARG" "BRA" "CRI" /*"DOM"*/ {
+  2.         
+.         //loop over countries 
+.         di as text "Adjusting survey data (01f) for " _continue 
+  3.         di as result "`c' " _continue 
+  4.         di as text "at $S_TIME ..."
+  5.         
+.         // 1. Reweight Argentinian Survey to represent the national populatio
+> n
+.         // bc it only represents urban areas 
+.         if ("`c'"=="ARG") {
+  6.                 
+.                 qui use "input_data/wid/population_total_adult_npopul.dta", c
+> lear
+  7.                 qui keep if country == "Argentina" & year >= $first_y
+  8. 
+.                 //Loop over years
+.                 forvalues y = $first_y / $last_y {
+  9.                         qui levelsof totalpop if year == `y', clean local(
+> totalpop`y')
+ 10.                 }
+ 11.                 
+.                 forvalues year = $first_y / $last_y {
+ 12.                         clear   
+ 13.                         qui cap use ///
+>                                 "intermediary_data/microdata/raw/ARG/ARG_`yea
+> r'_raw.dta", clear 
+ 14.                         
+.                         qui cap assert _N == 0
+ 15.                         if _rc != 0 {
+ 16.                         
+.                                 local raw_weight "_fep" 
+ 17.                                 local id "id_hogar"
+ 18.                                 
+.                                 //Ensure weights are constant within househol
+> d
+.                                 qui drop if `raw_weight' == 0
+ 19.                                 qui egen weight2 = mean(`raw_weight'), by(
+> `id')
+ 20.                                 qui cap assert weight2 == `raw_weight'
+ 21.                                 
+.                                 //Write definitive weights 
+.                                 qui replace `raw_weight' = weight2
+ 22.                                 qui drop weight2
+ 23.                                 qui drop if missing(`raw_weight') | `raw_w
+> eight' < 1
+ 24.                                 
+.                                 //sum weights 
+.                                 qui sum `raw_weight'
+ 25.                                 local poptot = r(sum)
+ 26.                                 di as result "ARG `year' adj factor: " ///
+>                                         100/((`poptot'/`totalpop`year'')*100)
+ 27.                         
+.                                 
+.                                 if ("`poptot'" != "`totalpop`year''") {
+ 28.                                         qui gen r_fep = 100/((`poptot'/`to
+> talpop`year'')*100)
+ 29.                                         qui cap drop n_fep 
+ 30.                                         qui gen n_fep = `raw_weight' * r_f
+> ep            
+ 31.                                         qui drop r_fep
+ 32.                                 } 
+ 33.                         }
+ 34.                         
+.                         qui cap assert _N == 0
+ 35.                         
+.                         if _rc != 0 & !inlist("`year'", "2015")  {
+ 36.                                 qui save "intermediary_data/microdata/raw/
+> ARG/ARG_`year'_raw.dta", replace      
+ 37.                         }
+ 38.                 }
+ 39.         }
+ 40. 
+.         // 2. Impute missing social contributions in Brazilian survey
+.         if ("`c'"=="BRA") {
+ 41.                 do "code/Stata/BRA/BRA_impute_socsec_contribs.do"
+ 42.         }
+ 43. 
+.         //3. Include gross wages in Costa Rica's survey
+.         // (only for years overlapping with the tax data)
+.         if ("`c'"=="CRI") {     
+ 44.                 forvalues year = 2010/2018 { 
+ 45.                         
+.                         di as result "`year'"
+ 46. 
+.                         qui cap use "intermediary_data/microdata/raw/CRI/CRI_
+> `year'_raw.dta", clear     
+ 47.                         
+.                                 qui merge 1:1 id_hogar id_pers using ///
+>                                         "input_data/surveys_CEPAL/CRI/BYN/CRI
+> _`year'_byn.dta", nogen
+ 48.                                 
+.                                 * Compute taxes paid on primary and secondary
+>  salaries
+.                                 foreach t in tax1 tax2 tax taxm ind_pre_wag_g
+> ross ///
+>                                         ind_pre_fwag_gross pre_wag_svy_gross 
+> ///
+>                                         pre_fwag_svy_gross {
+ 49.                                         qui cap drop `t'
+ 50.                                 }
+ 51.                                 qui gen tax1 = 0
+ 52.                                 qui gen tax2 = 0
+ 53.                                 qui replace tax1 = spmb - spmn if spmb!=. 
+> | spmn!=.
+ 54.                                 qui replace tax2 = ssmb - ssmn if ssmb!=. 
+> | ssmn!=.
+ 55.                                 qui gen tax = tax1 + tax2
+ 56.                                 qui gen taxm = tax/12
+ 57.                                 
+.                                 * Add difference to net wages to make them gr
+> oss
+.                                 qui gen ind_pre_wag_gross = ind_pre_wag + tax
+ 58.                                 qui gen ind_pre_fwag_gross = ind_pre_fwag 
+> + tax
+ 59.                                 qui gen pre_wag_svy_gross = pre_wag_svy + 
+> taxm
+ 60.                                 qui gen pre_fwag_svy_gross = pre_fwag_svy 
+> + taxm
+ 61.                                 
+.                                 qui save ///
+>                                         "intermediary_data/microdata/raw/CRI/
+> CRI_`year'_raw.dta", replace       
+ 62.                 }
+ 63.         }
+ 64. }
+Adjusting survey data (01f) for ARG at 14:43:54 ...
+ARG 2000 adj factor: 1.5880163
+ARG 2001 adj factor: 1.5796061
+ARG 2002 adj factor: 1.5469164
+ARG 2003 adj factor: 1.6714133
+ARG 2004 adj factor: 1.6727218
+ARG 2005 adj factor: 1.6735716
+ARG 2006 adj factor: 1.6481697
+ARG 2007 adj factor: 1.6484902
+ARG 2008 adj factor: 1.649141
+ARG 2009 adj factor: 1.6509665
+ARG 2010 adj factor: 1.6530286
+ARG 2011 adj factor: 1.6554928
+ARG 2012 adj factor: 1.6575525
+ARG 2013 adj factor: 1.6464329
+ARG 2014 adj factor: 1.6099915
+ARG 2016 adj factor: 1.6058199
+ARG 2017 adj factor: 1.6033432
+ARG 2018 adj factor: 1.6001983
+ARG 2019 adj factor: 1.5915114
+ARG 2020 adj factor: 1.5776663
+ARG 2021 adj factor: 1.5626276
+ARG 2022 adj factor: 1.5518095
+ARG 2023 adj factor: 1.5426297
+ARG 2024 adj factor: 1.5346785
+Adjusting survey data (01f) for BRA at 14:43:58 ...
+
+. /*===========================================================================
+> ==*
+> Goal: imputation of Social Security contributions to CEPAL's PNAD data 
+> *============================================================================
+> =*/
+. 
+. quietly do "code/Stata/BRA/aux_bra_admin_thresholds.do"
+
+. 
+. forvalues year = $first_y / $last_y {
+  2. 
+.         clear 
+  3.         qui cap use "intermediary_data/microdata/raw/BRA/BRA_`year'_raw.dt
+> a", clear
+  4. 
+.         *Only run when data exists
+.         qui cap assert _N == 0
+  5.         if _rc != 0 {
+  6. 
+. //forvalues year = 2001/2017 {
+. //if !inlist(`year', 2010) {
+. 
+.         //use "Data/CEPAL/surveys/BRA/raw/BRA_`year'_raw.dta", clear
+.         
+.                 *------------------------------------------------------------
+> -------*
+.                 * Current MW and INSS thresholds                             
+>                                            *
+.                 *------------------------------------------------------------
+> -------*
+.                 bra_admin_thresholds, year(`year') require("minwage maxlimit_
+> inss")
+  7.                 local minwage = r(minwage)
+  8.                 local maxlimitINSS = r(maxlimit_inss)
+  9.                 //local alt_annualization = `alt_annualization`year''
+.                 
+.                 *------------------------------------------------------------
+> -------*
+.                 * Year by year adjustments                                   
+>                                                    *
+.                 *------------------------------------------------------------
+> -------*   
+.                 
+.                 * Note: the imputations had to deal with two major obstacles 
+> -
+.                 *       a) lack of pnad data: impossible to discriminate civi
+> l servants from formal private sector workers between 1978-1990
+.                 *       b) lack of historical rates for military personnel an
+> d state/municipality civil servants
+.                 * Thus, key simplifying assumptions were used: 
+.                 *       a) all imputations for private sector workers assumed
+>  they were subject to the standard rates
+.                 *       b) all workers were assumed to be subject to the same
+>  rates as private sector workers until 1990
+.                 *       c) all public sector workers were assumed to be subje
+> ct to the same rates as federal civil servants after 1992
+.                 *       d) no special rates were applied to domestic employer
+> s
+.                 *       e) all contributions tied to the minimum wage were as
+> sumed to be tied to the highest minimum wage in the country until 1984
+.                 
+.                 foreach z in "socsec_worker_contrib" "socsec_employer_contrib
+> " ///
+>                         "socsec_pensioner_contrib" "socsec_fgts_contrib" {
+ 10.                         cap drop `z'
+ 11.                         qui gen `z' = 0                         
+ 12.                 }
+ 13.                 
+.                 qui cap drop n_mw
+ 14.                 qui cap drop n_teto
+ 15.                 qui cap drop rate_worker
+ 16.                 qui cap drop rate_emplyr
+ 17.                 qui gen n_mw = sys_pe/`minwage'
+ 18.                 qui gen n_teto = sys_pe / `maxlimitINSS'
+ 19.                 
+.                 /*
+>                 *= 1996 (L9032/1995)
+>                 if inrange(`year',1996) { 
+>                         forvalues i = 1/2 {     
+>                                 gen rate_worker`i' =  cond( n_teto`i' <= .3, 
+> .08, cond( n_teto`i' <= .5, .09, .10)) if emplstat`i'a==1
+>                                 replace rate_worker`i' = .105 * yjob`i' if em
+> plstat`i'a==2
+>                                 replace rate_worker`i' = cond( n_teto`i' <= .
+> 3, .10, .20) if emplstat`i'a~=1 & emplstat`i'a~=2
+>                                 replace rate_worker`i' = rate_worker`i' * min
+> (max(`minwage',yjob`i'),`maxlimitINSS') if emplstat`i'a~=2
+>                                 gen rate_emplyr`i' = cond( emplstat`i'a==1, .
+> 22 * max(`minwage',yjob`i'), 0)    
+>                         }
+>                         replace socsec_worker_contrib = socsec_contrib_primar
+> y * rate_worker1 + socsec_contrib_secondary * rate_worker2
+>                         replace socsec_employer_contrib = socsec_contrib_prim
+> ary * rate_emplyr1 + socsec_contrib_secondary * rate_emplyr2               
+>                 }
+>                 
+>                 *= 1997-1998 (L9311/96, D2173/1997, L9630/1998)
+>                 if inrange(`year',1997,1998) { 
+>                         forvalues i = 1/2 { 
+>                                 gen rate_worker`i' = cond(n_teto`i'<=.3, .078
+> 2, cond(n_mw`i'<=3, .0882, cond(n_teto`i'<=.5, .09, .11))) if emplstat`i'a==1
+>  // chg'ed rates
+>                                 replace rate_worker`i' = .11 * yjob`i' if emp
+> lstat`i'a==2
+>                                 replace rate_worker`i' = .20 if emplstat`i'a~
+> =1 & emplstat`i'a~=2
+>                                 replace rate_worker`i' = rate_worker`i' * min
+> (max(`minwage',yjob`i'),`maxlimitINSS') if emplstat`i'a~=2
+>                                 gen rate_emplyr`i' = cond( emplstat`i'a==1, .
+> 22 * max(`minwage',yjob`i'), 0)    
+>                         }
+>                         replace socsec_worker_contrib = socsec_contrib_primar
+> y * rate_worker1 + socsec_contrib_secondary * rate_worker2
+>                         replace socsec_employer_contrib = socsec_contrib_prim
+> ary * rate_emplyr1 + socsec_contrib_secondary * rate_emplyr2               
+>                 }
+>                 */
+.                 
+.                 *= 1999-2007 (EC21/1999, P1987/2001, P288/2002, P727/2003, P4
+> 79/2004, L10887/2004, P822/2005, P342/2006, P142/2007, D6042/2007)
+.                 
+.                 if inrange(`year',1999,2007) { 
+ 20.                         
+.                         qui gen rate_worker = ///
+>                                 cond(n_teto<=.3, .0765, ///
+>                                 cond(n_mw<=3, .0865, ///
+>                                 cond(n_teto<=.5, .09, .11))) ///
+>                                 if (cotiza_ee==1) & sector_ee==2  // chg'ed r
+> ates
+ 21.                                 
+.                         qui replace rate_worker = .11 * sys_pe ///
+>                                 if (cotiza_ee==1) & sector_ee==1
+ 22.                                 
+.                         if `year'<=2006 {
+ 23.                                 replace rate_worker = .20 if ///
+>                                         (cotiza_ee!=1 | cotiza_ee!=2) & ///
+>                                         (sector_ee!=1 | sector_ee!=2)
+ 24.                         } 
+ 25.                         if `year'==2007 {
+ 26.                                 replace rate_worker = ///
+>                                         cond(n_mw <= 1, .11, .20) if ///
+>                                         (cotiza_ee!=1 | cotiza_ee!=2) & ///
+>                                         (sector_ee!=1 | sector_ee!=2)   // in
+> cl'ed PSPS
+ 27.                         } 
+ 28.                         qui replace rate_worker = ///
+>                                 rate_worker * min(max(`minwage',sys_pe),`maxl
+> imitINSS') ///
+>                                 if (cotiza_ee==1) & sector_ee==1
+ 29.                         qui gen rate_emplyr= ///
+>                                 cond(cotiza_ee==1 & ///
+>                                 sector_ee==2, .22 * max(`minwage',sys_pe), 0)
+>    
+ 30.                         qui replace socsec_worker_contrib = cotiza_ee * ra
+> te_worker
+ 31.                         qui replace socsec_employer_contrib = cotiza_ee * 
+> rate_emplyr   
+ 32.                         if `year'>=2004 {
+ 33.                                 qui replace socsec_pensioner_contrib ///
+>                                         = .11 * max(yjub_pe - `maxlimitINSS',
+>  0)
+ 34.                         } 
+ 35.                 }
+ 36.                 
+.                 *= 2008-2011 ( L10887/2004, PI77/2008)
+.                 if inrange(`year',2008,2011) { 
+ 37.                         qui gen rate_worker = ///
+>                                 cond(n_teto <= .3, .08, cond(n_teto<= .5, .09
+> , .11)) ///
+>                                 if (cotiza_ee==1) & sector_ee==2 // changed r
+> ates
+ 38.                         qui replace rate_worker = .11 * sys_pe ///
+>                                 if (cotiza_ee==1) & sector_ee==1
+ 39.                         replace rate_worker = cond( n_mw <= 1, .11, .20) i
+> f ///
+>                                 (cotiza_ee!=1 | cotiza_ee!=2) & (sector_ee!=1
+>  | sector_ee!=2)
+ 40.                         qui replace rate_worker = ///
+>                                 rate_worker * min(max(`minwage',sys_pe),`maxl
+> imitINSS') ///
+>                                 if (cotiza_ee==1) & sector_ee~=1
+ 41.                         qui gen rate_emplyr= ///
+>                                 cond(cotiza_ee==1 & sector_ee==1 & ///
+>                                 sector_ee==2, .22 * max(`minwage',sys_pe), 0)
+>    
+ 42.                         qui replace socsec_worker_contrib = cotiza_ee * ra
+> te_worker
+ 43.                         qui replace socsec_employer_contrib = cotiza_ee * 
+> rate_emplyr
+ 44.                         qui replace socsec_pensioner_contrib =  ///
+>                                 max( yjub_pe - `maxlimitINSS', 0) * .11
+ 45.                 }
+ 46.                 
+.                 *= 2012-2017 (L12470/2011, PI MPS/MF 02/2012, PI15/2013, PI19
+> /2014, PI13/2015, PI1/2016, PI8/2017)...extended to 2020
+.                 if inrange(`year',2012,2020) {
+ 47.                         qui gen rate_worker = ///
+>                                 cond( n_teto <= .3, .08, cond( n_teto <= .5, 
+> .09, .11)) ///
+>                                 if (cotiza_ee==1) & sector_ee==2
+ 48.                         qui replace rate_worker = .11 * sys_pe if ///
+>                                 (cotiza_ee==1) & sector_ee==1
+ 49.                         replace rate_worker = cond( n_mw <= 1, .08, .20) /
+> //
+>                                 if (cotiza_ee!=1 | cotiza_ee!=2) & ///
+>                                 (sector_ee!=1 | sector_ee!=2)   // incl'ed ME
+> I
+ 50.                         qui replace rate_worker = ///
+>                                 rate_worker * min(max(`minwage',sys_pe),`maxl
+> imitINSS') ///
+>                                 if (cotiza_ee==1) & sector_ee~=1
+ 51.                         qui gen rate_emplyr = ///
+>                                 cond(cotiza_ee==1 & sector_ee==1 & ///
+>                                 sector_ee==2, .22 * max(`minwage',sys_pe), 0)
+>    
+ 52.                         qui replace socsec_worker_contrib = cotiza_ee * ra
+> te_worker
+ 53.                         qui replace socsec_employer_contrib = cotiza_ee * 
+> rate_emplyr
+ 54.                         qui replace socsec_pensioner_contrib = ///
+>                                 max( yjub_pe - `maxlimitINSS', 0) * .11
+ 55.                         qui replace socsec_fgts_contrib = .08 * (sys_pe) i
+> f ///
+>                                 cotiza_ee==1 & sector_ee==2
+ 56.                 }
+ 57.                 
+.                 *= Sum of contributions
+.                 foreach z in socsec_tot_contribs_svy socsec_tot_contribs ///
+>                         socsec_valid_contribs_svy socsec_valid_contribs {
+ 58.                         cap drop `z'
+ 59.                 }
+ 60. 
+.                 qui egen  socsec_tot_contribs_svy = rowtotal(socsec_*_contrib
+> )
+ 61.                 qui label var socsec_tot_contribs_svy ///
+>                         "Employer, employee & pensioner social contributions 
+> (imputed)"
+ 62.                 quietly gen socsec_tot_contribs = socsec_tot_contribs_svy*
+> 12
+ 63.                 qui label var socsec_tot_contribs ///
+>                         "Employer, employee & pensioner social contributions 
+> (imputed) - annual" 
+ 64.                 qui egen  socsec_valid_contribs_svy = rowtotal(socsec_work
+> er_contrib socsec_pensioner_contrib)
+ 65.                 qui label var socsec_valid_contribs_svy ///
+>                         "Employee & pensioner social contributions (imputed)"
+ 66.                 quietly gen socsec_valid_contribs = socsec_valid_contribs_
+> svy*12
+ 67.                 qui label var socsec_valid_contribs ///
+>                         "Employee & pensioner social contributions (imputed) 
+> - annual"
+ 68.                 
+.                 qui save "intermediary_data/microdata/raw/BRA/BRA_`year'_raw.
+> dta", replace      
+ 69.                 
+.                 *------------------------------------------------------------
+> -------*
+.                 * Deduct from wage income and save                           
+>                                                                    
+.                 *------------------------------------------------------------
+> -------*   
+.                 
+.                 qui cap drop rate_* 
+ 70.                 qui cap drop n_mw* 
+ 71.                 qui cap drop n_teto* 
+ 72.                 qui save "intermediary_data/microdata/raw/BRA/BRA_`year'_r
+> aw.dta", replace
+ 73.                 
+.         }
+ 74.         else {
+ 75.                 di as error "intermediary_data/microdata/raw/BRA/BRA_`year
+> '_raw.dta not found"
+ 76.         }
+ 77.         
+. }
+intermediary_data/microdata/raw/BRA/BRA_2000_raw.dta not found
+lower not allowed
+r(101);
+
+end of do-file
+r(101);
+
+end of do-file
+r(101);

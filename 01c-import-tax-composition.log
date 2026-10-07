@@ -1,0 +1,160 @@
+
+  ___  ____  ____  ____  ____ (R)
+ /__    /   ____/   /   ____/
+___/   /   /___/   /   /___/   16.1   Copyright 1985-2019 StataCorp LLC
+  Statistics/Data Analysis            StataCorp
+                                      4905 Lakeway Drive
+     MP - Parallel Edition            College Station, Texas 77845 USA
+                                      800-STATA-PC        http://www.stata.com
+                                      979-696-4600        stata@stata.com
+                                      979-696-4601 (fax)
+
+60-user 4-core Stata network perpetual license:
+       Serial number:  501606216487
+         Licensed to:  Ignacio Flores
+                       insead
+
+Notes:
+      1.  Stata is running in batch mode.
+      2.  Unicode is supported; see help unicode_advice.
+      3.  More than 2 billion observations are allowed; see help obs_advice.
+      4.  Maximum number of variables is set to 5000; see help set_maxvar.
+
+. do code/Stata/01c-import-tax-composition.do 
+
+. /////////////////////////////////////////////////////////////////////////////
+> ///
+> //                      Bring tax data from OECD-CIAT-CEPAL 
+. /////////////////////////////////////////////////////////////////////////////
+> ///
+> 
+. //General 
+. clear all
+
+. 
+. //Paths to files 
+. global aux_part  ""preliminary"" 
+
+. qui do "code/Stata/auxiliar/aux_general.do"
+
+. 
+. //define language 
+. local lang $lang
+
+. local unit $unit 
+
+. 
+. //0. Clean data -------------------------------------------------------------
+> ---
+. 
+. *bring newest 
+. qui import delimited "input_data/OECD-CIAT-CEPAL/tot_tax_pct_gdp_2024.csv" , 
+>  clear
+
+. qui keep ref_area time_period obs_value revenue_code 
+
+. qui rename (ref_area time_period obs_value)(country year c) 
+
+. qui reshape wide c, i(country year) j(revenue_code) string
+
+. qui drop if inlist(country, "OECD_REP", "A9")
+
+. qui renvars, subst("c" "_")
+
+. qui rename _ountry iso   
+
+. qui levelsof iso, clean local(isos)
+
+. qui gen iso_long = ""
+
+. foreach i in `isos' {
+  2.         di as result "`i': ${lname_`i'_eng}"
+  3.         replace iso_long = "${lname_`i'_eng}" if iso == "`i'"
+  4. }
+ARG: Argentina
+variable iso_long was str1 now str9
+(33 real changes made)
+ATG: 
+(0 real changes made)
+BHS: 
+(0 real changes made)
+BLZ: 
+(0 real changes made)
+BOL: Bolivia
+(33 real changes made)
+BRA: Brazil
+(33 real changes made)
+BRB: 
+(0 real changes made)
+CHL: Chile
+(33 real changes made)
+COL: Colombia
+(33 real changes made)
+CRI: Costa Rica
+variable iso_long was str9 now str10
+(33 real changes made)
+CUB: 
+(0 real changes made)
+DOM: Dominican Republic
+variable iso_long was str10 now str18
+(33 real changes made)
+ECU: Ecuador
+(33 real changes made)
+GTM: 
+(0 real changes made)
+GUY: 
+(0 real changes made)
+HND: 
+(0 real changes made)
+JAM: 
+(0 real changes made)
+LCA: 
+(0 real changes made)
+MEX: Mexico
+(33 real changes made)
+NIC: 
+(0 real changes made)
+PAN: 
+(0 real changes made)
+PER: Peru
+(33 real changes made)
+PRY: Paraguay
+(33 real changes made)
+SLV: El Salvador
+(33 real changes made)
+TTO: 
+(0 real changes made)
+URY: Uruguay
+(33 real changes made)
+VEN: Venezuela
+(28 real changes made)
+
+. qui gen la_g10 = .
+
+. foreach i in $all_countries {
+  2.         qui replace la_g10 = 1 if iso == "`i'"
+  3. }
+
+. qui gen country = iso_long 
+
+. qui drop iso_long 
+
+. qui keep if year >= 2022
+
+. tempfile tf_newer 
+
+. qui rename _TOTALTAX tax_total
+
+. qui drop if missing(country) 
+
+. qui save `tf_newer'
+
+. 
+. *import longer series 
+. qui import excel "input_data/OECD-CIAT-CEPAL/tot_tax_pct_gdp_2023.xlsx" , ///
+>         cellrange(A4:BQ998) sheet("OECD.Stat export") firstrow clear
+file input_data/OECD-CIAT-CEPAL/tot_tax_pct_gdp_2023.xlsx not found
+r(601);
+
+end of do-file
+r(601);

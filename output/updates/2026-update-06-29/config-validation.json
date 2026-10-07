@@ -1,11 +1,11 @@
 {
   "status": "passed",
-  "checked_at": "2026-09-28T13:12:22+0200",
+  "checked_at": "2026-09-28T15:14:55+0200",
   "errors": [],
   "scope": "update:2026-update-06-29",
-  "benchmark_config_hash": "25bfc7e631a65641ae983cdfeebdf7dce05f40a8e265b923df12585504dcbf70",
+  "benchmark_config_hash": "b7285fdb09739f89a7e3cd881d5ee7b66055cb04b4fa551d618712308c7983b0",
   "update_override_hash": "11524e9ec2eb8b72d49f98049cb600680fdbe7f7268a8c0238f66fa377a7af62",
-  "effective_config_hash": "c705ced5cf0c4f6bab544c669e66b5ea0830e4ddf22d4523b0d25bda56f8a1ea",
+  "effective_config_hash": "ba25532433b95114c87edb154796ec6841f1cd20428c4dd695140ff4ef7235b8",
   "baseline": {
     "path": "input_data/_new/previous_series/dina_latam_7Nov2025.dta",
     "exists": true,

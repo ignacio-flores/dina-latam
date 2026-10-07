@@ -13,6 +13,11 @@ qui local cellr "E11:G64"
 *prepare to treat different sectors 
 global sna_sectors households gg row 
 
+//This workbook is derived during the pipeline.  Keep it out of the accepted
+//source directory so a pipeline run cannot make the SNA review stale.
+cap mkdir "intermediary_data/national_accounts/sna_country_data"
+cap mkdir "intermediary_data/national_accounts/sna_country_data/URY"
+
 forvalues t = $first_y / $last_y {
 	
 	tempfile tf_all_`t' 
@@ -67,10 +72,9 @@ forvalues t = $first_y / $last_y {
 	}
 	
 	if _N != 0 {
-		qui export excel using "input_data/sna_country_data/URY/cei.xlsx", ///
+		qui export excel using "intermediary_data/national_accounts/sna_country_data/URY/cei.xlsx", ///
 			sheet("`t'", replace) firstrow(variables) 
 	}
 }
-
 
 

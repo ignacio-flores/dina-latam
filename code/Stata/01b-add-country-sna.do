@@ -211,7 +211,7 @@ foreach c in $ctries_cei {
 			local firstr ""
 			if "`c'" == "URY" {
 				local y_sheet "`y'"
-				local file_`c' "`folder_`c''/cei.xlsx"
+				local file_`c' "intermediary_data/national_accounts/sna_country_data/URY/cei.xlsx"
 				local firstr firstrow
 			}
 			
@@ -516,4 +516,3 @@ qui replace HH_B2g_R = . if country == "ECU" & year <= 2017
 
 //save
 qui save "intermediary_data/national_accounts/UNDATA-WID-Merged.dta" , replace  
-

@@ -70,9 +70,10 @@ test_that("source states distinguish empty, unfinished, stale and accepted revie
   record <- list(family = "sna", run = "fixture", status = "all_good", reviewed_at = dina_now(), watch = dina_review_watch(incoming))
   dina_review_save(record, root)
   expect_equal(dina_review_family_status(root, "sna")$code, "ready")
-  record$status <- "included"; dina_review_save(record, root)
+  record$status <- "included"; record$included_at <- dina_now(); dina_review_save(record, root)
   expect_equal(dina_review_family_status(root, "sna")$code, "included")
   expect_null(dina_review_recommendation(root))
+  Sys.sleep(2.1)
   writeLines("different candidate", file.path(incoming, "data"))
   state <- dina_review_family_status(root, "sna")
   expect_equal(state$code, "included_stale")
@@ -93,12 +94,43 @@ test_that("accepted source status ignores CLI code changes but detects source ch
   dir.create(dirname(cli_file), recursive = TRUE)
   writeLines("first presentation", cli_file)
   record <- list(family = "wid", run = "fixture", status = "included", reviewed_at = dina_now(),
-    watch = dina_review_watch(c(incoming, cli_file)))
+    included_at = dina_now(), watch = dina_review_watch(c(incoming, cli_file)))
   dina_review_save(record, root)
   writeLines("improved presentation", cli_file)
   expect_equal(dina_review_family_status(root, "wid")$code, "included")
+  Sys.sleep(2.1)
   writeLines("new candidate", file.path(incoming, "population.dta"))
   expect_equal(dina_review_family_status(root, "wid")$code, "included_stale")
+})
+
+test_that("accepted source status ignores runtime configuration changes", {
+  source_cli_for_tests(); root <- mini_repo()
+  incoming <- file.path(root, "input_data", "_new", "sna")
+  config <- file.path(root, "config", "dina.yml")
+  dir.create(incoming, recursive = TRUE)
+  writeLines("candidate", file.path(incoming, "source.xlsx"))
+  writeLines("runtime: old", config)
+  record <- list(family = "sna", run = "fixture", status = "included", reviewed_at = dina_now(),
+    included_at = dina_now(), acceptance_watch = dina_review_watch(c(incoming, config)))
+  dina_review_save(record, root)
+  writeLines("runtime: new", config)
+  state <- dina_review_family_status(root, "sna")
+  expect_equal(state$code, "included")
+  expect_match(state$reason, "Saved candidate accepted")
+})
+
+test_that("pipeline-derived files beside legacy source folders do not stale an accepted review", {
+  source_cli_for_tests(); root <- mini_repo()
+  source_dir <- file.path(root, "input_data", "admin_data", "COL")
+  dir.create(source_dir, recursive = TRUE)
+  writeLines("accepted source", file.path(source_dir, "source.xlsx"))
+  record <- list(family = "admin", run = "fixture", status = "included", reviewed_at = dina_now(),
+    included_at = dina_now(), acceptance_watch = dina_review_watch(source_dir))
+  dina_review_save(record, root)
+  derived_dir <- file.path(source_dir, "eff-tax-rate")
+  dir.create(derived_dir)
+  writeLines("pipeline output", file.path(derived_dir, "COL_effrates_2024.dta"))
+  expect_equal(dina_review_family_status(root, "admin")$code, "included")
 })
 
 test_that("baseline suggestions preserve explicit selection and never discover a baseline", {
@@ -182,7 +214,7 @@ test_that("every task requires an explicit current configuration validation", {
   writeLines(c("#!/bin/sh", paste("touch", shQuote(marker))), fake_stata)
   Sys.chmod(fake_stata, "0755")
   task <- list(id = "export-fixture", type = "stata", requirements = "configuration_validation",
-    script = "code/Stata/07d-export-results-to-wid.do", inputs = character(), outputs = marker)
+    script = "code/Stata/01a.do", inputs = character(), outputs = marker)
   session <- withr::with_envvar(c(DINA_STATA_CMD = fake_stata), {
     check <- dina_settings_check(root, session, validate_runtime = FALSE)
     dina_record_config_validation(root, session, check)

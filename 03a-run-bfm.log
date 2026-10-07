@@ -1,0 +1,1482 @@
+
+  ___  ____  ____  ____  ____ (R)
+ /__    /   ____/   /   ____/
+___/   /   /___/   /   /___/   16.1   Copyright 1985-2019 StataCorp LLC
+  Statistics/Data Analysis            StataCorp
+                                      4905 Lakeway Drive
+     MP - Parallel Edition            College Station, Texas 77845 USA
+                                      800-STATA-PC        http://www.stata.com
+                                      979-696-4600        stata@stata.com
+                                      979-696-4601 (fax)
+
+60-user 4-core Stata network perpetual license:
+       Serial number:  501606216487
+         Licensed to:  Ignacio Flores
+                       insead
+
+Notes:
+      1.  Stata is running in batch mode.
+      2.  Unicode is supported; see help unicode_advice.
+      3.  More than 2 billion observations are allowed; see help obs_advice.
+      4.  Maximum number of variables is set to 5000; see help set_maxvar.
+
+. do code/Stata/03a-run-bfm.do 
+
+. /*===========================================================================
+> ==*
+> Goal: correct CEPAL surveys with bfmcorr command (Blanchet, Flores, Morgan, 2
+> 019)
+> and save theta coefficients for analysis and further extrapolations
+> Authors: Mauricio De ROSA, Ignacio FLORES, Marc MORGAN
+> Date: Jan/2020
+> *============================================================================
+> =*/
+. 
+. //general settings
+. clear all
+
+. 
+. //preliminary
+. global aux_part  ""preliminary"" 
+
+. do "code/Stata/auxiliar/aux_general.do"
+
+. //PRELIMINARY SETTINGS
+. do "code/Stata/auxiliar/dina_runtime_config.do"
+
+. * Load the single configuration authority for a DINA task.
+. * `dina run` supplies DINA_CONFIG_DO; manual runs must supply an explicitly
+. * generated and validated file through the same environment variable.
+. 
+. if "${dina_runtime_config_loaded}" != "yes" {
+.     local dina_config_do : environment DINA_CONFIG_DO
+.     if "`dina_config_do'" == "" {
+.         di as error "DINA runtime configuration is required."
+.         di as error "Run through `dina run`, or generate one with `dina confi
+> g stata --output PATH`."
+.         exit 198
+.     }
+.     capture confirm file "`dina_config_do'"
+.     if _rc {
+.         di as error "DINA_CONFIG_DO does not point to a readable file: `dina_
+> config_do'"
+.         exit 601
+.     }
+.     quietly do "`dina_config_do'"
+.     foreach required in dina_config_scope dina_config_fingerprint dina_baseli
+> ne_fingerprint dina_config_countries all_countries first_y last_y lang debug 
+> bfm_replace all_units all_steps export_unit export_steps export_last_y previo
+> us_update {
+  2.         if `"${`required'}"' == "" {
+  3.             di as error "Generated DINA runtime configuration is missing `
+> required'."
+  4.             exit 198
+  5.         }
+  6.     }
+.     global dina_runtime_config_loaded "yes"
+. }
+
+. 
+end of do-file
+
+. 
+. if $aux_part == "preliminary" {
+.         
+.         if "${bfm_replace}" == "yes" global ext ""
+.         if "${bfm_replace}" == "no" global ext "_norep"
+. 
+.         //first and last years for loops 
+.         if "${debug}" == "yes" {
+.                 global snapops totpop adults active 
+.                 global unit_list " "ind" "esn" "pch" "act" "  
+.                 global all_steps ///
+>                         "  "raw"  "natinc" "por"  "psp" "bfm${ext}_pre" "resc
+> aled" "pon" "pod" " 
+.                 //      
+.                 global units_06a " "esn" "pch" "        
+.                 //"uprofits"
+.                 global steps_dec ///
+>                         " "raw" "bfm${ext}_pre" "rescaled" "natinc" "pon" "po
+> d" "psp"" //"uprofits"
+.                 global steps_06b ///
+>                         " "raw" "natinc" "bfm${ext}_pre" "rescaled" "pon" "po
+> d" " //"uprofits"  
+.                 global steps_06c natinc raw rescaled bfm${ext}_pre  //uprofit
+> s 
+.                 global steps_06d natinc pon pod psp por 
+.         }
+.         
+.         //full mode 
+.         else {
+.                 global snapops totpop adults active 
+.                 global unit_list ${all_units} //" "ind" "esn" "pch" "act" "  
+.                 *global all_steps ///
+>                 *       "  "raw"  "natinc" "por"  "psp" "bfm${ext}_pre" "resc
+> aled" "pon" "pod" " 
+.                 //      
+.                 global units_06a ${all_units} ///" "ind" "esn" "pch" "act" " 
+>    
+>                 //"uprofits"
+.                 global steps_dec ///
+>                         " "raw" "bfm${ext}_pre" "rescaled" "natinc" "pon" "po
+> d" "psp"" //"uprofits"
+.                 global steps_06b ///
+>                          " "raw" "natinc" "bfm${ext}_pre" "rescaled" "pon" "p
+> od" " //"uprofits"  
+.                 global steps_06c natinc raw rescaled bfm${ext}_pre  //uprofit
+> s 
+.                 global steps_06d natinc pon pod psp por 
+.         }
+.         
+.         //total income variables for bfm 
+.         global y_postax_tot "ind_pos_tot" 
+.         global y_pretax_tot "ind_pre_tot" 
+.         global y_postax_tot_bra "ind_pos_totesn"
+.         global y_pretax_tot_bra "ind_pre_totesn"
+.         global y_postax_tot_per "ind_pos_totnb"
+.         global y_pretax_tot_per "ind_pre_totnb"
+.         global y_postax_tot_dom "ind_pos_totcor"
+. 
+.         //wage variables for bfm2stg
+.         global y_postax_wag "ind_pos_wag"
+.         global y_pretax_wag "ind_pre_wag"
+.         global y_pretax_wag_cri "ind_pre_wag_gross"
+.         global y_postax_formal_wage "ind_pos_fwag"
+.         global y_pretax_formal_wage "ind_pre_fwag"
+.         global y_pretax_formal_wage_cri "ind_pre_fwag_gross"
+.         global y_postax_private_wage "ind_pos_prwag"
+.         global y_postax_formal_private_wage_arg "ind_pos_prfwag"
+.         
+.         //wid variables (weird names)
+.         global inflation_wid inyixx
+.         global xppp_eur xlceup
+.         
+.         //get date
+.         local date "$S_DATE"
+.         local date = subinstr("`date'", " ", "", .)
+.         di as result "`date'"
+28Sep2026
+.         
+.         //paths
+.         global summary results/summary/
+.         global microfiles results/syn_microfiles/
+.         global efftaxes results/eff_taxes/
+.         global svypath Data/CEPAL/surveys/
+.         global taxpath Data/Tax-data/
+.         global auxpath code/Stata/auxiliar/
+.         global adofile code/Stata/ado_files/
+.         global all_thetas results/all_thetas.xlsx
+.         global pseudo_thetas results/pseudo_thetas.xlsx
+.         global mp_norep_pos results/bfm${ext}_pos/merging_points.xlsx
+.         global mp_norep_pre results/bfm${ext}_pre/merging_points.xlsx
+.         global w_adj 
+.         global sna_folder Data/national_accounts/
+.         global figs_cov figures/compare_steps/coverage/
+.         global figs_t figures/bfm${ext}_pos/thetas_test/
+.         global figs_tail figures/upper_tail
+.         global figs_regi figures/region 
+.         global figs_decomp figures/decomposition
+.         global figs_gic figures/gic
+.         global figs_ratesca figures/eff_rates_sca
+.         global figs_expsca figures/exp_incidence_sca
+.         global inflation_data Data/infl_xrates_wid_wb.xlsx
+.         global export_wid Data/export_series/dina_latam_`date'.dta
+.         global export_wid_momo Data/export_series/dina_latam_`date'_amory.dta
+.         global export_wid_extrap Data/export_series/dina_latam_extrap_`date'.
+> dta
+.         global export_wid_wide Data/export_series/dina_latam_wide_`date'.dta
+.         global wb_xrates Data/World_Bank/xrates/wb-xrates.xls 
+.         global sna_wid_merged Data/national_accounts/UNDATA-WID-Merged.dta
+.         global sna_wid_oecd Data/national_accounts/UNDATA-WID-OECD-Merged.dta
+.         global sna_wid_oecd_wb Data/national_accounts/UNDATA-WID-OECD-WB-Merg
+> ed.dta
+.         global tax_comp Data/Tax-data/OECD-CIAT-CEPAL/
+.         global exports Data/Export_series/dina_latam_
+.         global popdata Data/Population/SurveyPop.dta    
+.         global ceq input_data/CEQ/
+.         //global tax_tots Data/national_accounts/OECD/tax-database.dta
+.         global govt_exp Data/expenditure_all_countries.dta
+.         
+.         //Paths to export graphs 
+.         global figs_path "figures/`type'/snacompare"
+.         
+.         //lists of countries 
+.         global areas_wid_latam  ///
+>                 " "AR" "BO" "BR" "CL" "CO" "CR" "DO" "EC" "GT" "HN" "MX" "NI"
+>  "PA" "PE" "PY" "SV" "VE" "UY" "
+.         global extra_count " "BOL" "GTM" "HND" "NIC" "PAN" "VEN" "      
+.         global really_all_countries " ${all_countries} ${extra_count} "      
+>            
+.         global ctries_cei " "PER" "DOM" "URY" "CRI" "BRA" "CHL" "COL" "ECU" "
+> MEX" "      
+. 
+.         //list of countries with tax data
+.         global countries_tax " "DOM"  "BRA" "CHL" "ARG" "COL" "PER"  "URY" "M
+> EX" "SLV" "CRI" "ECU" "
+.                 
+.         //BFM 
+.         global countries_bfm_02a " "COL" "URY" "BRA" "DOM" "SLV" "ECU" "PER" 
+> "CHL" "
+.         global countries_2stage " "ARG" "CRI" "MEX" " // "CHL" 
+.         global t_limit = 10 
+.                 
+.         //normal / exceptional countries, with respect to SNA aggregation    
+>    
+.         global norm_countries " "MEX" "BRA" "COL" "DOM" "SLV" "PER" "URY" "CR
+> I" "PRY" " //"ARG"
+.         global exep_countries " "CHL" "BOL" " // "ECU"  
+.         global scal_list "  "pre_ben" "pre_cap" "pre_imp" "pre_mix" "pre_mir"
+>  "pre_wag" "
+.         
+.         global oecd_taxes pit cit prl imo wea est otp gog goo oth
+.         
+.         // Define list of variables (components) for each step and unit 
+.         
+.         *list components of income 
+.         local normvarlist "wag pen cap imp mix"
+.         local exepvarlist "wag pen cap mir"
+.         
+.         *list variables for each step/unit
+.         global unit_list2 " "esn" "ind" "esb" "pch" "
+.         foreach uni in $unit_list2 {
+  2.                 foreach g in "norm" "exep" { 
+  3.                         *list for raw and bfm
+.                         foreach s in "raw" "bfm" "res" {
+  4.                                 *loop over variables 
+.                                 foreach v in ``g'varlist' {     
+  5.                                         *define suffix  
+.                                         if inlist("`s'", "raw", "bfm") local 
+> sf ""
+  6.                                         if inlist("`s'", "res", "upr") loc
+> al sf "_sca"
+  7.                                         *list variables 
+.                                         if "`uni'" == "ind" & "`v'" != "pen" 
+>  {                 
+  8.                                                 local act_`s'_`g' ///
+>                                                         "`act_`s'_`g'' `uni'_
+> pre_`v'`sf'"
+  9.                                                 if "`s'" == "raw" {
+ 10.                                                         local act_por_`g' 
+> ///
+>                                                                 "`act_por_`g'
+> ' `uni'_pos_`v'`sf'"               
+ 11.                                                 }       
+ 12.                                         }
+ 13.                                         
+.                                         *add variable to the list 
+.                                         local `uni'_`s'_`g' "``uni'_`s'_`g'' 
+> `uni'_pre_`v'`sf'" 
+ 14.                                         if "`s'" == "raw" {
+ 15.                                                 local `uni'_por_`g' "``uni
+> '_por_`g'' `uni'_pos_`v'`sf'" 
+ 16.                                         }
+ 17.                                 } 
+ 18.                                 
+.                                 *define global using local 
+.                                 global `uni'_`s'_`g' ``uni'_`s'_`g''
+ 19.                                 di as result "`uni'_`s'_`g': ${`uni'_`s'_`
+> g'}"
+ 20.                                 if "`s'" == "raw" {
+ 21.                                         global `uni'_por_`g' ``uni'_por_`g
+> ''
+ 22.                                         di as result "`uni'_por_`g': ${`un
+> i'_por_`g'}"
+ 23.                                 }
+ 24.                                 
+.                                 if "`uni'" == "ind" {
+ 25.                                         *Define as a global 
+.                                         global act_`s'_`g' `act_`s'_`g''
+ 26.                                         di as result "act_`s'_`g': ${act_`
+> s'_`g'}"
+ 27.                                         if "`s'" == "raw" {
+ 28.                                                 global act_por_`g' `act_po
+> r_`g''
+ 29.                                                 di as result "act_por_`g':
+>  ${act_por_`g'}"
+ 30.                                         }
+ 31.                                 }
+ 32.                                 
+.                                 *Add uprofits and other incomes 
+.                                 if "`s'" == "res" {
+ 33.                                         global `uni'_upr_`g' ${`uni'_`s'_`
+> g'} `uni'_upr_2 
+ 34.                                         global `uni'_nat_`g' ${`uni'_upr_`
+> g'} ///
+>                                                 `uni'_tax_indg_pre `uni'_pre_
+> lef
+ 35.                                         global `uni'_pod_`g' `uni'_pre_mbe
+> _sca `uni'_pod_tot_wmbe       
+ 36.                                         global `uni'_psp_`g' `uni'_pre_mbe
+> _sca `uni'_psp_tot_wmbe       
+ 37.                                         global `uni'_pon_`g' ${`uni'_pod_`
+> g'} ///
+>                                                 `uni'_pon_hea `uni'_pon_edu `
+> uni'_pon_oex
+ 38.                                         if "`uni'" == "ind" {
+ 39.                                                 global act_upr_`g' ${act_`
+> s'_`g'} `uni'_upr_2 
+ 40.                                                 global act_nat_`g' ${act_u
+> pr_`g'} ///
+>                                                         `uni'_tax_indg_pre `u
+> ni'_pre_lef
+ 41.                                                 global act_pod_`g' `uni'_p
+> re_mbe_sca `uni'_pod_tot_wmbe
+ 42.                                                 global act_psp_`g' `uni'_p
+> re_mbe_sca `uni'_psp_tot_wmbe
+ 43.                                                 global act_pon_`g' ${act_p
+> od_`g'} ///
+>                                                         `uni'_pon_hea `uni'_p
+> on_edu `uni'_pon_oex
+ 44.                                         }       
+ 45.                                 } 
+ 46.                         }
+ 47.                 }
+ 48.         }
+esn_raw_norm: esn_pre_wag esn_pre_pen esn_pre_cap esn_pre_imp esn_pre_mix
+esn_por_norm: esn_pos_wag esn_pos_pen esn_pos_cap esn_pos_imp esn_pos_mix
+esn_bfm_norm: esn_pre_wag esn_pre_pen esn_pre_cap esn_pre_imp esn_pre_mix
+esn_res_norm: esn_pre_wag_sca esn_pre_pen_sca esn_pre_cap_sca esn_pre_imp_sca e
+> sn_pre_mix_sca
+esn_raw_exep: esn_pre_wag esn_pre_pen esn_pre_cap esn_pre_mir
+esn_por_exep: esn_pos_wag esn_pos_pen esn_pos_cap esn_pos_mir
+esn_bfm_exep: esn_pre_wag esn_pre_pen esn_pre_cap esn_pre_mir
+esn_res_exep: esn_pre_wag_sca esn_pre_pen_sca esn_pre_cap_sca esn_pre_mir_sca
+ind_raw_norm: ind_pre_wag ind_pre_pen ind_pre_cap ind_pre_imp ind_pre_mix
+ind_por_norm: ind_pos_wag ind_pos_pen ind_pos_cap ind_pos_imp ind_pos_mix
+act_raw_norm: ind_pre_wag ind_pre_cap ind_pre_imp ind_pre_mix
+act_por_norm: ind_pos_wag ind_pos_cap ind_pos_imp ind_pos_mix
+ind_bfm_norm: ind_pre_wag ind_pre_pen ind_pre_cap ind_pre_imp ind_pre_mix
+act_bfm_norm: ind_pre_wag ind_pre_cap ind_pre_imp ind_pre_mix
+ind_res_norm: ind_pre_wag_sca ind_pre_pen_sca ind_pre_cap_sca ind_pre_imp_sca i
+> nd_pre_mix_sca
+act_res_norm: ind_pre_wag_sca ind_pre_cap_sca ind_pre_imp_sca ind_pre_mix_sca
+ind_raw_exep: ind_pre_wag ind_pre_pen ind_pre_cap ind_pre_mir
+ind_por_exep: ind_pos_wag ind_pos_pen ind_pos_cap ind_pos_mir
+act_raw_exep: ind_pre_wag ind_pre_cap ind_pre_mir
+act_por_exep: ind_pos_wag ind_pos_cap ind_pos_mir
+ind_bfm_exep: ind_pre_wag ind_pre_pen ind_pre_cap ind_pre_mir
+act_bfm_exep: ind_pre_wag ind_pre_cap ind_pre_mir
+ind_res_exep: ind_pre_wag_sca ind_pre_pen_sca ind_pre_cap_sca ind_pre_mir_sca
+act_res_exep: ind_pre_wag_sca ind_pre_cap_sca ind_pre_mir_sca
+esb_raw_norm: esb_pre_wag esb_pre_pen esb_pre_cap esb_pre_imp esb_pre_mix
+esb_por_norm: esb_pos_wag esb_pos_pen esb_pos_cap esb_pos_imp esb_pos_mix
+esb_bfm_norm: esb_pre_wag esb_pre_pen esb_pre_cap esb_pre_imp esb_pre_mix
+esb_res_norm: esb_pre_wag_sca esb_pre_pen_sca esb_pre_cap_sca esb_pre_imp_sca e
+> sb_pre_mix_sca
+esb_raw_exep: esb_pre_wag esb_pre_pen esb_pre_cap esb_pre_mir
+esb_por_exep: esb_pos_wag esb_pos_pen esb_pos_cap esb_pos_mir
+esb_bfm_exep: esb_pre_wag esb_pre_pen esb_pre_cap esb_pre_mir
+esb_res_exep: esb_pre_wag_sca esb_pre_pen_sca esb_pre_cap_sca esb_pre_mir_sca
+pch_raw_norm: pch_pre_wag pch_pre_pen pch_pre_cap pch_pre_imp pch_pre_mix
+pch_por_norm: pch_pos_wag pch_pos_pen pch_pos_cap pch_pos_imp pch_pos_mix
+pch_bfm_norm: pch_pre_wag pch_pre_pen pch_pre_cap pch_pre_imp pch_pre_mix
+pch_res_norm: pch_pre_wag_sca pch_pre_pen_sca pch_pre_cap_sca pch_pre_imp_sca p
+> ch_pre_mix_sca
+pch_raw_exep: pch_pre_wag pch_pre_pen pch_pre_cap pch_pre_mir
+pch_por_exep: pch_pos_wag pch_pos_pen pch_pos_cap pch_pos_mir
+pch_bfm_exep: pch_pre_wag pch_pre_pen pch_pre_cap pch_pre_mir
+pch_res_exep: pch_pre_wag_sca pch_pre_pen_sca pch_pre_cap_sca pch_pre_mir_sca
+.         
+.         //create main folders 
+.         local dirpath "intermediary_data"
+.         mata: st_numscalar("exists", direxists(st_local("dirpath")))
+.         if (scalar(exists) == 0) {
+.                 mkdir "`dirpath'"
+.                 display "Created directory: `dirpath'"
+.         }
+.         
+.         //create main folders 
+.         local dirpath "intermediary_data/microdata"
+.         mata: st_numscalar("exists", direxists(st_local("dirpath")))
+.         if (scalar(exists) == 0) {
+.                 mkdir "`dirpath'"
+.                 display "Created directory: `dirpath'"
+.         }
+.         
+.         // Create directory if it doesnt exist 
+.         local dirpath "output"
+.         mata: st_numscalar("exists", direxists(st_local("dirpath")))
+.         if (scalar(exists) == 0) {
+.                 mkdir "`dirpath'"
+.                 display "Created directory: `dirpath'"
+.         }
+.         
+.         // Create directory if it doesnt exist 
+.         local dirpath "output/figures"
+.         mata: st_numscalar("exists", direxists(st_local("dirpath")))
+.         if (scalar(exists) == 0) {
+.                 mkdir "`dirpath'"
+.                 display "Created directory: `dirpath'"
+.         }
+.         
+.         
+.         //country-years for 2 stage bfm correction
+.         global years_ARG "2000 2001 2002 2003 2004 2005 2006 2007 2008 2009 2
+> 010 2011 2012 2013 2014 2015"
+.         global years_CRI "2010 2011 2012 2013 2014 2015 2016"
+.         global years_CHL "2000 2001 2002 2003 2004 " //2005 2006 2007 2008 20
+> 09
+.         global years_MEX " 2010 2012 2014"
+.         global years_SLV "2003 2004 2005 2006 2007 2008 2009 2010 2011 2012 2
+> 013 2014 2015 2016 2017"
+.         
+.         *isos for latam in WID
+.         global isos_latam_wid (iso=="AG" | iso=="AI" | iso=="AR" | iso=="AW" 
+> | iso=="BB" ///
+>         | iso=="BL" | iso=="BO" | iso=="BR" | iso=="BS" | iso=="BQ" | iso=="B
+> Z" ///
+>         | iso=="CL" | iso=="CO" | iso=="CR" | iso=="CU" | iso=="CW" | iso=="D
+> M" ///
+>         | iso=="DO" | iso=="EC" | iso=="FK" | iso=="GD" | iso=="GP" | iso=="G
+> T" ///
+>         | iso=="GY" | iso=="HN" | iso=="HT" | iso=="JM" | iso=="KN" | iso=="K
+> Y" ///
+>         | iso=="LC" | iso=="MF" | iso=="MQ" | iso=="MX" | iso=="NI" | iso=="P
+> A" ///
+>         | iso=="PE" | iso=="PR" | iso=="PY" | iso=="SR" | iso=="SV" | iso=="S
+> X" ///
+>         | iso=="TC" | iso=="TT" | iso=="VC" | iso=="VE" | iso=="VG" | iso=="V
+> I" ///
+>         | iso=="UY")
+.         
+.         
+.         //country long names 
+.         global lname_ARG_eng "Argentina"
+.         global lname_BOL_eng "Bolivia"
+.         global lname_BRA_eng "Brazil" 
+.         global lname_CHL_eng "Chile" 
+.         global lname_COL_eng "Colombia" 
+.         global lname_CRI_eng "Costa Rica"
+.         global lname_ECU_eng "Ecuador"
+.         global lname_PRY_eng "Paraguay"
+.         global lname_PER_eng "Peru"
+.         global lname_MEX_eng "Mexico"
+.         global lname_URY_eng "Uruguay"
+.         global lname_SLV_eng "El Salvador"
+.         global lname_VEN_eng "Venezuela"
+.         global lname_DOM_eng "Dominican Republic"
+.         
+. 
+. }
+
+. 
+. //GRAPH SETTINGS 
+. if ($aux_part == "graph_basics") {
+. 
+.         //country colors
+.         global c_arg "eltblue"
+.         global c_bol "eltgreen"
+.         global c_bra "midgreen"
+.         global c_chl "cranberry"
+.         global c_col "gold"
+.         global c_cri "purple"
+.         global c_ecu "stone"
+.         global c_dom "black"
+.         global c_pry "lavender"
+.         global c_per "gs7"
+.         global c_mex "dkgreen"
+.         global c_ury "ebblue"
+.         global c_slv "maroon"
+.         global c_ven "red"
+.         global c_nic "orange"
+.         global c_gtm "gs15"
+.         global c_hnd "sienna"
+.         
+.         //variable colors 
+.         global c_kap "cranberry*0.3"
+.         global c_cap "cranberry"
+.         global c_wag "ebblue" 
+.         global c_ben "midgreen"
+.         global c_pen "midgreen*0.5"
+.         global c_mix "gold" 
+.         global c_mir "stone" 
+.         global c_imp "ebblue*.5" 
+.         global c_upr "cranberry*0.5"
+.         global c_lef "gray*.3"
+.         global c_indg "gray*0.7"
+.         global c_mbe "dkgreen*.8"
+.         global c_wmbe "gray*.5"
+.         
+.         //step colors 
+.         global c_urb "gs9"
+.         global c_raw "cranberry*.25"
+.         global c_bfm "cranberry*.5"
+.         global c_res "cranberry*.75"
+.         global c_upr2 "erose" // cranberry*0.5
+.         *global c_upr "dkgreen"
+.         global c_nat "cranberry"
+.         global c_pon "navy"
+.         global c_pod "navy*.75"
+.         global c_psp "navy*.5"
+.         global c_por "navy*.25"
+.         
+.         //colors for taxes
+.         *on personal income 
+.         global c_1000 "ebblue"
+.         global c_1100 "ebblue*.8"
+.         global c_1110 "ebblue*.8"
+.         global c_1120 "ebblue*.4"
+.         *on corporate income 
+.         global c_1200 "cranberry*.55"
+.         global c_1300 "cranberry*.4"
+.         *ssc
+.         global c_2000 "midgreen*.7"
+.         global c_2100 "dkgreen*.8"
+.         global c_2200 "dkgreen*.6"
+.         global c_2300 "dkgreen*.4"
+.         global c_2400 "dkgreen*.2"
+.         *payroll and workforce
+.         global c_3000 "midgreen*0.4"
+.         *property 
+.         global c_4000 "cranberry*.9"
+.         global c_4200 "cranberry*1"
+.         global c_4100 "cranberry*.85"
+.         global c_4300 "cranberry*.7"
+.         global c_4999 "cranberry*.25"
+.         global c_4400 "cranberry*.4"
+.         global c_4500 "cranberry*.2"
+.         global c_4600 "cranberry*.1"
+.         
+.         *goods and services 
+.         global c_5000 "black*.5"
+.         global c_5100 "black*.5"
+.         global c_5110 "black*.3"
+.         global c_5999 "black*.15"
+.         *other 
+.         global c_6000 "black*.5"
+. 
+.         //s1 scheme colors
+.         global color_1  "dkgreen"
+.         global color_2  "orange_red"
+.         global color_3  "navy"
+.         global color_4  "maroon"
+.         global color_5  "teal"
+.         global color_6  "orange"
+.         global color_7  "magenta"
+.         global color_8  "cyan"
+.         global color_9  "ref"
+.         global color_10 "lime"  
+.         
+.         // decomposition colours
+.         global c_wit    "lavender"
+.         global c_bet    "sienna"
+.         global c_top1   "red"
+.         global c_bot99  "orange"
+.         
+.         
+.         //country long names 
+.         global lname_arg "Argentina"
+.         global lname_bol "Bolivia"
+.         global lname_bra "Brazil" 
+.         global lname_chl "Chile" 
+.         global lname_col "Colombia" 
+.         global lname_cri "Costa Rica"
+.         global lname_ecu "Ecuador"
+.         global lname_pry "Paraguay"
+.         global lname_per "Perú"
+.         global lname_mex "Mexico"
+.         global lname_ury "Uruguay"
+.         global lname_slv "El Salvador"
+.         global lname_ven "Venezuela"
+.         global lname_dom "República Dominicana"
+.         
+.         //group labels 
+.         global lname_t1  "Top 1%"
+.         global lname_t10 "Top 10%"
+.         global lname_m40 "Middle 40%"
+.         global lname_b50 "Bottom 50%"
+.         
+.         //variable labels (english)
+.         global labcom_cap_eng "Property income"
+.         global labcom_mix_eng "Mixed income"
+.         global labcom_kap_eng "Capital & GOS"
+.         global labcom_imp_eng "Imputed Rents"
+.         global labcom_wag_eng "Wages"
+.         global labcom_ben_eng "Pensions & benefits"
+.         global labcom_pen_eng "Pensions"
+.         global labcom_mir_eng "Mixed & GOS"
+.         global labcom_upr_eng "Und. profits"
+.         global labcom_indg_eng "Taxes on prod."
+.         global labcom_lef_eng "Other"
+.         global labcom_mbe_eng "Monetary Benefits"
+.         global labcom_wmbe_eng "Post-tax Market inc."
+.         global labcom_hea_eng "Health gov. expenditure"
+.         global labcom_edu_eng "Education gov. expenditure"
+.         global labcom_oex_eng "Other gov. expenditure"
+. 
+.         //variable labels (español)
+.         global labcom_cap_esp "Capital"
+.         global labcom_mix_esp "Mixto"
+.         global labcom_imp_esp "Alquileres"
+.         global labcom_wag_esp "Salarios"
+.         global labcom_ben_esp "Transferencias"
+.         global labcom_pen_esp "Pensiones"
+.         global labcom_mir_esp "Mixto & alquil."
+.         global labcom_upr_esp "Gan. retenidas"
+.         global labcom_indg_esp "Impuestos indir."
+.         global labcom_lef_esp "Otros"
+.         
+.         //step labels (english)
+.         global lab_urb_eng "Urban areas"
+.         global lab_raw_eng "Raw Survey"
+.         global lab_bfm_eng "Corrected Survey"
+.         global lab_res_eng "Scaled Household Inc."
+.         global lab_upr_eng "Sca. + Undis. Profits"
+.         global lab_nat_eng "Pretax National Inc."
+.         global lab_pod_eng "Postax disposable"
+.         global lab_psp_eng "Postax spendable"
+.         global lab_pon_eng "Postax national"
+.         global lab_por_eng "Postax raw"
+.         
+.         //step labels (español)
+.         global lab_urb_esp "Areas urbanas"
+.         global lab_raw_esp "Encuesta CEPAL"
+.         global lab_bfm_esp "Encuesta + DGII"
+.         global lab_res_esp "Escalado sec. hogares"
+.         global lab_upr_esp "+ Util .retenidas"
+.         global lab_nat_esp "Ingreso Nacional"
+.         
+.         
+.         //labels for taxes (english)
+.         *on income
+.         global lab_1000_eng "On income"
+.         global lab_1100_eng "Personal inc."
+.         global lab_1110_eng "Pers. inc"
+.         global lab_1120_eng "Pers. cap. gains"
+.         global lab_1200_eng "Corporate inc."
+.         global lab_1300_eng "Other inc. tax"
+.         *ssc
+.         global lab_2000_eng "SSC"
+.         global lab_2100_eng "SSC: Employees"
+.         global lab_2200_eng "SSC: Employers"
+.         global lab_2300_eng "SSC: Self emp"
+.         global lab_2400_eng "SSC: Other"
+.         *payroll
+.         global lab_3000_eng "Payroll taxes"
+.         *property
+.         global lab_4000_eng "On property"
+.         global lab_4100_eng "Imov. property"
+.         global lab_4200_eng "Wealth tax"
+.         global lab_4300_eng "Estate & inherit"
+.         global lab_4999_eng "Other on property"
+.         global lab_4400_eng "Fin. transactions"
+.         global lab_4500_eng "Non-recurrent"
+.         global lab_4600_eng "Other on prop"
+.         *on goods and products 
+.         global lab_5000_eng "On production"
+.         *global lab_5100_eng "Sales taxes"
+.         global lab_5111_eng "VAT"
+.         global lab_5110_eng "Gral. sale taxes"
+.         global lab_5999_eng "Other on prod."
+.         *other 
+.         global lab_6000_eng "Other"
+.         global lab_7000_eng "Other"
+.         
+.         *more on taxes 
+.         global lab_tot "Total taxes"
+.         global lab_pit_tot "Total property and income taxes"
+.         global lab_pit_corp "Corporate property and income taxes"
+.         global lab_pit_hh "Households' property and income taxes"
+.         global lab_ssc "Social security contributions"
+.         global lab_indg "Indirect taxes on goods and services, gross of subsi
+> dies"
+.         
+.         *even more on taxes             
+.         global labtax_pit "Pers. inc. tax"              
+.         global labtax_cit "Corp. inc. tax"              
+.         global labtax_prl "Payroll"             
+.         global labtax_imo "Immov. property"             
+.         global labtax_wea "Wealth tax"          
+.         global labtax_est "Estate, inherit. & gifts"            
+.         global labtax_otp "Other on property"           
+.         global labtax_gog "Gral. on goods & serv."              
+.         global labtax_goo "Other goods & serv."         
+.         global labtax_oth "Other taxes"
+.         
+.         *and even more 
+.         global c_wea "cranberry*.8"
+.         global c_cit "cranberry"
+.         global c_imo "cranberry*.2"
+.         global c_prl "ebblue*.5"
+.         global c_pit "ebblue*.8"
+.         global c_goo "black*.2"
+.         global c_gog "black*.3"
+.         global c_est "cranberry*.4"
+.         global c_otp "cranberry*.6"
+.         global c_oth "black*.1"
+.         
+.         *label etr 
+.         global etr_indg "Indirect"
+.         global etr_corp "On inc. & prop. (corp)"
+.         global etr_pih "On inc. & prop. (hlds)"
+.         global indg_c_etr "black*.3"
+.         global corp_c_etr "maroon*.9"
+.         global pih_c_etr "ebblue*0.8"
+.         
+.         *label exr 
+.         global exr_oex "Other in-kind"
+.         global exr_hea "Health"
+.         global exr_edu "Education"
+.         global oex_c_exr "black*.3"
+.         global hea_c_exr "maroon*.9"
+.         global edu_c_exr "ebblue*0.8"
+.         
+.         
+.         //axis label options 
+.         global ylab_opts labsize(medium) grid labels angle(horizontal)
+.         global xlab_opts labsize(medium) grid labels angle(horizontal)
+.         global xlab_opts labsize(medium) grid labels angle(45)
+. 
+.         
+.         //axis label options 
+.         global ylab_opts_white labsize(medium) angle(horizontal)
+.         *global xlab_opts_white labsize(medium) angle(horizontal)
+.         global xlab_opts_white labsize(medium) angle(45)
+.         
+.         //last bit of a graph
+.         global graph_scheme scheme(s1color) subtitle(,fcolor(white) ///
+>         lcolor(bluishgray)) graphregion(color(white)) ///
+>         plotregion(lcolor(bluishgray)) scale(1.2)
+.         
+. }
+
+. 
+. //GET LIST OF CASES WITH SURVEY-TAX DATA OVERLAP
+. if ($aux_part == "tax_svy_overlap") {
+.     
+.         if "${bfm_replace}" == "yes" {
+.             local ext ""
+.         }
+.         if "${bfm_replace}" == "no" {
+.             local ext "_norep"
+.         }
+.         
+.         preserve
+.                 foreach x in "" "_2stage" { 
+  2.                         foreach z in "pos" "pre" {      
+  3.                                 //bring list of overlaps 
+.                                 cap import excel ///
+>                                         "output/bfm_summary/bfm`ext'_`z'/merg
+> ing_points.xlsx", ///
+>                                         sheet("country_years`x'") firstrow cl
+> ear                
+  4.                                 if !_rc {
+  5.                                         //save if it exists 
+.                                         quietly ds 
+  6.                                         quietly split `r(varlist)', parse(
+> _) gen(v)     
+  7.                                         
+.                                         //exceptions 
+.                                         quietly drop if v1 == "CHL" & inlist(
+> v2, "2000", "2003")
+  8.                                         quietly drop if v1 == "ECU" & inli
+> st(v2, "2011")
+  9.                                         
+.                                         //list years 
+.                                         quietly levelsof v1, local(countries`
+> x'_`z') clean
+ 10.                                         foreach c in `countries`x'_`z'' {
+ 11.                                                 if ("`c'_years" != "") loc
+> al `c'_first_list ``c'_years'
+ 12.                                         
+.                                                 quietly levelsof v2 if v1 == 
+> "`c'", local(`c'_years) clean
+ 13.                                                 if ("``c'_first_list'" != 
+> "") local `c'_years "``c'_years' ``c'_first_list'"
+ 14.                                                 global `c'_overlap_years `
+> `c'_years'
+ 15.                                                 di as result "`c': ${`c'_o
+> verlap_years}"
+ 16.                                         }
+ 17.                                 }
+ 18.                         }
+ 19.                 }
+.         restore
+.         
+.         foreach c in `countries_pos' `countries_pre' `countries_2stage_pos' `
+> countries_2stage_pre' {
+  2.                 display as text "`c': ${`c'_years}"     
+  3.                 local all_overlaps "`all_overlaps' "`c'" "
+  4.         }
+.         global overlap_countries " `all_overlaps' "
+. }
+
+. 
+. //EXCHANGE RATES TO GET LCU C URRENCIES 
+. if ($aux_part == "old_currencies") {
+.         
+.                 *list all currencies to change 
+.                 global old_currencies ARG_aus BRA_crr BRA_cru VEN_bol ///
+>                         SLV_col URY_npe MEX_npe 
+.                 
+.                 *arg (austral to peso)
+.                 global xr_ARG_aus = 1/10000  
+.                 global yr_ARG_aus = 1992
+.                 
+.                 *bra (cruzeiro real to real)
+.                 global xr_BRA_crr = 1/2750
+.                 global yr_BRA_crr = 1994 
+. 
+.                 *bra (cruzeiro to cruzeiro real)
+.                 global xr_BRA_cru = 1/1000
+.                 global yr_BRA_cru = 1993 // originally 1993
+.                 
+.                 *ven (bolivar to bolivar fuerte)
+.                 global xr_VEN_bol = 1/1000
+.                 global yr_VEN_bol = 2008
+.                 
+.                 *slv (colones to dollar) 
+.                 global xr_SLV_col = 1/8.75 
+.                 global yr_SLV_col = 2001 
+.                 
+.                 *ury (nuevos pesos to peso uruguayo)
+.                 global xr_URY_npe = 1/1000
+.                 global yr_URY_npe = 1993 // originally 1993
+.                 
+.                 *mex (nuevos pesos to peso)
+.                 global xr_MEX_npe = 1/1000
+.                 global yr_MEX_npe = 1993
+.                 
+. } 
+
+. 
+. //GET LIST OF CASES TO EXTRAPOLATE BFM CORRECTION 
+. 
+. if ($aux_part == "list_bfm_extrap") {
+. 
+.         //Get list of countries and years to adjust
+.         preserve 
+.                 quietly import excel "intermediary_data/weight_adjusters/inde
+> x.xlsx", ///
+>                         sheet("country_years_03e") firstrow clear
+.                 quietly split country_year, parse(_) gen(v)     
+.                 quietly levelsof v1, local(countries) clean
+.                 global extrap_countries `countries'
+.                 foreach c in $extrap_countries {
+  2.                         quietly levelsof v2 if v1 == "`c'", local(`c'_year
+> s) clean
+  3.                         global `c'_extrap_years ``c'_years'
+  4.                 }
+.         restore 
+.         
+. }
+
+. 
+. //SELECT COUNTRIES FOR WHICH WE USE AVERAGE SCALING FACTORS (& OTHER)
+. 
+. if ($aux_part == "aver_countries") {
+. 
+.         global fix_countries DOM CRI URY SLV ARG BRA CHL ECU PER MEX COL 
+. 
+. }
+
+. 
+end of do-file
+
+. 
+. //define macros 
+. if "${bfm_replace}" == "yes" {
+.         global types " "rep" "
+. }               
+
+. if "${bfm_replace}" == "no" {
+.         global types " "norep" "
+. }         
+
+. 
+. // --------------------------------------------------------------------------
+> ---
+. 
+. //Loop over countries 
+. foreach c in $countries_bfm_02a {
+  2.         
+.         //manage pre/post tax incomes 
+.         local pf "pos"
+  3.         if inlist("`c'", "BRA") local pf "pre" 
+  4.         
+.         //Loop over years 
+.         forvalues t = $first_y / $last_y {
+  5.         
+.                 //define path to files 
+.                 local taxfile "input_data/admin_data/`c'/gpinter_`c'_`t'.xlsx
+> "
+  6.                 local svyfile "intermediary_data/microdata/raw/`c'/`c'_`t'
+> _raw.dta"
+  7.         
+.                 // 1. CHECK WHAT DATA IS AVAILABLE AND REPORT ---------------
+> -----------
+.                 
+.                 //Check if tax data exists
+.                 cap confirm file `taxfile'
+  8.                 if !_rc {
+  9.                         
+.                         //Check if survey data also exists 
+.                         cap confirm file `svyfile'
+ 10.                         if !_rc {
+ 11.                         
+.                                 //report existence of files 
+.                                 di as result "`c' `t': Both survey and tax da
+> ta " _continue
+ 12.                                 di as result "exist, combining datasets (0
+> 3a)... " _continue
+ 13.                                 di as text "at $S_TIME"
+ 14.                                 
+.                                 //Get trust region
+.                                 qui import excel "input_data/admin_data/direc
+> tory.xlsx", ///
+>                                         sheet("trust") firstrow clear
+ 15.                                 qui destring trust, replace     
+ 16.                                 qui sum trust if country == "`c'" & year =
+> = `t'
+ 17.                                 
+.                                 //Run code if trust exists 
+.                                 if ("`r(mean)'" != "") {
+ 18.                                         local trust_`c'_`t' = `r(mean)'
+ 19.                                 
+.                                         // 2. TREAT RAW SURVEYS -------------
+> -----------------------
+.                                 
+.                                         //locals-bfm-correction
+.                                         local raw_weight "_fep" 
+ 20.                                         local id "id_hogar"
+ 21.                                         local age "edad"
+ 22.                                         local taxinc ""
+ 23.                                         local y " ${y_`pf'tax_tot} "
+ 24.                                         local yrtrust = `trust_`c'_`t''
+ 25.                                         if ("`c'" == "BRA") local y " ${y_
+> pretax_tot_bra} "
+ 26.                                         if ("`c'" == "PER") local taxinc t
+> axincome(${y_postax_tot_per}) 
+ 27.                                         
+.                                         //Open raw data
+.                                         use `svyfile', clear
+ 28. 
+.                                         //Ensure weights are constant within 
+> household
+.                                         qui count if ///
+>                                                 `raw_weight' == 0 | missing(`
+> raw_weight') | `raw_weight' < 1
+ 29.                                         display as result "`c' `t': " _con
+> tinue  
+ 30.                                         display as result "`r(N)' obs " _c
+> ontinue  
+ 31.                                         display as result "with null weigh
+> t"
+ 32.                                         qui drop if `raw_weight' == 0
+ 33.                                         egen weight2 = mean(`raw_weight'),
+>  by(`id')
+ 34.                                         cap assert weight2 == `raw_weight'
+ 35.                                         
+.                                         //Inform change of weights in log
+.                                         if r(N) == 0 {
+ 36.                                                 tempvar w_change
+ 37.                                                 qui gen `w_change' = (`raw
+> _weight' - weight2) / `raw_weight' * 100
+ 38.                                                 qui sum `w_change' 
+ 39.                                                 local min_ch = round(`r(mi
+> n)', 1)
+ 40.                                                 local max_ch = round(`r(ma
+> x)', 1)
+ 41.                                                 di as text "Weights not co
+> nstant within household in " _continue
+ 42.                                                 di as text "raw survey for
+>  `c' - `t'"
+ 43.                                                 di as result "...the avera
+> ge weight of the household " _continue
+ 44.                                                 di as result "was attribut
+> ed to its members: weights " _continue
+ 45.                                                 di as result "incresed/dec
+> reased from " _continue
+ 46.                                                 if (`min_ch' < -1 | `max_c
+> h' > 1) di as error "`min_ch'% to `max_ch'% " _continue
+ 47.                                                 if (`min_ch' > -1 | `max_c
+> h' < 1) di as result "`min_ch'% to `max_ch'% " _continue
+ 48.                                                 di as result "(rounded to 
+> the nearest integer)"
+ 49.                                         }
+ 50.                                         
+.                                         //Write definitive weights 
+.                                         qui replace `raw_weight' = weight2
+ 51.                                         qui drop weight2
+ 52.                                         qui drop if missing(`raw_weight') 
+> | `raw_weight' < 1
+ 53.                                         
+.                                         //Save total population
+.                                         qui sum `raw_weight' 
+ 54.                                         local orig_weights = r(sum)
+ 55.                                         
+.                                         //Get age groups 
+.                                         xtile age_group = `age', nquantiles(1
+> 0)
+ 56.                                                 
+.                                         // 3. COMBINE SURVEY AND TAX DATA ---
+> -----------------------
+.                                         // loopy loop 
+.                                         
+.                                         tempfile tf 
+ 57.                                         qui save `tf'
+ 58.                                         
+.                                         foreach type in $types {
+ 59.                                         
+.                                                 // Details for file replace /
+>  no-replace distinction
+.                                                 if ("`type'" == "rep") local 
+> command ""
+ 60.                                                 if ("`type'" == "rep") loc
+> al ext ""
+ 61.                                                 if ("`type'" == "norep") l
+> ocal command "noreplace"
+ 62.                                                 if ("`type'" == "norep") l
+> ocal ext "_norep"
+ 63.                                                 
+.                                                 //create main folders 
+.                                                 local dirpath "intermediary_d
+> ata/microdata/bfm`ext'_`pf'"
+ 64.                                                 mata: st_numscalar("exists
+> ", direxists(st_local("dirpath")))
+ 65.                                                 if (scalar(exists) == 0) {
+ 66.                                                         mkdir "`dirpath'"
+ 67.                                                         display "Created d
+> irectory: `dirpath'"
+ 68.                                                 }
+ 69.                                                 
+.                                                 //create main folders 
+.                                                 local dirpath "output/figures
+> /MP"
+ 70.                                                 mata: st_numscalar("exists
+> ", direxists(st_local("dirpath")))
+ 71.                                                 if (scalar(exists) == 0) {
+ 72.                                                         mkdir "`dirpath'"
+ 73.                                                         display "Created d
+> irectory: `dirpath'"
+ 74.                                                 }
+ 75.                                                 
+.                                                 //create main folders 
+.                                                 local dirpath "output/bfm_sum
+> mary"
+ 76.                                                 mata: st_numscalar("exists
+> ", direxists(st_local("dirpath")))
+ 77.                                                 if (scalar(exists) == 0) {
+ 78.                                                         mkdir "`dirpath'"
+ 79.                                                         display "Created d
+> irectory: `dirpath'"
+ 80.                                                 }
+ 81.                                                 
+.                                                 //create main folders 
+.                                                 local dirpath "output/bfm_sum
+> mary/bfm`ext'_`pf'"
+ 82.                                                 mata: st_numscalar("exists
+> ", direxists(st_local("dirpath")))
+ 83.                                                 if (scalar(exists) == 0) {
+ 84.                                                         mkdir "`dirpath'"
+ 85.                                                         display "Created d
+> irectory: `dirpath'"
+ 86.                                                 }
+ 87.                                                         
+.                                                 //path to files 
+.                                                 local corrfile ///
+>                                                         "intermediary_data/mi
+> crodata/bfm`ext'_`pf'/`c'_`t'_bfm`ext'_`pf'.dta"
+ 88.                                                 local MPgraph "output/figu
+> res/MP/`c'_`t'_MP.pdf"
+ 89.                                                 local export_results "outp
+> ut/bfm_summary/bfm`ext'_`pf'/bfm_summary.xlsx"
+ 90.                                                 local mpfile "output/bfm_s
+> ummary/bfm`ext'_`pf'/merging_points.xlsx"
+ 91.                                                                           
+>               
+.                                                 //find program
+.                                                 qui sysdir set PERSONAL "code
+> /Stata/ado/bfm_stata_ado/."
+ 92.                                                 clear programs
+ 93.                                                 qui use `tf', clear
+ 94.                                                 
+.                                                 local slope = -0.99
+ 95.                                                 if inlist("`c'", "MEX") lo
+> cal slope = -2
+ 96.                                                 if "`c'" == "ARG" local sl
+> ope = -0.5
+ 97.                                                 
+.                                                 local thetalimit = ${t_limit}
+ 98.                 
+.                                                 *exceptions 
+.                                                 if !inlist("`c'", "") {
+ 99.                                                         
+.                                                         //Apply BFM correctio
+> n 
+.                                                         /*quietly*/ bfmcorr_e
+> xperiments using `taxfile', ///
+>                                                                 weight(`raw_w
+> eight') income(`y') `taxinc' ///
+>                                                                 households(`i
+> d') taxu(i) trust(`yrtrust') ///
+>                                                                 thetalimit(`t
+> hetalimit') ///
+>                                                                 holdmargins(s
+> ex age_group) ///
+>                                                                 slope(`slope'
+> ) pen(20) sampletop(0.01) ///
+>                                                                 `command' /*m
+> inbracket(1)*/
+100.                                 
+.                                                         //save info on unobse
+> rved population 
+.                                                         *local unobs_`c'_`t' 
+> = e(unobs_pop)
+.                                                         local unobs_from_tax_
+> `c'_`t' = e(unobs_from_tax)
+101.                                                         
+.                                                         //save merging points
+>  
+.                                                         preserve        
+102.                                                                 //get the 
+> data
+.                                                                 tempname thet
+> a adj_factors
+103.                                                                 qui matrix
+>  define `theta' = e(theta)
+104.                                                                 qui matrix
+>  define `adj_factors' = e(adj_factors)
+105.                                                                 local mpoi
+> nt = e(mergingpoint)
+106.                                                                 
+.                                                                 //write it do
+> wn
+.                                                                 clear
+107.                                                                 qui mat li
+> st `theta'
+108.                                                                 qui svmat 
+> `theta', names(v)
+109.                                                                 qui rename
+>  (v1 v2 v3 v4 v5 v6) ///
+>                                                                         (p bi
+> g_t small_t antitonic extrap thr)
+110.                                                                 qui gen mp
+> oint = `mpoint' in 1
+111.                                                                 
+.                                                                 //export it
+.                                                                 qui export ex
+> cel `mpfile', ///
+>                                                                         first
+> row(variables) sheet("`c'`t'") ///
+>                                                                         sheet
+> replace    
+112.                                                         restore 
+113.                                                         
+.                                                         //Save microdata 
+.                                                         qui save `corrfile', 
+> replace 
+114.                                                         
+.                                                         //postestimation comm
+> ands 
+.                                                         /*quietly*/ postbfm b
+> iasplot
+115.                                                         qui graph export `
+> MPgraph', replace     
+116.                                                         postbfm summarize,
+>  export(`export_results') ///
+>                                                                 year(`t') rep
+> lace               
+117.                                                         
+.                                                         //save list of countr
+> y-years
+.                                                         local ctry_yr_list`ex
+> t'_`pf' ///
+>                                                                 "`ctry_yr_lis
+> t`ext'_`pf'' `c'_`t'"
+118.                                                 }
+119.                                         }
+120.                                 
+.                                 }
+121.                                 
+.                                 // 4. REPORT DATA-AVAILABILITY FOR NON TREATE
+> D YEARS -----------
+.                                 
+.                                 //Report if trust is missing
+.                                 else {
+122.                                         di as error "Trust region is not d
+> efined for " _continue
+123.                                         di as error "`c' - `t', skipping .
+> .. "
+124.                                 }
+125.                         }               
+126.                         else {
+127.                                 di as text "`c' `t': tax data exists but s
+> urvey does not"
+128.                         }               
+129.                 }       
+130.                 else {  
+131.                         cap confirm file `svyfile'              
+132.                         if !_rc {
+133.                                 di as text "`c' `t': Survey data exists, b
+> ut tax data does not"
+134.                         }               
+135.                         else {
+136.                                 di as text "`c' `t': Both survey and tax d
+> ata" _continue
+137.                                 di as text " do not exist for this year"
+138.                         }
+139.                 }
+140.         }       
+141. }
+COL 2000: Both survey and tax data do not exist for this year
+COL 2001: Both survey and tax data do not exist for this year
+COL 2002: Survey data exists, but tax data does not
+COL 2003: Survey data exists, but tax data does not
+COL 2004: Survey data exists, but tax data does not
+COL 2005: Survey data exists, but tax data does not
+COL 2006: Both survey and tax data do not exist for this year
+COL 2007: Both survey and tax data do not exist for this year
+COL 2008: Survey data exists, but tax data does not
+COL 2009: Survey data exists, but tax data does not
+COL 2010: Survey data exists, but tax data does not
+COL 2011: Survey data exists, but tax data does not
+COL 2012: Survey data exists, but tax data does not
+COL 2013: Survey data exists, but tax data does not
+COL 2014: Survey data exists, but tax data does not
+COL 2015: Survey data exists, but tax data does not
+COL 2016: Survey data exists, but tax data does not
+COL 2017: Survey data exists, but tax data does not
+COL 2018: Survey data exists, but tax data does not
+COL 2019: Survey data exists, but tax data does not
+COL 2020: Survey data exists, but tax data does not
+COL 2021: Survey data exists, but tax data does not
+COL 2022: Survey data exists, but tax data does not
+COL 2023: Survey data exists, but tax data does not
+COL 2024: Survey data exists, but tax data does not
+URY 2000: Survey data exists, but tax data does not
+URY 2001: Survey data exists, but tax data does not
+URY 2002: Survey data exists, but tax data does not
+URY 2003: Survey data exists, but tax data does not
+URY 2004: Survey data exists, but tax data does not
+URY 2005: Survey data exists, but tax data does not
+URY 2006: Both survey and tax data do not exist for this year
+URY 2007: Survey data exists, but tax data does not
+URY 2008: Survey data exists, but tax data does not
+URY 2009: Survey data exists, but tax data does not
+URY 2010: Survey data exists, but tax data does not
+URY 2011: Survey data exists, but tax data does not
+URY 2012: Survey data exists, but tax data does not
+URY 2013: Survey data exists, but tax data does not
+URY 2014: Survey data exists, but tax data does not
+URY 2015: Survey data exists, but tax data does not
+URY 2016: Survey data exists, but tax data does not
+URY 2017: Survey data exists, but tax data does not
+URY 2018: Survey data exists, but tax data does not
+URY 2019: Survey data exists, but tax data does not
+URY 2020: Survey data exists, but tax data does not
+URY 2021: Survey data exists, but tax data does not
+URY 2022: Survey data exists, but tax data does not
+URY 2023: Survey data exists, but tax data does not
+URY 2024: Survey data exists, but tax data does not
+BRA 2000: Both survey and tax data do not exist for this year
+BRA 2001: Survey data exists, but tax data does not
+BRA 2002: Survey data exists, but tax data does not
+BRA 2003: Survey data exists, but tax data does not
+BRA 2004: Survey data exists, but tax data does not
+BRA 2005: Survey data exists, but tax data does not
+BRA 2006: Survey data exists, but tax data does not
+BRA 2007: Survey data exists, but tax data does not
+BRA 2008: Survey data exists, but tax data does not
+BRA 2009: Survey data exists, but tax data does not
+BRA 2010: Both survey and tax data do not exist for this year
+BRA 2011: Survey data exists, but tax data does not
+BRA 2012: Survey data exists, but tax data does not
+BRA 2013: Survey data exists, but tax data does not
+BRA 2014: Survey data exists, but tax data does not
+BRA 2015: Survey data exists, but tax data does not
+BRA 2016: Survey data exists, but tax data does not
+BRA 2017: Survey data exists, but tax data does not
+BRA 2018: Survey data exists, but tax data does not
+BRA 2019: Survey data exists, but tax data does not
+BRA 2020: Survey data exists, but tax data does not
+BRA 2021: Survey data exists, but tax data does not
+BRA 2022: Survey data exists, but tax data does not
+BRA 2023: Survey data exists, but tax data does not
+BRA 2024: Survey data exists, but tax data does not
+DOM 2000: Survey data exists, but tax data does not
+DOM 2001: Survey data exists, but tax data does not
+DOM 2002: Survey data exists, but tax data does not
+DOM 2003: Survey data exists, but tax data does not
+DOM 2004: Survey data exists, but tax data does not
+DOM 2005: Survey data exists, but tax data does not
+DOM 2006: Survey data exists, but tax data does not
+DOM 2007: Survey data exists, but tax data does not
+DOM 2008: Survey data exists, but tax data does not
+DOM 2009: Survey data exists, but tax data does not
+DOM 2010: Survey data exists, but tax data does not
+DOM 2011: Survey data exists, but tax data does not
+DOM 2012: Survey data exists, but tax data does not
+DOM 2013: Survey data exists, but tax data does not
+DOM 2014: Survey data exists, but tax data does not
+DOM 2015: Survey data exists, but tax data does not
+DOM 2016: Survey data exists, but tax data does not
+DOM 2017: Survey data exists, but tax data does not
+DOM 2018: Survey data exists, but tax data does not
+DOM 2019: Survey data exists, but tax data does not
+DOM 2020: Survey data exists, but tax data does not
+DOM 2021: Survey data exists, but tax data does not
+DOM 2022: Survey data exists, but tax data does not
+DOM 2023: Survey data exists, but tax data does not
+DOM 2024: Survey data exists, but tax data does not
+SLV 2000: Survey data exists, but tax data does not
+SLV 2001: Survey data exists, but tax data does not
+SLV 2002: Survey data exists, but tax data does not
+SLV 2003: Survey data exists, but tax data does not
+SLV 2004: Survey data exists, but tax data does not
+SLV 2005: Survey data exists, but tax data does not
+SLV 2006: Survey data exists, but tax data does not
+SLV 2007: Survey data exists, but tax data does not
+SLV 2008: Both survey and tax data do not exist for this year
+SLV 2009: Survey data exists, but tax data does not
+SLV 2010: Survey data exists, but tax data does not
+SLV 2011: Both survey and tax data do not exist for this year
+SLV 2012: Survey data exists, but tax data does not
+SLV 2013: Survey data exists, but tax data does not
+SLV 2014: Survey data exists, but tax data does not
+SLV 2015: Survey data exists, but tax data does not
+SLV 2016: Survey data exists, but tax data does not
+SLV 2017: Survey data exists, but tax data does not
+SLV 2018: Survey data exists, but tax data does not
+SLV 2019: Survey data exists, but tax data does not
+SLV 2020: Survey data exists, but tax data does not
+SLV 2021: Survey data exists, but tax data does not
+SLV 2022: Survey data exists, but tax data does not
+SLV 2023: Survey data exists, but tax data does not
+SLV 2024: Survey data exists, but tax data does not
+ECU 2000: Both survey and tax data do not exist for this year
+ECU 2001: Survey data exists, but tax data does not
+ECU 2002: Both survey and tax data do not exist for this year
+ECU 2003: Survey data exists, but tax data does not
+ECU 2004: Both survey and tax data do not exist for this year
+ECU 2005: Survey data exists, but tax data does not
+ECU 2006: Survey data exists, but tax data does not
+ECU 2007: Survey data exists, but tax data does not
+ECU 2008: Survey data exists, but tax data does not
+ECU 2009: Survey data exists, but tax data does not
+ECU 2010: Survey data exists, but tax data does not
+ECU 2011: Survey data exists, but tax data does not
+ECU 2012: Survey data exists, but tax data does not
+ECU 2013: Survey data exists, but tax data does not
+ECU 2014: Survey data exists, but tax data does not
+ECU 2015: Survey data exists, but tax data does not
+ECU 2016: Survey data exists, but tax data does not
+ECU 2017: Survey data exists, but tax data does not
+ECU 2018: Survey data exists, but tax data does not
+ECU 2019: Survey data exists, but tax data does not
+ECU 2020: Survey data exists, but tax data does not
+ECU 2021: Survey data exists, but tax data does not
+ECU 2022: Survey data exists, but tax data does not
+ECU 2023: Survey data exists, but tax data does not
+ECU 2024: Survey data exists, but tax data does not
+PER 2000: Survey data exists, but tax data does not
+PER 2001: Survey data exists, but tax data does not
+PER 2002: Survey data exists, but tax data does not
+PER 2003: Survey data exists, but tax data does not
+PER 2004: Survey data exists, but tax data does not
+PER 2005: Survey data exists, but tax data does not
+PER 2006: Survey data exists, but tax data does not
+PER 2007: Survey data exists, but tax data does not
+PER 2008: Survey data exists, but tax data does not
+PER 2009: Survey data exists, but tax data does not
+PER 2010: Survey data exists, but tax data does not
+PER 2011: Survey data exists, but tax data does not
+PER 2012: Survey data exists, but tax data does not
+PER 2013: Survey data exists, but tax data does not
+PER 2014: Survey data exists, but tax data does not
+PER 2015: Survey data exists, but tax data does not
+PER 2016: Survey data exists, but tax data does not
+PER 2017: Survey data exists, but tax data does not
+PER 2018: Survey data exists, but tax data does not
+PER 2019: Survey data exists, but tax data does not
+PER 2020: Survey data exists, but tax data does not
+PER 2021: Survey data exists, but tax data does not
+PER 2022: Survey data exists, but tax data does not
+PER 2023: Survey data exists, but tax data does not
+PER 2024: Survey data exists, but tax data does not
+CHL 2000: Survey data exists, but tax data does not
+CHL 2001: Both survey and tax data do not exist for this year
+CHL 2002: Both survey and tax data do not exist for this year
+CHL 2003: Survey data exists, but tax data does not
+CHL 2004: Both survey and tax data do not exist for this year
+CHL 2005: Both survey and tax data do not exist for this year
+CHL 2006: Survey data exists, but tax data does not
+CHL 2007: Both survey and tax data do not exist for this year
+CHL 2008: Both survey and tax data do not exist for this year
+CHL 2009: Survey data exists, but tax data does not
+CHL 2010: Both survey and tax data do not exist for this year
+CHL 2011: Survey data exists, but tax data does not
+CHL 2012: Both survey and tax data do not exist for this year
+CHL 2013: Survey data exists, but tax data does not
+CHL 2014: Both survey and tax data do not exist for this year
+CHL 2015: Survey data exists, but tax data does not
+CHL 2016: Both survey and tax data do not exist for this year
+CHL 2017: Survey data exists, but tax data does not
+CHL 2018: Both survey and tax data do not exist for this year
+CHL 2019: Both survey and tax data do not exist for this year
+CHL 2020: Survey data exists, but tax data does not
+CHL 2021: Both survey and tax data do not exist for this year
+CHL 2022: Survey data exists, but tax data does not
+CHL 2023: Both survey and tax data do not exist for this year
+CHL 2024: Survey data exists, but tax data does not
+
+. 
+. //record list of countries and years corrected 
+. foreach type in $types {
+  2.         
+.         foreach pf in "pre" "pos" {
+  3.                 
+.                 // Details for file replace / no-replace distinction
+.                 if ("`type'" == "rep") local command ""
+  4.                 if ("`type'" == "rep") local ext ""
+  5.                 if ("`type'" == "norep") local command "noreplace"
+  6.                 if ("`type'" == "norep") local ext "_norep"
+  7. 
+.                 //start from scratch 
+.                 clear
+  8.                 local obs_mp = wordcount("`ctry_yr_list`ext'_`pf''")
+  9.                 set obs `obs_mp'
+ 10.                 qui gen country_year = ""
+ 11.                 
+.                 //loop over values 
+.                 forvalues n = 1 / `obs_mp' {
+ 12.                         local wd_`n': word `n' of `ctry_yr_list`ext'_`pf''
+ 13.                         qui replace country_year = "`wd_`n''" in `n'
+ 14.                 }
+ 15.                 
+.                 //save results 
+.                 local mpfile "output/bfm_summary/bfm`ext'_`pf'/merging_points
+> .xlsx"
+ 16.                 qui export excel `mpfile', firstrow(variables) ///
+>                         sheet("country_years") sheetreplace keepcellfmt
+ 17.                                 
+.                 //report unobserved population 
+.                 qui split country_year, parse(_) gen(v) 
+ 18.                 qui rename (v1 v2) (country year)
+ 19.                 qui gen unobs = . 
+ 20.                 qui drop country_year
+ 21.                 qui levelsof country, local(countries) clean
+ 22.                 foreach c in `countries' {
+ 23.                         qui levelsof year if country == "`c'", local(`c'_y
+> ears) clean
+ 24.                         foreach y in ``c'_years' {
+ 25.                                 qui replace unobs = `unobs_from_tax_`c'_`y
+> '' ///
+>                                         if country == "`c'" & year == "`y'"
+ 26.                         }
+ 27.                 }
+ 28.                 
+.                 //save results 
+.                 local mpfile "output/bfm_summary/bfm`ext'_`pf'/merging_points
+> .xlsx"
+ 29.                 qui export excel `mpfile', firstrow(variables) ///
+>                         sheet("unobserved") sheetreplace keepcellfmt
+ 30.                         
+.         }
+ 31. }
+number of observations (_N) was 0, now 0
+observations must be between 1 and 1048576
+r(198);
+
+end of do-file
+r(198);

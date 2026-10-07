@@ -1,0 +1,65 @@
+
+  ___  ____  ____  ____  ____ (R)
+ /__    /   ____/   /   ____/
+___/   /   /___/   /   /___/   16.1   Copyright 1985-2019 StataCorp LLC
+  Statistics/Data Analysis            StataCorp
+                                      4905 Lakeway Drive
+     MP - Parallel Edition            College Station, Texas 77845 USA
+                                      800-STATA-PC        http://www.stata.com
+                                      979-696-4600        stata@stata.com
+                                      979-696-4601 (fax)
+
+60-user 4-core Stata network perpetual license:
+       Serial number:  501606216487
+         Licensed to:  Ignacio Flores
+                       insead
+
+Notes:
+      1.  Stata is running in batch mode.
+      2.  Unicode is supported; see help unicode_advice.
+      3.  More than 2 billion observations are allowed; see help obs_advice.
+      4.  Maximum number of variables is set to 5000; see help set_maxvar.
+
+. do code/Stata/03d-prepare-theta-extrapolation.do 
+
+. 
+. /////////////////////////////////////////////////////////////////////////////
+> ///
+> //Apply bfm correction based on theta coefficients observed for other years
+. /////////////////////////////////////////////////////////////////////////////
+> ///
+> 
+. //General settings ----------------------------------------------------------
+> ---
+. clear all
+
+. 
+. //preliminary
+. global aux_part  ""preliminary"" 
+
+. qui do "code/Stata/auxiliar/aux_general.do"
+
+. 
+. // 1. Compute pseudo-thetas -------------------------------------------------
+> ---
+. 
+. //temporary names 
+. tempfile tf 
+
+. tempvar w_change
+
+. 
+. //Get list of country-years corrected in 03a-b
+. global aux_part  ""tax_svy_overlap"" 
+
+. qui do "code/Stata/auxiliar/aux_general.do"     
+
+. 
+. //Get trust regions
+. qui import excel "input_data/admin_data/directory.xlsx", ///
+>         sheet("trust") firstrow clear
+file input_data/admin_data/directory.xlsx not found
+r(601);
+
+end of do-file
+r(601);

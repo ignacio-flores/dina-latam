@@ -536,6 +536,36 @@ dina_review_print_admin_other_inputs <- function(record) {
   invisible(rows)
 }
 
+dina_review_print_admin_trust_regions <- function(record) {
+  path <- file.path(record$run, "tables", "trust_region_proposals.csv")
+  if (!file.exists(path)) return(invisible(NULL))
+  rows <- dina_read_csv_table_or_empty(path)
+  if (!nrow(rows)) return(invisible(NULL))
+  pending <- rows[rows$status != "configured", , drop = FALSE]
+  dina_cli_section("Admin configuration proposal")
+  dina_cli_cat(dina_cli_dim("One complete trust-region configuration is reviewed alongside the Admin sources. Applying it changes configuration only; no country, year, or file is accepted until the complete Admin review is clean and Admin Include is run."))
+  if (!nrow(pending)) {
+    dina_cli_ok("The complete Admin configuration is ready. No source files have been accepted yet.")
+  } else {
+    dina_cli_warn(sprintf("This configuration proposal has %s required update%s before the whole Admin review can be included.", nrow(pending), if (nrow(pending) == 1L) "" else "s"))
+    pending_display <- data.frame(
+      country = pending$country,
+      year = pending$year,
+      trust = vapply(pending$proposal_trust, dina_review_plain_number, character(1), digits = 4L),
+      proposed_method = gsub("_", " ", pending$basis), stringsAsFactors = FALSE
+    )
+    if ("proposal_trust_wages" %in% names(pending) && any(is.finite(pending$proposal_trust_wages))) {
+      pending_display$proposed_wage_trust <- vapply(pending$proposal_trust_wages, dina_review_plain_number, character(1), digits = 4L)
+    }
+    dina_print_data_frame_compact(pending_display, limit = nrow(pending_display))
+    dina_cli_cat(dina_cli_dim("These are edits to one proposal, not individual approvals. Existing configuration remains in the same proposal and is available in the audit."))
+    dina_cli_cat(dina_cli_dim("1. Inspect the complete proposal: "), dina_cli_command("dina sources table admin trust-region-proposals"))
+    dina_cli_cat(dina_cli_dim("2. Edit the complete proposal: "), dina_cli_command("dina sources configure admin"))
+    dina_cli_cat(dina_cli_dim("3. Apply the complete proposal, then rerun the whole review: "), dina_cli_command("dina sources configure admin --apply"))
+  }
+  invisible(rows)
+}
+
 dina_review_print_wid_population_changes <- function(record, values) {
   dina_cli_cat(dina_cli_emphasis("Population estimates"))
   baseline <- unique(as.character(values$baseline %||% character()))
@@ -848,6 +878,7 @@ dina_review_problem_triage_kind <- function(severity, status, extract_status = N
       missing_clean_output = list(section = "Blocks inclusion", issue = "Staged cleaner did not produce its output", next_step = "Resolve the preceding source or Stata check, then explore this family again."),
       missing_pipeline_columns = list(section = "Blocks inclusion", issue = "Direct pipeline input is missing", next_step = "Use the configured survey input audit to identify the missing field."),
       source_checks_blocked = list(section = "Blocks inclusion", issue = "Required checks have not run", next_step = "Resolve the more specific block listed above, then explore this family again."),
+      trust_region_confirmation_required = list(section = "Blocks inclusion", issue = "Complete Admin configuration proposal required", next_step = "Review and apply the complete proposal, then rerun the whole Admin review."),
       list(section = "Blocks inclusion", issue = "Source review could not complete", next_step = "Inspect the full problems audit.")))
   }
   switch(extract_status,
@@ -1325,7 +1356,10 @@ dina_review_print <- function(record, country = NULL, limit = 12L, root = dina_r
     }
     dina_review_print_artifact_value_changes(record, values, record$family)
   }
-  if (identical(record$family, "admin")) dina_review_print_admin_other_inputs(record)
+  if (identical(record$family, "admin")) {
+    dina_review_print_admin_trust_regions(record)
+    dina_review_print_admin_other_inputs(record)
+  }
   if (identical(record$family, "sna")) {
     dina_cli_cat(dina_cli_dim("Review scope: direct CEI inputs declared in config/country_sna_explorer.yml → review_focus."))
   } else dina_cli_cat(record$comparison_note %||% "Comparison scope unavailable.")
@@ -1343,7 +1377,12 @@ dina_review_print <- function(record, country = NULL, limit = 12L, root = dina_r
     dina_print_data_frame_compact(summary, limit = nrow(summary))
     dina_cli_cat(dina_cli_dim("Details: missing-values."))
   } else if (unexplained) dina_cli_cat(sprintf("%s absent values have undetermined applicability; inspect missing-values.", unexplained))
-  if (nzchar(record$comparison_error %||% "")) dina_cli_warn(record$comparison_error)
+  # Admin already presents pending trust decisions as their own compact,
+  # actionable section and as structured problem triage above. Repeating the
+  # full internal condition here obscures the actual source-review outcome.
+  trust_confirmation <- identical(record$family, "admin") &&
+    grepl("^(Trust-region decisions need confirmation|Trust-region configuration decisions are incomplete|The complete Admin configuration proposal is not ready)", record$comparison_error %||% "")
+  if (nzchar(record$comparison_error %||% "") && !trust_confirmation) dina_cli_warn(record$comparison_error)
   if (record$status == "blocked" && !any(problems$severity == "Blocker") && !nzchar(record$comparison_error %||% "")) dina_cli_warn("The engine blocked inclusion; inspect its detailed assessment for the remaining condition.")
   if (identical(record$family, "sna")) {
     dina_cli_cat(dina_cli_dim("Details: coverage, audit, problems, and files are saved with this review."))

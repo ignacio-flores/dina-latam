@@ -1,0 +1,169 @@
+
+  ___  ____  ____  ____  ____ (R)
+ /__    /   ____/   /   ____/
+___/   /   /___/   /   /___/   16.1   Copyright 1985-2019 StataCorp LLC
+  Statistics/Data Analysis            StataCorp
+                                      4905 Lakeway Drive
+     MP - Parallel Edition            College Station, Texas 77845 USA
+                                      800-STATA-PC        http://www.stata.com
+                                      979-696-4600        stata@stata.com
+                                      979-696-4601 (fax)
+
+60-user 4-core Stata network perpetual license:
+       Serial number:  501606216487
+         Licensed to:  Ignacio Flores
+                       insead
+
+Notes:
+      1.  Stata is running in batch mode.
+      2.  Unicode is supported; see help unicode_advice.
+      3.  More than 2 billion observations are allowed; see help obs_advice.
+      4.  Maximum number of variables is set to 5000; see help set_maxvar.
+
+. do code/Stata/06a-run-ineqstats.do 
+
+. /////////////////////////////////////////////////////////////////////////////
+> ///
+> //
+. //                                              Title: INEQUALITY STATISTICS 
+> - DATA 
+. //                       Authors: Mauricio DE ROSA, Ignacio FLORES, Marc MORG
+> AN 
+. //                                                                      Year:
+>  2020
+. //
+. //                      Description:
+. //                      Apply the 'ineqstats' program to various steps of our
+>  correction
+. //                      and save results for analysis. It provides income sha
+> res, ginis, 
+. //                      , theil, sginis and income composition for every coun
+> try-year 
+. //
+. /////////////////////////////////////////////////////////////////////////////
+> //
+> 
+. clear all 
+
+. 
+. //General settings ----------------------------------------------------------
+> ---
+. 
+. //get list of paths 
+. global aux_part " "preliminary" " 
+
+. qui do "code/Stata/auxiliar/aux_general.do"
+
+. 
+. //find program
+. sysdir set PERSONAL "code/Stata/ado/ineqstats_ado/." 
+
+. 
+. //Run ineqstats program -----------------------------------------------------
+> ---
+. 
+. foreach step in $all_steps {
+  2. 
+.         local date "$S_DATE"
+  3.         local date = subinstr("`date'", " ", "", .)
+  4.         
+.         //get short name of step
+.         local s = substr("`step'", 1, 3)
+  5.         
+.         //normie locals
+.         local type "`step'"
+  6.         local weight "_weight"
+  7.         local bfm "" 
+  8.         
+.         //special-cases
+.         if inlist("`step'", "raw", "por") local weight "_fep"
+  9.         if ("`step'" == "raw") local ext "_svy_y" 
+ 10.         else local ext ""
+ 11.         
+.         *if inlist("`step'", "bfm${ext}_pre") local bfm_`step' "bfm"
+.         
+.         //define macros 
+.         if "${bfm_replace}" == "yes" {
+ 12.                 local bfm_`step' "bfm"
+ 13.         }               
+ 14.         if "${bfm_replace}" == "no" {
+ 15.                 local bfm_`step' ""
+ 16.         }         
+ 17.         
+.         if inlist("`step'", "rescaled", "uprofits", ///
+>                 "natinc", "pod", "pon", "psp") {
+ 18.                 local type "bfm${ext}_pre"
+ 19.         }
+ 20.         
+.         //create main folders 
+.         local dirpath "output/ineqstats"
+ 21.         mata: st_numscalar("exists", direxists(st_local("dirpath")))
+ 22.         if (scalar(exists) == 0) {
+ 23.                 mkdir "`dirpath'"
+ 24.                 display "Created directory: `dirpath'"
+ 25.         }
+ 26.         //create main folders 
+.         local dirpath "output/ineqstats/log"
+ 27.         mata: st_numscalar("exists", direxists(st_local("dirpath")))
+ 28.         if (scalar(exists) == 0) {
+ 29.                 mkdir "`dirpath'"
+ 30.                 display "Created directory: `dirpath'"
+ 31.         }
+ 32.         
+.         //statistical units
+.         global units "$units_06a"
+ 33.         foreach unit in "${units}" {
+ 34. 
+.                 cap log close
+ 35.                 log using "output/ineqstats/log/`unit'_`step'_`date'.smcl"
+> , replace 
+ 36.                 if inlist("`unit'", "ind", "esn") local age 20
+ 37.                 if inlist("`unit'", "pch") local age 0
+ 38.                 if inlist("`unit'", "act") local age 20 65
+ 39.                 
+.                 //loop over country groups      
+.                 di as result "step: `step'"
+ 40.                 
+.                 //call program  
+.                  ineqstats summarize, `bfm_`step'' ///
+>                         svypath("intermediary_data/microdata/bfm${ext}_pre") 
+> edad(`age') ///
+>                         type(`type') time($first_y $last_y) area(${all_countr
+> ies}) ///
+>                         export("output/ineqstats/ineqstats_`step'_`unit'.xlsx
+> ") ///
+>                         weight(`weight') dec(${`unit'_`s'_norm}) ///
+>                         unit(`unit')  /*smoothtop*/
+ 41.                 log close 
+ 42.         }
+ 43. }       
+(note: file /Users/iflores/Documents/GitHub/dina-latam/output/ineqstats/log/ind
+> _natinc_28Sep2026.smcl not found)
+-------------------------------------------------------------------------------
+      name:  <unnamed>
+       log:  /Users/iflores/Documents/GitHub/dina-latam/output/ineqstats/log/in
+> d_natinc_28Sep2026.smcl
+  log type:  smcl
+ opened on:  28 Sep 2026, 14:48:49
+step: natinc
+-------------------------------------------------------------------------------
+> -----------------------------------------------------------
+                                                            INEQSTATS Settings
+-------------------------------------------------------------------------------
+> -----------------------------------------------------------
+Areas (11): COL ARG PER URY CRI ECU CHL BRA SLV MEX DOM
+Period: 2000-2024
+Weight: _weight 
+Unit: ind
+Decomposing by: ind_pre_wag_sca ind_pre_pen_sca ind_pre_cap_sca ind_pre_imp_sca
+>  ind_pre_mix_sca ind_upr_2 ind_tax_indg_pre ind_pre_lef
+Survey type: bfm_norep_pre
+edad/age: 20
+-------------------------------------------------------------------------------
+> -----------------------------------------------------------
+number of observations (_N) was 0, now 275
+observations must be between 1 and 1048576
+r(198);
+
+end of do-file
+r(198);

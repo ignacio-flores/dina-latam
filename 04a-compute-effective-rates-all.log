@@ -1,0 +1,96 @@
+
+  ___  ____  ____  ____  ____ (R)
+ /__    /   ____/   /   ____/
+___/   /   /___/   /   /___/   16.1   Copyright 1985-2019 StataCorp LLC
+  Statistics/Data Analysis            StataCorp
+                                      4905 Lakeway Drive
+     MP - Parallel Edition            College Station, Texas 77845 USA
+                                      800-STATA-PC        http://www.stata.com
+                                      979-696-4600        stata@stata.com
+                                      979-696-4601 (fax)
+
+60-user 4-core Stata network perpetual license:
+       Serial number:  501606216487
+         Licensed to:  Ignacio Flores
+                       insead
+
+Notes:
+      1.  Stata is running in batch mode.
+      2.  Unicode is supported; see help unicode_advice.
+      3.  More than 2 billion observations are allowed; see help obs_advice.
+      4.  Maximum number of variables is set to 5000; see help set_maxvar.
+
+. do code/Stata/04a-compute-effective-rates-all.do 
+
+. /////////////////////////////////////////////////////////////////////////////
+> ///
+> // Calculates effective tax rates for all country-years with data. 
+. /////////////////////////////////////////////////////////////////////////////
+> ///
+> 
+. clear all
+
+. do "code/Stata/auxiliar/dina_runtime_config.do"
+
+. * Load the single configuration authority for a DINA task.
+. * `dina run` supplies DINA_CONFIG_DO; manual runs must supply an explicitly
+. * generated and validated file through the same environment variable.
+. 
+. if "${dina_runtime_config_loaded}" != "yes" {
+.     local dina_config_do : environment DINA_CONFIG_DO
+.     if "`dina_config_do'" == "" {
+.         di as error "DINA runtime configuration is required."
+.         di as error "Run through `dina run`, or generate one with `dina confi
+> g stata --output PATH`."
+.         exit 198
+.     }
+.     capture confirm file "`dina_config_do'"
+.     if _rc {
+.         di as error "DINA_CONFIG_DO does not point to a readable file: `dina_
+> config_do'"
+.         exit 601
+.     }
+.     quietly do "`dina_config_do'"
+.     foreach required in dina_config_scope dina_config_fingerprint dina_baseli
+> ne_fingerprint dina_config_countries all_countries first_y last_y lang debug 
+> bfm_replace all_units all_steps export_unit export_steps export_last_y previo
+> us_update {
+  2.         if `"${`required'}"' == "" {
+  3.             di as error "Generated DINA runtime configuration is missing `
+> required'."
+  4.             exit 198
+  5.         }
+  6.     }
+.     global dina_runtime_config_loaded "yes"
+. }
+
+. 
+end of do-file
+
+. global codes "code/Stata/eff-tax-rates"
+
+. 
+. // Create directory if it doesnt exist 
+. local dirpath "output/figures/eff_tax_rates"
+
+. mata: st_numscalar("exists", direxists(st_local("dirpath")))
+
+. if (scalar(exists) == 0) {
+.         mkdir "`dirpath'"
+.         display "Created directory: `dirpath'"
+. }
+
+. 
+. //we need to fix BRA
+. foreach c in  "COL" /*"BRA"*/ "MEX"{
+  2.         di as result "running $codes/compute-eff-tax-rate-`c'-alt.do"
+  3.         global codes "code/Stata/eff-tax-rates"
+  4.         qui do "$codes/compute-eff-tax-rate-`c'-alt.do"
+  5. }
+running code/Stata/eff-tax-rates/compute-eff-tax-rate-COL-alt.do
+running code/Stata/eff-tax-rates/compute-eff-tax-rate-MEX-alt.do
+file input_data/admin_data/MEX/gpinter_MEX_2009.xlsx not found
+r(601);
+
+end of do-file
+r(601);

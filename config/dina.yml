@@ -63,7 +63,7 @@ paths:
 
 notifications:
   pushover:
-    enabled: false
+    enabled: true
     token: "${PUSHOVER_APP_TOKEN}"
     user: "${PUSHOVER_USER_KEY}"
 

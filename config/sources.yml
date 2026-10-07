@@ -147,6 +147,54 @@ sources:
     transformer: code/Stata/02b-prepare-admin-microdata.do
     notes: Heavy static Uruguay admin microdata consumed by inactive task 02b; excluded from input compression by default.
 
+  - id: mex-legacy-prepared-pit
+    family: legacy_prepared
+    country: MEX
+    method: legacy_prepared
+    canonical:
+      - input_data/admin_data/MEX/gpinter_MEX_2009.xlsx
+      - input_data/admin_data/MEX/gpinter_MEX_2010.xlsx
+      - input_data/admin_data/MEX/gpinter_MEX_2011.xlsx
+      - input_data/admin_data/MEX/gpinter_MEX_2012.xlsx
+      - input_data/admin_data/MEX/gpinter_MEX_2013.xlsx
+      - input_data/admin_data/MEX/gpinter_MEX_2014.xlsx
+    integration: none
+    provenance: recovered from 20332f85^ (pre-fresh-start repository state)
+    checksums:
+      gpinter_MEX_2009.xlsx: 401b5d0485fbec3378f2feafe5e77014dcee74dbee6d55c7220c2f1ab04c98bb
+      gpinter_MEX_2010.xlsx: 51d57343b2d07a8b97143b1a09cd37f0a44bd1cd7538646d5e252e93e15d69e0
+      gpinter_MEX_2011.xlsx: 80699c27e845eeacf672e39f46d658213f8c5af1cb83286693beb14d3bdcc3c5
+      gpinter_MEX_2012.xlsx: dba844656cf97224e903311a6289029f8dbab14b65021f0f4381c57758bd3b69
+      gpinter_MEX_2013.xlsx: 0eed01c94165de2db1e05ba1cd0de69c11cf47a3d3ec41ee8ad55eee1dd1fb45
+      gpinter_MEX_2014.xlsx: e9f82bbd87481a0338438b16e6981f3497add096d0ca5844352a89eef2e6e40b
+    notes: Non-reproducible legacy pre-interpolation PIT inputs. They cover 2009-2014 only; modern Mexico raw-source preparation is not yet available.
+
+  - id: ury-legacy-prepared-pit
+    family: legacy_prepared
+    country: URY
+    method: legacy_prepared
+    canonical:
+      - input_data/admin_data/URY/gpinter_URY_2009.xlsx
+      - input_data/admin_data/URY/gpinter_URY_2010.xlsx
+      - input_data/admin_data/URY/gpinter_URY_2011.xlsx
+      - input_data/admin_data/URY/gpinter_URY_2012.xlsx
+      - input_data/admin_data/URY/gpinter_URY_2013.xlsx
+      - input_data/admin_data/URY/gpinter_URY_2014.xlsx
+      - input_data/admin_data/URY/gpinter_URY_2015.xlsx
+      - input_data/admin_data/URY/gpinter_URY_2016.xlsx
+    integration: none
+    provenance: recovered from 20332f85^ (pre-fresh-start repository state)
+    checksums:
+      gpinter_URY_2009.xlsx: d81d90cca6d7e533693d2c73445b0f84450f14da3df4be9629acca1490982fec
+      gpinter_URY_2010.xlsx: 6f1197cb982edb4bbb75a368a5497cc8ac5e340233c431b9cc5fa96a3f353307
+      gpinter_URY_2011.xlsx: 4da7b1fc02d55f4fcc04cb82925d0e2f258a6b664810a0836987d5ded33a59c9
+      gpinter_URY_2012.xlsx: 03f8c290a7969f2ab6d14e672714f43ea506cfa67d6294b74271f6c0d2247780
+      gpinter_URY_2013.xlsx: c56024dc3cc4fa65143dc051480f581c1ff3e78ade3643ec113f6fc35766c14d
+      gpinter_URY_2014.xlsx: f6ebadb17d0d3a65fcb1012de88fa64d616d44b67bee9bad86b0885461d793a9
+      gpinter_URY_2015.xlsx: cc6a43964a6a2d6f1bd42fdccbff92ef35cc46e1fa646b5900677ebcc3596772
+      gpinter_URY_2016.xlsx: 046533b4ada2c70c71c51e85f6aae88e230173ee5236c037931d3a674160d1f2
+    notes: Non-reproducible legacy pre-interpolation PIT inputs. They cover 2009-2016 only; the protected Uruguay microdata required to regenerate them are not in this repository.
+
   - id: col-pit
     aliases:
       - col-pit-total

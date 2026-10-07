@@ -1,0 +1,3405 @@
+
+  ___  ____  ____  ____  ____ (R)
+ /__    /   ____/   /   ____/
+___/   /   /___/   /   /___/   16.1   Copyright 1985-2019 StataCorp LLC
+  Statistics/Data Analysis            StataCorp
+                                      4905 Lakeway Drive
+     MP - Parallel Edition            College Station, Texas 77845 USA
+                                      800-STATA-PC        http://www.stata.com
+                                      979-696-4600        stata@stata.com
+                                      979-696-4601 (fax)
+
+60-user 4-core Stata network perpetual license:
+       Serial number:  501606216487
+         Licensed to:  Ignacio Flores
+                       insead
+
+Notes:
+      1.  Stata is running in batch mode.
+      2.  Unicode is supported; see help unicode_advice.
+      3.  More than 2 billion observations are allowed; see help obs_advice.
+      4.  Maximum number of variables is set to 5000; see help set_maxvar.
+
+. do code/Stata/05a-compare-sna-totals.do 
+
+. /////////////////////////////////////////////////////////////////////////////
+> ///
+> //
+. //                                                      Title: SCALING FACTOR
+> S 
+. //                       Authors: Mauricio DE ROSA, Ignacio FLORES, Marc MORG
+> AN 
+. //                                                                      Year:
+>  2020
+. //
+. //                      Description:
+. //                      Compares income aggregates to totals in national acco
+> unts 
+. //                      at every step of the procedure. The output is sent to
+>  an 
+. //                      excel file, which is then used as input for graphs in
+>  another 
+. //                      dofile
+. //
+. /////////////////////////////////////////////////////////////////////////////
+> ///
+> 
+. //General 
+. clear all
+
+. clear programs
+
+. 
+. //preliminary
+. global aux_part  ""preliminary"" 
+
+. quietly do "code/Stata/auxiliar/aux_general.do"
+
+. 
+. //define macros 
+. if "${bfm_replace}" == "yes" local ext ""
+
+. if "${bfm_replace}" == "no" local ext "_norep"
+
+. 
+. //find programs folder 
+. sysdir set PERSONAL "code/Stata/ado/snacompare_ado/." 
+
+. 
+. // Create directory if it doesnt exist 
+. local dirpath "output/snacompare_summary"
+
+. mata: st_numscalar("exists", direxists(st_local("dirpath")))
+
+. if (scalar(exists) == 0) {
+.         mkdir "`dirpath'"
+.         display "Created directory: `dirpath'"
+. }
+
+. 
+. local dirpath "output/figures/snacompare"
+
+. mata: st_numscalar("exists", direxists(st_local("dirpath")))
+
+. if (scalar(exists) == 0) {
+.         mkdir "`dirpath'"
+.         display "Created directory: `dirpath'"
+. }
+
+. 
+. //Run program 
+. foreach step in "raw" "bfm`ext'_pre" {  
+  2. 
+.         //define countries 
+.         if ("`step'" == "urb") global area ARG
+  3.         if ("`step'" != "urb") global area " ${all_countries} "
+  4. 
+.         //define weights
+.         if inlist("`step'", "raw", "urb") local weight "_fep"
+  5.         if inlist("`step'", "bfm_norep_pre", "bfm_pre") local weight "_wei
+> ght"
+  6.         
+.         *report step
+.         display as text "{hline 55}"
+  7.         di as result "Comparing micro-macro aggregates: `step'"
+  8.         display as text "{hline 55}"
+  9.          
+.         foreach pop in $snapops {
+ 10.                 
+.                 if "`pop'" == "adults" local age 20
+ 11.                 if "`pop'" == "totpop" local age 0
+ 12.                 if "`pop'" == "active" local age 20 65
+ 13.                 
+.                 //call program  
+.                 snacompare using "intermediary_data/national_accounts/UNDATA-
+> WID-Merged.dta", ///
+>                         svypath("intermediary_data/microdata/") weight(`weigh
+> t') ///
+>                         time(${first_y} ${last_y}) edad(`age') ext(`ext') ///
+>                         area(${area}) type(`step') /*show esp GRAPHEXTRAP*/ /
+> //
+>                         exportexcel("output/snacompare_summary/snacompare_`st
+> ep'_`pop'.xlsx") ///
+>                         auxiliary("code/Stata/auxiliar/aux_snacompare.do")   
+>    
+ 14.         }
+ 15. }
+-------------------------------------------------------
+Comparing micro-macro aggregates: raw
+-------------------------------------------------------
+05a: Comparing aggregates for COL - 2000
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2000
+  * survey not found
+05a: Comparing aggregates for URY - 2000
+  * survey not found
+05a: Comparing aggregates for CRI - 2000
+  * survey not found
+05a: Comparing aggregates for ECU - 2000
+  * survey not found
+05a: Comparing aggregates for CHL - 2000
+  * survey not found
+05a: Comparing aggregates for BRA - 2000
+  * survey not found
+05a: Comparing aggregates for SLV - 2000
+  * survey not found
+05a: Comparing aggregates for MEX - 2000
+  * survey not found
+05a: Comparing aggregates for DOM - 2000
+  * survey not found
+05a: Comparing aggregates for COL - 2001
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2001
+  * survey not found
+05a: Comparing aggregates for URY - 2001
+  * survey not found
+05a: Comparing aggregates for CRI - 2001
+  * survey not found
+05a: Comparing aggregates for ECU - 2001
+  * survey not found
+05a: Comparing aggregates for CHL - 2001
+  * survey not found
+05a: Comparing aggregates for BRA - 2001
+  * survey not found
+05a: Comparing aggregates for SLV - 2001
+  * survey not found
+05a: Comparing aggregates for MEX - 2001
+  * survey not found
+05a: Comparing aggregates for DOM - 2001
+  * survey not found
+05a: Comparing aggregates for COL - 2002
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2002
+  * survey not found
+05a: Comparing aggregates for URY - 2002
+  * survey not found
+05a: Comparing aggregates for CRI - 2002
+  * survey not found
+05a: Comparing aggregates for ECU - 2002
+  * survey not found
+05a: Comparing aggregates for CHL - 2002
+  * survey not found
+05a: Comparing aggregates for BRA - 2002
+  * survey not found
+05a: Comparing aggregates for SLV - 2002
+  * survey not found
+05a: Comparing aggregates for MEX - 2002
+  * survey not found
+05a: Comparing aggregates for DOM - 2002
+  * survey not found
+05a: Comparing aggregates for COL - 2003
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2003
+  * survey not found
+05a: Comparing aggregates for URY - 2003
+  * survey not found
+05a: Comparing aggregates for CRI - 2003
+  * survey not found
+05a: Comparing aggregates for ECU - 2003
+  * survey not found
+05a: Comparing aggregates for CHL - 2003
+  * survey not found
+05a: Comparing aggregates for BRA - 2003
+  * survey not found
+05a: Comparing aggregates for SLV - 2003
+  * survey not found
+05a: Comparing aggregates for MEX - 2003
+  * survey not found
+05a: Comparing aggregates for DOM - 2003
+  * survey not found
+05a: Comparing aggregates for COL - 2004
+  * survey not found
+05a: Comparing aggregates for ARG - 2004
+  * survey not found
+05a: Comparing aggregates for PER - 2004
+  * survey not found
+05a: Comparing aggregates for URY - 2004
+  * survey not found
+05a: Comparing aggregates for CRI - 2004
+  * survey not found
+05a: Comparing aggregates for ECU - 2004
+  * survey not found
+05a: Comparing aggregates for CHL - 2004
+  * survey not found
+05a: Comparing aggregates for BRA - 2004
+  * survey not found
+05a: Comparing aggregates for SLV - 2004
+  * survey not found
+05a: Comparing aggregates for MEX - 2004
+  * survey not found
+05a: Comparing aggregates for DOM - 2004
+  * survey not found
+05a: Comparing aggregates for COL - 2005
+  * survey not found
+05a: Comparing aggregates for ARG - 2005
+  * survey not found
+05a: Comparing aggregates for PER - 2005
+  * survey not found
+05a: Comparing aggregates for URY - 2005
+  * survey not found
+05a: Comparing aggregates for CRI - 2005
+  * survey not found
+05a: Comparing aggregates for ECU - 2005
+  * survey not found
+05a: Comparing aggregates for CHL - 2005
+  * survey not found
+05a: Comparing aggregates for BRA - 2005
+  * survey not found
+05a: Comparing aggregates for SLV - 2005
+  * survey not found
+05a: Comparing aggregates for MEX - 2005
+  * survey not found
+05a: Comparing aggregates for DOM - 2005
+  * survey not found
+05a: Comparing aggregates for COL - 2006
+  * survey not found
+05a: Comparing aggregates for ARG - 2006
+  * survey not found
+05a: Comparing aggregates for PER - 2006
+  * survey not found
+05a: Comparing aggregates for URY - 2006
+  * survey not found
+05a: Comparing aggregates for CRI - 2006
+  * survey not found
+05a: Comparing aggregates for ECU - 2006
+  * survey not found
+05a: Comparing aggregates for CHL - 2006
+  * survey not found
+05a: Comparing aggregates for BRA - 2006
+  * survey not found
+05a: Comparing aggregates for SLV - 2006
+  * survey not found
+05a: Comparing aggregates for MEX - 2006
+  * survey not found
+05a: Comparing aggregates for DOM - 2006
+  * survey not found
+05a: Comparing aggregates for COL - 2007
+  * survey not found
+05a: Comparing aggregates for ARG - 2007
+  * survey not found
+05a: Comparing aggregates for PER - 2007
+  * survey not found
+05a: Comparing aggregates for URY - 2007
+  * survey not found
+05a: Comparing aggregates for CRI - 2007
+  * survey not found
+05a: Comparing aggregates for ECU - 2007
+  * survey not found
+05a: Comparing aggregates for CHL - 2007
+  * survey not found
+05a: Comparing aggregates for BRA - 2007
+  * survey not found
+05a: Comparing aggregates for SLV - 2007
+  * survey not found
+05a: Comparing aggregates for MEX - 2007
+  * survey not found
+05a: Comparing aggregates for DOM - 2007
+  * survey not found
+05a: Comparing aggregates for COL - 2008
+  * survey not found
+05a: Comparing aggregates for ARG - 2008
+  * survey not found
+05a: Comparing aggregates for PER - 2008
+  * survey not found
+05a: Comparing aggregates for URY - 2008
+  * survey not found
+05a: Comparing aggregates for CRI - 2008
+  * survey not found
+05a: Comparing aggregates for ECU - 2008
+  * survey not found
+05a: Comparing aggregates for CHL - 2008
+  * survey not found
+05a: Comparing aggregates for BRA - 2008
+  * survey not found
+05a: Comparing aggregates for SLV - 2008
+  * survey not found
+05a: Comparing aggregates for MEX - 2008
+  * survey not found
+05a: Comparing aggregates for DOM - 2008
+  * survey not found
+05a: Comparing aggregates for COL - 2009
+  * survey not found
+05a: Comparing aggregates for ARG - 2009
+  * survey not found
+05a: Comparing aggregates for PER - 2009
+  * survey not found
+05a: Comparing aggregates for URY - 2009
+  * survey not found
+05a: Comparing aggregates for CRI - 2009
+  * survey not found
+05a: Comparing aggregates for ECU - 2009
+  * survey not found
+05a: Comparing aggregates for CHL - 2009
+  * survey not found
+05a: Comparing aggregates for BRA - 2009
+  * survey not found
+05a: Comparing aggregates for SLV - 2009
+  * survey not found
+05a: Comparing aggregates for MEX - 2009
+  * survey not found
+05a: Comparing aggregates for DOM - 2009
+  * survey not found
+05a: Comparing aggregates for COL - 2010
+  * survey not found
+05a: Comparing aggregates for ARG - 2010
+  * survey not found
+05a: Comparing aggregates for PER - 2010
+  * survey not found
+05a: Comparing aggregates for URY - 2010
+  * survey not found
+05a: Comparing aggregates for CRI - 2010
+  * survey not found
+05a: Comparing aggregates for ECU - 2010
+  * survey not found
+05a: Comparing aggregates for CHL - 2010
+  * survey not found
+05a: Comparing aggregates for BRA - 2010
+  * survey not found
+05a: Comparing aggregates for SLV - 2010
+  * survey not found
+05a: Comparing aggregates for MEX - 2010
+  * survey not found
+05a: Comparing aggregates for DOM - 2010
+  * survey not found
+05a: Comparing aggregates for COL - 2011
+  * survey not found
+05a: Comparing aggregates for ARG - 2011
+  * survey not found
+05a: Comparing aggregates for PER - 2011
+  * survey not found
+05a: Comparing aggregates for URY - 2011
+  * survey not found
+05a: Comparing aggregates for CRI - 2011
+  * survey not found
+05a: Comparing aggregates for ECU - 2011
+  * survey not found
+05a: Comparing aggregates for CHL - 2011
+  * survey not found
+05a: Comparing aggregates for BRA - 2011
+  * survey not found
+05a: Comparing aggregates for SLV - 2011
+  * survey not found
+05a: Comparing aggregates for MEX - 2011
+  * survey not found
+05a: Comparing aggregates for DOM - 2011
+  * survey not found
+05a: Comparing aggregates for COL - 2012
+  * survey not found
+05a: Comparing aggregates for ARG - 2012
+  * survey not found
+05a: Comparing aggregates for PER - 2012
+  * survey not found
+05a: Comparing aggregates for URY - 2012
+  * survey not found
+05a: Comparing aggregates for CRI - 2012
+  * survey not found
+05a: Comparing aggregates for ECU - 2012
+  * survey not found
+05a: Comparing aggregates for CHL - 2012
+  * survey not found
+05a: Comparing aggregates for BRA - 2012
+  * survey not found
+05a: Comparing aggregates for SLV - 2012
+  * survey not found
+05a: Comparing aggregates for MEX - 2012
+  * survey not found
+05a: Comparing aggregates for DOM - 2012
+  * survey not found
+05a: Comparing aggregates for COL - 2013
+  * survey not found
+05a: Comparing aggregates for ARG - 2013
+  * survey not found
+05a: Comparing aggregates for PER - 2013
+  * survey not found
+05a: Comparing aggregates for URY - 2013
+  * survey not found
+05a: Comparing aggregates for CRI - 2013
+  * survey not found
+05a: Comparing aggregates for ECU - 2013
+  * survey not found
+05a: Comparing aggregates for CHL - 2013
+  * survey not found
+05a: Comparing aggregates for BRA - 2013
+  * survey not found
+05a: Comparing aggregates for SLV - 2013
+  * survey not found
+05a: Comparing aggregates for MEX - 2013
+  * survey not found
+05a: Comparing aggregates for DOM - 2013
+  * survey not found
+05a: Comparing aggregates for COL - 2014
+  * survey not found
+05a: Comparing aggregates for ARG - 2014
+  * survey not found
+05a: Comparing aggregates for PER - 2014
+  * survey not found
+05a: Comparing aggregates for URY - 2014
+  * survey not found
+05a: Comparing aggregates for CRI - 2014
+  * survey not found
+05a: Comparing aggregates for ECU - 2014
+  * survey not found
+05a: Comparing aggregates for CHL - 2014
+  * survey not found
+05a: Comparing aggregates for BRA - 2014
+  * survey not found
+05a: Comparing aggregates for SLV - 2014
+  * survey not found
+05a: Comparing aggregates for MEX - 2014
+  * survey not found
+05a: Comparing aggregates for DOM - 2014
+  * survey not found
+05a: Comparing aggregates for COL - 2015
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2015
+  * survey not found
+05a: Comparing aggregates for URY - 2015
+  * survey not found
+05a: Comparing aggregates for CRI - 2015
+  * survey not found
+05a: Comparing aggregates for ECU - 2015
+  * survey not found
+05a: Comparing aggregates for CHL - 2015
+  * survey not found
+05a: Comparing aggregates for BRA - 2015
+  * survey not found
+05a: Comparing aggregates for SLV - 2015
+  * survey not found
+05a: Comparing aggregates for MEX - 2015
+  * survey not found
+05a: Comparing aggregates for DOM - 2015
+  * survey not found
+05a: Comparing aggregates for COL - 2016
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2016
+  * survey not found
+05a: Comparing aggregates for URY - 2016
+  * survey not found
+05a: Comparing aggregates for CRI - 2016
+  * survey not found
+05a: Comparing aggregates for ECU - 2016
+  * survey not found
+05a: Comparing aggregates for CHL - 2016
+  * survey not found
+05a: Comparing aggregates for BRA - 2016
+  * survey not found
+05a: Comparing aggregates for SLV - 2016
+  * survey not found
+05a: Comparing aggregates for MEX - 2016
+  * survey not found
+05a: Comparing aggregates for DOM - 2016
+  * survey not found
+05a: Comparing aggregates for COL - 2017
+  * survey not found
+05a: Comparing aggregates for ARG - 2017
+  * survey not found
+05a: Comparing aggregates for PER - 2017
+  * survey not found
+05a: Comparing aggregates for URY - 2017
+  * survey not found
+05a: Comparing aggregates for CRI - 2017
+  * survey not found
+05a: Comparing aggregates for ECU - 2017
+  * survey not found
+05a: Comparing aggregates for CHL - 2017
+  * survey not found
+05a: Comparing aggregates for BRA - 2017
+  * survey not found
+05a: Comparing aggregates for SLV - 2017
+  * survey not found
+05a: Comparing aggregates for MEX - 2017
+  * survey not found
+05a: Comparing aggregates for DOM - 2017
+  * survey not found
+05a: Comparing aggregates for COL - 2018
+  * survey not found
+05a: Comparing aggregates for ARG - 2018
+  * survey not found
+05a: Comparing aggregates for PER - 2018
+  * survey not found
+05a: Comparing aggregates for URY - 2018
+  * survey not found
+05a: Comparing aggregates for CRI - 2018
+  * survey not found
+05a: Comparing aggregates for ECU - 2018
+  * survey not found
+05a: Comparing aggregates for CHL - 2018
+  * survey not found
+05a: Comparing aggregates for BRA - 2018
+  * survey not found
+05a: Comparing aggregates for SLV - 2018
+  * survey not found
+05a: Comparing aggregates for MEX - 2018
+  * survey not found
+05a: Comparing aggregates for DOM - 2018
+  * survey not found
+05a: Comparing aggregates for COL - 2019
+  * survey not found
+05a: Comparing aggregates for ARG - 2019
+  * survey not found
+05a: Comparing aggregates for PER - 2019
+  * survey not found
+05a: Comparing aggregates for URY - 2019
+  * survey not found
+05a: Comparing aggregates for CRI - 2019
+  * survey not found
+05a: Comparing aggregates for ECU - 2019
+  * survey not found
+05a: Comparing aggregates for CHL - 2019
+  * survey not found
+05a: Comparing aggregates for BRA - 2019
+  * survey not found
+05a: Comparing aggregates for SLV - 2019
+  * survey not found
+05a: Comparing aggregates for MEX - 2019
+  * survey not found
+05a: Comparing aggregates for DOM - 2019
+  * survey not found
+05a: Comparing aggregates for COL - 2020
+  * survey not found
+05a: Comparing aggregates for ARG - 2020
+  * survey not found
+05a: Comparing aggregates for PER - 2020
+  * survey not found
+05a: Comparing aggregates for URY - 2020
+  * survey not found
+05a: Comparing aggregates for CRI - 2020
+  * survey not found
+05a: Comparing aggregates for ECU - 2020
+  * survey not found
+05a: Comparing aggregates for CHL - 2020
+  * survey not found
+05a: Comparing aggregates for BRA - 2020
+  * survey not found
+05a: Comparing aggregates for SLV - 2020
+  * survey not found
+05a: Comparing aggregates for MEX - 2020
+  * survey not found
+05a: Comparing aggregates for DOM - 2020
+  * survey not found
+05a: Comparing aggregates for COL - 2021
+  * survey not found
+05a: Comparing aggregates for ARG - 2021
+  * survey not found
+05a: Comparing aggregates for PER - 2021
+  * survey not found
+05a: Comparing aggregates for URY - 2021
+  * survey not found
+05a: Comparing aggregates for CRI - 2021
+  * survey not found
+05a: Comparing aggregates for ECU - 2021
+  * survey not found
+05a: Comparing aggregates for CHL - 2021
+  * survey not found
+05a: Comparing aggregates for BRA - 2021
+  * survey not found
+05a: Comparing aggregates for SLV - 2021
+  * survey not found
+05a: Comparing aggregates for MEX - 2021
+  * survey not found
+05a: Comparing aggregates for DOM - 2021
+  * survey not found
+05a: Comparing aggregates for COL - 2022
+  * survey not found
+05a: Comparing aggregates for ARG - 2022
+  * survey not found
+05a: Comparing aggregates for PER - 2022
+  * survey not found
+05a: Comparing aggregates for URY - 2022
+  * survey not found
+05a: Comparing aggregates for CRI - 2022
+  * survey not found
+05a: Comparing aggregates for ECU - 2022
+  * survey not found
+05a: Comparing aggregates for CHL - 2022
+  * survey not found
+05a: Comparing aggregates for BRA - 2022
+  * survey not found
+05a: Comparing aggregates for SLV - 2022
+  * survey not found
+05a: Comparing aggregates for MEX - 2022
+  * survey not found
+05a: Comparing aggregates for DOM - 2022
+  * survey not found
+05a: Comparing aggregates for COL - 2023
+  * survey not found
+05a: Comparing aggregates for ARG - 2023
+  * survey not found
+05a: Comparing aggregates for PER - 2023
+  * survey not found
+05a: Comparing aggregates for URY - 2023
+  * survey not found
+05a: Comparing aggregates for CRI - 2023
+  * survey not found
+05a: Comparing aggregates for ECU - 2023
+  * survey not found
+05a: Comparing aggregates for CHL - 2023
+  * survey not found
+05a: Comparing aggregates for BRA - 2023
+  * survey not found
+05a: Comparing aggregates for SLV - 2023
+  * survey not found
+05a: Comparing aggregates for MEX - 2023
+  * survey not found
+05a: Comparing aggregates for DOM - 2023
+  * survey not found
+05a: Comparing aggregates for COL - 2024
+  * survey not found
+05a: Comparing aggregates for ARG - 2024
+  * survey not found
+05a: Comparing aggregates for PER - 2024
+  * survey not found
+05a: Comparing aggregates for URY - 2024
+  * survey not found
+05a: Comparing aggregates for CRI - 2024
+  * survey not found
+05a: Comparing aggregates for ECU - 2024
+  * survey not found
+05a: Comparing aggregates for CHL - 2024
+  * survey not found
+05a: Comparing aggregates for BRA - 2024
+  * survey not found
+05a: Comparing aggregates for SLV - 2024
+  * survey not found
+05a: Comparing aggregates for MEX - 2024
+  * survey not found
+05a: Comparing aggregates for DOM - 2024
+  * survey not found
+number of observations (_N) was 0, now 275
+05a: Comparing aggregates for COL - 2000
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2000
+  * survey not found
+05a: Comparing aggregates for URY - 2000
+  * survey not found
+05a: Comparing aggregates for CRI - 2000
+  * survey not found
+05a: Comparing aggregates for ECU - 2000
+  * survey not found
+05a: Comparing aggregates for CHL - 2000
+  * survey not found
+05a: Comparing aggregates for BRA - 2000
+  * survey not found
+05a: Comparing aggregates for SLV - 2000
+  * survey not found
+05a: Comparing aggregates for MEX - 2000
+  * survey not found
+05a: Comparing aggregates for DOM - 2000
+  * survey not found
+05a: Comparing aggregates for COL - 2001
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2001
+  * survey not found
+05a: Comparing aggregates for URY - 2001
+  * survey not found
+05a: Comparing aggregates for CRI - 2001
+  * survey not found
+05a: Comparing aggregates for ECU - 2001
+  * survey not found
+05a: Comparing aggregates for CHL - 2001
+  * survey not found
+05a: Comparing aggregates for BRA - 2001
+  * survey not found
+05a: Comparing aggregates for SLV - 2001
+  * survey not found
+05a: Comparing aggregates for MEX - 2001
+  * survey not found
+05a: Comparing aggregates for DOM - 2001
+  * survey not found
+05a: Comparing aggregates for COL - 2002
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2002
+  * survey not found
+05a: Comparing aggregates for URY - 2002
+  * survey not found
+05a: Comparing aggregates for CRI - 2002
+  * survey not found
+05a: Comparing aggregates for ECU - 2002
+  * survey not found
+05a: Comparing aggregates for CHL - 2002
+  * survey not found
+05a: Comparing aggregates for BRA - 2002
+  * survey not found
+05a: Comparing aggregates for SLV - 2002
+  * survey not found
+05a: Comparing aggregates for MEX - 2002
+  * survey not found
+05a: Comparing aggregates for DOM - 2002
+  * survey not found
+05a: Comparing aggregates for COL - 2003
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2003
+  * survey not found
+05a: Comparing aggregates for URY - 2003
+  * survey not found
+05a: Comparing aggregates for CRI - 2003
+  * survey not found
+05a: Comparing aggregates for ECU - 2003
+  * survey not found
+05a: Comparing aggregates for CHL - 2003
+  * survey not found
+05a: Comparing aggregates for BRA - 2003
+  * survey not found
+05a: Comparing aggregates for SLV - 2003
+  * survey not found
+05a: Comparing aggregates for MEX - 2003
+  * survey not found
+05a: Comparing aggregates for DOM - 2003
+  * survey not found
+05a: Comparing aggregates for COL - 2004
+  * survey not found
+05a: Comparing aggregates for ARG - 2004
+  * survey not found
+05a: Comparing aggregates for PER - 2004
+  * survey not found
+05a: Comparing aggregates for URY - 2004
+  * survey not found
+05a: Comparing aggregates for CRI - 2004
+  * survey not found
+05a: Comparing aggregates for ECU - 2004
+  * survey not found
+05a: Comparing aggregates for CHL - 2004
+  * survey not found
+05a: Comparing aggregates for BRA - 2004
+  * survey not found
+05a: Comparing aggregates for SLV - 2004
+  * survey not found
+05a: Comparing aggregates for MEX - 2004
+  * survey not found
+05a: Comparing aggregates for DOM - 2004
+  * survey not found
+05a: Comparing aggregates for COL - 2005
+  * survey not found
+05a: Comparing aggregates for ARG - 2005
+  * survey not found
+05a: Comparing aggregates for PER - 2005
+  * survey not found
+05a: Comparing aggregates for URY - 2005
+  * survey not found
+05a: Comparing aggregates for CRI - 2005
+  * survey not found
+05a: Comparing aggregates for ECU - 2005
+  * survey not found
+05a: Comparing aggregates for CHL - 2005
+  * survey not found
+05a: Comparing aggregates for BRA - 2005
+  * survey not found
+05a: Comparing aggregates for SLV - 2005
+  * survey not found
+05a: Comparing aggregates for MEX - 2005
+  * survey not found
+05a: Comparing aggregates for DOM - 2005
+  * survey not found
+05a: Comparing aggregates for COL - 2006
+  * survey not found
+05a: Comparing aggregates for ARG - 2006
+  * survey not found
+05a: Comparing aggregates for PER - 2006
+  * survey not found
+05a: Comparing aggregates for URY - 2006
+  * survey not found
+05a: Comparing aggregates for CRI - 2006
+  * survey not found
+05a: Comparing aggregates for ECU - 2006
+  * survey not found
+05a: Comparing aggregates for CHL - 2006
+  * survey not found
+05a: Comparing aggregates for BRA - 2006
+  * survey not found
+05a: Comparing aggregates for SLV - 2006
+  * survey not found
+05a: Comparing aggregates for MEX - 2006
+  * survey not found
+05a: Comparing aggregates for DOM - 2006
+  * survey not found
+05a: Comparing aggregates for COL - 2007
+  * survey not found
+05a: Comparing aggregates for ARG - 2007
+  * survey not found
+05a: Comparing aggregates for PER - 2007
+  * survey not found
+05a: Comparing aggregates for URY - 2007
+  * survey not found
+05a: Comparing aggregates for CRI - 2007
+  * survey not found
+05a: Comparing aggregates for ECU - 2007
+  * survey not found
+05a: Comparing aggregates for CHL - 2007
+  * survey not found
+05a: Comparing aggregates for BRA - 2007
+  * survey not found
+05a: Comparing aggregates for SLV - 2007
+  * survey not found
+05a: Comparing aggregates for MEX - 2007
+  * survey not found
+05a: Comparing aggregates for DOM - 2007
+  * survey not found
+05a: Comparing aggregates for COL - 2008
+  * survey not found
+05a: Comparing aggregates for ARG - 2008
+  * survey not found
+05a: Comparing aggregates for PER - 2008
+  * survey not found
+05a: Comparing aggregates for URY - 2008
+  * survey not found
+05a: Comparing aggregates for CRI - 2008
+  * survey not found
+05a: Comparing aggregates for ECU - 2008
+  * survey not found
+05a: Comparing aggregates for CHL - 2008
+  * survey not found
+05a: Comparing aggregates for BRA - 2008
+  * survey not found
+05a: Comparing aggregates for SLV - 2008
+  * survey not found
+05a: Comparing aggregates for MEX - 2008
+  * survey not found
+05a: Comparing aggregates for DOM - 2008
+  * survey not found
+05a: Comparing aggregates for COL - 2009
+  * survey not found
+05a: Comparing aggregates for ARG - 2009
+  * survey not found
+05a: Comparing aggregates for PER - 2009
+  * survey not found
+05a: Comparing aggregates for URY - 2009
+  * survey not found
+05a: Comparing aggregates for CRI - 2009
+  * survey not found
+05a: Comparing aggregates for ECU - 2009
+  * survey not found
+05a: Comparing aggregates for CHL - 2009
+  * survey not found
+05a: Comparing aggregates for BRA - 2009
+  * survey not found
+05a: Comparing aggregates for SLV - 2009
+  * survey not found
+05a: Comparing aggregates for MEX - 2009
+  * survey not found
+05a: Comparing aggregates for DOM - 2009
+  * survey not found
+05a: Comparing aggregates for COL - 2010
+  * survey not found
+05a: Comparing aggregates for ARG - 2010
+  * survey not found
+05a: Comparing aggregates for PER - 2010
+  * survey not found
+05a: Comparing aggregates for URY - 2010
+  * survey not found
+05a: Comparing aggregates for CRI - 2010
+  * survey not found
+05a: Comparing aggregates for ECU - 2010
+  * survey not found
+05a: Comparing aggregates for CHL - 2010
+  * survey not found
+05a: Comparing aggregates for BRA - 2010
+  * survey not found
+05a: Comparing aggregates for SLV - 2010
+  * survey not found
+05a: Comparing aggregates for MEX - 2010
+  * survey not found
+05a: Comparing aggregates for DOM - 2010
+  * survey not found
+05a: Comparing aggregates for COL - 2011
+  * survey not found
+05a: Comparing aggregates for ARG - 2011
+  * survey not found
+05a: Comparing aggregates for PER - 2011
+  * survey not found
+05a: Comparing aggregates for URY - 2011
+  * survey not found
+05a: Comparing aggregates for CRI - 2011
+  * survey not found
+05a: Comparing aggregates for ECU - 2011
+  * survey not found
+05a: Comparing aggregates for CHL - 2011
+  * survey not found
+05a: Comparing aggregates for BRA - 2011
+  * survey not found
+05a: Comparing aggregates for SLV - 2011
+  * survey not found
+05a: Comparing aggregates for MEX - 2011
+  * survey not found
+05a: Comparing aggregates for DOM - 2011
+  * survey not found
+05a: Comparing aggregates for COL - 2012
+  * survey not found
+05a: Comparing aggregates for ARG - 2012
+  * survey not found
+05a: Comparing aggregates for PER - 2012
+  * survey not found
+05a: Comparing aggregates for URY - 2012
+  * survey not found
+05a: Comparing aggregates for CRI - 2012
+  * survey not found
+05a: Comparing aggregates for ECU - 2012
+  * survey not found
+05a: Comparing aggregates for CHL - 2012
+  * survey not found
+05a: Comparing aggregates for BRA - 2012
+  * survey not found
+05a: Comparing aggregates for SLV - 2012
+  * survey not found
+05a: Comparing aggregates for MEX - 2012
+  * survey not found
+05a: Comparing aggregates for DOM - 2012
+  * survey not found
+05a: Comparing aggregates for COL - 2013
+  * survey not found
+05a: Comparing aggregates for ARG - 2013
+  * survey not found
+05a: Comparing aggregates for PER - 2013
+  * survey not found
+05a: Comparing aggregates for URY - 2013
+  * survey not found
+05a: Comparing aggregates for CRI - 2013
+  * survey not found
+05a: Comparing aggregates for ECU - 2013
+  * survey not found
+05a: Comparing aggregates for CHL - 2013
+  * survey not found
+05a: Comparing aggregates for BRA - 2013
+  * survey not found
+05a: Comparing aggregates for SLV - 2013
+  * survey not found
+05a: Comparing aggregates for MEX - 2013
+  * survey not found
+05a: Comparing aggregates for DOM - 2013
+  * survey not found
+05a: Comparing aggregates for COL - 2014
+  * survey not found
+05a: Comparing aggregates for ARG - 2014
+  * survey not found
+05a: Comparing aggregates for PER - 2014
+  * survey not found
+05a: Comparing aggregates for URY - 2014
+  * survey not found
+05a: Comparing aggregates for CRI - 2014
+  * survey not found
+05a: Comparing aggregates for ECU - 2014
+  * survey not found
+05a: Comparing aggregates for CHL - 2014
+  * survey not found
+05a: Comparing aggregates for BRA - 2014
+  * survey not found
+05a: Comparing aggregates for SLV - 2014
+  * survey not found
+05a: Comparing aggregates for MEX - 2014
+  * survey not found
+05a: Comparing aggregates for DOM - 2014
+  * survey not found
+05a: Comparing aggregates for COL - 2015
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2015
+  * survey not found
+05a: Comparing aggregates for URY - 2015
+  * survey not found
+05a: Comparing aggregates for CRI - 2015
+  * survey not found
+05a: Comparing aggregates for ECU - 2015
+  * survey not found
+05a: Comparing aggregates for CHL - 2015
+  * survey not found
+05a: Comparing aggregates for BRA - 2015
+  * survey not found
+05a: Comparing aggregates for SLV - 2015
+  * survey not found
+05a: Comparing aggregates for MEX - 2015
+  * survey not found
+05a: Comparing aggregates for DOM - 2015
+  * survey not found
+05a: Comparing aggregates for COL - 2016
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2016
+  * survey not found
+05a: Comparing aggregates for URY - 2016
+  * survey not found
+05a: Comparing aggregates for CRI - 2016
+  * survey not found
+05a: Comparing aggregates for ECU - 2016
+  * survey not found
+05a: Comparing aggregates for CHL - 2016
+  * survey not found
+05a: Comparing aggregates for BRA - 2016
+  * survey not found
+05a: Comparing aggregates for SLV - 2016
+  * survey not found
+05a: Comparing aggregates for MEX - 2016
+  * survey not found
+05a: Comparing aggregates for DOM - 2016
+  * survey not found
+05a: Comparing aggregates for COL - 2017
+  * survey not found
+05a: Comparing aggregates for ARG - 2017
+  * survey not found
+05a: Comparing aggregates for PER - 2017
+  * survey not found
+05a: Comparing aggregates for URY - 2017
+  * survey not found
+05a: Comparing aggregates for CRI - 2017
+  * survey not found
+05a: Comparing aggregates for ECU - 2017
+  * survey not found
+05a: Comparing aggregates for CHL - 2017
+  * survey not found
+05a: Comparing aggregates for BRA - 2017
+  * survey not found
+05a: Comparing aggregates for SLV - 2017
+  * survey not found
+05a: Comparing aggregates for MEX - 2017
+  * survey not found
+05a: Comparing aggregates for DOM - 2017
+  * survey not found
+05a: Comparing aggregates for COL - 2018
+  * survey not found
+05a: Comparing aggregates for ARG - 2018
+  * survey not found
+05a: Comparing aggregates for PER - 2018
+  * survey not found
+05a: Comparing aggregates for URY - 2018
+  * survey not found
+05a: Comparing aggregates for CRI - 2018
+  * survey not found
+05a: Comparing aggregates for ECU - 2018
+  * survey not found
+05a: Comparing aggregates for CHL - 2018
+  * survey not found
+05a: Comparing aggregates for BRA - 2018
+  * survey not found
+05a: Comparing aggregates for SLV - 2018
+  * survey not found
+05a: Comparing aggregates for MEX - 2018
+  * survey not found
+05a: Comparing aggregates for DOM - 2018
+  * survey not found
+05a: Comparing aggregates for COL - 2019
+  * survey not found
+05a: Comparing aggregates for ARG - 2019
+  * survey not found
+05a: Comparing aggregates for PER - 2019
+  * survey not found
+05a: Comparing aggregates for URY - 2019
+  * survey not found
+05a: Comparing aggregates for CRI - 2019
+  * survey not found
+05a: Comparing aggregates for ECU - 2019
+  * survey not found
+05a: Comparing aggregates for CHL - 2019
+  * survey not found
+05a: Comparing aggregates for BRA - 2019
+  * survey not found
+05a: Comparing aggregates for SLV - 2019
+  * survey not found
+05a: Comparing aggregates for MEX - 2019
+  * survey not found
+05a: Comparing aggregates for DOM - 2019
+  * survey not found
+05a: Comparing aggregates for COL - 2020
+  * survey not found
+05a: Comparing aggregates for ARG - 2020
+  * survey not found
+05a: Comparing aggregates for PER - 2020
+  * survey not found
+05a: Comparing aggregates for URY - 2020
+  * survey not found
+05a: Comparing aggregates for CRI - 2020
+  * survey not found
+05a: Comparing aggregates for ECU - 2020
+  * survey not found
+05a: Comparing aggregates for CHL - 2020
+  * survey not found
+05a: Comparing aggregates for BRA - 2020
+  * survey not found
+05a: Comparing aggregates for SLV - 2020
+  * survey not found
+05a: Comparing aggregates for MEX - 2020
+  * survey not found
+05a: Comparing aggregates for DOM - 2020
+  * survey not found
+05a: Comparing aggregates for COL - 2021
+  * survey not found
+05a: Comparing aggregates for ARG - 2021
+  * survey not found
+05a: Comparing aggregates for PER - 2021
+  * survey not found
+05a: Comparing aggregates for URY - 2021
+  * survey not found
+05a: Comparing aggregates for CRI - 2021
+  * survey not found
+05a: Comparing aggregates for ECU - 2021
+  * survey not found
+05a: Comparing aggregates for CHL - 2021
+  * survey not found
+05a: Comparing aggregates for BRA - 2021
+  * survey not found
+05a: Comparing aggregates for SLV - 2021
+  * survey not found
+05a: Comparing aggregates for MEX - 2021
+  * survey not found
+05a: Comparing aggregates for DOM - 2021
+  * survey not found
+05a: Comparing aggregates for COL - 2022
+  * survey not found
+05a: Comparing aggregates for ARG - 2022
+  * survey not found
+05a: Comparing aggregates for PER - 2022
+  * survey not found
+05a: Comparing aggregates for URY - 2022
+  * survey not found
+05a: Comparing aggregates for CRI - 2022
+  * survey not found
+05a: Comparing aggregates for ECU - 2022
+  * survey not found
+05a: Comparing aggregates for CHL - 2022
+  * survey not found
+05a: Comparing aggregates for BRA - 2022
+  * survey not found
+05a: Comparing aggregates for SLV - 2022
+  * survey not found
+05a: Comparing aggregates for MEX - 2022
+  * survey not found
+05a: Comparing aggregates for DOM - 2022
+  * survey not found
+05a: Comparing aggregates for COL - 2023
+  * survey not found
+05a: Comparing aggregates for ARG - 2023
+  * survey not found
+05a: Comparing aggregates for PER - 2023
+  * survey not found
+05a: Comparing aggregates for URY - 2023
+  * survey not found
+05a: Comparing aggregates for CRI - 2023
+  * survey not found
+05a: Comparing aggregates for ECU - 2023
+  * survey not found
+05a: Comparing aggregates for CHL - 2023
+  * survey not found
+05a: Comparing aggregates for BRA - 2023
+  * survey not found
+05a: Comparing aggregates for SLV - 2023
+  * survey not found
+05a: Comparing aggregates for MEX - 2023
+  * survey not found
+05a: Comparing aggregates for DOM - 2023
+  * survey not found
+05a: Comparing aggregates for COL - 2024
+  * survey not found
+05a: Comparing aggregates for ARG - 2024
+  * survey not found
+05a: Comparing aggregates for PER - 2024
+  * survey not found
+05a: Comparing aggregates for URY - 2024
+  * survey not found
+05a: Comparing aggregates for CRI - 2024
+  * survey not found
+05a: Comparing aggregates for ECU - 2024
+  * survey not found
+05a: Comparing aggregates for CHL - 2024
+  * survey not found
+05a: Comparing aggregates for BRA - 2024
+  * survey not found
+05a: Comparing aggregates for SLV - 2024
+  * survey not found
+05a: Comparing aggregates for MEX - 2024
+  * survey not found
+05a: Comparing aggregates for DOM - 2024
+  * survey not found
+number of observations (_N) was 0, now 275
+05a: Comparing aggregates for COL - 2000
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2000
+  * survey not found
+05a: Comparing aggregates for URY - 2000
+  * survey not found
+05a: Comparing aggregates for CRI - 2000
+  * survey not found
+05a: Comparing aggregates for ECU - 2000
+  * survey not found
+05a: Comparing aggregates for CHL - 2000
+  * survey not found
+05a: Comparing aggregates for BRA - 2000
+  * survey not found
+05a: Comparing aggregates for SLV - 2000
+  * survey not found
+05a: Comparing aggregates for MEX - 2000
+  * survey not found
+05a: Comparing aggregates for DOM - 2000
+  * survey not found
+05a: Comparing aggregates for COL - 2001
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2001
+  * survey not found
+05a: Comparing aggregates for URY - 2001
+  * survey not found
+05a: Comparing aggregates for CRI - 2001
+  * survey not found
+05a: Comparing aggregates for ECU - 2001
+  * survey not found
+05a: Comparing aggregates for CHL - 2001
+  * survey not found
+05a: Comparing aggregates for BRA - 2001
+  * survey not found
+05a: Comparing aggregates for SLV - 2001
+  * survey not found
+05a: Comparing aggregates for MEX - 2001
+  * survey not found
+05a: Comparing aggregates for DOM - 2001
+  * survey not found
+05a: Comparing aggregates for COL - 2002
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2002
+  * survey not found
+05a: Comparing aggregates for URY - 2002
+  * survey not found
+05a: Comparing aggregates for CRI - 2002
+  * survey not found
+05a: Comparing aggregates for ECU - 2002
+  * survey not found
+05a: Comparing aggregates for CHL - 2002
+  * survey not found
+05a: Comparing aggregates for BRA - 2002
+  * survey not found
+05a: Comparing aggregates for SLV - 2002
+  * survey not found
+05a: Comparing aggregates for MEX - 2002
+  * survey not found
+05a: Comparing aggregates for DOM - 2002
+  * survey not found
+05a: Comparing aggregates for COL - 2003
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2003
+  * survey not found
+05a: Comparing aggregates for URY - 2003
+  * survey not found
+05a: Comparing aggregates for CRI - 2003
+  * survey not found
+05a: Comparing aggregates for ECU - 2003
+  * survey not found
+05a: Comparing aggregates for CHL - 2003
+  * survey not found
+05a: Comparing aggregates for BRA - 2003
+  * survey not found
+05a: Comparing aggregates for SLV - 2003
+  * survey not found
+05a: Comparing aggregates for MEX - 2003
+  * survey not found
+05a: Comparing aggregates for DOM - 2003
+  * survey not found
+05a: Comparing aggregates for COL - 2004
+  * survey not found
+05a: Comparing aggregates for ARG - 2004
+  * survey not found
+05a: Comparing aggregates for PER - 2004
+  * survey not found
+05a: Comparing aggregates for URY - 2004
+  * survey not found
+05a: Comparing aggregates for CRI - 2004
+  * survey not found
+05a: Comparing aggregates for ECU - 2004
+  * survey not found
+05a: Comparing aggregates for CHL - 2004
+  * survey not found
+05a: Comparing aggregates for BRA - 2004
+  * survey not found
+05a: Comparing aggregates for SLV - 2004
+  * survey not found
+05a: Comparing aggregates for MEX - 2004
+  * survey not found
+05a: Comparing aggregates for DOM - 2004
+  * survey not found
+05a: Comparing aggregates for COL - 2005
+  * survey not found
+05a: Comparing aggregates for ARG - 2005
+  * survey not found
+05a: Comparing aggregates for PER - 2005
+  * survey not found
+05a: Comparing aggregates for URY - 2005
+  * survey not found
+05a: Comparing aggregates for CRI - 2005
+  * survey not found
+05a: Comparing aggregates for ECU - 2005
+  * survey not found
+05a: Comparing aggregates for CHL - 2005
+  * survey not found
+05a: Comparing aggregates for BRA - 2005
+  * survey not found
+05a: Comparing aggregates for SLV - 2005
+  * survey not found
+05a: Comparing aggregates for MEX - 2005
+  * survey not found
+05a: Comparing aggregates for DOM - 2005
+  * survey not found
+05a: Comparing aggregates for COL - 2006
+  * survey not found
+05a: Comparing aggregates for ARG - 2006
+  * survey not found
+05a: Comparing aggregates for PER - 2006
+  * survey not found
+05a: Comparing aggregates for URY - 2006
+  * survey not found
+05a: Comparing aggregates for CRI - 2006
+  * survey not found
+05a: Comparing aggregates for ECU - 2006
+  * survey not found
+05a: Comparing aggregates for CHL - 2006
+  * survey not found
+05a: Comparing aggregates for BRA - 2006
+  * survey not found
+05a: Comparing aggregates for SLV - 2006
+  * survey not found
+05a: Comparing aggregates for MEX - 2006
+  * survey not found
+05a: Comparing aggregates for DOM - 2006
+  * survey not found
+05a: Comparing aggregates for COL - 2007
+  * survey not found
+05a: Comparing aggregates for ARG - 2007
+  * survey not found
+05a: Comparing aggregates for PER - 2007
+  * survey not found
+05a: Comparing aggregates for URY - 2007
+  * survey not found
+05a: Comparing aggregates for CRI - 2007
+  * survey not found
+05a: Comparing aggregates for ECU - 2007
+  * survey not found
+05a: Comparing aggregates for CHL - 2007
+  * survey not found
+05a: Comparing aggregates for BRA - 2007
+  * survey not found
+05a: Comparing aggregates for SLV - 2007
+  * survey not found
+05a: Comparing aggregates for MEX - 2007
+  * survey not found
+05a: Comparing aggregates for DOM - 2007
+  * survey not found
+05a: Comparing aggregates for COL - 2008
+  * survey not found
+05a: Comparing aggregates for ARG - 2008
+  * survey not found
+05a: Comparing aggregates for PER - 2008
+  * survey not found
+05a: Comparing aggregates for URY - 2008
+  * survey not found
+05a: Comparing aggregates for CRI - 2008
+  * survey not found
+05a: Comparing aggregates for ECU - 2008
+  * survey not found
+05a: Comparing aggregates for CHL - 2008
+  * survey not found
+05a: Comparing aggregates for BRA - 2008
+  * survey not found
+05a: Comparing aggregates for SLV - 2008
+  * survey not found
+05a: Comparing aggregates for MEX - 2008
+  * survey not found
+05a: Comparing aggregates for DOM - 2008
+  * survey not found
+05a: Comparing aggregates for COL - 2009
+  * survey not found
+05a: Comparing aggregates for ARG - 2009
+  * survey not found
+05a: Comparing aggregates for PER - 2009
+  * survey not found
+05a: Comparing aggregates for URY - 2009
+  * survey not found
+05a: Comparing aggregates for CRI - 2009
+  * survey not found
+05a: Comparing aggregates for ECU - 2009
+  * survey not found
+05a: Comparing aggregates for CHL - 2009
+  * survey not found
+05a: Comparing aggregates for BRA - 2009
+  * survey not found
+05a: Comparing aggregates for SLV - 2009
+  * survey not found
+05a: Comparing aggregates for MEX - 2009
+  * survey not found
+05a: Comparing aggregates for DOM - 2009
+  * survey not found
+05a: Comparing aggregates for COL - 2010
+  * survey not found
+05a: Comparing aggregates for ARG - 2010
+  * survey not found
+05a: Comparing aggregates for PER - 2010
+  * survey not found
+05a: Comparing aggregates for URY - 2010
+  * survey not found
+05a: Comparing aggregates for CRI - 2010
+  * survey not found
+05a: Comparing aggregates for ECU - 2010
+  * survey not found
+05a: Comparing aggregates for CHL - 2010
+  * survey not found
+05a: Comparing aggregates for BRA - 2010
+  * survey not found
+05a: Comparing aggregates for SLV - 2010
+  * survey not found
+05a: Comparing aggregates for MEX - 2010
+  * survey not found
+05a: Comparing aggregates for DOM - 2010
+  * survey not found
+05a: Comparing aggregates for COL - 2011
+  * survey not found
+05a: Comparing aggregates for ARG - 2011
+  * survey not found
+05a: Comparing aggregates for PER - 2011
+  * survey not found
+05a: Comparing aggregates for URY - 2011
+  * survey not found
+05a: Comparing aggregates for CRI - 2011
+  * survey not found
+05a: Comparing aggregates for ECU - 2011
+  * survey not found
+05a: Comparing aggregates for CHL - 2011
+  * survey not found
+05a: Comparing aggregates for BRA - 2011
+  * survey not found
+05a: Comparing aggregates for SLV - 2011
+  * survey not found
+05a: Comparing aggregates for MEX - 2011
+  * survey not found
+05a: Comparing aggregates for DOM - 2011
+  * survey not found
+05a: Comparing aggregates for COL - 2012
+  * survey not found
+05a: Comparing aggregates for ARG - 2012
+  * survey not found
+05a: Comparing aggregates for PER - 2012
+  * survey not found
+05a: Comparing aggregates for URY - 2012
+  * survey not found
+05a: Comparing aggregates for CRI - 2012
+  * survey not found
+05a: Comparing aggregates for ECU - 2012
+  * survey not found
+05a: Comparing aggregates for CHL - 2012
+  * survey not found
+05a: Comparing aggregates for BRA - 2012
+  * survey not found
+05a: Comparing aggregates for SLV - 2012
+  * survey not found
+05a: Comparing aggregates for MEX - 2012
+  * survey not found
+05a: Comparing aggregates for DOM - 2012
+  * survey not found
+05a: Comparing aggregates for COL - 2013
+  * survey not found
+05a: Comparing aggregates for ARG - 2013
+  * survey not found
+05a: Comparing aggregates for PER - 2013
+  * survey not found
+05a: Comparing aggregates for URY - 2013
+  * survey not found
+05a: Comparing aggregates for CRI - 2013
+  * survey not found
+05a: Comparing aggregates for ECU - 2013
+  * survey not found
+05a: Comparing aggregates for CHL - 2013
+  * survey not found
+05a: Comparing aggregates for BRA - 2013
+  * survey not found
+05a: Comparing aggregates for SLV - 2013
+  * survey not found
+05a: Comparing aggregates for MEX - 2013
+  * survey not found
+05a: Comparing aggregates for DOM - 2013
+  * survey not found
+05a: Comparing aggregates for COL - 2014
+  * survey not found
+05a: Comparing aggregates for ARG - 2014
+  * survey not found
+05a: Comparing aggregates for PER - 2014
+  * survey not found
+05a: Comparing aggregates for URY - 2014
+  * survey not found
+05a: Comparing aggregates for CRI - 2014
+  * survey not found
+05a: Comparing aggregates for ECU - 2014
+  * survey not found
+05a: Comparing aggregates for CHL - 2014
+  * survey not found
+05a: Comparing aggregates for BRA - 2014
+  * survey not found
+05a: Comparing aggregates for SLV - 2014
+  * survey not found
+05a: Comparing aggregates for MEX - 2014
+  * survey not found
+05a: Comparing aggregates for DOM - 2014
+  * survey not found
+05a: Comparing aggregates for COL - 2015
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2015
+  * survey not found
+05a: Comparing aggregates for URY - 2015
+  * survey not found
+05a: Comparing aggregates for CRI - 2015
+  * survey not found
+05a: Comparing aggregates for ECU - 2015
+  * survey not found
+05a: Comparing aggregates for CHL - 2015
+  * survey not found
+05a: Comparing aggregates for BRA - 2015
+  * survey not found
+05a: Comparing aggregates for SLV - 2015
+  * survey not found
+05a: Comparing aggregates for MEX - 2015
+  * survey not found
+05a: Comparing aggregates for DOM - 2015
+  * survey not found
+05a: Comparing aggregates for COL - 2016
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2016
+  * survey not found
+05a: Comparing aggregates for URY - 2016
+  * survey not found
+05a: Comparing aggregates for CRI - 2016
+  * survey not found
+05a: Comparing aggregates for ECU - 2016
+  * survey not found
+05a: Comparing aggregates for CHL - 2016
+  * survey not found
+05a: Comparing aggregates for BRA - 2016
+  * survey not found
+05a: Comparing aggregates for SLV - 2016
+  * survey not found
+05a: Comparing aggregates for MEX - 2016
+  * survey not found
+05a: Comparing aggregates for DOM - 2016
+  * survey not found
+05a: Comparing aggregates for COL - 2017
+  * survey not found
+05a: Comparing aggregates for ARG - 2017
+  * survey not found
+05a: Comparing aggregates for PER - 2017
+  * survey not found
+05a: Comparing aggregates for URY - 2017
+  * survey not found
+05a: Comparing aggregates for CRI - 2017
+  * survey not found
+05a: Comparing aggregates for ECU - 2017
+  * survey not found
+05a: Comparing aggregates for CHL - 2017
+  * survey not found
+05a: Comparing aggregates for BRA - 2017
+  * survey not found
+05a: Comparing aggregates for SLV - 2017
+  * survey not found
+05a: Comparing aggregates for MEX - 2017
+  * survey not found
+05a: Comparing aggregates for DOM - 2017
+  * survey not found
+05a: Comparing aggregates for COL - 2018
+  * survey not found
+05a: Comparing aggregates for ARG - 2018
+  * survey not found
+05a: Comparing aggregates for PER - 2018
+  * survey not found
+05a: Comparing aggregates for URY - 2018
+  * survey not found
+05a: Comparing aggregates for CRI - 2018
+  * survey not found
+05a: Comparing aggregates for ECU - 2018
+  * survey not found
+05a: Comparing aggregates for CHL - 2018
+  * survey not found
+05a: Comparing aggregates for BRA - 2018
+  * survey not found
+05a: Comparing aggregates for SLV - 2018
+  * survey not found
+05a: Comparing aggregates for MEX - 2018
+  * survey not found
+05a: Comparing aggregates for DOM - 2018
+  * survey not found
+05a: Comparing aggregates for COL - 2019
+  * survey not found
+05a: Comparing aggregates for ARG - 2019
+  * survey not found
+05a: Comparing aggregates for PER - 2019
+  * survey not found
+05a: Comparing aggregates for URY - 2019
+  * survey not found
+05a: Comparing aggregates for CRI - 2019
+  * survey not found
+05a: Comparing aggregates for ECU - 2019
+  * survey not found
+05a: Comparing aggregates for CHL - 2019
+  * survey not found
+05a: Comparing aggregates for BRA - 2019
+  * survey not found
+05a: Comparing aggregates for SLV - 2019
+  * survey not found
+05a: Comparing aggregates for MEX - 2019
+  * survey not found
+05a: Comparing aggregates for DOM - 2019
+  * survey not found
+05a: Comparing aggregates for COL - 2020
+  * survey not found
+05a: Comparing aggregates for ARG - 2020
+  * survey not found
+05a: Comparing aggregates for PER - 2020
+  * survey not found
+05a: Comparing aggregates for URY - 2020
+  * survey not found
+05a: Comparing aggregates for CRI - 2020
+  * survey not found
+05a: Comparing aggregates for ECU - 2020
+  * survey not found
+05a: Comparing aggregates for CHL - 2020
+  * survey not found
+05a: Comparing aggregates for BRA - 2020
+  * survey not found
+05a: Comparing aggregates for SLV - 2020
+  * survey not found
+05a: Comparing aggregates for MEX - 2020
+  * survey not found
+05a: Comparing aggregates for DOM - 2020
+  * survey not found
+05a: Comparing aggregates for COL - 2021
+  * survey not found
+05a: Comparing aggregates for ARG - 2021
+  * survey not found
+05a: Comparing aggregates for PER - 2021
+  * survey not found
+05a: Comparing aggregates for URY - 2021
+  * survey not found
+05a: Comparing aggregates for CRI - 2021
+  * survey not found
+05a: Comparing aggregates for ECU - 2021
+  * survey not found
+05a: Comparing aggregates for CHL - 2021
+  * survey not found
+05a: Comparing aggregates for BRA - 2021
+  * survey not found
+05a: Comparing aggregates for SLV - 2021
+  * survey not found
+05a: Comparing aggregates for MEX - 2021
+  * survey not found
+05a: Comparing aggregates for DOM - 2021
+  * survey not found
+05a: Comparing aggregates for COL - 2022
+  * survey not found
+05a: Comparing aggregates for ARG - 2022
+  * survey not found
+05a: Comparing aggregates for PER - 2022
+  * survey not found
+05a: Comparing aggregates for URY - 2022
+  * survey not found
+05a: Comparing aggregates for CRI - 2022
+  * survey not found
+05a: Comparing aggregates for ECU - 2022
+  * survey not found
+05a: Comparing aggregates for CHL - 2022
+  * survey not found
+05a: Comparing aggregates for BRA - 2022
+  * survey not found
+05a: Comparing aggregates for SLV - 2022
+  * survey not found
+05a: Comparing aggregates for MEX - 2022
+  * survey not found
+05a: Comparing aggregates for DOM - 2022
+  * survey not found
+05a: Comparing aggregates for COL - 2023
+  * survey not found
+05a: Comparing aggregates for ARG - 2023
+  * survey not found
+05a: Comparing aggregates for PER - 2023
+  * survey not found
+05a: Comparing aggregates for URY - 2023
+  * survey not found
+05a: Comparing aggregates for CRI - 2023
+  * survey not found
+05a: Comparing aggregates for ECU - 2023
+  * survey not found
+05a: Comparing aggregates for CHL - 2023
+  * survey not found
+05a: Comparing aggregates for BRA - 2023
+  * survey not found
+05a: Comparing aggregates for SLV - 2023
+  * survey not found
+05a: Comparing aggregates for MEX - 2023
+  * survey not found
+05a: Comparing aggregates for DOM - 2023
+  * survey not found
+05a: Comparing aggregates for COL - 2024
+  * survey not found
+05a: Comparing aggregates for ARG - 2024
+  * survey not found
+05a: Comparing aggregates for PER - 2024
+  * survey not found
+05a: Comparing aggregates for URY - 2024
+  * survey not found
+05a: Comparing aggregates for CRI - 2024
+  * survey not found
+05a: Comparing aggregates for ECU - 2024
+  * survey not found
+05a: Comparing aggregates for CHL - 2024
+  * survey not found
+05a: Comparing aggregates for BRA - 2024
+  * survey not found
+05a: Comparing aggregates for SLV - 2024
+  * survey not found
+05a: Comparing aggregates for MEX - 2024
+  * survey not found
+05a: Comparing aggregates for DOM - 2024
+  * survey not found
+number of observations (_N) was 0, now 275
+-------------------------------------------------------
+Comparing micro-macro aggregates: bfm_norep_pre
+-------------------------------------------------------
+05a: Comparing aggregates for COL - 2000
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2000
+  * survey not found
+05a: Comparing aggregates for URY - 2000
+  * survey not found
+05a: Comparing aggregates for CRI - 2000
+  * survey not found
+05a: Comparing aggregates for ECU - 2000
+  * survey not found
+05a: Comparing aggregates for CHL - 2000
+  * survey not found
+05a: Comparing aggregates for BRA - 2000
+  * survey not found
+05a: Comparing aggregates for SLV - 2000
+  * survey not found
+05a: Comparing aggregates for MEX - 2000
+  * survey not found
+05a: Comparing aggregates for DOM - 2000
+  * survey not found
+05a: Comparing aggregates for COL - 2001
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2001
+  * survey not found
+05a: Comparing aggregates for URY - 2001
+  * survey not found
+05a: Comparing aggregates for CRI - 2001
+  * survey not found
+05a: Comparing aggregates for ECU - 2001
+  * survey not found
+05a: Comparing aggregates for CHL - 2001
+  * survey not found
+05a: Comparing aggregates for BRA - 2001
+  * survey not found
+05a: Comparing aggregates for SLV - 2001
+  * survey not found
+05a: Comparing aggregates for MEX - 2001
+  * survey not found
+05a: Comparing aggregates for DOM - 2001
+  * survey not found
+05a: Comparing aggregates for COL - 2002
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2002
+  * survey not found
+05a: Comparing aggregates for URY - 2002
+  * survey not found
+05a: Comparing aggregates for CRI - 2002
+  * survey not found
+05a: Comparing aggregates for ECU - 2002
+  * survey not found
+05a: Comparing aggregates for CHL - 2002
+  * survey not found
+05a: Comparing aggregates for BRA - 2002
+  * survey not found
+05a: Comparing aggregates for SLV - 2002
+  * survey not found
+05a: Comparing aggregates for MEX - 2002
+  * survey not found
+05a: Comparing aggregates for DOM - 2002
+  * survey not found
+05a: Comparing aggregates for COL - 2003
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2003
+  * survey not found
+05a: Comparing aggregates for URY - 2003
+  * survey not found
+05a: Comparing aggregates for CRI - 2003
+  * survey not found
+05a: Comparing aggregates for ECU - 2003
+  * survey not found
+05a: Comparing aggregates for CHL - 2003
+  * survey not found
+05a: Comparing aggregates for BRA - 2003
+  * survey not found
+05a: Comparing aggregates for SLV - 2003
+  * survey not found
+05a: Comparing aggregates for MEX - 2003
+  * survey not found
+05a: Comparing aggregates for DOM - 2003
+  * survey not found
+05a: Comparing aggregates for COL - 2004
+  * survey not found
+05a: Comparing aggregates for ARG - 2004
+  * survey not found
+05a: Comparing aggregates for PER - 2004
+  * survey not found
+05a: Comparing aggregates for URY - 2004
+  * survey not found
+05a: Comparing aggregates for CRI - 2004
+  * survey not found
+05a: Comparing aggregates for ECU - 2004
+  * survey not found
+05a: Comparing aggregates for CHL - 2004
+  * survey not found
+05a: Comparing aggregates for BRA - 2004
+  * survey not found
+05a: Comparing aggregates for SLV - 2004
+  * survey not found
+05a: Comparing aggregates for MEX - 2004
+  * survey not found
+05a: Comparing aggregates for DOM - 2004
+  * survey not found
+05a: Comparing aggregates for COL - 2005
+  * survey not found
+05a: Comparing aggregates for ARG - 2005
+  * survey not found
+05a: Comparing aggregates for PER - 2005
+  * survey not found
+05a: Comparing aggregates for URY - 2005
+  * survey not found
+05a: Comparing aggregates for CRI - 2005
+  * survey not found
+05a: Comparing aggregates for ECU - 2005
+  * survey not found
+05a: Comparing aggregates for CHL - 2005
+  * survey not found
+05a: Comparing aggregates for BRA - 2005
+  * survey not found
+05a: Comparing aggregates for SLV - 2005
+  * survey not found
+05a: Comparing aggregates for MEX - 2005
+  * survey not found
+05a: Comparing aggregates for DOM - 2005
+  * survey not found
+05a: Comparing aggregates for COL - 2006
+  * survey not found
+05a: Comparing aggregates for ARG - 2006
+  * survey not found
+05a: Comparing aggregates for PER - 2006
+  * survey not found
+05a: Comparing aggregates for URY - 2006
+  * survey not found
+05a: Comparing aggregates for CRI - 2006
+  * survey not found
+05a: Comparing aggregates for ECU - 2006
+  * survey not found
+05a: Comparing aggregates for CHL - 2006
+  * survey not found
+05a: Comparing aggregates for BRA - 2006
+  * survey not found
+05a: Comparing aggregates for SLV - 2006
+  * survey not found
+05a: Comparing aggregates for MEX - 2006
+  * survey not found
+05a: Comparing aggregates for DOM - 2006
+  * survey not found
+05a: Comparing aggregates for COL - 2007
+  * survey not found
+05a: Comparing aggregates for ARG - 2007
+  * survey not found
+05a: Comparing aggregates for PER - 2007
+  * survey not found
+05a: Comparing aggregates for URY - 2007
+  * survey not found
+05a: Comparing aggregates for CRI - 2007
+  * survey not found
+05a: Comparing aggregates for ECU - 2007
+  * survey not found
+05a: Comparing aggregates for CHL - 2007
+  * survey not found
+05a: Comparing aggregates for BRA - 2007
+  * survey not found
+05a: Comparing aggregates for SLV - 2007
+  * survey not found
+05a: Comparing aggregates for MEX - 2007
+  * survey not found
+05a: Comparing aggregates for DOM - 2007
+  * survey not found
+05a: Comparing aggregates for COL - 2008
+  * survey not found
+05a: Comparing aggregates for ARG - 2008
+  * survey not found
+05a: Comparing aggregates for PER - 2008
+  * survey not found
+05a: Comparing aggregates for URY - 2008
+  * survey not found
+05a: Comparing aggregates for CRI - 2008
+  * survey not found
+05a: Comparing aggregates for ECU - 2008
+  * survey not found
+05a: Comparing aggregates for CHL - 2008
+  * survey not found
+05a: Comparing aggregates for BRA - 2008
+  * survey not found
+05a: Comparing aggregates for SLV - 2008
+  * survey not found
+05a: Comparing aggregates for MEX - 2008
+  * survey not found
+05a: Comparing aggregates for DOM - 2008
+  * survey not found
+05a: Comparing aggregates for COL - 2009
+  * survey not found
+05a: Comparing aggregates for ARG - 2009
+  * survey not found
+05a: Comparing aggregates for PER - 2009
+  * survey not found
+05a: Comparing aggregates for URY - 2009
+  * survey not found
+05a: Comparing aggregates for CRI - 2009
+  * survey not found
+05a: Comparing aggregates for ECU - 2009
+  * survey not found
+05a: Comparing aggregates for CHL - 2009
+  * survey not found
+05a: Comparing aggregates for BRA - 2009
+  * survey not found
+05a: Comparing aggregates for SLV - 2009
+  * survey not found
+05a: Comparing aggregates for MEX - 2009
+  * survey not found
+05a: Comparing aggregates for DOM - 2009
+  * survey not found
+05a: Comparing aggregates for COL - 2010
+  * survey not found
+05a: Comparing aggregates for ARG - 2010
+  * survey not found
+05a: Comparing aggregates for PER - 2010
+  * survey not found
+05a: Comparing aggregates for URY - 2010
+  * survey not found
+05a: Comparing aggregates for CRI - 2010
+  * survey not found
+05a: Comparing aggregates for ECU - 2010
+  * survey not found
+05a: Comparing aggregates for CHL - 2010
+  * survey not found
+05a: Comparing aggregates for BRA - 2010
+  * survey not found
+05a: Comparing aggregates for SLV - 2010
+  * survey not found
+05a: Comparing aggregates for MEX - 2010
+  * survey not found
+05a: Comparing aggregates for DOM - 2010
+  * survey not found
+05a: Comparing aggregates for COL - 2011
+  * survey not found
+05a: Comparing aggregates for ARG - 2011
+  * survey not found
+05a: Comparing aggregates for PER - 2011
+  * survey not found
+05a: Comparing aggregates for URY - 2011
+  * survey not found
+05a: Comparing aggregates for CRI - 2011
+  * survey not found
+05a: Comparing aggregates for ECU - 2011
+  * survey not found
+05a: Comparing aggregates for CHL - 2011
+  * survey not found
+05a: Comparing aggregates for BRA - 2011
+  * survey not found
+05a: Comparing aggregates for SLV - 2011
+  * survey not found
+05a: Comparing aggregates for MEX - 2011
+  * survey not found
+05a: Comparing aggregates for DOM - 2011
+  * survey not found
+05a: Comparing aggregates for COL - 2012
+  * survey not found
+05a: Comparing aggregates for ARG - 2012
+  * survey not found
+05a: Comparing aggregates for PER - 2012
+  * survey not found
+05a: Comparing aggregates for URY - 2012
+  * survey not found
+05a: Comparing aggregates for CRI - 2012
+  * survey not found
+05a: Comparing aggregates for ECU - 2012
+  * survey not found
+05a: Comparing aggregates for CHL - 2012
+  * survey not found
+05a: Comparing aggregates for BRA - 2012
+  * survey not found
+05a: Comparing aggregates for SLV - 2012
+  * survey not found
+05a: Comparing aggregates for MEX - 2012
+  * survey not found
+05a: Comparing aggregates for DOM - 2012
+  * survey not found
+05a: Comparing aggregates for COL - 2013
+  * survey not found
+05a: Comparing aggregates for ARG - 2013
+  * survey not found
+05a: Comparing aggregates for PER - 2013
+  * survey not found
+05a: Comparing aggregates for URY - 2013
+  * survey not found
+05a: Comparing aggregates for CRI - 2013
+  * survey not found
+05a: Comparing aggregates for ECU - 2013
+  * survey not found
+05a: Comparing aggregates for CHL - 2013
+  * survey not found
+05a: Comparing aggregates for BRA - 2013
+  * survey not found
+05a: Comparing aggregates for SLV - 2013
+  * survey not found
+05a: Comparing aggregates for MEX - 2013
+  * survey not found
+05a: Comparing aggregates for DOM - 2013
+  * survey not found
+05a: Comparing aggregates for COL - 2014
+  * survey not found
+05a: Comparing aggregates for ARG - 2014
+  * survey not found
+05a: Comparing aggregates for PER - 2014
+  * survey not found
+05a: Comparing aggregates for URY - 2014
+  * survey not found
+05a: Comparing aggregates for CRI - 2014
+  * survey not found
+05a: Comparing aggregates for ECU - 2014
+  * survey not found
+05a: Comparing aggregates for CHL - 2014
+  * survey not found
+05a: Comparing aggregates for BRA - 2014
+  * survey not found
+05a: Comparing aggregates for SLV - 2014
+  * survey not found
+05a: Comparing aggregates for MEX - 2014
+  * survey not found
+05a: Comparing aggregates for DOM - 2014
+  * survey not found
+05a: Comparing aggregates for COL - 2015
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2015
+  * survey not found
+05a: Comparing aggregates for URY - 2015
+  * survey not found
+05a: Comparing aggregates for CRI - 2015
+  * survey not found
+05a: Comparing aggregates for ECU - 2015
+  * survey not found
+05a: Comparing aggregates for CHL - 2015
+  * survey not found
+05a: Comparing aggregates for BRA - 2015
+  * survey not found
+05a: Comparing aggregates for SLV - 2015
+  * survey not found
+05a: Comparing aggregates for MEX - 2015
+  * survey not found
+05a: Comparing aggregates for DOM - 2015
+  * survey not found
+05a: Comparing aggregates for COL - 2016
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2016
+  * survey not found
+05a: Comparing aggregates for URY - 2016
+  * survey not found
+05a: Comparing aggregates for CRI - 2016
+  * survey not found
+05a: Comparing aggregates for ECU - 2016
+  * survey not found
+05a: Comparing aggregates for CHL - 2016
+  * survey not found
+05a: Comparing aggregates for BRA - 2016
+  * survey not found
+05a: Comparing aggregates for SLV - 2016
+  * survey not found
+05a: Comparing aggregates for MEX - 2016
+  * survey not found
+05a: Comparing aggregates for DOM - 2016
+  * survey not found
+05a: Comparing aggregates for COL - 2017
+  * survey not found
+05a: Comparing aggregates for ARG - 2017
+  * survey not found
+05a: Comparing aggregates for PER - 2017
+  * survey not found
+05a: Comparing aggregates for URY - 2017
+  * survey not found
+05a: Comparing aggregates for CRI - 2017
+  * survey not found
+05a: Comparing aggregates for ECU - 2017
+  * survey not found
+05a: Comparing aggregates for CHL - 2017
+  * survey not found
+05a: Comparing aggregates for BRA - 2017
+  * survey not found
+05a: Comparing aggregates for SLV - 2017
+  * survey not found
+05a: Comparing aggregates for MEX - 2017
+  * survey not found
+05a: Comparing aggregates for DOM - 2017
+  * survey not found
+05a: Comparing aggregates for COL - 2018
+  * survey not found
+05a: Comparing aggregates for ARG - 2018
+  * survey not found
+05a: Comparing aggregates for PER - 2018
+  * survey not found
+05a: Comparing aggregates for URY - 2018
+  * survey not found
+05a: Comparing aggregates for CRI - 2018
+  * survey not found
+05a: Comparing aggregates for ECU - 2018
+  * survey not found
+05a: Comparing aggregates for CHL - 2018
+  * survey not found
+05a: Comparing aggregates for BRA - 2018
+  * survey not found
+05a: Comparing aggregates for SLV - 2018
+  * survey not found
+05a: Comparing aggregates for MEX - 2018
+  * survey not found
+05a: Comparing aggregates for DOM - 2018
+  * survey not found
+05a: Comparing aggregates for COL - 2019
+  * survey not found
+05a: Comparing aggregates for ARG - 2019
+  * survey not found
+05a: Comparing aggregates for PER - 2019
+  * survey not found
+05a: Comparing aggregates for URY - 2019
+  * survey not found
+05a: Comparing aggregates for CRI - 2019
+  * survey not found
+05a: Comparing aggregates for ECU - 2019
+  * survey not found
+05a: Comparing aggregates for CHL - 2019
+  * survey not found
+05a: Comparing aggregates for BRA - 2019
+  * survey not found
+05a: Comparing aggregates for SLV - 2019
+  * survey not found
+05a: Comparing aggregates for MEX - 2019
+  * survey not found
+05a: Comparing aggregates for DOM - 2019
+  * survey not found
+05a: Comparing aggregates for COL - 2020
+  * survey not found
+05a: Comparing aggregates for ARG - 2020
+  * survey not found
+05a: Comparing aggregates for PER - 2020
+  * survey not found
+05a: Comparing aggregates for URY - 2020
+  * survey not found
+05a: Comparing aggregates for CRI - 2020
+  * survey not found
+05a: Comparing aggregates for ECU - 2020
+  * survey not found
+05a: Comparing aggregates for CHL - 2020
+  * survey not found
+05a: Comparing aggregates for BRA - 2020
+  * survey not found
+05a: Comparing aggregates for SLV - 2020
+  * survey not found
+05a: Comparing aggregates for MEX - 2020
+  * survey not found
+05a: Comparing aggregates for DOM - 2020
+  * survey not found
+05a: Comparing aggregates for COL - 2021
+  * survey not found
+05a: Comparing aggregates for ARG - 2021
+  * survey not found
+05a: Comparing aggregates for PER - 2021
+  * survey not found
+05a: Comparing aggregates for URY - 2021
+  * survey not found
+05a: Comparing aggregates for CRI - 2021
+  * survey not found
+05a: Comparing aggregates for ECU - 2021
+  * survey not found
+05a: Comparing aggregates for CHL - 2021
+  * survey not found
+05a: Comparing aggregates for BRA - 2021
+  * survey not found
+05a: Comparing aggregates for SLV - 2021
+  * survey not found
+05a: Comparing aggregates for MEX - 2021
+  * survey not found
+05a: Comparing aggregates for DOM - 2021
+  * survey not found
+05a: Comparing aggregates for COL - 2022
+  * survey not found
+05a: Comparing aggregates for ARG - 2022
+  * survey not found
+05a: Comparing aggregates for PER - 2022
+  * survey not found
+05a: Comparing aggregates for URY - 2022
+  * survey not found
+05a: Comparing aggregates for CRI - 2022
+  * survey not found
+05a: Comparing aggregates for ECU - 2022
+  * survey not found
+05a: Comparing aggregates for CHL - 2022
+  * survey not found
+05a: Comparing aggregates for BRA - 2022
+  * survey not found
+05a: Comparing aggregates for SLV - 2022
+  * survey not found
+05a: Comparing aggregates for MEX - 2022
+  * survey not found
+05a: Comparing aggregates for DOM - 2022
+  * survey not found
+05a: Comparing aggregates for COL - 2023
+  * survey not found
+05a: Comparing aggregates for ARG - 2023
+  * survey not found
+05a: Comparing aggregates for PER - 2023
+  * survey not found
+05a: Comparing aggregates for URY - 2023
+  * survey not found
+05a: Comparing aggregates for CRI - 2023
+  * survey not found
+05a: Comparing aggregates for ECU - 2023
+  * survey not found
+05a: Comparing aggregates for CHL - 2023
+  * survey not found
+05a: Comparing aggregates for BRA - 2023
+  * survey not found
+05a: Comparing aggregates for SLV - 2023
+  * survey not found
+05a: Comparing aggregates for MEX - 2023
+  * survey not found
+05a: Comparing aggregates for DOM - 2023
+  * survey not found
+05a: Comparing aggregates for COL - 2024
+  * survey not found
+05a: Comparing aggregates for ARG - 2024
+  * survey not found
+05a: Comparing aggregates for PER - 2024
+  * survey not found
+05a: Comparing aggregates for URY - 2024
+  * survey not found
+05a: Comparing aggregates for CRI - 2024
+  * survey not found
+05a: Comparing aggregates for ECU - 2024
+  * survey not found
+05a: Comparing aggregates for CHL - 2024
+  * survey not found
+05a: Comparing aggregates for BRA - 2024
+  * survey not found
+05a: Comparing aggregates for SLV - 2024
+  * survey not found
+05a: Comparing aggregates for MEX - 2024
+  * survey not found
+05a: Comparing aggregates for DOM - 2024
+  * survey not found
+number of observations (_N) was 0, now 275
+05a: Comparing aggregates for COL - 2000
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2000
+  * survey not found
+05a: Comparing aggregates for URY - 2000
+  * survey not found
+05a: Comparing aggregates for CRI - 2000
+  * survey not found
+05a: Comparing aggregates for ECU - 2000
+  * survey not found
+05a: Comparing aggregates for CHL - 2000
+  * survey not found
+05a: Comparing aggregates for BRA - 2000
+  * survey not found
+05a: Comparing aggregates for SLV - 2000
+  * survey not found
+05a: Comparing aggregates for MEX - 2000
+  * survey not found
+05a: Comparing aggregates for DOM - 2000
+  * survey not found
+05a: Comparing aggregates for COL - 2001
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2001
+  * survey not found
+05a: Comparing aggregates for URY - 2001
+  * survey not found
+05a: Comparing aggregates for CRI - 2001
+  * survey not found
+05a: Comparing aggregates for ECU - 2001
+  * survey not found
+05a: Comparing aggregates for CHL - 2001
+  * survey not found
+05a: Comparing aggregates for BRA - 2001
+  * survey not found
+05a: Comparing aggregates for SLV - 2001
+  * survey not found
+05a: Comparing aggregates for MEX - 2001
+  * survey not found
+05a: Comparing aggregates for DOM - 2001
+  * survey not found
+05a: Comparing aggregates for COL - 2002
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2002
+  * survey not found
+05a: Comparing aggregates for URY - 2002
+  * survey not found
+05a: Comparing aggregates for CRI - 2002
+  * survey not found
+05a: Comparing aggregates for ECU - 2002
+  * survey not found
+05a: Comparing aggregates for CHL - 2002
+  * survey not found
+05a: Comparing aggregates for BRA - 2002
+  * survey not found
+05a: Comparing aggregates for SLV - 2002
+  * survey not found
+05a: Comparing aggregates for MEX - 2002
+  * survey not found
+05a: Comparing aggregates for DOM - 2002
+  * survey not found
+05a: Comparing aggregates for COL - 2003
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2003
+  * survey not found
+05a: Comparing aggregates for URY - 2003
+  * survey not found
+05a: Comparing aggregates for CRI - 2003
+  * survey not found
+05a: Comparing aggregates for ECU - 2003
+  * survey not found
+05a: Comparing aggregates for CHL - 2003
+  * survey not found
+05a: Comparing aggregates for BRA - 2003
+  * survey not found
+05a: Comparing aggregates for SLV - 2003
+  * survey not found
+05a: Comparing aggregates for MEX - 2003
+  * survey not found
+05a: Comparing aggregates for DOM - 2003
+  * survey not found
+05a: Comparing aggregates for COL - 2004
+  * survey not found
+05a: Comparing aggregates for ARG - 2004
+  * survey not found
+05a: Comparing aggregates for PER - 2004
+  * survey not found
+05a: Comparing aggregates for URY - 2004
+  * survey not found
+05a: Comparing aggregates for CRI - 2004
+  * survey not found
+05a: Comparing aggregates for ECU - 2004
+  * survey not found
+05a: Comparing aggregates for CHL - 2004
+  * survey not found
+05a: Comparing aggregates for BRA - 2004
+  * survey not found
+05a: Comparing aggregates for SLV - 2004
+  * survey not found
+05a: Comparing aggregates for MEX - 2004
+  * survey not found
+05a: Comparing aggregates for DOM - 2004
+  * survey not found
+05a: Comparing aggregates for COL - 2005
+  * survey not found
+05a: Comparing aggregates for ARG - 2005
+  * survey not found
+05a: Comparing aggregates for PER - 2005
+  * survey not found
+05a: Comparing aggregates for URY - 2005
+  * survey not found
+05a: Comparing aggregates for CRI - 2005
+  * survey not found
+05a: Comparing aggregates for ECU - 2005
+  * survey not found
+05a: Comparing aggregates for CHL - 2005
+  * survey not found
+05a: Comparing aggregates for BRA - 2005
+  * survey not found
+05a: Comparing aggregates for SLV - 2005
+  * survey not found
+05a: Comparing aggregates for MEX - 2005
+  * survey not found
+05a: Comparing aggregates for DOM - 2005
+  * survey not found
+05a: Comparing aggregates for COL - 2006
+  * survey not found
+05a: Comparing aggregates for ARG - 2006
+  * survey not found
+05a: Comparing aggregates for PER - 2006
+  * survey not found
+05a: Comparing aggregates for URY - 2006
+  * survey not found
+05a: Comparing aggregates for CRI - 2006
+  * survey not found
+05a: Comparing aggregates for ECU - 2006
+  * survey not found
+05a: Comparing aggregates for CHL - 2006
+  * survey not found
+05a: Comparing aggregates for BRA - 2006
+  * survey not found
+05a: Comparing aggregates for SLV - 2006
+  * survey not found
+05a: Comparing aggregates for MEX - 2006
+  * survey not found
+05a: Comparing aggregates for DOM - 2006
+  * survey not found
+05a: Comparing aggregates for COL - 2007
+  * survey not found
+05a: Comparing aggregates for ARG - 2007
+  * survey not found
+05a: Comparing aggregates for PER - 2007
+  * survey not found
+05a: Comparing aggregates for URY - 2007
+  * survey not found
+05a: Comparing aggregates for CRI - 2007
+  * survey not found
+05a: Comparing aggregates for ECU - 2007
+  * survey not found
+05a: Comparing aggregates for CHL - 2007
+  * survey not found
+05a: Comparing aggregates for BRA - 2007
+  * survey not found
+05a: Comparing aggregates for SLV - 2007
+  * survey not found
+05a: Comparing aggregates for MEX - 2007
+  * survey not found
+05a: Comparing aggregates for DOM - 2007
+  * survey not found
+05a: Comparing aggregates for COL - 2008
+  * survey not found
+05a: Comparing aggregates for ARG - 2008
+  * survey not found
+05a: Comparing aggregates for PER - 2008
+  * survey not found
+05a: Comparing aggregates for URY - 2008
+  * survey not found
+05a: Comparing aggregates for CRI - 2008
+  * survey not found
+05a: Comparing aggregates for ECU - 2008
+  * survey not found
+05a: Comparing aggregates for CHL - 2008
+  * survey not found
+05a: Comparing aggregates for BRA - 2008
+  * survey not found
+05a: Comparing aggregates for SLV - 2008
+  * survey not found
+05a: Comparing aggregates for MEX - 2008
+  * survey not found
+05a: Comparing aggregates for DOM - 2008
+  * survey not found
+05a: Comparing aggregates for COL - 2009
+  * survey not found
+05a: Comparing aggregates for ARG - 2009
+  * survey not found
+05a: Comparing aggregates for PER - 2009
+  * survey not found
+05a: Comparing aggregates for URY - 2009
+  * survey not found
+05a: Comparing aggregates for CRI - 2009
+  * survey not found
+05a: Comparing aggregates for ECU - 2009
+  * survey not found
+05a: Comparing aggregates for CHL - 2009
+  * survey not found
+05a: Comparing aggregates for BRA - 2009
+  * survey not found
+05a: Comparing aggregates for SLV - 2009
+  * survey not found
+05a: Comparing aggregates for MEX - 2009
+  * survey not found
+05a: Comparing aggregates for DOM - 2009
+  * survey not found
+05a: Comparing aggregates for COL - 2010
+  * survey not found
+05a: Comparing aggregates for ARG - 2010
+  * survey not found
+05a: Comparing aggregates for PER - 2010
+  * survey not found
+05a: Comparing aggregates for URY - 2010
+  * survey not found
+05a: Comparing aggregates for CRI - 2010
+  * survey not found
+05a: Comparing aggregates for ECU - 2010
+  * survey not found
+05a: Comparing aggregates for CHL - 2010
+  * survey not found
+05a: Comparing aggregates for BRA - 2010
+  * survey not found
+05a: Comparing aggregates for SLV - 2010
+  * survey not found
+05a: Comparing aggregates for MEX - 2010
+  * survey not found
+05a: Comparing aggregates for DOM - 2010
+  * survey not found
+05a: Comparing aggregates for COL - 2011
+  * survey not found
+05a: Comparing aggregates for ARG - 2011
+  * survey not found
+05a: Comparing aggregates for PER - 2011
+  * survey not found
+05a: Comparing aggregates for URY - 2011
+  * survey not found
+05a: Comparing aggregates for CRI - 2011
+  * survey not found
+05a: Comparing aggregates for ECU - 2011
+  * survey not found
+05a: Comparing aggregates for CHL - 2011
+  * survey not found
+05a: Comparing aggregates for BRA - 2011
+  * survey not found
+05a: Comparing aggregates for SLV - 2011
+  * survey not found
+05a: Comparing aggregates for MEX - 2011
+  * survey not found
+05a: Comparing aggregates for DOM - 2011
+  * survey not found
+05a: Comparing aggregates for COL - 2012
+  * survey not found
+05a: Comparing aggregates for ARG - 2012
+  * survey not found
+05a: Comparing aggregates for PER - 2012
+  * survey not found
+05a: Comparing aggregates for URY - 2012
+  * survey not found
+05a: Comparing aggregates for CRI - 2012
+  * survey not found
+05a: Comparing aggregates for ECU - 2012
+  * survey not found
+05a: Comparing aggregates for CHL - 2012
+  * survey not found
+05a: Comparing aggregates for BRA - 2012
+  * survey not found
+05a: Comparing aggregates for SLV - 2012
+  * survey not found
+05a: Comparing aggregates for MEX - 2012
+  * survey not found
+05a: Comparing aggregates for DOM - 2012
+  * survey not found
+05a: Comparing aggregates for COL - 2013
+  * survey not found
+05a: Comparing aggregates for ARG - 2013
+  * survey not found
+05a: Comparing aggregates for PER - 2013
+  * survey not found
+05a: Comparing aggregates for URY - 2013
+  * survey not found
+05a: Comparing aggregates for CRI - 2013
+  * survey not found
+05a: Comparing aggregates for ECU - 2013
+  * survey not found
+05a: Comparing aggregates for CHL - 2013
+  * survey not found
+05a: Comparing aggregates for BRA - 2013
+  * survey not found
+05a: Comparing aggregates for SLV - 2013
+  * survey not found
+05a: Comparing aggregates for MEX - 2013
+  * survey not found
+05a: Comparing aggregates for DOM - 2013
+  * survey not found
+05a: Comparing aggregates for COL - 2014
+  * survey not found
+05a: Comparing aggregates for ARG - 2014
+  * survey not found
+05a: Comparing aggregates for PER - 2014
+  * survey not found
+05a: Comparing aggregates for URY - 2014
+  * survey not found
+05a: Comparing aggregates for CRI - 2014
+  * survey not found
+05a: Comparing aggregates for ECU - 2014
+  * survey not found
+05a: Comparing aggregates for CHL - 2014
+  * survey not found
+05a: Comparing aggregates for BRA - 2014
+  * survey not found
+05a: Comparing aggregates for SLV - 2014
+  * survey not found
+05a: Comparing aggregates for MEX - 2014
+  * survey not found
+05a: Comparing aggregates for DOM - 2014
+  * survey not found
+05a: Comparing aggregates for COL - 2015
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2015
+  * survey not found
+05a: Comparing aggregates for URY - 2015
+  * survey not found
+05a: Comparing aggregates for CRI - 2015
+  * survey not found
+05a: Comparing aggregates for ECU - 2015
+  * survey not found
+05a: Comparing aggregates for CHL - 2015
+  * survey not found
+05a: Comparing aggregates for BRA - 2015
+  * survey not found
+05a: Comparing aggregates for SLV - 2015
+  * survey not found
+05a: Comparing aggregates for MEX - 2015
+  * survey not found
+05a: Comparing aggregates for DOM - 2015
+  * survey not found
+05a: Comparing aggregates for COL - 2016
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2016
+  * survey not found
+05a: Comparing aggregates for URY - 2016
+  * survey not found
+05a: Comparing aggregates for CRI - 2016
+  * survey not found
+05a: Comparing aggregates for ECU - 2016
+  * survey not found
+05a: Comparing aggregates for CHL - 2016
+  * survey not found
+05a: Comparing aggregates for BRA - 2016
+  * survey not found
+05a: Comparing aggregates for SLV - 2016
+  * survey not found
+05a: Comparing aggregates for MEX - 2016
+  * survey not found
+05a: Comparing aggregates for DOM - 2016
+  * survey not found
+05a: Comparing aggregates for COL - 2017
+  * survey not found
+05a: Comparing aggregates for ARG - 2017
+  * survey not found
+05a: Comparing aggregates for PER - 2017
+  * survey not found
+05a: Comparing aggregates for URY - 2017
+  * survey not found
+05a: Comparing aggregates for CRI - 2017
+  * survey not found
+05a: Comparing aggregates for ECU - 2017
+  * survey not found
+05a: Comparing aggregates for CHL - 2017
+  * survey not found
+05a: Comparing aggregates for BRA - 2017
+  * survey not found
+05a: Comparing aggregates for SLV - 2017
+  * survey not found
+05a: Comparing aggregates for MEX - 2017
+  * survey not found
+05a: Comparing aggregates for DOM - 2017
+  * survey not found
+05a: Comparing aggregates for COL - 2018
+  * survey not found
+05a: Comparing aggregates for ARG - 2018
+  * survey not found
+05a: Comparing aggregates for PER - 2018
+  * survey not found
+05a: Comparing aggregates for URY - 2018
+  * survey not found
+05a: Comparing aggregates for CRI - 2018
+  * survey not found
+05a: Comparing aggregates for ECU - 2018
+  * survey not found
+05a: Comparing aggregates for CHL - 2018
+  * survey not found
+05a: Comparing aggregates for BRA - 2018
+  * survey not found
+05a: Comparing aggregates for SLV - 2018
+  * survey not found
+05a: Comparing aggregates for MEX - 2018
+  * survey not found
+05a: Comparing aggregates for DOM - 2018
+  * survey not found
+05a: Comparing aggregates for COL - 2019
+  * survey not found
+05a: Comparing aggregates for ARG - 2019
+  * survey not found
+05a: Comparing aggregates for PER - 2019
+  * survey not found
+05a: Comparing aggregates for URY - 2019
+  * survey not found
+05a: Comparing aggregates for CRI - 2019
+  * survey not found
+05a: Comparing aggregates for ECU - 2019
+  * survey not found
+05a: Comparing aggregates for CHL - 2019
+  * survey not found
+05a: Comparing aggregates for BRA - 2019
+  * survey not found
+05a: Comparing aggregates for SLV - 2019
+  * survey not found
+05a: Comparing aggregates for MEX - 2019
+  * survey not found
+05a: Comparing aggregates for DOM - 2019
+  * survey not found
+05a: Comparing aggregates for COL - 2020
+  * survey not found
+05a: Comparing aggregates for ARG - 2020
+  * survey not found
+05a: Comparing aggregates for PER - 2020
+  * survey not found
+05a: Comparing aggregates for URY - 2020
+  * survey not found
+05a: Comparing aggregates for CRI - 2020
+  * survey not found
+05a: Comparing aggregates for ECU - 2020
+  * survey not found
+05a: Comparing aggregates for CHL - 2020
+  * survey not found
+05a: Comparing aggregates for BRA - 2020
+  * survey not found
+05a: Comparing aggregates for SLV - 2020
+  * survey not found
+05a: Comparing aggregates for MEX - 2020
+  * survey not found
+05a: Comparing aggregates for DOM - 2020
+  * survey not found
+05a: Comparing aggregates for COL - 2021
+  * survey not found
+05a: Comparing aggregates for ARG - 2021
+  * survey not found
+05a: Comparing aggregates for PER - 2021
+  * survey not found
+05a: Comparing aggregates for URY - 2021
+  * survey not found
+05a: Comparing aggregates for CRI - 2021
+  * survey not found
+05a: Comparing aggregates for ECU - 2021
+  * survey not found
+05a: Comparing aggregates for CHL - 2021
+  * survey not found
+05a: Comparing aggregates for BRA - 2021
+  * survey not found
+05a: Comparing aggregates for SLV - 2021
+  * survey not found
+05a: Comparing aggregates for MEX - 2021
+  * survey not found
+05a: Comparing aggregates for DOM - 2021
+  * survey not found
+05a: Comparing aggregates for COL - 2022
+  * survey not found
+05a: Comparing aggregates for ARG - 2022
+  * survey not found
+05a: Comparing aggregates for PER - 2022
+  * survey not found
+05a: Comparing aggregates for URY - 2022
+  * survey not found
+05a: Comparing aggregates for CRI - 2022
+  * survey not found
+05a: Comparing aggregates for ECU - 2022
+  * survey not found
+05a: Comparing aggregates for CHL - 2022
+  * survey not found
+05a: Comparing aggregates for BRA - 2022
+  * survey not found
+05a: Comparing aggregates for SLV - 2022
+  * survey not found
+05a: Comparing aggregates for MEX - 2022
+  * survey not found
+05a: Comparing aggregates for DOM - 2022
+  * survey not found
+05a: Comparing aggregates for COL - 2023
+  * survey not found
+05a: Comparing aggregates for ARG - 2023
+  * survey not found
+05a: Comparing aggregates for PER - 2023
+  * survey not found
+05a: Comparing aggregates for URY - 2023
+  * survey not found
+05a: Comparing aggregates for CRI - 2023
+  * survey not found
+05a: Comparing aggregates for ECU - 2023
+  * survey not found
+05a: Comparing aggregates for CHL - 2023
+  * survey not found
+05a: Comparing aggregates for BRA - 2023
+  * survey not found
+05a: Comparing aggregates for SLV - 2023
+  * survey not found
+05a: Comparing aggregates for MEX - 2023
+  * survey not found
+05a: Comparing aggregates for DOM - 2023
+  * survey not found
+05a: Comparing aggregates for COL - 2024
+  * survey not found
+05a: Comparing aggregates for ARG - 2024
+  * survey not found
+05a: Comparing aggregates for PER - 2024
+  * survey not found
+05a: Comparing aggregates for URY - 2024
+  * survey not found
+05a: Comparing aggregates for CRI - 2024
+  * survey not found
+05a: Comparing aggregates for ECU - 2024
+  * survey not found
+05a: Comparing aggregates for CHL - 2024
+  * survey not found
+05a: Comparing aggregates for BRA - 2024
+  * survey not found
+05a: Comparing aggregates for SLV - 2024
+  * survey not found
+05a: Comparing aggregates for MEX - 2024
+  * survey not found
+05a: Comparing aggregates for DOM - 2024
+  * survey not found
+number of observations (_N) was 0, now 275
+05a: Comparing aggregates for COL - 2000
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2000
+  * survey not found
+05a: Comparing aggregates for URY - 2000
+  * survey not found
+05a: Comparing aggregates for CRI - 2000
+  * survey not found
+05a: Comparing aggregates for ECU - 2000
+  * survey not found
+05a: Comparing aggregates for CHL - 2000
+  * survey not found
+05a: Comparing aggregates for BRA - 2000
+  * survey not found
+05a: Comparing aggregates for SLV - 2000
+  * survey not found
+05a: Comparing aggregates for MEX - 2000
+  * survey not found
+05a: Comparing aggregates for DOM - 2000
+  * survey not found
+05a: Comparing aggregates for COL - 2001
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2001
+  * survey not found
+05a: Comparing aggregates for URY - 2001
+  * survey not found
+05a: Comparing aggregates for CRI - 2001
+  * survey not found
+05a: Comparing aggregates for ECU - 2001
+  * survey not found
+05a: Comparing aggregates for CHL - 2001
+  * survey not found
+05a: Comparing aggregates for BRA - 2001
+  * survey not found
+05a: Comparing aggregates for SLV - 2001
+  * survey not found
+05a: Comparing aggregates for MEX - 2001
+  * survey not found
+05a: Comparing aggregates for DOM - 2001
+  * survey not found
+05a: Comparing aggregates for COL - 2002
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2002
+  * survey not found
+05a: Comparing aggregates for URY - 2002
+  * survey not found
+05a: Comparing aggregates for CRI - 2002
+  * survey not found
+05a: Comparing aggregates for ECU - 2002
+  * survey not found
+05a: Comparing aggregates for CHL - 2002
+  * survey not found
+05a: Comparing aggregates for BRA - 2002
+  * survey not found
+05a: Comparing aggregates for SLV - 2002
+  * survey not found
+05a: Comparing aggregates for MEX - 2002
+  * survey not found
+05a: Comparing aggregates for DOM - 2002
+  * survey not found
+05a: Comparing aggregates for COL - 2003
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2003
+  * survey not found
+05a: Comparing aggregates for URY - 2003
+  * survey not found
+05a: Comparing aggregates for CRI - 2003
+  * survey not found
+05a: Comparing aggregates for ECU - 2003
+  * survey not found
+05a: Comparing aggregates for CHL - 2003
+  * survey not found
+05a: Comparing aggregates for BRA - 2003
+  * survey not found
+05a: Comparing aggregates for SLV - 2003
+  * survey not found
+05a: Comparing aggregates for MEX - 2003
+  * survey not found
+05a: Comparing aggregates for DOM - 2003
+  * survey not found
+05a: Comparing aggregates for COL - 2004
+  * survey not found
+05a: Comparing aggregates for ARG - 2004
+  * survey not found
+05a: Comparing aggregates for PER - 2004
+  * survey not found
+05a: Comparing aggregates for URY - 2004
+  * survey not found
+05a: Comparing aggregates for CRI - 2004
+  * survey not found
+05a: Comparing aggregates for ECU - 2004
+  * survey not found
+05a: Comparing aggregates for CHL - 2004
+  * survey not found
+05a: Comparing aggregates for BRA - 2004
+  * survey not found
+05a: Comparing aggregates for SLV - 2004
+  * survey not found
+05a: Comparing aggregates for MEX - 2004
+  * survey not found
+05a: Comparing aggregates for DOM - 2004
+  * survey not found
+05a: Comparing aggregates for COL - 2005
+  * survey not found
+05a: Comparing aggregates for ARG - 2005
+  * survey not found
+05a: Comparing aggregates for PER - 2005
+  * survey not found
+05a: Comparing aggregates for URY - 2005
+  * survey not found
+05a: Comparing aggregates for CRI - 2005
+  * survey not found
+05a: Comparing aggregates for ECU - 2005
+  * survey not found
+05a: Comparing aggregates for CHL - 2005
+  * survey not found
+05a: Comparing aggregates for BRA - 2005
+  * survey not found
+05a: Comparing aggregates for SLV - 2005
+  * survey not found
+05a: Comparing aggregates for MEX - 2005
+  * survey not found
+05a: Comparing aggregates for DOM - 2005
+  * survey not found
+05a: Comparing aggregates for COL - 2006
+  * survey not found
+05a: Comparing aggregates for ARG - 2006
+  * survey not found
+05a: Comparing aggregates for PER - 2006
+  * survey not found
+05a: Comparing aggregates for URY - 2006
+  * survey not found
+05a: Comparing aggregates for CRI - 2006
+  * survey not found
+05a: Comparing aggregates for ECU - 2006
+  * survey not found
+05a: Comparing aggregates for CHL - 2006
+  * survey not found
+05a: Comparing aggregates for BRA - 2006
+  * survey not found
+05a: Comparing aggregates for SLV - 2006
+  * survey not found
+05a: Comparing aggregates for MEX - 2006
+  * survey not found
+05a: Comparing aggregates for DOM - 2006
+  * survey not found
+05a: Comparing aggregates for COL - 2007
+  * survey not found
+05a: Comparing aggregates for ARG - 2007
+  * survey not found
+05a: Comparing aggregates for PER - 2007
+  * survey not found
+05a: Comparing aggregates for URY - 2007
+  * survey not found
+05a: Comparing aggregates for CRI - 2007
+  * survey not found
+05a: Comparing aggregates for ECU - 2007
+  * survey not found
+05a: Comparing aggregates for CHL - 2007
+  * survey not found
+05a: Comparing aggregates for BRA - 2007
+  * survey not found
+05a: Comparing aggregates for SLV - 2007
+  * survey not found
+05a: Comparing aggregates for MEX - 2007
+  * survey not found
+05a: Comparing aggregates for DOM - 2007
+  * survey not found
+05a: Comparing aggregates for COL - 2008
+  * survey not found
+05a: Comparing aggregates for ARG - 2008
+  * survey not found
+05a: Comparing aggregates for PER - 2008
+  * survey not found
+05a: Comparing aggregates for URY - 2008
+  * survey not found
+05a: Comparing aggregates for CRI - 2008
+  * survey not found
+05a: Comparing aggregates for ECU - 2008
+  * survey not found
+05a: Comparing aggregates for CHL - 2008
+  * survey not found
+05a: Comparing aggregates for BRA - 2008
+  * survey not found
+05a: Comparing aggregates for SLV - 2008
+  * survey not found
+05a: Comparing aggregates for MEX - 2008
+  * survey not found
+05a: Comparing aggregates for DOM - 2008
+  * survey not found
+05a: Comparing aggregates for COL - 2009
+  * survey not found
+05a: Comparing aggregates for ARG - 2009
+  * survey not found
+05a: Comparing aggregates for PER - 2009
+  * survey not found
+05a: Comparing aggregates for URY - 2009
+  * survey not found
+05a: Comparing aggregates for CRI - 2009
+  * survey not found
+05a: Comparing aggregates for ECU - 2009
+  * survey not found
+05a: Comparing aggregates for CHL - 2009
+  * survey not found
+05a: Comparing aggregates for BRA - 2009
+  * survey not found
+05a: Comparing aggregates for SLV - 2009
+  * survey not found
+05a: Comparing aggregates for MEX - 2009
+  * survey not found
+05a: Comparing aggregates for DOM - 2009
+  * survey not found
+05a: Comparing aggregates for COL - 2010
+  * survey not found
+05a: Comparing aggregates for ARG - 2010
+  * survey not found
+05a: Comparing aggregates for PER - 2010
+  * survey not found
+05a: Comparing aggregates for URY - 2010
+  * survey not found
+05a: Comparing aggregates for CRI - 2010
+  * survey not found
+05a: Comparing aggregates for ECU - 2010
+  * survey not found
+05a: Comparing aggregates for CHL - 2010
+  * survey not found
+05a: Comparing aggregates for BRA - 2010
+  * survey not found
+05a: Comparing aggregates for SLV - 2010
+  * survey not found
+05a: Comparing aggregates for MEX - 2010
+  * survey not found
+05a: Comparing aggregates for DOM - 2010
+  * survey not found
+05a: Comparing aggregates for COL - 2011
+  * survey not found
+05a: Comparing aggregates for ARG - 2011
+  * survey not found
+05a: Comparing aggregates for PER - 2011
+  * survey not found
+05a: Comparing aggregates for URY - 2011
+  * survey not found
+05a: Comparing aggregates for CRI - 2011
+  * survey not found
+05a: Comparing aggregates for ECU - 2011
+  * survey not found
+05a: Comparing aggregates for CHL - 2011
+  * survey not found
+05a: Comparing aggregates for BRA - 2011
+  * survey not found
+05a: Comparing aggregates for SLV - 2011
+  * survey not found
+05a: Comparing aggregates for MEX - 2011
+  * survey not found
+05a: Comparing aggregates for DOM - 2011
+  * survey not found
+05a: Comparing aggregates for COL - 2012
+  * survey not found
+05a: Comparing aggregates for ARG - 2012
+  * survey not found
+05a: Comparing aggregates for PER - 2012
+  * survey not found
+05a: Comparing aggregates for URY - 2012
+  * survey not found
+05a: Comparing aggregates for CRI - 2012
+  * survey not found
+05a: Comparing aggregates for ECU - 2012
+  * survey not found
+05a: Comparing aggregates for CHL - 2012
+  * survey not found
+05a: Comparing aggregates for BRA - 2012
+  * survey not found
+05a: Comparing aggregates for SLV - 2012
+  * survey not found
+05a: Comparing aggregates for MEX - 2012
+  * survey not found
+05a: Comparing aggregates for DOM - 2012
+  * survey not found
+05a: Comparing aggregates for COL - 2013
+  * survey not found
+05a: Comparing aggregates for ARG - 2013
+  * survey not found
+05a: Comparing aggregates for PER - 2013
+  * survey not found
+05a: Comparing aggregates for URY - 2013
+  * survey not found
+05a: Comparing aggregates for CRI - 2013
+  * survey not found
+05a: Comparing aggregates for ECU - 2013
+  * survey not found
+05a: Comparing aggregates for CHL - 2013
+  * survey not found
+05a: Comparing aggregates for BRA - 2013
+  * survey not found
+05a: Comparing aggregates for SLV - 2013
+  * survey not found
+05a: Comparing aggregates for MEX - 2013
+  * survey not found
+05a: Comparing aggregates for DOM - 2013
+  * survey not found
+05a: Comparing aggregates for COL - 2014
+  * survey not found
+05a: Comparing aggregates for ARG - 2014
+  * survey not found
+05a: Comparing aggregates for PER - 2014
+  * survey not found
+05a: Comparing aggregates for URY - 2014
+  * survey not found
+05a: Comparing aggregates for CRI - 2014
+  * survey not found
+05a: Comparing aggregates for ECU - 2014
+  * survey not found
+05a: Comparing aggregates for CHL - 2014
+  * survey not found
+05a: Comparing aggregates for BRA - 2014
+  * survey not found
+05a: Comparing aggregates for SLV - 2014
+  * survey not found
+05a: Comparing aggregates for MEX - 2014
+  * survey not found
+05a: Comparing aggregates for DOM - 2014
+  * survey not found
+05a: Comparing aggregates for COL - 2015
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2015
+  * survey not found
+05a: Comparing aggregates for URY - 2015
+  * survey not found
+05a: Comparing aggregates for CRI - 2015
+  * survey not found
+05a: Comparing aggregates for ECU - 2015
+  * survey not found
+05a: Comparing aggregates for CHL - 2015
+  * survey not found
+05a: Comparing aggregates for BRA - 2015
+  * survey not found
+05a: Comparing aggregates for SLV - 2015
+  * survey not found
+05a: Comparing aggregates for MEX - 2015
+  * survey not found
+05a: Comparing aggregates for DOM - 2015
+  * survey not found
+05a: Comparing aggregates for COL - 2016
+  * survey not found
+  * not found in SNA data
+05a: Comparing aggregates for PER - 2016
+  * survey not found
+05a: Comparing aggregates for URY - 2016
+  * survey not found
+05a: Comparing aggregates for CRI - 2016
+  * survey not found
+05a: Comparing aggregates for ECU - 2016
+  * survey not found
+05a: Comparing aggregates for CHL - 2016
+  * survey not found
+05a: Comparing aggregates for BRA - 2016
+  * survey not found
+05a: Comparing aggregates for SLV - 2016
+  * survey not found
+05a: Comparing aggregates for MEX - 2016
+  * survey not found
+05a: Comparing aggregates for DOM - 2016
+  * survey not found
+05a: Comparing aggregates for COL - 2017
+  * survey not found
+05a: Comparing aggregates for ARG - 2017
+  * survey not found
+05a: Comparing aggregates for PER - 2017
+  * survey not found
+05a: Comparing aggregates for URY - 2017
+  * survey not found
+05a: Comparing aggregates for CRI - 2017
+  * survey not found
+05a: Comparing aggregates for ECU - 2017
+  * survey not found
+05a: Comparing aggregates for CHL - 2017
+  * survey not found
+05a: Comparing aggregates for BRA - 2017
+  * survey not found
+05a: Comparing aggregates for SLV - 2017
+  * survey not found
+05a: Comparing aggregates for MEX - 2017
+  * survey not found
+05a: Comparing aggregates for DOM - 2017
+  * survey not found
+05a: Comparing aggregates for COL - 2018
+  * survey not found
+05a: Comparing aggregates for ARG - 2018
+  * survey not found
+05a: Comparing aggregates for PER - 2018
+  * survey not found
+05a: Comparing aggregates for URY - 2018
+  * survey not found
+05a: Comparing aggregates for CRI - 2018
+  * survey not found
+05a: Comparing aggregates for ECU - 2018
+  * survey not found
+05a: Comparing aggregates for CHL - 2018
+  * survey not found
+05a: Comparing aggregates for BRA - 2018
+  * survey not found
+05a: Comparing aggregates for SLV - 2018
+  * survey not found
+05a: Comparing aggregates for MEX - 2018
+  * survey not found
+05a: Comparing aggregates for DOM - 2018
+  * survey not found
+05a: Comparing aggregates for COL - 2019
+  * survey not found
+05a: Comparing aggregates for ARG - 2019
+  * survey not found
+05a: Comparing aggregates for PER - 2019
+  * survey not found
+05a: Comparing aggregates for URY - 2019
+  * survey not found
+05a: Comparing aggregates for CRI - 2019
+  * survey not found
+05a: Comparing aggregates for ECU - 2019
+  * survey not found
+05a: Comparing aggregates for CHL - 2019
+  * survey not found
+05a: Comparing aggregates for BRA - 2019
+  * survey not found
+05a: Comparing aggregates for SLV - 2019
+  * survey not found
+05a: Comparing aggregates for MEX - 2019
+  * survey not found
+05a: Comparing aggregates for DOM - 2019
+  * survey not found
+05a: Comparing aggregates for COL - 2020
+  * survey not found
+05a: Comparing aggregates for ARG - 2020
+  * survey not found
+05a: Comparing aggregates for PER - 2020
+  * survey not found
+05a: Comparing aggregates for URY - 2020
+  * survey not found
+05a: Comparing aggregates for CRI - 2020
+  * survey not found
+05a: Comparing aggregates for ECU - 2020
+  * survey not found
+05a: Comparing aggregates for CHL - 2020
+  * survey not found
+05a: Comparing aggregates for BRA - 2020
+  * survey not found
+05a: Comparing aggregates for SLV - 2020
+  * survey not found
+05a: Comparing aggregates for MEX - 2020
+  * survey not found
+05a: Comparing aggregates for DOM - 2020
+  * survey not found
+05a: Comparing aggregates for COL - 2021
+  * survey not found
+05a: Comparing aggregates for ARG - 2021
+  * survey not found
+05a: Comparing aggregates for PER - 2021
+  * survey not found
+05a: Comparing aggregates for URY - 2021
+  * survey not found
+05a: Comparing aggregates for CRI - 2021
+  * survey not found
+05a: Comparing aggregates for ECU - 2021
+  * survey not found
+05a: Comparing aggregates for CHL - 2021
+  * survey not found
+05a: Comparing aggregates for BRA - 2021
+  * survey not found
+05a: Comparing aggregates for SLV - 2021
+  * survey not found
+05a: Comparing aggregates for MEX - 2021
+  * survey not found
+05a: Comparing aggregates for DOM - 2021
+  * survey not found
+05a: Comparing aggregates for COL - 2022
+  * survey not found
+05a: Comparing aggregates for ARG - 2022
+  * survey not found
+05a: Comparing aggregates for PER - 2022
+  * survey not found
+05a: Comparing aggregates for URY - 2022
+  * survey not found
+05a: Comparing aggregates for CRI - 2022
+  * survey not found
+05a: Comparing aggregates for ECU - 2022
+  * survey not found
+05a: Comparing aggregates for CHL - 2022
+  * survey not found
+05a: Comparing aggregates for BRA - 2022
+  * survey not found
+05a: Comparing aggregates for SLV - 2022
+  * survey not found
+05a: Comparing aggregates for MEX - 2022
+  * survey not found
+05a: Comparing aggregates for DOM - 2022
+  * survey not found
+05a: Comparing aggregates for COL - 2023
+  * survey not found
+05a: Comparing aggregates for ARG - 2023
+  * survey not found
+05a: Comparing aggregates for PER - 2023
+  * survey not found
+05a: Comparing aggregates for URY - 2023
+  * survey not found
+05a: Comparing aggregates for CRI - 2023
+  * survey not found
+05a: Comparing aggregates for ECU - 2023
+  * survey not found
+05a: Comparing aggregates for CHL - 2023
+  * survey not found
+05a: Comparing aggregates for BRA - 2023
+  * survey not found
+05a: Comparing aggregates for SLV - 2023
+  * survey not found
+05a: Comparing aggregates for MEX - 2023
+  * survey not found
+05a: Comparing aggregates for DOM - 2023
+  * survey not found
+05a: Comparing aggregates for COL - 2024
+  * survey not found
+05a: Comparing aggregates for ARG - 2024
+  * survey not found
+05a: Comparing aggregates for PER - 2024
+  * survey not found
+05a: Comparing aggregates for URY - 2024
+  * survey not found
+05a: Comparing aggregates for CRI - 2024
+  * survey not found
+05a: Comparing aggregates for ECU - 2024
+  * survey not found
+05a: Comparing aggregates for CHL - 2024
+  * survey not found
+05a: Comparing aggregates for BRA - 2024
+  * survey not found
+05a: Comparing aggregates for SLV - 2024
+  * survey not found
+05a: Comparing aggregates for MEX - 2024
+  * survey not found
+05a: Comparing aggregates for DOM - 2024
+  * survey not found
+number of observations (_N) was 0, now 275
+
+. 
+end of do-file

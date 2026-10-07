@@ -21,9 +21,7 @@ global aux_part  ""tax_svy_overlap""
 qui do "code/Stata/auxiliar/aux_general.do"	
 
 //Get trust regions
-qui import excel "input_data/admin_data/directory.xlsx", ///
-	sheet("trust") firstrow clear
-qui destring trust, replace	
+qui import delimited using "${admin_trust_regions}", clear varnames(1)
 local itov = 1 
 foreach c in $overlap_countries {
 	if `itov' == 1 di as result "Tax-Survey overlaping years"
@@ -664,5 +662,4 @@ forvalues n = 1 / `obs_mp' {
 qui export excel "intermediary_data/weight_adjusters/index.xlsx", ///
 	firstrow(variables) sheet("country_years_03d") sheetreplace 
 	
-
 

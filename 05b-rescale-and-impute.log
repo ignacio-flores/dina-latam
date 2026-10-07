@@ -1,0 +1,1968 @@
+
+  ___  ____  ____  ____  ____ (R)
+ /__    /   ____/   /   ____/
+___/   /   /___/   /   /___/   16.1   Copyright 1985-2019 StataCorp LLC
+  Statistics/Data Analysis            StataCorp
+                                      4905 Lakeway Drive
+     MP - Parallel Edition            College Station, Texas 77845 USA
+                                      800-STATA-PC        http://www.stata.com
+                                      979-696-4600        stata@stata.com
+                                      979-696-4601 (fax)
+
+60-user 4-core Stata network perpetual license:
+       Serial number:  501606216487
+         Licensed to:  Ignacio Flores
+                       insead
+
+Notes:
+      1.  Stata is running in batch mode.
+      2.  Unicode is supported; see help unicode_advice.
+      3.  More than 2 billion observations are allowed; see help obs_advice.
+      4.  Maximum number of variables is set to 5000; see help set_maxvar.
+
+. do code/Stata/05b-rescale-and-impute.do 
+
+. /////////////////////////////////////////////////////////////////////////////
+> ///
+> //
+. //                                                      Title: RESCALE AND IM
+> PUTE 
+. //                       Authors: Mauricio DE ROSA, Ignacio FLORES, Marc MORG
+> AN 
+. //                                                                      Year:
+>  2020
+. //
+. /////////////////////////////////////////////////////////////////////////////
+> ///
+> 
+. clear all
+
+. 
+. //0. General settings -------------------------------------------------------
+> ---
+. local ext "_norep"
+
+. 
+. //get list of paths 
+. global aux_part " "preliminary" " 
+
+. qui do "code/Stata/auxiliar/aux_general.do"
+
+. local lang $lang 
+
+. 
+. //define macros 
+. if "${bfm_replace}" == "yes" local ext ""
+
+. if "${bfm_replace}" == "no" local ext "_norep"
+
+. 
+. // 1. Get scaling factors----------------------------------------------------
+> ---
+. display as result "Fetching scaling factors..."
+Fetching scaling factors...
+
+. 
+. //Import sheet
+. local pop "adults"
+
+. qui import excel "output/snacompare_summary/snacompare_bfm`ext'_pre_`pop'.xls
+> x", ///
+>         sheet("scal_sna") firstrow clear        
+
+. 
+. //estimate 'left over' income
+. qui gen lef_nac = . 
+
+. foreach x in norm exep {
+  2.         foreach v in ${ind_raw_`x'} {
+  3.                 local s = substr("`v'", 5, 7)
+  4.                 if "`s'" == "pre_pen" local s "pre_ben"
+  5.                 local naclist_`x' `naclist_`x'' `s'_nac
+  6.         }
+  7.         qui gen extrap_`x' = 0 
+  8.         foreach v in ${ind_raw_`x'} {
+  9.                 local s = substr("`v'", 5, 7)
+ 10.                 if "`s'" == "pre_pen" local s "pre_ben"
+ 11.                 qui replace extrap_`x' = 1 if extsna_`s' == 1
+ 12.         }
+ 13.         qui egen taux_`x' = rowtotal(`naclist_`x'') if extrap_`x' != 1 
+ 14.         if "`x'" == "exep" qui replace lef_nac = taux_`x' if exception == 
+> 1 
+ 15.         if "`x'" == "norm" qui replace lef_nac = taux_`x' if exception != 
+> 1 
+ 16. }
+
+. 
+. qui replace lef_nac = (100 - lef_nac) / 100     
+
+. 
+. //fill gaps...
+. //impute missing country/years
+. global imput_vars lef_nac taux_exep 
+
+. qui do "code/Stata/auxiliar/aux_fill_aver.do"
+
+.         
+. //stock scaling factors in memory
+. local nc = 1    
+
+. foreach var in $scal_list {
+  2.         //From ratio to scaling factor 
+.         qui gen `var'_scal = 1 / (`var' / 100)
+  3.         qui levelsof country if !missing(`var'), local(ctries) 
+  4.         foreach c in `ctries' {
+  5.                 if `nc' == 1 {
+  6.                         qui levelsof year if country == "`c'" ///
+>                                 & !missing(`var'), local(`c'_yrs)       
+  7.                         di as result "`var' " "`c' ``c'_yrs'"           
+  8.                 }
+  9.                 foreach y in ``c'_yrs' {
+ 10.                         *get national income 
+.                         if `nc' == 1 {
+ 11.                                 qui sum TOT_B5g_wid if country == "`c'" & 
+> year == `y'
+ 12.                                 local ni_wid_`c'_`y' = r(sum)
+ 13.                         }
+ 14.                         *save scaling factor
+.                         qui sum `var'_scal if country == "`c'" & year == `y' 
+ 15.                         if "`r(mean)'" != "" local scaling_`var'_`c'_`y' =
+>  `r(mean)'
+ 16.                         di as result "scaling_`var'_`c'_`y': `scaling_`var
+> '_`c'_`y''"
+ 17.                         *save total for checking purposes 
+.                         qui sum `var'_nac if country == "`c'" & year == `y'
+ 18.                         if "`r(mean)'" != "" local nac_`var'_`c'_`y' = `r(
+> mean)'
+ 19.                         *also save total and leftover 
+.                         if `nc' == 1 {
+ 20.                                 qui sum taux_exep if country == "`c'" & ye
+> ar == `y'
+ 21.                                 if "`r(mean)'" != "" local tnac_`c'_`y' = 
+> `r(mean)'
+ 22.                                 qui sum lef_nac if country == "`c'" & year
+>  == `y' 
+ 23.                                 if "`r(mean)'" != "" local lef1_`c'_`y' = 
+> `r(mean)'
+ 24.                                 *di as result "`c' `y' `lef1_`c'_`y''"
+.                         }
+ 25.                 }       
+ 26.         }
+ 27.         local nc = 0 
+ 28. }
+
+. 
+. // 2. Get undistributed profits----------------------------------------------
+> ---
+. display as result "Fetching data on undistributed profits..."
+Fetching data on undistributed profits...
+
+. 
+. //Import macro data 
+. tempfile wid_data_adj
+
+. qui use iso year uprofits_hh_ni bpi_corp_tot TOT_B5g_U ///
+>         sh_cfc_hh_surplus sh_cfc_hh_mixed sh_cfc_corp sh_cfc_hh sh_cfc_total 
+> ///
+>         series sh_bpi_corp_hh sh_bpi_corp_for sh_bpi_corp_gg ///
+>         NFC_B5g_cei FC_B5g_cei NFC_r_D4_cei FC_r_D4_cei GG_r_D4_cei ///
+>         TOT_r_D4_cei ROW_r_D4_cei TOT_B5g_cei using ///
+>         "intermediary_data/national_accounts/UNDATA-WID-Merged.dta", clear   
+>    
+
+. 
+. //standardize names 
+. qui kountry iso, from(iso2c) to(iso3c) 
+iso2ciso3c_ISO3C_
+. qui rename _ISO3C_ country 
+
+. qui drop iso 
+
+. 
+. //Drop too little detail or empty, while better options are available
+. qui drop if (country == "BRA" & inrange(year,2000,2009) & series == 1000)
+
+. qui drop if (country == "ARG" & year >= 2000 & series == 1100)
+
+. *drop if (country  == "CHL" & year >= 2000 & series == 200)
+. *drop if (country  == "CHL" & inrange(year,2000,2009) & series == 1000)
+. qui drop if (country == "MEX" & inrange(year,2000,2002) & series == 300)
+
+. 
+. //Keep most recent series by year
+. qui egen cei_test = rowtotal(*_cei) 
+
+. qui drop if missing(series) & cei_test == 0 
+
+. qui drop cei_test
+
+. qui egen country_year = concat(country year)
+
+. qui levelsof country, local(all_ctries)
+
+. foreach c in `all_ctries' {
+  2.         qui levelsof country_year if country == "`c'", local(ctry_yrs_`c')
+  3.         foreach cy in `ctry_yrs_`c'' {
+  4.                 qui sum series if country_year=="`cy'"
+  5.                 qui drop if country_year=="`cy'" & series!=r(max)
+  6.         }               
+  7. }
+
+. 
+. //check duplicates 
+. qui duplicates tag country year, gen(dup)
+
+. qui assert dup == 0 
+
+. qui drop dup country_year series 
+
+. qui save "`wid_data_adj'", replace
+
+. 
+. //bring national income composition 
+.                                  
+. qui import excel ///
+>         "output/snacompare_summary/snacompare_bfm`ext'_pre_`pop'.xlsx", ///
+>         sheet("ni_comp") firstrow clear 
+
+. qui la var svy_to_ni "Total income declared in corrected survey, % of GNI"   
+>    
+
+. qui la var bpi_gg "Bal. of 1ry inc., Gen. Gov. (% of G. National Income)"    
+>    
+
+. qui la var bpi_hh "Bal. of 1ry inc., Households (% of G. National Income)"   
+>    
+
+. qui la var bpi_corp "Bal. of 1ry inc., Corporate Sector (% of GNI)"     
+
+. 
+. //check duplicates 
+. tempvar tag
+
+. qui duplicates tag, gen(tag)
+
+. cap qui assert tag == 0 
+
+. if _rc != 0 {
+.         di as text "duplicates found for: " _continue 
+.         levelsof country if tag == 1, local(list) clean
+.         di as text "`list'"
+.         qui duplicates drop     
+. }
+
+. qui drop tag
+
+. 
+. //merge 
+. qui merge 1:1 country year using "`wid_data_adj'", keep(3 1) nogen
+
+. 
+. //update GNI data 
+. preserve 
+
+.         tempfile tf_gni 
+
+.         qui use iso year TOT_B5g_wid using ///
+>                 "intermediary_data/national_accounts/UNDATA-WID-Merged.dta", 
+> clear
+
+.         duplicates drop         
+
+Duplicates in terms of all variables
+
+(228 observations deleted)
+
+.         qui drop if missing(TOT_B5g_wid)
+
+.         qui kountry iso, from(iso2c) to(iso3c) 
+iso2ciso3c_ISO3C_
+.         qui rename _ISO3C_ country 
+
+.         qui drop iso 
+
+.         qui save `tf_gni', replace              
+
+. restore
+
+. qui merge 1:1 country year using `tf_gni', update keep(3 4) nogen
+
+. sort country year
+
+. 
+. //use cei to estimate undistributed profits 
+. qui replace sh_bpi_corp_gg = GG_r_D4_cei / TOT_r_D4_cei if ///
+>         missing(sh_bpi_corp_gg) & !missing(TOT_r_D4_cei)
+
+.         
+. qui replace sh_bpi_corp_for = ROW_r_D4_cei / TOT_r_D4_cei if ///
+>         missing(sh_bpi_corp_for) & !missing(TOT_r_D4_cei)
+
+.         
+. qui replace bpi_corp_tot = NFC_B5g_cei + FC_B5g_cei if ///
+>         missing(bpi_corp_tot) & !missing(NFC_B5g_cei)
+
+.         
+. bysort country: mipolate sh_cfc_corp year if series == "CEI" ///
+>         , gen(ipo_cfc) epolate forward
+(217 missing values generated)
+
+. qui replace sh_cfc_corp = ipo_cfc if missing(sh_cfc_corp) & !missing(ipo_cfc)
+
+. qui drop ipo_cfc
+
+. 
+. *uprofits in lcu (cei)
+. qui gen bpi_corp_tot_net = bpi_corp_tot * (1 - sh_cfc_corp) 
+
+. qui gen bpi_corp_hh_net = ///
+>         bpi_corp_tot_net * (1 - sh_bpi_corp_for - sh_bpi_corp_gg) if ///
+>         !missing(bpi_corp_tot_net)
+
+. qui replace sh_bpi_corp_hh = bpi_corp_hh_net / bpi_corp_tot     if ///
+>         missing(sh_bpi_corp_hh) & !missing(bpi_corp_hh_net)
+
+. assert sh_bpi_corp_hh <= 1 if !missing(sh_bpi_corp_hh)
+
+. qui replace uprofits_hh_ni = (bpi_corp_hh_net / TOT_B5g_cei) * 100 ///
+>         if missing(uprofits_hh_ni) & !missing(bpi_corp_hh_net)
+
+. 
+. //UProfits of households as % of tot inc. in survey
+. qui gen uprofits_hh_svy = uprofits_hh_ni / svy_to_ni
+
+. qui gen uprofits_hh_svy_pct = uprofits_hh_svy * 100
+
+. qui label var uprofits_hh_svy ///
+>         "Net national private corp. undis. profits, % of tot survey inc. (dec
+> imal)"
+
+. qui label var uprofits_hh_svy_pct ///
+>         "Net national private corp. undis. profits, % of tot survey inc. (x10
+> 0)"
+
+. 
+. //UProfits of households as % national income
+. qui gen uprofits_hh_ni_pct = uprofits_hh_ni
+
+. qui label var uprofits_hh_ni_pct ///
+>         "National private corp. undistr. profits, % of national inc. (decimal
+> )"
+
+. 
+. //Prepare variables for consumption of fixed capital and stock in memory
+. qui gen cfc_corp = sh_cfc_corp * bpi_corp_tot
+
+. qui la var cfc_corp "Consumption of fixed capital of corps., LCU"
+
+. foreach var in ///
+>         "sh_cfc_hh_surplus" "sh_cfc_hh_mixed" "sh_cfc_hh" "cfc_corp" {
+  2.         foreach c in `ctries' {
+  3.                 foreach y in ``c'_yrs' {
+  4.                         qui sum `var' if country == "`c'" & year == `y'
+  5.                         local `var'_`c'_`y' = r(max)
+  6.                 }
+  7.         }       
+  8. }
+
+. 
+. //Check structure of undistributed profits
+. foreach v in "sh_bpi_corp_hh" "sh_bpi_corp_for" ///
+>         "sh_bpi_corp_gg" "sh_cfc_corp" {
+  2.         qui gen `v'2 = `v' * 100
+  3. }
+
+. 
+. //create main folders 
+. local dirpath "output/figures/uprofits"
+
+. mata: st_numscalar("exists", direxists(st_local("dirpath")))
+
+. if (scalar(exists) == 0) {
+.         mkdir "`dirpath'"
+.         display "Created directory: `dirpath'"
+. }
+
+. 
+. //Graph all countries except ARG
+. graph twoway (line sh_bpi_corp_hh2 year, lcolor(black) lwidth(medthick)) ///
+>         (line sh_cfc_corp2 year, lcolor(${c_col}) lwidth(medium)) ///
+>         (line sh_bpi_corp_for2 year, lcolor(${c_bra}) lwidth(medium)) ///
+>         (line sh_bpi_corp_gg2 year, lcolor(${c_chl}) lwidth(medium)) ///
+>         if !inlist(country, "ARG", "PRY", "BOL", "VEN", "GTM"), ///
+>         ylabel(, angle(0)) yline(100 0, lcolor(black) lpattern(dot)) ///
+>         by(country) ytitle("Share of Gross U. Profits (%)") ///
+>         legend(label(1 "Households (net)") label(2 "Depreciation") ///
+>         label(3 "Foreigners") label(4 "Gral. Gorvernment")) $graph_scheme 
+
+. qui graph export ///
+>         "output/figures/uprofits/Composition.pdf", replace 
+
+.                 
+. //call basic graph settings 
+. global aux_part " "graph_basics" " 
+
+. qui do "code/Stata/auxiliar/aux_general.do"
+
+. 
+. //prepare main graph lines 
+. local iv = 1
+
+. foreach var in "uprofits_hh_ni_pct" "uprofits_hh_svy_pct" {
+  2.         qui levelsof country if !missing(`var') & ///
+>                 !inlist(country, "BOL", "GTM", "HND", "NIC", "VEN"), ///
+>                 local(ctries_`iv')
+  3.         if "`ctries_`iv''" != "" {
+  4.                 local counter = 1 
+  5.                 foreach c in `ctries_`iv'' {
+  6.                         //details 
+.                         local c2 = strlower("`c'")
+  7.                         local c2 "c_`c2'"
+  8.                         local c3 = strlower("`c'")
+  9.                         //add line to graph 
+.                         local addgraphlines_`iv' `addgraphlines_`iv'' ///
+>                                 (connected `var' year if country == "`c'", //
+> /
+>                                 lcolor($`c2') lwidth(thick) msize(tiny) ///
+>                                 msymbol(o) mfcolor($`c2') mcolor($`c2')) ///
+>                                 /*(line `var' year if country == "`c'" & ///
+>                                 series == "CEI" & year != 2003, ///
+>                                 lcolor($`c2'*0.2) lwidth(medium))*/
+ 10.                         local legend_`iv' `legend_`iv'' ///
+>                                 label(`counter' "${lname_`c3'}")
+ 11.                         di as result "``legend_`iv'''"
+ 12.                         *add 1 to counter
+.                         local counter = `counter' + 1
+ 13.                 }               
+ 14.                 if "`var'" == "uprofits_hh_ni_pct" {
+ 15.                         local ytitle "U. Prof., % of NI"
+ 16.                 } 
+ 17.                 if "`var'" == "uprofits_hh_svy_pct" {
+ 18.                         local ytitle "U. Prof., % of Survey"
+ 19.                 } 
+ 20.         
+.                 //graph and save 
+.                 graph twoway `addgraphlines_`iv'' ///
+>                         if !inlist(country, "BOL", "VEN") ///
+>                         , ylabel(0(5)30, $ylab_opts) ///
+>                         xlabel(${first_y}(5)2020, $xlab_opts) ///
+>                         xtitle("") ytitle("") $graph_scheme ///
+>                         legend(off)
+ 21.                 qui graph export "output/figures/uprofits/`var'.pdf", repl
+> ace
+ 22.                 
+.                 //graph and save w/legend
+.                 graph twoway `addgraphlines_`iv'' ///
+>                         if !inlist(country, "ARG", "BOL", "VEN") ///
+>                         , ylabel(0(5)30, $ylab_opts) ///
+>                         xlabel(${first_y}(5)2020, $xlab_opts) ///
+>                         xtitle("") ytitle("") $graph_scheme ///
+>                         legend(`legend_`iv'')
+ 23.                 qui graph export "output/figures/uprofits/`var'_legend.pdf
+> ", replace
+ 24. 
+.                 //details 
+.                 qui drop `var'
+ 25.                 local iv = `iv' + 1
+ 26.         }
+ 27. }
+
+
+
+
+
+
+
+
+
+. 
+. //dont take CHL cfc data into account 
+. qui replace sh_cfc_hh_surplus = . if country == "CHL"
+
+. qui replace sh_cfc_hh_mixed = . if country == "CHL"
+
+. 
+. //impute missing country/years
+. global imput_vars sh_bpi_corp_for sh_cfc_corp sh_cfc_hh_surplus /// 
+>         sh_cfc_hh_mixed sh_cfc_hh sh_cfc_total sh_bpi_corp_gg /// 
+>         sh_bpi_corp_hh uprofits_hh_ni uprofits_hh_svy sh_bpi_corp_hh2 /// 
+>         sh_bpi_corp_for2 sh_bpi_corp_gg2 sh_cfc_corp2
+
+. qui include "code/Stata/auxiliar/aux_fill_aver.do"
+
+. 
+. *convert wid totals to old currency 
+. *wid national income is already in current lcu (1a takes care of it)
+. global aux_part  ""old_currencies"" 
+
+. quietly do "code/Stata/auxiliar/aux_general.do"
+
+. foreach curr in $old_currencies {
+  2.         *identify country 
+.         local coun = substr("`curr'", 1, 3)
+  3.         *exceptions 
+.         if !inlist("`coun'", "URY"){
+  4.                 *replace variable
+.                 quietly replace TOT_B5g_wid = TOT_B5g_wid / ${xr_`curr'} ///
+>                         if year < ${yr_`curr'} & country == "`coun'"
+  5.         }
+  6. }
+
+. 
+. *Harmonize special case (ECU)
+. preserve 
+
+.         quietly import excel "input_data/xrates_WB/wb-xrates.xls", ///
+>                 sheet("ECU") clear firstrow
+
+.         qui destring year, replace 
+
+.         quietly levelsof year, local(xr_yrs_ecu) clean  
+
+.         foreach z in `xr_yrs_ecu' {
+  2.                 quietly sum rate if year == `z' 
+  3.                 local xr_ecu_`z' = r(mean)
+  4.         }
+
+. restore 
+
+. foreach z in `xr_yrs_ecu' {
+  2.         qui replace TOT_B5g_wid = TOT_B5g_wid * `xr_ecu_`z'' ///
+>                 if year == `z' & country == "ECU" & year < 2000
+  3. }                                       
+
+.         
+. //stock values in memory        
+. foreach c in `ctries' {
+  2.         foreach y in ``c'_yrs' {
+  3.                 //uprofits 
+.                 qui sum uprofits_hh_svy if country == "`c'" & year == `y'
+  4.                 local uprof_pct_`c'_`y' = r(max)
+  5.                 //cfc variables and NI 
+.                 foreach v in "sh_cfc_hh_surplus" "sh_cfc_hh_mix" ///
+>                         "sh_cfc_hh" "TOT_B5g_U" "TOT_B5g_wid" "uprofits_hh_ni
+> " {
+  6.                         qui sum `v' if country == "`c'" & year == `y' 
+  7.                         local `v'_`c'_`y' = r(max)
+  8.                         *di as result "local `v' `c' `y' " ``v'_`c'_`y''
+.                 }
+  9.         }
+ 10. }       
+
+. 
+. // 3. Rescale and impute corrected surveys ----------------------------------
+> ---
+. //loop over countries and years 
+. local z = 1 
+
+. global area " ${all_countries} "
+
+. foreach c in $area {
+  2.         forvalues y = ${first_y}/${last_y} {
+  3.                 clear 
+  4.                 
+.                 if `z' == 1 {
+  5.                         di as result "{hline 80}"
+  6.                         display as result "Rescaling and imputing ..."
+  7.                         di as result "{hline 80}"
+  8.                         local z = 0 
+  9.                 }
+ 10.                 
+.                 *inform activity
+.                 di as text "`c' `y': " _continue 
+ 11.                 
+.                 //confirm corrected survey exists 
+.                 local survey "intermediary_data/microdata/bfm`ext'_pre/`c'_`y
+> '_bfm`ext'_pre.dta"
+ 12.                 capture confirm file "`survey'"
+ 13.                 
+.                 //open it
+.                 if _rc==0 /*& !inlist("`c'", "ARG")*/ {
+ 14.                         qui use "`survey'", clear
+ 15.                         capture drop *_sca
+ 16.                         capture drop __*
+ 17.                         
+.                         *prepare list of exception countries 
+.                         global ex_ct 
+ 18.                         local iter_exep = 1 
+ 19.                         foreach ct in ${exep_countries} {
+ 20.                                 if `iter_exep' == 1 global ex_ct "`ct'"
+ 21.                                 else global ex_ct "`ct'", "$ex_ct"
+ 22.                                 local iter_exep = 0 
+ 23.                         }
+ 24.                         
+.                         *choose list of variables adapted to each country (ra
+> w step only)
+.                         foreach u in "$unit_list" {
+ 25.                                 *chose list of incomes 
+.                                 if !inlist("`c'", "${ex_ct}") local clist_`u'
+>  "${`u'_raw_norm}" 
+ 26.                                 if  inlist("`c'", "${ex_ct}") local clist_
+> `u' "${`u'_raw_exep}"
+ 27.                                 
+.                                 *list variables (add suffix if raw)
+.                                 foreach v in `clist_`u'' {
+ 28.                                         local dec_`u'_`c'_`y' "`dec_`u'_`c
+> '_`y'' `v'`suf'"
+ 29.                                 }
+ 30.                                 *di as result "dec_`u'_`c'_`y': `dec_`u'_`
+> c'_`y''"
+.                         }       
+ 31.                         
+.                         
+.                         *check existence of ind variables (others not created
+>  yet)
+.                         foreach v in `dec_ind_`c'_`y'' {
+ 32.                                 cap confirm variable `v', exact
+ 33.                                 if _rc == 0 {
+ 34.                                         sum `v', meanonly
+ 35.                                         local m_`c'_`y'_`v' = r(mean) 
+ 36.                                         if `m_`c'_`y'_`v'' == 0 {
+ 37.                                                 local misvar_`c'_`y' "`mis
+> var_`c'_`y''`v'"
+ 38.                                         } 
+ 39.                                 }
+ 40.                                 else di as text "  `v' not found"
+ 41.                         }
+ 42.                                                 
+.                         //chose variables 
+.                         local inc "${y_pretax_tot}"
+ 43.                         if ("`c'" == "BRA") local inc "${y_pretax_tot_bra}
+> "
+ 44.                         if ("`c'" == "PER") local inc "${y_pretax_tot_per}
+> "
+ 45.                         local weight_bfm "_weight" 
+ 46.                         local weight_raw "_fep" 
+ 47.                         local age "edad" 
+ 48.                         if ("`c'" == "ARG") local weight_raw "_fep"
+ 49.                         
+.                         *work only if all variables exist
+.                         if ("`misvar_`c'_`y''" == "" & ///
+>                                 !inlist("`TOT_B5g_wid_`c'_`y''", ".")) {     
+>    
+ 50.                                 
+.                                 //rescale them
+.                                 foreach var in $scal_list {
+ 51.                                         if ("`scaling_`var'_`c'_`y''" != "
+> ") {  
+ 52.                                                 cap drop ind_`var'_sca 
+ 53.                                                 qui gen ind_`var'_sca = 0 
+ 54.                                                 qui replace ind_`var'_sca 
+> = ind_`var' * ///
+>                                                         `scaling_`var'_`c'_`y
+> '' * _factor if edad >= 20
+ 55.                                                 *di as result "scal `var':
+>  " `scaling_`var'_`c'_`y''
+.                                                 qui sum ind_`var' [w=`weight_
+> bfm']
+ 56.                                                 local agg_before = r(sum)
+ 57. 
+.                                                 if "`var'" == "pre_mir" & inl
+> ist("`c'", "${ex_ct}") {
+ 58.                                                         cap drop ind_pre_i
+> mp_sca
+ 59.                                                         qui gen ind_pre_im
+> p_sca = 0 
+ 60.                                                         qui replace ind_pr
+> e_imp_sca = ind_pre_imp * ///
+>                                                         `scaling_`var'_`c'_`y
+> '' * _factor if edad >= 20
+ 61.                                                         cap drop ind_pre_m
+> ix_sca
+ 62.                                                         qui gen ind_pre_mi
+> x_sca = 0 
+ 63.                                                         qui replace ind_pr
+> e_mix_sca = ind_pre_mix * ///
+>                                                         `scaling_`var'_`c'_`y
+> '' * _factor if edad >= 20
+ 64.                                                 }
+ 65.                                                 *check consistency of scal
+> ed aggregates 
+.                                                 if ("`nac_`var'_`c'_`y''" != 
+> "") {
+ 66.                                                         qui sum ind_`var'_
+> sca [w=`weight_bfm'] ///
+>                                                                 if edad >= 20
+> , meanonly 
+ 67.                                                         local chktot_`var'
+> _`c'_`y' = r(sum)
+ 68.                                                         local chkrat_`var'
+> _`c'_`y' = ///
+>                                                                 `chktot_`var'
+> _`c'_`y'' / ///
+>                                                                 (`ni_wid_`c'_
+> `y'' * `nac_`var'_`c'_`y'' / 100)
+ 69.                                                         di as result "rati
+> o `var' " ///
+>                                                                 `chkrat_`var'
+> _`c'_`y'' * 100
+ 70.                                                         /*assert inrange(r
+> ound( ///
+>                                                                 `chkrat_`var'
+> _`c'_`y'' * 100), 97, 103)*/
+.                                                 } 
+ 71.                                                 local scal_list_`c'_`y' //
+> / 
+>                                                         "`scal_list_`c'_`y'' 
+> `var'"             
+ 72.                                         }
+ 73.                                 }
+ 74.                                         
+.                                 // Exclude social assistance transfers
+.                                 foreach var in "ind_pre_ass" "ind_pre_ass_sca
+>  " ///
+>                                         "ind_pre_pen_sca" "pre_pen_ratio" {
+ 75.                                         cap drop `var'
+ 76.                                         cap gen `var' = 0 
+ 77.                                 }
+ 78.                                 
+.                                 //split benefits into pension and non-pension
+.                                 //note: ind_pre_ben = ind_pre_pen + ind_pre_o
+> th
+.                                 qui replace ind_pre_ass = ind_pre_oth if edad
+>  >= 20
+ 79.                                 qui replace pre_pen_ratio = ind_pre_pen / 
+> ind_pre_ben 
+ 80.                                 qui replace pre_pen_ratio = 0 if missing(p
+> re_pen_ratio)
+ 81.                                 *pensions 
+.                                 qui replace ind_pre_pen_sca = ///
+>                                         ind_pre_ben_sca * pre_pen_ratio if ed
+> ad >= 20
+ 82.                                 *other monetary benefits 
+.                                 qui gen ind_pre_mbe_sca = ///
+>                                         ind_pre_ben_sca * (1 - pre_pen_ratio)
+>  if edad >= 20
+ 83.                                 
+.                                 *get total population
+.                                 qui sum `weight_raw' if `age' >= 20, meanonly
+>  
+ 84.                                 local adultpop= r(sum)
+ 85.                                 qui sum `weight_raw' if `age' > 0, meanonl
+> y 
+ 86.                                 local totpop = r(sum)
+ 87.                                         
+.                                 *list total incomes for checks  
+.                                 global exception_ctries inlist("`c'", "BOL") 
+> //"ECU" "CHL"
+ 88.                                 if ${exception_ctries} local lv ${ind_res_
+> exep} ind_pre_mbe_sca
+ 89.                                 else local lv ${ind_res_norm} ind_pre_mbe_
+> sca
+ 90.                                 
+.                                 *check rescaled values are equal to target 
+.                                 *note: this is only useful for extrapolated y
+> ears 
+.                                 cap drop auxtot_res 
+ 91.                                 qui egen auxtot_res = rowtotal(`lv')
+ 92.                                 qui sum auxtot_res [w = `weight_bfm'], mea
+> nonly 
+ 93.                                 local sum_aux_`c'_`y' = r(sum)
+ 94.                                 local delt_`c'_`y' = ///
+>                                         (`tnac_`c'_`y'' / 100 * `TOT_B5g_wid_
+> `c'_`y'') / `sum_aux_`c'_`y'' 
+ 95.                                 
+.                                 /*
+>                                 di as result "listvar: " "`lv'"
+>                                 di as result "delt * 100:" `delt_`c'_`y'' * 1
+> 00 
+>                                 di as result "tnac "  `tnac_`c'_`y''
+>                                 di as result "B5g " `TOT_B5g_wid_`c'_`y'' 
+>                                 di as result "sumaux " `sum_aux_`c'_`y'' 
+>                                 */
+.                                 local whilecount = 0    
+ 96.                                 cap assert round(`delt_`c'_`y'' * 100) == 
+> 100
+ 97.                                 while _rc != 0 {        
+ 98.                                         
+.                                         *avoid eternal loop 
+.                                         local whilecount = `whilecount' + 1
+ 99.                                         if `whilecount' >= 10 {
+100.                                                 di as error "Target total 
+> income can't be reached"
+101.                                                 exit 6
+102.                                         }
+103.                                         
+.                                         *report adjustment 
+.                                         di as text "rescaled inc. not equal t
+> o target, " _continue 
+104.                                         if `delt_`c'_`y'' > 1 di as text "
+> upscaling " _continue
+105.                                         if `delt_`c'_`y'' < 1 di as text "
+> downscaling " _continue 
+106.                                         di as text "incomes " _continue //
+> /
+>                                                 round((`delt_`c'_`y'' - 1) * 
+> 100, 0.01) " % "  
+107.                                                 
+.                                         *re-rescale each var independently   
+>    
+.                                         foreach var in `lv'  {
+108.                                                 qui replace `var' = `var' 
+> * `delt_`c'_`y''
+109.                                         }
+110.                                         
+.                                         *re-estimate rescaled total income 
+.                                         cap drop auxtot_res 
+111.                                         qui egen auxtot_res = rowtotal(`lv
+> ')
+112.                                         
+.                                         *check again
+.                                         qui sum auxtot_res [w = `weight_bfm']
+> , meanonly 
+113.                                         local delt_`c'_`y' = ///
+>                                                 (`tnac_`c'_`y'' / 100 * `TOT_
+> B5g_wid_`c'_`y'') / r(sum) 
+114.                                         cap assert round(`delt_`c'_`y'' * 
+> 100) == 100
+115.                                 }
+116.                                 
+.                                 *report total household income after rescalin
+> g 
+.                                 qui sum auxtot_res [w=`weight_bfm'], meanonly
+>  
+117.                                 local newtot_`c'_`y' = r(sum) / `TOT_B5g_w
+> id_`c'_`y'' * 100
+118.                                 di as text "(household inc. set to: " _con
+> tinue 
+119.                                 di as text round(`newtot_`c'_`y'', 0.1) "%
+>  NI)"
+120.                                 
+.                                 //4. Study Undistributed Profits ------------
+> ------------------
+.                                 
+.                                 //compute cumulative distributions (pretax in
+> come)
+.                                 sort `inc' _pid
+121.                                 foreach w in raw bfm {
+122.                                         foreach v in F freq ftile {
+123.                                                 cap drop `v'_`w'
+124.                                                 cap drop `v'_`w'_tot
+125.                                                 cap drop `v'_`w'_adu
+126.                                         }
+127.                                         qui     gen freq_`w'_tot  = `weigh
+> t_`w'' / `totpop'
+128.                                         qui     gen freq_`w'_adu  = `weigh
+> t_`w'' / `adultpop' ///
+>                                                 if `age' >= 20 
+129.                                         qui     gen F_`w'_adu = sum(freq_`
+> w'_tot )
+130.                                         qui egen ftile_`w'_adu = cut(F_`w'
+> _adu), at(0(0.05)0.949 ///
+>                                                 0.95(0.04)0.981 0.99(0.01)1)
+131.                                         qui replace ftile_`w'_adu = 0.99 i
+> f missing(ftile_`w'_adu)
+132.                                 }
+133.                                 
+.                                 *(we also need to impute % to other units [PE
+> NDING])
+.                                 if !inlist("`uprof_pct_`c'_`y''", "", ".") {
+134.                                         
+.                                         //get LCU amount of undistributed pro
+> fits 
+.                                         *qui sum `inc' [w = `weight_bfm'], me
+> anonly
+.                                         *local up_lcu_`c'_`y' = r(sum) * `upr
+> of_pct_`c'_`y''
+.                                         local up_lcu_`c'_`y' = ///
+>                                                 `TOT_B5g_wid_`c'_`y'' * `upro
+> fits_hh_ni_`c'_`y'' / 100
+135.                                         
+.                                         //make room for capital ownership pro
+> xies
+.                                         forvalues n = 1/4 {
+136.                                                 cap drop ind_upr_`n'
+137.                                                 cap drop cap_own_`n' 
+138.                                                 cap drop aux_`n'
+139.                                                 cap drop uprofits_pct_`n'
+140.                                                 cap drop uprofits_pct_orig
+> _`n'
+141.                                                 qui gen cap_own_`n' = 0 
+142.                                                 qui gen ind_upr_`n' = 0   
+>       
+143.                                         } 
+144. 
+.                                         //define proxies
+.                                         qui replace ind_pre_imp = 0 if missin
+> g(ind_pre_imp)
+145.                                         qui replace cap_own_1 = ind_pre_ca
+> p 
+146.                                         qui replace cap_own_2 = `inc' if c
+> ateg5_p == 1
+147.                                         qui replace cap_own_2 = cap_own_2 
+> + ind_pre_cap ///
+>                                                 if categ5_p != 1
+148.                                         qui replace cap_own_3 = `inc' if c
+> ateg5_p == 1
+149.                                         qui replace cap_own_4 = ind_pre_ca
+> p + ind_pre_imp
+150.                                         
+.                                         //loop over proxies  
+.                                         forvalues n = 1/4 {
+151.                                                 
+.                                                 //impute UP proportionally to
+>  proxies 
+.                                                 qui sum cap_own_`n' [w = `wei
+> ght_bfm'], meanonly 
+152.                                                 qui replace cap_own_`n' = 
+> cap_own_`n' / r(sum) 
+153.                                                 qui replace ind_upr_`n' = 
+> ///
+>                                                         cap_own_`n' * `up_lcu
+> _`c'_`y''
+154.                                                 qui la var ind_upr_`n' ///
+>                                                         "Imp. of private und.
+>  profits based on proxy nº`n'"
+155.                                                 //study income composition
+>  in all cases 
+.                                                 qui gen uprofits_pct_orig_`n'
+>  = ///
+>                                                         ind_upr_`n' / `inc' *
+>  100
+156.                                                 qui replace uprofits_pct_o
+> rig_`n' = 0 if `inc' == 0 
+157.                                                 //check consistency
+.                                                 sum cap_own_`n' [w = `weight_
+> bfm'], meanonly 
+158.                                                 
+.                                                 //2nd check
+.                                                 sort `inc' _pid
+159.                                                 cap drop check_`n'
+160.                                                 qui gen check_`n' = ///
+>                                                         sum(cap_own_`n'[_n-1]
+>  * `weight_bfm'[_n-1])     
+161.                                                 qui replace cap_own_`n' = 
+> cap_own_`n' * 100 
+162.                                         }
+163.                                         
+.                                         //label proxies 
+.                                         qui la var ind_upr_1 "Imp. % to Divds
+> . & withdrawals"
+164.                                         qui la var ind_upr_2 "Imp. % to Em
+> ployer's inc. + Divs."
+165.                                         qui la var ind_upr_3 "Imp. % to Em
+> ployer's inc."
+166.                                         qui la var ind_upr_4 "Imp. % to IR
+>  + Emp's inc. + Divs."        
+167.                                         
+.                                         *store 'leftover' income as % of NI (
+> excl. uprofits)  
+.                                         local lef2_`c'_`y' = ///
+>                                                 `lef1_`c'_`y'' - (`uprofits_h
+> h_ni_`c'_`y'' / 100)
+168.                                         
+.                                         /*
+>                                         local lefscal_`c'_`y' = ///
+>                                                 `lef2_`c'_`y'' / (1 - `lef2_`
+> c'_`y'')   
+>                                         di as result "uprofits " `uprofits_hh
+> _ni_`c'_`y''       
+>                                         di as result "lefscal " `lefscal_`c'_
+> `y''
+>                                         di as result "lef1 " `lef1_`c'_`y''
+>                                         di as result "lef2 " `lef2_`c'_`y''
+>                                         */
+.                                         
+.                                         preserve 
+169.                                                 //auxiliary variables 
+.                                                 qui gen own2_cum_aux = cap_ow
+> n_2 * `weight_bfm'
+170.                                                 qui     gen own2_cum = sum
+> (own2_cum_aux)
+171.                                         
+.                                                 //collapse 
+.                                                 qui collapse (mean) uprofits_
+> pct_orig_*  ///
+>                                                         (sum) own2_cum_aux ca
+> p_own_*, by(ftile_bfm_adu)
+172.                                                 qui replace ftile_bfm_adu 
+> = ftile_bfm_adu * 100
+173.                                                                           
+>               
+.                                                 //label proxies 
+.                                                 foreach var in "uprofits_pct_
+> orig_" "cap_own_" {
+174.                                                         qui la var `var'1 
+> "Divds. & withdrawals"
+175.                                                         qui la var `var'2 
+> "Employer inc. + divds."
+176.                                                         qui la var `var'3 
+> "Employer's inc."
+177.                                                         qui la var `var'4 
+> "Imp Rents + nº2 "
+178.                         
+.                                                 }
+179.                                                 
+.                                                 //label vars and prepare grap
+> h lines
+.                                                 forvalues n = 1/4 {
+180.                                                         if ("`n'" != "3") 
+> {
+181.                                                                 //prepare 
+> lines for graph
+.                                                                 local graphli
+> nes_`c'_`y' ///
+>                                                                         `grap
+> hlines_`c'_`y'' ///
+>                                                                         (line
+>  uprofits_pct_`n' ftile_bfm_adu)   
+182.                                                                 local grap
+> hlines2_`c'_`y' ///
+>                                                                         `grap
+> hlines2_`c'_`y'' ///
+>                                                                         (line
+>  uprofits_pct_orig_`n' ///
+>                                                                         ftile
+> _bfm_adu if ftile_bfm_adu >= 50 ///
+>                                                                         | upr
+> ofits_pct_orig_`n' <= 200, ///
+>                                                                         lwidt
+> h(thick))  
+183.                                                         }                 
+>                               
+184.                                                 }
+185.                         
+.                                                 //call graph parameters 
+.                                                 global aux_part  ""graph_basi
+> cs"" 
+186.                                                 qui do "code/Stata/auxilia
+> r/aux_general.do"
+187.                                                 
+.                                                 //create main folders 
+.                                                 local dirpath "output/figures
+> /uprofits/incidence"
+188.                                                 mata: st_numscalar("exists
+> ", direxists(st_local("dirpath")))
+189.                                                 if (scalar(exists) == 0) {
+190.                                                         mkdir "`dirpath'"
+191.                                                         display "Created d
+> irectory: `dirpath'"
+192.                                                 }
+193.                                                 
+.                                                 //create main folders 
+.                                                 local dirpath "output/figures
+> /uprofits/incidence-scal"
+194.                                                 mata: st_numscalar("exists
+> ", direxists(st_local("dirpath")))
+195.                                                 if (scalar(exists) == 0) {
+196.                                                         mkdir "`dirpath'"
+197.                                                         display "Created d
+> irectory: `dirpath'"
+198.                                                 }
+199. 
+.                                                 //graph as incidence    
+.                                                 graph twoway (connected own2_
+> cum_aux ftile_bfm_adu, ///
+>                                                         mcolor(cranberry) lco
+> lor(cranberry) ///
+>                                                         mfcolor(white)), titl
+> e("") ///
+>                                                         yline(100, lcolor(red
+> ) lpattern(dot)) ///
+>                                                         ytitle("") ///
+>                                                         xtitle("") ///
+>                                                         xlabel(0(10)100 , $xl
+> ab_opts) ///
+>                                                         ylabel(0(20)100, $yla
+> b_opts) ///
+>                                                         $graph_scheme 
+200.                                                 qui graph export ///
+>                                                         "output/figures/uprof
+> its/incidence/`c'`y'.pdf", replace  
+201.                         
+.                                         restore 
+202.                                 }
+203.                                 
+.                                 //Deduct consumption of fixed capital to OS &
+>  MI
+.                                 if ("`sh_cfc_hh_surplus_`c'_`y''" != "") ///
+>                                         & !${exception_ctries} {
+204.                                         qui gen yn_imp_sca = ///
+>                                                 ind_pre_imp_sca * (1-`sh_cfc_
+> hh_surplus_`c'_`y'')
+205.                                         qui la var yn_imp_sca ///
+>                                                 "Imputed Rents (scaled to net
+>  OS of HH)"
+206.                                 } 
+207.                                 if ("`sh_cfc_hh_mix_`c'_`y''" != "") ///
+>                                         & !${exception_ctries} {
+208.                                         qui gen yn_mix_sca = ///
+>                                                 ind_pre_mix_sca * (1-`sh_cfc_
+> hh_mix_`c'_`y'')
+209.                                         qui la var yn_mix_sca ///
+>                                                 "Mixed Income (scaled to net 
+> Mixed Inc.)"
+210.                                 } 
+211.                                 if ("`sh_cfc_hh_`c'_`y''" != "") {
+212.                                         qui gen yn_mir_sca = ind_pre_mir_s
+> ca * (1-`sh_cfc_hh_`c'_`y'')
+213.                                         qui la var yn_mir_sca ///
+>                                                 "MI + IR (scaled to correspon
+> ding in SNA)"
+214.                                 } 
+215.                                 local net_sca_vars "yn_imp_sca yn_mix_sca 
+> yn_mir_sca"
+216.                                 
+.                                 // 5. Other defintions of income (units)-----
+> ------------------
+.                                 
+.                                 *create couple variables 
+.                                 cap drop spouse
+217.                                 cap drop married
+218.                                 qui gen spouse = (paren_ee <= 2)
+219.                                 qui egen married = sum(spouse) if paren_ee
+> <=2, by(id_hogar)
+220.                                                         
+.                                 *loop over variables 
+.                                 foreach v in $scal_list pre_pen pre_mbe {
+221.                                         
+.                                         *skip exceptions 
+.                                         if ${exception_ctries} & ///
+>                                                 inlist("`v'", "pre_imp", "pre
+> _mix") {
+222.                                                 *don't do anything
+.                                         }
+223.                                         
+.                                         *define income with other units than 
+> individual 
+.                                         else {
+224.                                                 foreach x in "svy" "sca" {
+225.                                                         if "`x'" == "svy" 
+> local sf ""
+226.                                                         if "`x'" == "sca" 
+> local sf "_sca"
+227.                                                         *compute sum of in
+> comes by couple (narrow)
+.                                                         cap drop esn_`v'`sf' 
+228.                                                         qui egen esn_`v'`s
+> f'= sum(ind_`v'`sf' /married) ///
+>                                                                 if married <=
+>  2, by(id_hogar)
+229.                                                         qui cap replace es
+> n_`v'`sf' = ///
+>                                                                 ind_`v'`sf' i
+> f missing(married)
+230.                                                         qui cap la var esn
+> _`v'`sf' ///
+>                                                                 "Eq-split nar
+> row inc. `v'`sf'"
+231.                                                                         
+.                                                         *compute sum of incom
+> es by adults (broad)
+.                                                         cap drop esb_`v'`sf'
+232.                                                         qui egen esb_`v'`s
+> f' = ///
+>                                                                 sum(ind_`v'`s
+> f'/adults_house), by(id_hogar)
+233.                                                         qui la var esb_`v'
+> `sf' ///
+>                                                                 "Eq-split bro
+> ad inc. `v'`sf'"
+234.                                                         
+.                                                         *compute sum of incom
+> es by household 
+.                                                         cap drop pch_`v'`sf'
+235.                                                         qui egen pch_`v'`s
+> f' = ///
+>                                                                 sum(ind_`v'`s
+> f' / hh_size), by(id_hogar)
+236.                                                         qui la var pch_`v'
+> `sf' ///
+>                                                                 "Per capita h
+> ld. inc. `v'`sf'"
+237.                                                 }
+238.                                         }
+239.                                 }
+240.                                 
+.                                 //Also add undistributed profits
+.                                 *narrow eq-split 
+.                                 cap drop esn_upr_2 
+241.                                 qui egen esn_upr_2 = sum(ind_upr_2 /marrie
+> d) ///
+>                                         if married <= 2, by(id_hogar)
+242.                                 qui cap replace esn_upr_2 = ind_upr_2 if m
+> issing(married)
+243.                                 qui cap la var esn_upr2 "Eq-split narrow i
+> nc. uprofits 2"
+244.                                 *broad eq-split
+.                                 cap drop esb_upr_2
+245.                                 qui egen esb_upr_2 = ///
+>                                         sum(ind_upr_2/adults_house), by(id_ho
+> gar)
+246.                                 qui la var esb_upr_2 "Eq-split broad inc. 
+> uprofits 2"
+247.                                 *household per capita 
+.                                 cap drop pch_upr_2 
+248.                                 qui egen pch_upr_2 = sum(ind_upr_2 / hh_si
+> ze), by(id_hogar)
+249.                                 qui la var pch_upr_2 "Per capita hld. upro
+> fits 2"
+250.                                 
+.                                 //impute the leftover proportionally to total
+>  incomes
+.                                 foreach u in "$unit_list" {
+251.                                         
+.                                         if "`u'" != "act" {
+252.                                                 *decide which list of vari
+> ables 
+.                                                 if ${exception_ctries} local 
+> lv ${`u'_upr_exep}
+253.                                                 else local lv ${`u'_upr_no
+> rm} 
+254.                                                 
+.                                                 *last definition of total inc
+> ome  
+.                                                 cap drop auxtot_`u'
+255.                                                 qui egen auxtot_`u' = rowt
+> otal(`lv')
+256.                                                 
+.                                                 *generate factor income here 
+.                                                 if ${exception_ctries} {
+257.                                                         local fac_vars `u'
+> _pre_wag_sca ///
+>                                                                 `u'_pre_mir_s
+> ca `u'_upr_2 
+258.                                                 } 
+259.                                                 else{
+260.                                                         local fac_vars `u'
+> _pre_wag_sca ///
+>                                                                 `u'_pre_mix_s
+> ca `u'_pre_imp_sca `u'_upr_2 
+261.                                                 } 
+262.                                                 cap drop `u'_pre_fac_sca 
+263.                                                 qui egen `u'_pre_fac_sca =
+>  rowtotal(`fac_vars') 
+264.                                         }
+265.                                 }
+266.                                 
+.                                 //6. Study the incidence of scaling ---------
+> ------------------
+.                                 //call graph parameters 
+.                                 global aux_part  ""graph_basics"" 
+267.                                 qui do "code/Stata/auxiliar/aux_general.do
+> "
+268.                                 
+.                                 *loop over units (pre-tax so far) 
+.                                 *to make it faster, we only graph the chosen 
+> unit 
+.                                 foreach u in "$unit_list" { 
+269.                                         
+.                                         *gen corresponding total
+.                                         cap drop `u'_totaux
+270.                                         qui egen `u'_totaux = rowtotal(`de
+> c_`u'_`c'_`y'')
+271.                                         
+.                                         *total or adult pop?
+.                                         if inlist("`u'", "pch") local pop "to
+> t"
+272.                                         else local pop "adu"
+273.                                         
+.                                         *get cumulative distribution 
+.                                         local w "raw"
+274.                                         qui sort `u'_totaux
+275.                                         qui cap drop F_`w'_`u'
+276.                                         qui     gen F_`w'_`u' = sum(freq_`
+> w'_`pop')
+277.                                         cap drop ftile_`w'_`u' 
+278.                                         qui egen ftile_`w'_`u' = cut(F_`w'
+> _`u'), ///
+>                                                 at(0(0.02)0.981 0.99(0.01)1)
+279.                                         *qui replace ftile_`w'_`u' = 0.99 
+> if missing(ftile_`w'_`u')
+.                                         
+.                                         *prepare lines for graph 
+.                                         local i3n_`u'_`c'_`y' = 2
+280.                                         *1st for total income 
+.                                         local totinc_l (line `u'_totaux_a fti
+> le_`w'_`u', ///
+>                                                 lcolor(black) lwidth(thin) lp
+> attern(dash)) 
+281.                                         local leg_i3_`u'_`c'_`y' label(1 "
+> Equality line")
+282.                                         qui cap drop `u'_totaux_a 
+283.                                         foreach v in `u'_totaux `dec_`u'_`
+> c'_`y'' {
+284.                                                 if "`u'" == "ind" local sh
+>  =  substr("`v'", 5, 3)
+285.                                                 else local sh =  substr("`
+> v'", 9, 3)
+286.                                                 qui cap drop `v'_a
+287.                                                 qui sum `v' [w = `weight_r
+> aw'], meanonly
+288.                                                 qui gen `v'_a = (`v' / r(s
+> um)) * `weight_raw' * 100
+289.                                                 qui replace `v'_a = sum(`v
+> '_a)
+290.                                                 if !inlist("`v'", "`u'_tot
+> aux") {
+291.                                                         local il_`u'_`c'_`
+> y' `il_`u'_`c'_`y'' ///
+>                                                         (connected `v'_a ftil
+> e_`w'_`u', ///
+>                                                         lcolor(${c_`sh'}) mco
+> lor(${c_`sh'}) msize(tiny) ///
+>                                                         lwidth(thick) mfcolor
+> (${c_`sh'})) 
+292.                                                         local leg_i3_`u'_`
+> c'_`y' `leg_i3_`u'_`c'_`y'' ///
+>                                                                 label(`i3n_`u
+> '_`c'_`y'' "${lab_`sh'_`lang'}")
+293.                                                         local i3n_`u'_`c'_
+> `y' = `i3n_`u'_`c'_`y'' + 1
+294.                                                 } 
+295.                                         }               
+296.                                         local leg_i3_`u'_`c'_`y' `leg_i3_`
+> u'_`c'_`y'' ///
+>                                                 label(`i3n_`u'_`c'_`y'' "Tota
+> l inc.") 
+297.                         
+.                                         //collapse and graph 
+.                                         preserve  
+298.                                                 qui collapse (max) *_a, by
+> (ftile_`w'_`u')
+299.                                                 qui replace ftile_`w'_`u' 
+> = ftile_`w'_`u' * 100 + 1
+300.                                                 
+.                                                 //check consistency 
+.                                                 foreach v in `dec_`u'_`c'_`y'
+> ' {
+301.                                                         cap drop `v'_t
+302.                                                         qui gen `v'_t = su
+> m(`v'_a)
+303.                                                 }
+304.                                                         
+.                                                 //graph as incidence of scali
+> ng         
+.                                                 graph twoway (function y=x, r
+> ange(0 100) ///
+>                                                         lcolor(black)) `il_`u
+> '_`c'_`y'' ///
+>                                                         `totinc_l', /*title("
+> `c' - `y'")*/ ///
+>                                                         ytitle("Cumulative in
+> come share") ///
+>                                                         xtitle("Percentile") 
+> ///
+>                                                         xlabel(0(10)100 , $xl
+> ab_opts) ///
+>                                                         ylabel(0(20)100, $yla
+> b_opts) ///
+>                                                         $graph_scheme /*legen
+> d(`leg_i3_`u'_`c'_`y'') ///
+>                                                         legend(ring(1) pos(3)
+>  col(1)) */ ///
+>                                                         legend(off) ysize(5.5
+> ) xsize(5.5) ///
+>                                                         aspectratio(1) 
+305.                                                 qui graph export ///
+>                                                         "output/figures/uprof
+> its/incidence-scal/`c'`y'_`u'.pdf", replace
+306.                                         restore 
+307.                                 }
+308.                         
+.                                 *save 
+.                                 qui save "`survey'", replace
+309.                                 
+.                                 //report scaled variables 
+.                                 *display as text "`c' `y' scaled variables: "
+>  _continue
+.                                 global checkvars ///
+>                                         "pre_wag pre_ben pre_cap pre_imp pre_
+> mix pre_mir"
+310.                                 if ("`scal_list_`c'_`y''" == " $checkvars"
+> ) ///
+>                                         local scal_list_`c'_`y' " all"
+311.                                 *display as result "`scal_list_`c'_`y''"
+.                                 
+.                         }
+312.                         else {
+313.                                 di as text "skipped, " _continue 
+314.                                 di as error "`misvar_`c'_`y'' " _continue
+315.                                 di as text "empty or missing"
+316.                         }       
+317.                 }
+318.                 *report if not found
+.                 else {
+319.                         di as text "skipped, `survey' not found"
+320.                 }
+321.         }
+322. }
+-------------------------------------------------------------------------------
+> -
+Rescaling and imputing ...
+-------------------------------------------------------------------------------
+> -
+COL 2000: skipped, intermediary_data/microdata/bfm_norep_pre/COL_2000_bfm_norep
+> _pre.dta not found
+COL 2001: skipped, intermediary_data/microdata/bfm_norep_pre/COL_2001_bfm_norep
+> _pre.dta not found
+COL 2002: skipped, intermediary_data/microdata/bfm_norep_pre/COL_2002_bfm_norep
+> _pre.dta not found
+COL 2003: skipped, intermediary_data/microdata/bfm_norep_pre/COL_2003_bfm_norep
+> _pre.dta not found
+COL 2004: skipped, intermediary_data/microdata/bfm_norep_pre/COL_2004_bfm_norep
+> _pre.dta not found
+COL 2005: skipped, intermediary_data/microdata/bfm_norep_pre/COL_2005_bfm_norep
+> _pre.dta not found
+COL 2006: skipped, intermediary_data/microdata/bfm_norep_pre/COL_2006_bfm_norep
+> _pre.dta not found
+COL 2007: skipped, intermediary_data/microdata/bfm_norep_pre/COL_2007_bfm_norep
+> _pre.dta not found
+COL 2008: skipped, intermediary_data/microdata/bfm_norep_pre/COL_2008_bfm_norep
+> _pre.dta not found
+COL 2009: skipped, intermediary_data/microdata/bfm_norep_pre/COL_2009_bfm_norep
+> _pre.dta not found
+COL 2010: skipped, intermediary_data/microdata/bfm_norep_pre/COL_2010_bfm_norep
+> _pre.dta not found
+COL 2011: skipped, intermediary_data/microdata/bfm_norep_pre/COL_2011_bfm_norep
+> _pre.dta not found
+COL 2012: skipped, intermediary_data/microdata/bfm_norep_pre/COL_2012_bfm_norep
+> _pre.dta not found
+COL 2013: skipped, intermediary_data/microdata/bfm_norep_pre/COL_2013_bfm_norep
+> _pre.dta not found
+COL 2014: skipped, intermediary_data/microdata/bfm_norep_pre/COL_2014_bfm_norep
+> _pre.dta not found
+COL 2015: skipped, intermediary_data/microdata/bfm_norep_pre/COL_2015_bfm_norep
+> _pre.dta not found
+COL 2016: skipped, intermediary_data/microdata/bfm_norep_pre/COL_2016_bfm_norep
+> _pre.dta not found
+COL 2017: skipped, intermediary_data/microdata/bfm_norep_pre/COL_2017_bfm_norep
+> _pre.dta not found
+COL 2018: skipped, intermediary_data/microdata/bfm_norep_pre/COL_2018_bfm_norep
+> _pre.dta not found
+COL 2019: skipped, intermediary_data/microdata/bfm_norep_pre/COL_2019_bfm_norep
+> _pre.dta not found
+COL 2020: skipped, intermediary_data/microdata/bfm_norep_pre/COL_2020_bfm_norep
+> _pre.dta not found
+COL 2021: skipped, intermediary_data/microdata/bfm_norep_pre/COL_2021_bfm_norep
+> _pre.dta not found
+COL 2022: skipped, intermediary_data/microdata/bfm_norep_pre/COL_2022_bfm_norep
+> _pre.dta not found
+COL 2023: skipped, intermediary_data/microdata/bfm_norep_pre/COL_2023_bfm_norep
+> _pre.dta not found
+COL 2024: skipped, intermediary_data/microdata/bfm_norep_pre/COL_2024_bfm_norep
+> _pre.dta not found
+ARG 2000: skipped, intermediary_data/microdata/bfm_norep_pre/ARG_2000_bfm_norep
+> _pre.dta not found
+ARG 2001: skipped, intermediary_data/microdata/bfm_norep_pre/ARG_2001_bfm_norep
+> _pre.dta not found
+ARG 2002: skipped, intermediary_data/microdata/bfm_norep_pre/ARG_2002_bfm_norep
+> _pre.dta not found
+ARG 2003: skipped, intermediary_data/microdata/bfm_norep_pre/ARG_2003_bfm_norep
+> _pre.dta not found
+ARG 2004: skipped, intermediary_data/microdata/bfm_norep_pre/ARG_2004_bfm_norep
+> _pre.dta not found
+ARG 2005: skipped, intermediary_data/microdata/bfm_norep_pre/ARG_2005_bfm_norep
+> _pre.dta not found
+ARG 2006: skipped, intermediary_data/microdata/bfm_norep_pre/ARG_2006_bfm_norep
+> _pre.dta not found
+ARG 2007: skipped, intermediary_data/microdata/bfm_norep_pre/ARG_2007_bfm_norep
+> _pre.dta not found
+ARG 2008: skipped, intermediary_data/microdata/bfm_norep_pre/ARG_2008_bfm_norep
+> _pre.dta not found
+ARG 2009: skipped, intermediary_data/microdata/bfm_norep_pre/ARG_2009_bfm_norep
+> _pre.dta not found
+ARG 2010: skipped, intermediary_data/microdata/bfm_norep_pre/ARG_2010_bfm_norep
+> _pre.dta not found
+ARG 2011: skipped, intermediary_data/microdata/bfm_norep_pre/ARG_2011_bfm_norep
+> _pre.dta not found
+ARG 2012: skipped, intermediary_data/microdata/bfm_norep_pre/ARG_2012_bfm_norep
+> _pre.dta not found
+ARG 2013: skipped, intermediary_data/microdata/bfm_norep_pre/ARG_2013_bfm_norep
+> _pre.dta not found
+ARG 2014: skipped, intermediary_data/microdata/bfm_norep_pre/ARG_2014_bfm_norep
+> _pre.dta not found
+ARG 2015: skipped, intermediary_data/microdata/bfm_norep_pre/ARG_2015_bfm_norep
+> _pre.dta not found
+ARG 2016: skipped, intermediary_data/microdata/bfm_norep_pre/ARG_2016_bfm_norep
+> _pre.dta not found
+ARG 2017: skipped, intermediary_data/microdata/bfm_norep_pre/ARG_2017_bfm_norep
+> _pre.dta not found
+ARG 2018: skipped, intermediary_data/microdata/bfm_norep_pre/ARG_2018_bfm_norep
+> _pre.dta not found
+ARG 2019: skipped, intermediary_data/microdata/bfm_norep_pre/ARG_2019_bfm_norep
+> _pre.dta not found
+ARG 2020: skipped, intermediary_data/microdata/bfm_norep_pre/ARG_2020_bfm_norep
+> _pre.dta not found
+ARG 2021: skipped, intermediary_data/microdata/bfm_norep_pre/ARG_2021_bfm_norep
+> _pre.dta not found
+ARG 2022: skipped, intermediary_data/microdata/bfm_norep_pre/ARG_2022_bfm_norep
+> _pre.dta not found
+ARG 2023: skipped, intermediary_data/microdata/bfm_norep_pre/ARG_2023_bfm_norep
+> _pre.dta not found
+ARG 2024: skipped, intermediary_data/microdata/bfm_norep_pre/ARG_2024_bfm_norep
+> _pre.dta not found
+PER 2000: skipped, intermediary_data/microdata/bfm_norep_pre/PER_2000_bfm_norep
+> _pre.dta not found
+PER 2001: skipped, intermediary_data/microdata/bfm_norep_pre/PER_2001_bfm_norep
+> _pre.dta not found
+PER 2002: skipped, intermediary_data/microdata/bfm_norep_pre/PER_2002_bfm_norep
+> _pre.dta not found
+PER 2003: skipped, intermediary_data/microdata/bfm_norep_pre/PER_2003_bfm_norep
+> _pre.dta not found
+PER 2004: skipped, intermediary_data/microdata/bfm_norep_pre/PER_2004_bfm_norep
+> _pre.dta not found
+PER 2005: skipped, intermediary_data/microdata/bfm_norep_pre/PER_2005_bfm_norep
+> _pre.dta not found
+PER 2006: skipped, intermediary_data/microdata/bfm_norep_pre/PER_2006_bfm_norep
+> _pre.dta not found
+PER 2007: skipped, intermediary_data/microdata/bfm_norep_pre/PER_2007_bfm_norep
+> _pre.dta not found
+PER 2008: skipped, intermediary_data/microdata/bfm_norep_pre/PER_2008_bfm_norep
+> _pre.dta not found
+PER 2009: skipped, intermediary_data/microdata/bfm_norep_pre/PER_2009_bfm_norep
+> _pre.dta not found
+PER 2010: skipped, intermediary_data/microdata/bfm_norep_pre/PER_2010_bfm_norep
+> _pre.dta not found
+PER 2011: skipped, intermediary_data/microdata/bfm_norep_pre/PER_2011_bfm_norep
+> _pre.dta not found
+PER 2012: skipped, intermediary_data/microdata/bfm_norep_pre/PER_2012_bfm_norep
+> _pre.dta not found
+PER 2013: skipped, intermediary_data/microdata/bfm_norep_pre/PER_2013_bfm_norep
+> _pre.dta not found
+PER 2014: skipped, intermediary_data/microdata/bfm_norep_pre/PER_2014_bfm_norep
+> _pre.dta not found
+PER 2015: skipped, intermediary_data/microdata/bfm_norep_pre/PER_2015_bfm_norep
+> _pre.dta not found
+PER 2016: skipped, intermediary_data/microdata/bfm_norep_pre/PER_2016_bfm_norep
+> _pre.dta not found
+PER 2017: skipped, intermediary_data/microdata/bfm_norep_pre/PER_2017_bfm_norep
+> _pre.dta not found
+PER 2018: skipped, intermediary_data/microdata/bfm_norep_pre/PER_2018_bfm_norep
+> _pre.dta not found
+PER 2019: skipped, intermediary_data/microdata/bfm_norep_pre/PER_2019_bfm_norep
+> _pre.dta not found
+PER 2020: skipped, intermediary_data/microdata/bfm_norep_pre/PER_2020_bfm_norep
+> _pre.dta not found
+PER 2021: skipped, intermediary_data/microdata/bfm_norep_pre/PER_2021_bfm_norep
+> _pre.dta not found
+PER 2022: skipped, intermediary_data/microdata/bfm_norep_pre/PER_2022_bfm_norep
+> _pre.dta not found
+PER 2023: skipped, intermediary_data/microdata/bfm_norep_pre/PER_2023_bfm_norep
+> _pre.dta not found
+PER 2024: skipped, intermediary_data/microdata/bfm_norep_pre/PER_2024_bfm_norep
+> _pre.dta not found
+URY 2000: skipped, intermediary_data/microdata/bfm_norep_pre/URY_2000_bfm_norep
+> _pre.dta not found
+URY 2001: skipped, intermediary_data/microdata/bfm_norep_pre/URY_2001_bfm_norep
+> _pre.dta not found
+URY 2002: skipped, intermediary_data/microdata/bfm_norep_pre/URY_2002_bfm_norep
+> _pre.dta not found
+URY 2003: skipped, intermediary_data/microdata/bfm_norep_pre/URY_2003_bfm_norep
+> _pre.dta not found
+URY 2004: skipped, intermediary_data/microdata/bfm_norep_pre/URY_2004_bfm_norep
+> _pre.dta not found
+URY 2005: skipped, intermediary_data/microdata/bfm_norep_pre/URY_2005_bfm_norep
+> _pre.dta not found
+URY 2006: skipped, intermediary_data/microdata/bfm_norep_pre/URY_2006_bfm_norep
+> _pre.dta not found
+URY 2007: skipped, intermediary_data/microdata/bfm_norep_pre/URY_2007_bfm_norep
+> _pre.dta not found
+URY 2008: skipped, intermediary_data/microdata/bfm_norep_pre/URY_2008_bfm_norep
+> _pre.dta not found
+URY 2009: skipped, intermediary_data/microdata/bfm_norep_pre/URY_2009_bfm_norep
+> _pre.dta not found
+URY 2010: skipped, intermediary_data/microdata/bfm_norep_pre/URY_2010_bfm_norep
+> _pre.dta not found
+URY 2011: skipped, intermediary_data/microdata/bfm_norep_pre/URY_2011_bfm_norep
+> _pre.dta not found
+URY 2012: skipped, intermediary_data/microdata/bfm_norep_pre/URY_2012_bfm_norep
+> _pre.dta not found
+URY 2013: skipped, intermediary_data/microdata/bfm_norep_pre/URY_2013_bfm_norep
+> _pre.dta not found
+URY 2014: skipped, intermediary_data/microdata/bfm_norep_pre/URY_2014_bfm_norep
+> _pre.dta not found
+URY 2015: skipped, intermediary_data/microdata/bfm_norep_pre/URY_2015_bfm_norep
+> _pre.dta not found
+URY 2016: skipped, intermediary_data/microdata/bfm_norep_pre/URY_2016_bfm_norep
+> _pre.dta not found
+URY 2017: skipped, intermediary_data/microdata/bfm_norep_pre/URY_2017_bfm_norep
+> _pre.dta not found
+URY 2018: skipped, intermediary_data/microdata/bfm_norep_pre/URY_2018_bfm_norep
+> _pre.dta not found
+URY 2019: skipped, intermediary_data/microdata/bfm_norep_pre/URY_2019_bfm_norep
+> _pre.dta not found
+URY 2020: skipped, intermediary_data/microdata/bfm_norep_pre/URY_2020_bfm_norep
+> _pre.dta not found
+URY 2021: skipped, intermediary_data/microdata/bfm_norep_pre/URY_2021_bfm_norep
+> _pre.dta not found
+URY 2022: skipped, intermediary_data/microdata/bfm_norep_pre/URY_2022_bfm_norep
+> _pre.dta not found
+URY 2023: skipped, intermediary_data/microdata/bfm_norep_pre/URY_2023_bfm_norep
+> _pre.dta not found
+URY 2024: skipped, intermediary_data/microdata/bfm_norep_pre/URY_2024_bfm_norep
+> _pre.dta not found
+CRI 2000: skipped, intermediary_data/microdata/bfm_norep_pre/CRI_2000_bfm_norep
+> _pre.dta not found
+CRI 2001: skipped, intermediary_data/microdata/bfm_norep_pre/CRI_2001_bfm_norep
+> _pre.dta not found
+CRI 2002: skipped, intermediary_data/microdata/bfm_norep_pre/CRI_2002_bfm_norep
+> _pre.dta not found
+CRI 2003: skipped, intermediary_data/microdata/bfm_norep_pre/CRI_2003_bfm_norep
+> _pre.dta not found
+CRI 2004: skipped, intermediary_data/microdata/bfm_norep_pre/CRI_2004_bfm_norep
+> _pre.dta not found
+CRI 2005: skipped, intermediary_data/microdata/bfm_norep_pre/CRI_2005_bfm_norep
+> _pre.dta not found
+CRI 2006: skipped, intermediary_data/microdata/bfm_norep_pre/CRI_2006_bfm_norep
+> _pre.dta not found
+CRI 2007: skipped, intermediary_data/microdata/bfm_norep_pre/CRI_2007_bfm_norep
+> _pre.dta not found
+CRI 2008: skipped, intermediary_data/microdata/bfm_norep_pre/CRI_2008_bfm_norep
+> _pre.dta not found
+CRI 2009: skipped, intermediary_data/microdata/bfm_norep_pre/CRI_2009_bfm_norep
+> _pre.dta not found
+CRI 2010: skipped, intermediary_data/microdata/bfm_norep_pre/CRI_2010_bfm_norep
+> _pre.dta not found
+CRI 2011: skipped, intermediary_data/microdata/bfm_norep_pre/CRI_2011_bfm_norep
+> _pre.dta not found
+CRI 2012: skipped, intermediary_data/microdata/bfm_norep_pre/CRI_2012_bfm_norep
+> _pre.dta not found
+CRI 2013: skipped, intermediary_data/microdata/bfm_norep_pre/CRI_2013_bfm_norep
+> _pre.dta not found
+CRI 2014: skipped, intermediary_data/microdata/bfm_norep_pre/CRI_2014_bfm_norep
+> _pre.dta not found
+CRI 2015: skipped, intermediary_data/microdata/bfm_norep_pre/CRI_2015_bfm_norep
+> _pre.dta not found
+CRI 2016: skipped, intermediary_data/microdata/bfm_norep_pre/CRI_2016_bfm_norep
+> _pre.dta not found
+CRI 2017: skipped, intermediary_data/microdata/bfm_norep_pre/CRI_2017_bfm_norep
+> _pre.dta not found
+CRI 2018: skipped, intermediary_data/microdata/bfm_norep_pre/CRI_2018_bfm_norep
+> _pre.dta not found
+CRI 2019: skipped, intermediary_data/microdata/bfm_norep_pre/CRI_2019_bfm_norep
+> _pre.dta not found
+CRI 2020: skipped, intermediary_data/microdata/bfm_norep_pre/CRI_2020_bfm_norep
+> _pre.dta not found
+CRI 2021: skipped, intermediary_data/microdata/bfm_norep_pre/CRI_2021_bfm_norep
+> _pre.dta not found
+CRI 2022: skipped, intermediary_data/microdata/bfm_norep_pre/CRI_2022_bfm_norep
+> _pre.dta not found
+CRI 2023: skipped, intermediary_data/microdata/bfm_norep_pre/CRI_2023_bfm_norep
+> _pre.dta not found
+CRI 2024: skipped, intermediary_data/microdata/bfm_norep_pre/CRI_2024_bfm_norep
+> _pre.dta not found
+ECU 2000: skipped, intermediary_data/microdata/bfm_norep_pre/ECU_2000_bfm_norep
+> _pre.dta not found
+ECU 2001: skipped, intermediary_data/microdata/bfm_norep_pre/ECU_2001_bfm_norep
+> _pre.dta not found
+ECU 2002: skipped, intermediary_data/microdata/bfm_norep_pre/ECU_2002_bfm_norep
+> _pre.dta not found
+ECU 2003: skipped, intermediary_data/microdata/bfm_norep_pre/ECU_2003_bfm_norep
+> _pre.dta not found
+ECU 2004: skipped, intermediary_data/microdata/bfm_norep_pre/ECU_2004_bfm_norep
+> _pre.dta not found
+ECU 2005: skipped, intermediary_data/microdata/bfm_norep_pre/ECU_2005_bfm_norep
+> _pre.dta not found
+ECU 2006: skipped, intermediary_data/microdata/bfm_norep_pre/ECU_2006_bfm_norep
+> _pre.dta not found
+ECU 2007: skipped, intermediary_data/microdata/bfm_norep_pre/ECU_2007_bfm_norep
+> _pre.dta not found
+ECU 2008: skipped, intermediary_data/microdata/bfm_norep_pre/ECU_2008_bfm_norep
+> _pre.dta not found
+ECU 2009: skipped, intermediary_data/microdata/bfm_norep_pre/ECU_2009_bfm_norep
+> _pre.dta not found
+ECU 2010: skipped, intermediary_data/microdata/bfm_norep_pre/ECU_2010_bfm_norep
+> _pre.dta not found
+ECU 2011: skipped, intermediary_data/microdata/bfm_norep_pre/ECU_2011_bfm_norep
+> _pre.dta not found
+ECU 2012: skipped, intermediary_data/microdata/bfm_norep_pre/ECU_2012_bfm_norep
+> _pre.dta not found
+ECU 2013: skipped, intermediary_data/microdata/bfm_norep_pre/ECU_2013_bfm_norep
+> _pre.dta not found
+ECU 2014: skipped, intermediary_data/microdata/bfm_norep_pre/ECU_2014_bfm_norep
+> _pre.dta not found
+ECU 2015: skipped, intermediary_data/microdata/bfm_norep_pre/ECU_2015_bfm_norep
+> _pre.dta not found
+ECU 2016: skipped, intermediary_data/microdata/bfm_norep_pre/ECU_2016_bfm_norep
+> _pre.dta not found
+ECU 2017: skipped, intermediary_data/microdata/bfm_norep_pre/ECU_2017_bfm_norep
+> _pre.dta not found
+ECU 2018: skipped, intermediary_data/microdata/bfm_norep_pre/ECU_2018_bfm_norep
+> _pre.dta not found
+ECU 2019: skipped, intermediary_data/microdata/bfm_norep_pre/ECU_2019_bfm_norep
+> _pre.dta not found
+ECU 2020: skipped, intermediary_data/microdata/bfm_norep_pre/ECU_2020_bfm_norep
+> _pre.dta not found
+ECU 2021: skipped, intermediary_data/microdata/bfm_norep_pre/ECU_2021_bfm_norep
+> _pre.dta not found
+ECU 2022: skipped, intermediary_data/microdata/bfm_norep_pre/ECU_2022_bfm_norep
+> _pre.dta not found
+ECU 2023: skipped, intermediary_data/microdata/bfm_norep_pre/ECU_2023_bfm_norep
+> _pre.dta not found
+ECU 2024: skipped, intermediary_data/microdata/bfm_norep_pre/ECU_2024_bfm_norep
+> _pre.dta not found
+CHL 2000: skipped, intermediary_data/microdata/bfm_norep_pre/CHL_2000_bfm_norep
+> _pre.dta not found
+CHL 2001: skipped, intermediary_data/microdata/bfm_norep_pre/CHL_2001_bfm_norep
+> _pre.dta not found
+CHL 2002: skipped, intermediary_data/microdata/bfm_norep_pre/CHL_2002_bfm_norep
+> _pre.dta not found
+CHL 2003: skipped, intermediary_data/microdata/bfm_norep_pre/CHL_2003_bfm_norep
+> _pre.dta not found
+CHL 2004: skipped, intermediary_data/microdata/bfm_norep_pre/CHL_2004_bfm_norep
+> _pre.dta not found
+CHL 2005: skipped, intermediary_data/microdata/bfm_norep_pre/CHL_2005_bfm_norep
+> _pre.dta not found
+CHL 2006: skipped, intermediary_data/microdata/bfm_norep_pre/CHL_2006_bfm_norep
+> _pre.dta not found
+CHL 2007: skipped, intermediary_data/microdata/bfm_norep_pre/CHL_2007_bfm_norep
+> _pre.dta not found
+CHL 2008: skipped, intermediary_data/microdata/bfm_norep_pre/CHL_2008_bfm_norep
+> _pre.dta not found
+CHL 2009: skipped, intermediary_data/microdata/bfm_norep_pre/CHL_2009_bfm_norep
+> _pre.dta not found
+CHL 2010: skipped, intermediary_data/microdata/bfm_norep_pre/CHL_2010_bfm_norep
+> _pre.dta not found
+CHL 2011: skipped, intermediary_data/microdata/bfm_norep_pre/CHL_2011_bfm_norep
+> _pre.dta not found
+CHL 2012: skipped, intermediary_data/microdata/bfm_norep_pre/CHL_2012_bfm_norep
+> _pre.dta not found
+CHL 2013: skipped, intermediary_data/microdata/bfm_norep_pre/CHL_2013_bfm_norep
+> _pre.dta not found
+CHL 2014: skipped, intermediary_data/microdata/bfm_norep_pre/CHL_2014_bfm_norep
+> _pre.dta not found
+CHL 2015: skipped, intermediary_data/microdata/bfm_norep_pre/CHL_2015_bfm_norep
+> _pre.dta not found
+CHL 2016: skipped, intermediary_data/microdata/bfm_norep_pre/CHL_2016_bfm_norep
+> _pre.dta not found
+CHL 2017: skipped, intermediary_data/microdata/bfm_norep_pre/CHL_2017_bfm_norep
+> _pre.dta not found
+CHL 2018: skipped, intermediary_data/microdata/bfm_norep_pre/CHL_2018_bfm_norep
+> _pre.dta not found
+CHL 2019: skipped, intermediary_data/microdata/bfm_norep_pre/CHL_2019_bfm_norep
+> _pre.dta not found
+CHL 2020: skipped, intermediary_data/microdata/bfm_norep_pre/CHL_2020_bfm_norep
+> _pre.dta not found
+CHL 2021: skipped, intermediary_data/microdata/bfm_norep_pre/CHL_2021_bfm_norep
+> _pre.dta not found
+CHL 2022: skipped, intermediary_data/microdata/bfm_norep_pre/CHL_2022_bfm_norep
+> _pre.dta not found
+CHL 2023: skipped, intermediary_data/microdata/bfm_norep_pre/CHL_2023_bfm_norep
+> _pre.dta not found
+CHL 2024: skipped, intermediary_data/microdata/bfm_norep_pre/CHL_2024_bfm_norep
+> _pre.dta not found
+BRA 2000: skipped, intermediary_data/microdata/bfm_norep_pre/BRA_2000_bfm_norep
+> _pre.dta not found
+BRA 2001: skipped, intermediary_data/microdata/bfm_norep_pre/BRA_2001_bfm_norep
+> _pre.dta not found
+BRA 2002: skipped, intermediary_data/microdata/bfm_norep_pre/BRA_2002_bfm_norep
+> _pre.dta not found
+BRA 2003: skipped, intermediary_data/microdata/bfm_norep_pre/BRA_2003_bfm_norep
+> _pre.dta not found
+BRA 2004: skipped, intermediary_data/microdata/bfm_norep_pre/BRA_2004_bfm_norep
+> _pre.dta not found
+BRA 2005: skipped, intermediary_data/microdata/bfm_norep_pre/BRA_2005_bfm_norep
+> _pre.dta not found
+BRA 2006: skipped, intermediary_data/microdata/bfm_norep_pre/BRA_2006_bfm_norep
+> _pre.dta not found
+BRA 2007: skipped, intermediary_data/microdata/bfm_norep_pre/BRA_2007_bfm_norep
+> _pre.dta not found
+BRA 2008: skipped, intermediary_data/microdata/bfm_norep_pre/BRA_2008_bfm_norep
+> _pre.dta not found
+BRA 2009: skipped, intermediary_data/microdata/bfm_norep_pre/BRA_2009_bfm_norep
+> _pre.dta not found
+BRA 2010: skipped, intermediary_data/microdata/bfm_norep_pre/BRA_2010_bfm_norep
+> _pre.dta not found
+BRA 2011: skipped, intermediary_data/microdata/bfm_norep_pre/BRA_2011_bfm_norep
+> _pre.dta not found
+BRA 2012: skipped, intermediary_data/microdata/bfm_norep_pre/BRA_2012_bfm_norep
+> _pre.dta not found
+BRA 2013: skipped, intermediary_data/microdata/bfm_norep_pre/BRA_2013_bfm_norep
+> _pre.dta not found
+BRA 2014: skipped, intermediary_data/microdata/bfm_norep_pre/BRA_2014_bfm_norep
+> _pre.dta not found
+BRA 2015: skipped, intermediary_data/microdata/bfm_norep_pre/BRA_2015_bfm_norep
+> _pre.dta not found
+BRA 2016: skipped, intermediary_data/microdata/bfm_norep_pre/BRA_2016_bfm_norep
+> _pre.dta not found
+BRA 2017: skipped, intermediary_data/microdata/bfm_norep_pre/BRA_2017_bfm_norep
+> _pre.dta not found
+BRA 2018: skipped, intermediary_data/microdata/bfm_norep_pre/BRA_2018_bfm_norep
+> _pre.dta not found
+BRA 2019: skipped, intermediary_data/microdata/bfm_norep_pre/BRA_2019_bfm_norep
+> _pre.dta not found
+BRA 2020: skipped, intermediary_data/microdata/bfm_norep_pre/BRA_2020_bfm_norep
+> _pre.dta not found
+BRA 2021: skipped, intermediary_data/microdata/bfm_norep_pre/BRA_2021_bfm_norep
+> _pre.dta not found
+BRA 2022: skipped, intermediary_data/microdata/bfm_norep_pre/BRA_2022_bfm_norep
+> _pre.dta not found
+BRA 2023: skipped, intermediary_data/microdata/bfm_norep_pre/BRA_2023_bfm_norep
+> _pre.dta not found
+BRA 2024: skipped, intermediary_data/microdata/bfm_norep_pre/BRA_2024_bfm_norep
+> _pre.dta not found
+SLV 2000: skipped, intermediary_data/microdata/bfm_norep_pre/SLV_2000_bfm_norep
+> _pre.dta not found
+SLV 2001: skipped, intermediary_data/microdata/bfm_norep_pre/SLV_2001_bfm_norep
+> _pre.dta not found
+SLV 2002: skipped, intermediary_data/microdata/bfm_norep_pre/SLV_2002_bfm_norep
+> _pre.dta not found
+SLV 2003: skipped, intermediary_data/microdata/bfm_norep_pre/SLV_2003_bfm_norep
+> _pre.dta not found
+SLV 2004: skipped, intermediary_data/microdata/bfm_norep_pre/SLV_2004_bfm_norep
+> _pre.dta not found
+SLV 2005: skipped, intermediary_data/microdata/bfm_norep_pre/SLV_2005_bfm_norep
+> _pre.dta not found
+SLV 2006: skipped, intermediary_data/microdata/bfm_norep_pre/SLV_2006_bfm_norep
+> _pre.dta not found
+SLV 2007: skipped, intermediary_data/microdata/bfm_norep_pre/SLV_2007_bfm_norep
+> _pre.dta not found
+SLV 2008: skipped, intermediary_data/microdata/bfm_norep_pre/SLV_2008_bfm_norep
+> _pre.dta not found
+SLV 2009: skipped, intermediary_data/microdata/bfm_norep_pre/SLV_2009_bfm_norep
+> _pre.dta not found
+SLV 2010: skipped, intermediary_data/microdata/bfm_norep_pre/SLV_2010_bfm_norep
+> _pre.dta not found
+SLV 2011: skipped, intermediary_data/microdata/bfm_norep_pre/SLV_2011_bfm_norep
+> _pre.dta not found
+SLV 2012: skipped, intermediary_data/microdata/bfm_norep_pre/SLV_2012_bfm_norep
+> _pre.dta not found
+SLV 2013: skipped, intermediary_data/microdata/bfm_norep_pre/SLV_2013_bfm_norep
+> _pre.dta not found
+SLV 2014: skipped, intermediary_data/microdata/bfm_norep_pre/SLV_2014_bfm_norep
+> _pre.dta not found
+SLV 2015: skipped, intermediary_data/microdata/bfm_norep_pre/SLV_2015_bfm_norep
+> _pre.dta not found
+SLV 2016: skipped, intermediary_data/microdata/bfm_norep_pre/SLV_2016_bfm_norep
+> _pre.dta not found
+SLV 2017: skipped, intermediary_data/microdata/bfm_norep_pre/SLV_2017_bfm_norep
+> _pre.dta not found
+SLV 2018: skipped, intermediary_data/microdata/bfm_norep_pre/SLV_2018_bfm_norep
+> _pre.dta not found
+SLV 2019: skipped, intermediary_data/microdata/bfm_norep_pre/SLV_2019_bfm_norep
+> _pre.dta not found
+SLV 2020: skipped, intermediary_data/microdata/bfm_norep_pre/SLV_2020_bfm_norep
+> _pre.dta not found
+SLV 2021: skipped, intermediary_data/microdata/bfm_norep_pre/SLV_2021_bfm_norep
+> _pre.dta not found
+SLV 2022: skipped, intermediary_data/microdata/bfm_norep_pre/SLV_2022_bfm_norep
+> _pre.dta not found
+SLV 2023: skipped, intermediary_data/microdata/bfm_norep_pre/SLV_2023_bfm_norep
+> _pre.dta not found
+SLV 2024: skipped, intermediary_data/microdata/bfm_norep_pre/SLV_2024_bfm_norep
+> _pre.dta not found
+MEX 2000: skipped, intermediary_data/microdata/bfm_norep_pre/MEX_2000_bfm_norep
+> _pre.dta not found
+MEX 2001: skipped, intermediary_data/microdata/bfm_norep_pre/MEX_2001_bfm_norep
+> _pre.dta not found
+MEX 2002: skipped, intermediary_data/microdata/bfm_norep_pre/MEX_2002_bfm_norep
+> _pre.dta not found
+MEX 2003: skipped, intermediary_data/microdata/bfm_norep_pre/MEX_2003_bfm_norep
+> _pre.dta not found
+MEX 2004: skipped, intermediary_data/microdata/bfm_norep_pre/MEX_2004_bfm_norep
+> _pre.dta not found
+MEX 2005: skipped, intermediary_data/microdata/bfm_norep_pre/MEX_2005_bfm_norep
+> _pre.dta not found
+MEX 2006: skipped, intermediary_data/microdata/bfm_norep_pre/MEX_2006_bfm_norep
+> _pre.dta not found
+MEX 2007: skipped, intermediary_data/microdata/bfm_norep_pre/MEX_2007_bfm_norep
+> _pre.dta not found
+MEX 2008: skipped, intermediary_data/microdata/bfm_norep_pre/MEX_2008_bfm_norep
+> _pre.dta not found
+MEX 2009: skipped, intermediary_data/microdata/bfm_norep_pre/MEX_2009_bfm_norep
+> _pre.dta not found
+MEX 2010: skipped, intermediary_data/microdata/bfm_norep_pre/MEX_2010_bfm_norep
+> _pre.dta not found
+MEX 2011: skipped, intermediary_data/microdata/bfm_norep_pre/MEX_2011_bfm_norep
+> _pre.dta not found
+MEX 2012: skipped, intermediary_data/microdata/bfm_norep_pre/MEX_2012_bfm_norep
+> _pre.dta not found
+MEX 2013: skipped, intermediary_data/microdata/bfm_norep_pre/MEX_2013_bfm_norep
+> _pre.dta not found
+MEX 2014: skipped, intermediary_data/microdata/bfm_norep_pre/MEX_2014_bfm_norep
+> _pre.dta not found
+MEX 2015: skipped, intermediary_data/microdata/bfm_norep_pre/MEX_2015_bfm_norep
+> _pre.dta not found
+MEX 2016: skipped, intermediary_data/microdata/bfm_norep_pre/MEX_2016_bfm_norep
+> _pre.dta not found
+MEX 2017: skipped, intermediary_data/microdata/bfm_norep_pre/MEX_2017_bfm_norep
+> _pre.dta not found
+MEX 2018: skipped, intermediary_data/microdata/bfm_norep_pre/MEX_2018_bfm_norep
+> _pre.dta not found
+MEX 2019: skipped, intermediary_data/microdata/bfm_norep_pre/MEX_2019_bfm_norep
+> _pre.dta not found
+MEX 2020: skipped, intermediary_data/microdata/bfm_norep_pre/MEX_2020_bfm_norep
+> _pre.dta not found
+MEX 2021: skipped, intermediary_data/microdata/bfm_norep_pre/MEX_2021_bfm_norep
+> _pre.dta not found
+MEX 2022: skipped, intermediary_data/microdata/bfm_norep_pre/MEX_2022_bfm_norep
+> _pre.dta not found
+MEX 2023: skipped, intermediary_data/microdata/bfm_norep_pre/MEX_2023_bfm_norep
+> _pre.dta not found
+MEX 2024: skipped, intermediary_data/microdata/bfm_norep_pre/MEX_2024_bfm_norep
+> _pre.dta not found
+DOM 2000: skipped, intermediary_data/microdata/bfm_norep_pre/DOM_2000_bfm_norep
+> _pre.dta not found
+DOM 2001: skipped, intermediary_data/microdata/bfm_norep_pre/DOM_2001_bfm_norep
+> _pre.dta not found
+DOM 2002: skipped, intermediary_data/microdata/bfm_norep_pre/DOM_2002_bfm_norep
+> _pre.dta not found
+DOM 2003: skipped, intermediary_data/microdata/bfm_norep_pre/DOM_2003_bfm_norep
+> _pre.dta not found
+DOM 2004: skipped, intermediary_data/microdata/bfm_norep_pre/DOM_2004_bfm_norep
+> _pre.dta not found
+DOM 2005: skipped, intermediary_data/microdata/bfm_norep_pre/DOM_2005_bfm_norep
+> _pre.dta not found
+DOM 2006: skipped, intermediary_data/microdata/bfm_norep_pre/DOM_2006_bfm_norep
+> _pre.dta not found
+DOM 2007: skipped, intermediary_data/microdata/bfm_norep_pre/DOM_2007_bfm_norep
+> _pre.dta not found
+DOM 2008: skipped, intermediary_data/microdata/bfm_norep_pre/DOM_2008_bfm_norep
+> _pre.dta not found
+DOM 2009: skipped, intermediary_data/microdata/bfm_norep_pre/DOM_2009_bfm_norep
+> _pre.dta not found
+DOM 2010: skipped, intermediary_data/microdata/bfm_norep_pre/DOM_2010_bfm_norep
+> _pre.dta not found
+DOM 2011: skipped, intermediary_data/microdata/bfm_norep_pre/DOM_2011_bfm_norep
+> _pre.dta not found
+DOM 2012: skipped, intermediary_data/microdata/bfm_norep_pre/DOM_2012_bfm_norep
+> _pre.dta not found
+DOM 2013: skipped, intermediary_data/microdata/bfm_norep_pre/DOM_2013_bfm_norep
+> _pre.dta not found
+DOM 2014: skipped, intermediary_data/microdata/bfm_norep_pre/DOM_2014_bfm_norep
+> _pre.dta not found
+DOM 2015: skipped, intermediary_data/microdata/bfm_norep_pre/DOM_2015_bfm_norep
+> _pre.dta not found
+DOM 2016: skipped, intermediary_data/microdata/bfm_norep_pre/DOM_2016_bfm_norep
+> _pre.dta not found
+DOM 2017: skipped, intermediary_data/microdata/bfm_norep_pre/DOM_2017_bfm_norep
+> _pre.dta not found
+DOM 2018: skipped, intermediary_data/microdata/bfm_norep_pre/DOM_2018_bfm_norep
+> _pre.dta not found
+DOM 2019: skipped, intermediary_data/microdata/bfm_norep_pre/DOM_2019_bfm_norep
+> _pre.dta not found
+DOM 2020: skipped, intermediary_data/microdata/bfm_norep_pre/DOM_2020_bfm_norep
+> _pre.dta not found
+DOM 2021: skipped, intermediary_data/microdata/bfm_norep_pre/DOM_2021_bfm_norep
+> _pre.dta not found
+DOM 2022: skipped, intermediary_data/microdata/bfm_norep_pre/DOM_2022_bfm_norep
+> _pre.dta not found
+DOM 2023: skipped, intermediary_data/microdata/bfm_norep_pre/DOM_2023_bfm_norep
+> _pre.dta not found
+DOM 2024: skipped, intermediary_data/microdata/bfm_norep_pre/DOM_2024_bfm_norep
+> _pre.dta not found
+
+. 
+.                                 
+.                                 
+.                                 
+.                                 
+.                                 
+.                                 
+.                                 
+.                                 
+.                                 
+.                                 
+.                                 
+.                                 
+.                                 
+.                                 
+.                                 
+.                                 
+.                                 
+.                                 
+.                                 
+. 
+. 
+end of do-file

@@ -759,7 +759,11 @@ admin_pit_include_col_source_dir <- function(paths, exploration, source_set = "n
   row <- rows[order(rows$year_end, decreasing = TRUE), , drop = FALSE][1L, , drop = FALSE]
   dest <- row$destination[[1L]] %||% ""
   if (is.na(dest) || !nzchar(dest)) dest <- row$rel[[1L]]
-  input_root <- paths$input_repo %||% paths$staged_repo
+  # Incoming files live only in this review's staging area until Include.
+  # The accepted comparison deliberately reads the real repository instead.
+  # Do not let its `input_repo` leak into the incoming cleaner: doing so makes
+  # a newly staged COL archive appear missing before it has been promoted.
+  input_root <- if (identical(source_set, "new")) paths$staged_repo else paths$input_repo %||% paths$staged_repo
   staged <- file.path(input_root, dest)
   nested <- file.path(staged, basename(staged))
   if (dir.exists(nested)) nested else staged
@@ -852,6 +856,21 @@ admin_pit_include_stata_command <- function(root, contract) {
   if (!nzchar(cmd) || identical(cmd, "${DINA_STATA_CMD}")) "" else cmd
 }
 
+# The COL normalizer shares aux_general.do with pipeline tasks. It therefore
+# needs the same generated configuration authority, even though Explore itself
+# is not gated on a validation receipt. Persist the snapshot beside the review
+# so its scope is auditable with the cleaner log.
+admin_pit_include_stata_runtime_config <- function(root, paths) {
+  required <- c("dina_load_session", "dina_session_config", "dina_config_validation_identity", "dina_config_validation_receipt", "dina_render_config_do")
+  if (!all(vapply(required, exists, logical(1), mode = "function", inherits = TRUE))) return("")
+  session <- dina_load_session(root = root)
+  config <- dina_session_config(session, root, expand_env = FALSE)
+  identity <- dina_config_validation_identity(root, session, dina_config_validation_receipt(root, session))
+  path <- file.path(paths$logs, "cleaner-runtime-config.do")
+  dina_render_config_do(config, identity = identity, path = path)
+  path
+}
+
 admin_pit_include_col_temp_do <- function(root, paths, source_dir, output_dir, first_year, last_year) {
   original <- file.path(root, "code", "Stata", "tax-data", "COL-diverse.do")
   lines <- readLines(original, warn = FALSE)
@@ -892,11 +911,32 @@ admin_pit_include_run_col_cleaner <- function(root, paths, contract, exploration
   output_dir <- file.path(paths$staged_repo, "input_data", "admin_data", "COL", "_clean")
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   do_file <- admin_pit_include_col_temp_do(root, paths, source_dir, output_dir, min(years), max(years))
-  out <- tryCatch(system2(stata, args = c("-b", "do", do_file), stdout = TRUE, stderr = TRUE), error = function(e) structure(conditionMessage(e), status = 1L))
+  runtime_config <- admin_pit_include_stata_runtime_config(root, paths)
+  stata_log <- file.path(paths$logs, "cleaner-COL.stata.log")
+  wrapper <- file.path(paths$logs, "cleaner-COL-wrapper.do")
+  stata_quote <- function(path) gsub('"', "'", path, fixed = TRUE)
+  writeLines(c(
+    "capture log close _all",
+    sprintf('log using "%s", text replace', stata_quote(stata_log)),
+    sprintf('capture noisily do "%s"', stata_quote(do_file)),
+    "local cleaner_rc = _rc",
+    "capture log close _all",
+    "exit `cleaner_rc'"
+  ), wrapper)
+  # system2() takes environment entries as literal NAME=value strings (unlike
+  # processx::run(), which accepts a named vector).
+  env <- if (nzchar(runtime_config)) paste0("DINA_CONFIG_DO=", runtime_config) else character()
+  out <- tryCatch(system2(stata, args = c("-b", "do", wrapper), stdout = TRUE, stderr = TRUE, env = env), error = function(e) structure(conditionMessage(e), status = 1L))
   status <- attr(out, "status")
   if (is.null(status)) status <- 0L
   log <- file.path(paths$logs, "cleaner-COL.log")
-  writeLines(as.character(out), log)
+  stata_lines <- if (file.exists(stata_log)) readLines(stata_log, warn = FALSE) else character()
+  writeLines(c(
+    sprintf("Runtime config: %s", if (nzchar(runtime_config)) runtime_config else "not generated"),
+    sprintf("Wrapper: %s", wrapper),
+    as.character(out),
+    if (length(stata_lines)) c("", "Stata log:", stata_lines) else ""
+  ), log)
   expected <- file.path(paths$staged_repo, admin_pit_include_expected_outputs(contract, "col-pit"))
   output_missing <- !identical(as.integer(status), 0L) || !length(expected) || any(!file.exists(expected))
   reason <- if (!identical(as.integer(status), 0L)) "stata_cleaner_failed" else if (output_missing) "stata_completed_without_expected_output" else ""
