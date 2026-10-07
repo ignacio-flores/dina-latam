@@ -77,6 +77,21 @@ test_that("applying a trust proposal activates its complete configuration at onc
   expect_null(activated$proposal)
 })
 
+test_that("trust review items keep retained COL settings in the complete proposal", {
+  proposals <- data.frame(
+    country = c("BRA", "CHL", "COL"), year = c(2024L, 2024L, 2023L),
+    proposal_trust = c(.85, .80, .90), current_trust = c(NA_real_, NA_real_, .90),
+    status = c("configuration_pending", "configuration_pending", "configured"),
+    basis = c("carried_forward", "carried_forward", "explicit_policy"),
+    evidence = c("BRA evidence", "CHL evidence", "COL evidence"), stringsAsFactors = FALSE
+  )
+  coverage <- data.frame(country = c("BRA", "CHL", "COL"), extension_years = c("2024", "2024", "2023"), stringsAsFactors = FALSE)
+  items <- dina_admin_trust_review_items(proposals, coverage)
+  expect_equal(items$country, c("BRA", "CHL", "COL"))
+  expect_equal(items$action, c("add proposed value", "add proposed value", "verify existing value"))
+  expect_equal(items$method, c("extend prior setting", "extend prior setting", "existing policy"))
+})
+
 test_that("admin review verification retains its explicit repository root", {
   source(file.path(repo_root_for_tests, "code", "R", "cli", "source_review.R"), local = FALSE)
   root <- mini_repo()

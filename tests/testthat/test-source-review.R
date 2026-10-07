@@ -397,8 +397,8 @@ test_that("Admin trust configuration is not presented as a failed source review"
     stringsAsFactors = FALSE
   )
   triage <- dina_review_problem_triage(problems)
-  expect_equal(triage$issue, "Complete Admin configuration proposal required")
-  expect_match(triage$next_step, "Review and apply the complete proposal")
+  expect_equal(triage$issue, "Trust-region configuration needs review")
+  expect_match(triage$next_step, "Review the proposal, then Include")
   expect_false(grepl("could not complete", triage$issue, ignore.case = TRUE))
 })
 

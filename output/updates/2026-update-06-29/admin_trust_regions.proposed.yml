@@ -614,9 +614,31 @@ decisions:
   trust_provenance_status: inferred_policy
 proposal:
   generated_by: dina sources configure admin
-  instructions: 'Rows with change: added and status: proposed were created by Admin
-    Explore. Review the complete proposal, then run dina sources configure admin --apply.
-    Applying the complete configuration does not accept source files.'
+  status: candidate
+  instructions: Review every item below and save any edits. Admin Include validates
+    this complete candidate and accepts it together with the reviewed Admin source
+    files.
+  review_items:
+  - country: BRA
+    year: 2024
+    trust: 0.85
+    action: add proposed value
+    method: extend prior setting
+    source_evidence: 'first positive threshold after zero bracket: threshold 8472,
+      p 0.8105134 (row 2); nearest active configuration: 2023'
+  - country: CHL
+    year: 2024
+    trust: 0.8
+    action: add proposed value
+    method: extend prior setting
+    source_evidence: 'first positive threshold after zero bracket: threshold 10901628,
+      p 0.839895 (row 2); nearest active configuration: 2022'
+  - country: COL
+    year: 2023
+    trust: 0.9
+    action: verify existing value
+    method: existing policy
+    source_evidence: prepared PIT p range 0.89–0.998 (19 cutoffs)
   additions:
   - country: BRA
     year: 2024
