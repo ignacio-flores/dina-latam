@@ -6270,7 +6270,13 @@ dina_cmd_run <- function(root, args) {
       return(invisible(list()))
     }
     tasks <- dina_task_map(root)[stale_ids]
-    if (!isTRUE(flags[["dry-run"]])) dina_pipeline_input_preflight(tasks, root = root, session = session)
+    if (!isTRUE(flags[["dry-run"]])) {
+      dina_assert_current_config_validation(root, session)
+      preflight <- dina_pipeline_input_preflight(tasks, root = root, session = session)
+      if (isTRUE(preflight$admin_trust_snapshot$created)) {
+        dina_cli_ok("Admin sources are included; prepared their scoped trust snapshot for this run.")
+      }
+    }
     results <- list()
     for (task in tasks) {
       result <- dina_cli_run_task(task, root, session = session, dry_run = isTRUE(flags[["dry-run"]]), force = isTRUE(flags$force))
@@ -6326,7 +6332,11 @@ dina_cmd_run <- function(root, args) {
     }, add = TRUE)
   }
   if (!dry_run) {
-    dina_pipeline_input_preflight(tasks, root = root, session = session)
+    dina_assert_current_config_validation(root, session)
+    preflight <- dina_pipeline_input_preflight(tasks, root = root, session = session)
+    if (isTRUE(preflight$admin_trust_snapshot$created)) {
+      dina_cli_ok("Admin sources are included; prepared their scoped trust snapshot for this run.")
+    }
   }
   for (task in tasks) {
     result <- dina_cli_run_task(task, root, session = session, dry_run = dry_run, force = isTRUE(flags$force))

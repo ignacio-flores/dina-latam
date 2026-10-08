@@ -20,7 +20,24 @@ Notes:
       3.  More than 2 billion observations are allowed; see help obs_advice.
       4.  Maximum number of variables is set to 5000; see help set_maxvar.
 
-. do code/Stata/01a-clean-macro-data.do 
+. do /Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261007-222912
+> /01a-clean-macro-data.wrapper.do 
+
+. capture log close _all
+
+. log using "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/2026100
+> 7-222912/01a-clean-macro-data.stata.log", text replace
+(note: file /Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261007
+> -222912/01a-clean-macro-data.stata.log not found)
+-------------------------------------------------------------------------------
+      name:  <unnamed>
+       log:  /Users/iflores/Documents/GitHub/dina-latam/output/run_logs/2026100
+> 7-222912/01a-clean-macro-data.stata.log
+  log type:  text
+ opened on:   7 Oct 2026, 22:29:12
+
+. capture noisily do "/Users/iflores/Documents/GitHub/dina-latam/code/Stata/01a
+> -clean-macro-data.do"
 
 . //This do file uses SNA data scrapped from http://data.un.org/ (in section 1.
 > 1)
@@ -919,4 +936,12 @@ stub1  stub2
 
 . 
 . 
+end of do-file
+
+. local dina_task_rc = _rc
+
+. capture log close _all
+
+. exit `dina_task_rc'
+
 end of do-file

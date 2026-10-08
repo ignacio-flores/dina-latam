@@ -20,7 +20,24 @@ Notes:
       3.  More than 2 billion observations are allowed; see help obs_advice.
       4.  Maximum number of variables is set to 5000; see help set_maxvar.
 
-. do code/Stata/01b-add-country-sna.do 
+. do /Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261007-223003
+> /01b-add-country-sna.wrapper.do 
+
+. capture log close _all
+
+. log using "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/2026100
+> 7-223003/01b-add-country-sna.stata.log", text replace
+(note: file /Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261007
+> -223003/01b-add-country-sna.stata.log not found)
+-------------------------------------------------------------------------------
+      name:  <unnamed>
+       log:  /Users/iflores/Documents/GitHub/dina-latam/output/run_logs/2026100
+> 7-223003/01b-add-country-sna.stata.log
+  log type:  text
+ opened on:   7 Oct 2026, 22:30:03
+
+. capture noisily do "/Users/iflores/Documents/GitHub/dina-latam/code/Stata/01b
+> -add-country-sna.do"
 
 . //Description:
 . //Get information from detailed national accounts (country by country)
@@ -70,6 +87,13 @@ Notes:
 . 
 . *prepare to treat different sectors 
 . global sna_sectors households gg row 
+
+. 
+. //This workbook is derived during the pipeline.  Keep it out of the accepted
+. //source directory so a pipeline run cannot make the SNA review stale.
+. cap mkdir "intermediary_data/national_accounts/sna_country_data"
+
+. cap mkdir "intermediary_data/national_accounts/sna_country_data/URY"
 
 . 
 . forvalues t = $first_y / $last_y {
@@ -134,8 +158,8 @@ Notes:
  42.         }
  43.         
 .         if _N != 0 {
- 44.                 qui export excel using "input_data/sna_country_data/URY/ce
-> i.xlsx", ///
+ 44.                 qui export excel using "intermediary_data/national_account
+> s/sna_country_data/URY/cei.xlsx", ///
 >                         sheet("`t'", replace) firstrow(variables) 
  45.         }
  46. }
@@ -215,7 +239,6 @@ Country SNA URY-2024 (households): not found
 Country SNA URY-2024 (gg): not found
 Country SNA URY-2024 (row): not found
 
-. 
 . 
 . 
 . 
@@ -457,7 +480,8 @@ end of do-file
 .                         local firstr ""
 102.                         if "`c'" == "URY" {
 103.                                 local y_sheet "`y'"
-104.                                 local file_`c' "`folder_`c''/cei.xlsx"
+104.                                 local file_`c' "intermediary_data/national
+> _accounts/sna_country_data/URY/cei.xlsx"
 105.                                 local firstr firstrow
 106.                         }
 107.                         
@@ -750,55 +774,80 @@ importing input_data/sna_country_data/DOM/cei ... not found
 DOM- 2024
 importing input_data/sna_country_data/DOM/cei ... not found
 URY- 2000
-importing input_data/sna_country_data/URY/cei.xlsx ... not found
+importing intermediary_data/national_accounts/sna_country_data/URY/cei.xlsx ...
+>  not found
 URY- 2001
-importing input_data/sna_country_data/URY/cei.xlsx ... not found
+importing intermediary_data/national_accounts/sna_country_data/URY/cei.xlsx ...
+>  not found
 URY- 2002
-importing input_data/sna_country_data/URY/cei.xlsx ... not found
+importing intermediary_data/national_accounts/sna_country_data/URY/cei.xlsx ...
+>  not found
 URY- 2003
-importing input_data/sna_country_data/URY/cei.xlsx ... not found
+importing intermediary_data/national_accounts/sna_country_data/URY/cei.xlsx ...
+>  not found
 URY- 2004
-importing input_data/sna_country_data/URY/cei.xlsx ... not found
+importing intermediary_data/national_accounts/sna_country_data/URY/cei.xlsx ...
+>  not found
 URY- 2005
-importing input_data/sna_country_data/URY/cei.xlsx ... not found
+importing intermediary_data/national_accounts/sna_country_data/URY/cei.xlsx ...
+>  not found
 URY- 2006
-importing input_data/sna_country_data/URY/cei.xlsx ... not found
+importing intermediary_data/national_accounts/sna_country_data/URY/cei.xlsx ...
+>  not found
 URY- 2007
-importing input_data/sna_country_data/URY/cei.xlsx ... not found
+importing intermediary_data/national_accounts/sna_country_data/URY/cei.xlsx ...
+>  not found
 URY- 2008
-importing input_data/sna_country_data/URY/cei.xlsx ... not found
+importing intermediary_data/national_accounts/sna_country_data/URY/cei.xlsx ...
+>  not found
 URY- 2009
-importing input_data/sna_country_data/URY/cei.xlsx ... not found
+importing intermediary_data/national_accounts/sna_country_data/URY/cei.xlsx ...
+>  not found
 URY- 2010
-importing input_data/sna_country_data/URY/cei.xlsx ... not found
+importing intermediary_data/national_accounts/sna_country_data/URY/cei.xlsx ...
+>  not found
 URY- 2011
-importing input_data/sna_country_data/URY/cei.xlsx ... not found
+importing intermediary_data/national_accounts/sna_country_data/URY/cei.xlsx ...
+>  not found
 URY- 2012
-importing input_data/sna_country_data/URY/cei.xlsx ... found
+importing intermediary_data/national_accounts/sna_country_data/URY/cei.xlsx ...
+>  found
 URY- 2013
-importing input_data/sna_country_data/URY/cei.xlsx ... not found
+importing intermediary_data/national_accounts/sna_country_data/URY/cei.xlsx ...
+>  not found
 URY- 2014
-importing input_data/sna_country_data/URY/cei.xlsx ... not found
+importing intermediary_data/national_accounts/sna_country_data/URY/cei.xlsx ...
+>  not found
 URY- 2015
-importing input_data/sna_country_data/URY/cei.xlsx ... not found
+importing intermediary_data/national_accounts/sna_country_data/URY/cei.xlsx ...
+>  not found
 URY- 2016
-importing input_data/sna_country_data/URY/cei.xlsx ... found
+importing intermediary_data/national_accounts/sna_country_data/URY/cei.xlsx ...
+>  found
 URY- 2017
-importing input_data/sna_country_data/URY/cei.xlsx ... found
+importing intermediary_data/national_accounts/sna_country_data/URY/cei.xlsx ...
+>  found
 URY- 2018
-importing input_data/sna_country_data/URY/cei.xlsx ... found
+importing intermediary_data/national_accounts/sna_country_data/URY/cei.xlsx ...
+>  found
 URY- 2019
-importing input_data/sna_country_data/URY/cei.xlsx ... found
+importing intermediary_data/national_accounts/sna_country_data/URY/cei.xlsx ...
+>  found
 URY- 2020
-importing input_data/sna_country_data/URY/cei.xlsx ... found
+importing intermediary_data/national_accounts/sna_country_data/URY/cei.xlsx ...
+>  found
 URY- 2021
-importing input_data/sna_country_data/URY/cei.xlsx ... found
+importing intermediary_data/national_accounts/sna_country_data/URY/cei.xlsx ...
+>  found
 URY- 2022
-importing input_data/sna_country_data/URY/cei.xlsx ... found
+importing intermediary_data/national_accounts/sna_country_data/URY/cei.xlsx ...
+>  found
 URY- 2023
-importing input_data/sna_country_data/URY/cei.xlsx ... not found
+importing intermediary_data/national_accounts/sna_country_data/URY/cei.xlsx ...
+>  not found
 URY- 2024
-importing input_data/sna_country_data/URY/cei.xlsx ... not found
+importing intermediary_data/national_accounts/sna_country_data/URY/cei.xlsx ...
+>  not found
 CRI- 2000
 importing input_data/sna_country_data/CRI/Cuentas_Economicas_Integradas_2000 ..
 > . not found
@@ -1184,9 +1233,9 @@ importing input_data/sna_country_data/MEX/CSI_24 ... found
 .     }
 .     quietly do "`dina_config_do'"
 .     foreach required in dina_config_scope dina_config_fingerprint dina_baseli
-> ne_fingerprint dina_config_countries all_countries first_y last_y lang debug 
-> bfm_replace all_units all_steps export_unit export_steps export_last_y previo
-> us_update {
+> ne_fingerprint dina_config_countries admin_trust_regions all_countries first_
+> y last_y lang debug bfm_replace all_units all_steps export_unit export_steps 
+> export_last_y previous_update {
   2.         if `"${`required'}"' == "" {
   3.             di as error "Generated DINA runtime configuration is missing `
 > required'."
@@ -2142,5 +2191,12 @@ number of observations (_N) was 0, now 225
 > e  
 
 . 
-. 
+end of do-file
+
+. local dina_task_rc = _rc
+
+. capture log close _all
+
+. exit `dina_task_rc'
+
 end of do-file

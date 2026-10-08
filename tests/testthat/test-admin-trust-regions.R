@@ -48,7 +48,7 @@ test_that("recovered legacy prepared inputs are complete and recorded", {
   expect_false(dir.exists(file.path(root, "input_data", "admin_data", "URY", "eff-tax-rate")))
 })
 
-test_that("trust settings are part of configuration validation identity", {
+test_that("trust settings are an Admin artifact, not configuration validation", {
   root <- mini_repo()
   baseline <- file.path(root, "input_data", "_new", "previous_series", "dina_latam_3Oct2024.dta")
   haven::write_dta(data.frame(year = 2022L, iso = "CO", p = "p90p100", widcode = "sptinc992j", value = .5), baseline)
@@ -58,7 +58,115 @@ test_that("trust settings are part of configuration validation identity", {
   dina_record_config_validation(root, NULL, check)
   expect_equal(dina_config_validation_state(root, NULL)$code, "validated")
   dina_write_yaml(list(version = 1L, decisions = list(list(country = "COL", year = 2020L, trust = .9, basis = "explicit_policy"))), dina_admin_trust_regions_path(root))
-  expect_equal(dina_config_validation_state(root, NULL)$code, "out_of_date")
+  expect_equal(dina_config_validation_state(root, NULL)$code, "validated")
+})
+
+test_that("Admin trust snapshots are scope-specific and detected before BFM", {
+  root <- mini_repo()
+  cfg <- dina_config(root)
+  cfg$countries <- "COL"
+  cfg$years <- list(first = 2020L, last = 2020L)
+  dina_write_yaml(cfg, dina_config_path(root))
+  dina_write_yaml(list(version = 1L, decisions = list()), dina_admin_trust_regions_path(root))
+  session <- dina_update_start("2026", root = root)
+  expect_match(dina_admin_trust_snapshot_problem(root, session, dina_session_config(session, root, expand_env = FALSE)), "Admin sources have not been included")
+  path <- dina_write_admin_trust_runtime(root, session, dina_session_config(session, root, expand_env = FALSE))
+  expect_true(file.exists(path))
+  expect_true(file.exists(dina_admin_trust_snapshot_manifest_path(root, session)))
+  manifest <- dina_read_json(dina_admin_trust_snapshot_manifest_path(root, session))
+  expect_equal(manifest$scope, dina_config_scope(session)$id)
+  expect_equal(manifest$countries, "COL")
+  expect_equal(manifest$first_year, 2020L)
+  expect_equal(manifest$last_year, 2021L)
+  expect_length(dina_admin_trust_snapshot_problem(root, session, dina_session_config(session, root, expand_env = FALSE)), 0L)
+  writeLines("not,a,trust,snapshot", path)
+  expect_match(dina_admin_trust_snapshot_problem(root, session, dina_session_config(session, root, expand_env = FALSE)), "modified or corrupted")
+  dina_write_admin_trust_runtime(root, session, dina_session_config(session, root, expand_env = FALSE))
+  session <- dina_session_config_set(session, root, "years.last", "2022")
+  expect_match(dina_admin_trust_snapshot_problem(root, session, dina_session_config(session, root, expand_env = FALSE)), "does not match this scope")
+})
+
+test_that("only trust-consuming tasks require the included Admin snapshot", {
+  root <- mini_repo()
+  session <- dina_update_start("2026", root = root)
+  bfm <- list(id = "03a-run-bfm", inputs = character(), outputs = character())
+  other <- list(id = "01a-clean-macro-data", inputs = character(), outputs = character())
+  expect_match(paste(dina_task_admin_source_issues(bfm, root, session), collapse = " "), "Admin sources have not been included")
+  expect_length(dina_task_admin_source_issues(other, root, session), 0L)
+  expect_error(dina_pipeline_input_preflight(list(bfm), root = root, session = session), "Admin sources have not been included")
+})
+
+test_that("an included legacy Admin review receives its missing scoped snapshot without re-inclusion", {
+  source_cli_for_tests()
+  root <- mini_repo()
+  cfg <- dina_config(root)
+  cfg$countries <- "COL"
+  cfg$years <- list(first = 2020L, last = 2020L)
+  dina_write_yaml(cfg, dina_config_path(root))
+  baseline <- file.path(root, "input_data", "_new", "previous_series", "dina_latam_3Oct2024.dta")
+  haven::write_dta(data.frame(year = 2020L, iso = "CO", p = "p90p100", widcode = "sptinc992j", value = .5), baseline)
+  session <- dina_update_start("2026", root = root)
+  dina_write_yaml(list(version = 1L, decisions = list()), dina_admin_trust_regions_path(root))
+  source_file <- file.path(root, "input_data", "admin_data", "COL", "accepted.xlsx")
+  dir.create(dirname(source_file), recursive = TRUE)
+  file.create(source_file)
+  run <- file.path(root, "output", "experiments", "admin_pit_include", "runs", "review-legacy")
+  dir.create(run, recursive = TRUE)
+  record <- list(family = "admin", status = "included", run = run, reviewed_at = dina_now(),
+    included_at = dina_now(), inputs = list(), candidates = list(), baseline = list(),
+    acceptance_watch = dina_review_watch(source_file), watch = dina_review_watch(source_file))
+  dina_review_save(record, root)
+  check <- dina_settings_check(root, session = session, validate_runtime = FALSE)
+  expect_true(check$valid)
+  dina_record_config_validation(root, session, check)
+
+  preflight <- dina_pipeline_input_preflight(list(list(id = "03a-run-bfm", inputs = character(), outputs = character())), root, session)
+  expect_true(preflight$admin_trust_snapshot$created)
+  expect_true(file.exists(dina_admin_trust_snapshot_path(root, session)))
+  expect_length(dina_task_admin_source_issues(list(id = "03a-run-bfm"), root, session), 0L)
+  expect_equal(dina_config_validation_state(root, session)$code, "validated")
+  expect_false(dina_review_included_watch_changed(dina_review_read(root, "admin")))
+})
+
+test_that("Admin Include records trust without invalidating configuration validation", {
+  source_cli_for_tests()
+  root <- mini_repo()
+  baseline <- file.path(root, "input_data", "_new", "previous_series", "dina_latam_3Oct2024.dta")
+  haven::write_dta(data.frame(year = 2022L, iso = "CO", p = "p90p100", widcode = "sptinc992j", value = .5), baseline)
+  check <- dina_settings_check(root, session = NULL, validate_runtime = FALSE)
+  dina_record_config_validation(root, NULL, check)
+  run <- file.path(root, "output", "experiments", "admin_pit_include", "runs", "review-fixture")
+  dir.create(file.path(run, "tables"), recursive = TRUE)
+  utils::write.csv(data.frame(result = character()), file.path(run, "tables", "review_values.csv"), row.names = FALSE)
+  utils::write.csv(data.frame(country = character(), source_id = character(), extension_years = character(), overlap_years = character(), missing_in_new_years = character()), file.path(run, "tables", "review_coverage.csv"), row.names = FALSE)
+  record <- list(family = "admin", status = "all_good", run = run, reviewed_at = dina_now(), files = 0L,
+    comparison_note = "", comparison_error = "", inputs = list(), candidates = list(), baseline = list())
+  old_engine <- dina_review_engine
+  dina_review_engine <- function(...) list(admin_pit_include_confirm_sources = function(...) {
+    list(manifest = data.frame(key = "status", value = "confirmed", stringsAsFactors = FALSE),
+      paths = list(root = file.path(root, "output", "experiments", "admin_pit_include", "confirms", "fixture")))
+  })
+  on.exit(dina_review_engine <<- old_engine, add = TRUE)
+  dina_review_include(root, "admin", flags = list(confirm = TRUE), is_terminal = FALSE, record = record)
+  expect_equal(dina_config_validation_state(root, NULL)$code, "validated")
+  expect_true(file.exists(dina_admin_trust_snapshot_path(root, NULL)))
+  expect_true(file.exists(dina_admin_trust_snapshot_manifest_path(root, NULL)))
+})
+
+test_that("legacy receipts remain current when only their retired trust hash differs", {
+  root <- mini_repo()
+  baseline <- file.path(root, "input_data", "_new", "previous_series", "dina_latam_3Oct2024.dta")
+  haven::write_dta(data.frame(year = 2022L, iso = "CO", p = "p90p100", widcode = "sptinc992j", value = .5), baseline)
+  check <- dina_settings_check(root, session = NULL, validate_runtime = FALSE)
+  dina_record_config_validation(root, NULL, check)
+  receipt_path <- dina_config_validation_receipt_path(root, NULL)
+  receipt <- dina_read_json(receipt_path)
+  receipt$receipt_version <- NULL
+  receipt$trust_config_hash <- "retired-trust-fingerprint"
+  receipt$effective_config_hash <- "legacy-effective-fingerprint"
+  dina_write_json(receipt, receipt_path)
+  dina_write_yaml(list(version = 1L, decisions = list(list(country = "COL", year = 2020L, trust = .9, basis = "explicit_policy"))), dina_admin_trust_regions_path(root))
+  expect_equal(dina_config_validation_state(root, NULL)$code, "validated")
 })
 
 test_that("applying a trust proposal activates its complete configuration at once", {

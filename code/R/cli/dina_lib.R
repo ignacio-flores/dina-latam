@@ -106,9 +106,10 @@ dina_todo_path <- function(root = dina_repo_root()) {
   dina_path("config", "todo.yml", root = root)
 }
 
-# Trust regions are methodological settings, not source files.  Keeping them
-# separate from dina.yml makes the country-year decisions reviewable without
-# turning an update override into a second source of truth.
+# Trust regions are Admin source-review decisions. Keeping their registry
+# separate from dina.yml lets Admin Include accept them with the reviewed
+# source files without turning an update override into a second source of
+# truth.
 dina_admin_trust_regions_path <- function(root = dina_repo_root()) {
   dina_path("config", "admin_trust_regions.yml", root = root)
 }
@@ -175,9 +176,32 @@ dina_admin_trust_rows <- function(root = dina_repo_root(), path = dina_admin_tru
   do.call(rbind, rows)
 }
 
-dina_admin_trust_runtime_path <- function(root = dina_repo_root(), session = NULL) {
-  if (is.null(session)) return(file.path(root, "output", "experiments", "configuration_validation", "admin_trust_regions.csv"))
+# Trust regions are accepted with the Admin source family.  The runtime table is
+# consequently a source snapshot, not a configuration-validation by-product.
+dina_admin_trust_snapshot_path <- function(root = dina_repo_root(), session = NULL) {
+  if (is.null(session)) return(file.path(root, "output", "experiments", "admin_pit_include", "admin_trust_regions.csv"))
   file.path(dina_update_dir(session$id, root), "admin_trust_regions.csv")
+}
+
+# Kept as the public internal name used by the Stata renderer and older tests.
+dina_admin_trust_runtime_path <- function(root = dina_repo_root(), session = NULL) {
+  dina_admin_trust_snapshot_path(root, session)
+}
+
+dina_admin_trust_snapshot_manifest_path <- function(root = dina_repo_root(), session = NULL) {
+  paste0(dina_admin_trust_snapshot_path(root, session), ".manifest.json")
+}
+
+dina_admin_trust_snapshot_scope <- function(config, session = NULL) {
+  dina_need("digest")
+  countries <- toupper(as.character(config$countries %||% character()))
+  scope <- list(
+    scope = dina_config_scope(session)$id,
+    countries = countries,
+    first_year = as.integer(config$years$first %||% NA),
+    last_year = as.integer(config$years$last %||% NA)
+  )
+  c(scope, list(scope_fingerprint = digest::digest(scope, algo = "sha256", serialize = TRUE)))
 }
 
 # Matches countries_bfm_02a in aux_general.do: these are the formatted PIT
@@ -386,7 +410,7 @@ dina_admin_trust_validate <- function(root = dina_repo_root(), config = dina_con
   proposed <- rows$basis %in% "carried_forward" & paste(rows$country, rows$year) %in% paste(required$country, required$year)
   if (any(proposed)) {
     labels <- paste0(rows$country[proposed], " ", rows$year[proposed])
-    errors <- c(errors, paste0("Trust-region carry-forward proposals still need confirmation: ", paste(labels, collapse = ", "), ". Edit config/admin_trust_regions.yml and set basis: explicit_policy (or publisher_derived)."))
+    errors <- c(errors, paste0("Trust-region carry-forward proposals still need confirmation: ", paste(labels, collapse = ", "), ". Review the Admin trust proposal and set each basis to explicit_policy or publisher_derived."))
   }
   proposed_rows <- rows$status %in% "proposed" & paste(rows$country, rows$year) %in% paste(required$country, required$year)
   if (any(proposed_rows)) {
@@ -458,7 +482,7 @@ dina_admin_trust_review <- function(root = dina_repo_root(), config = dina_confi
     }
     data.frame(country = need$country, year = need$year, file = dina_relative(need$file, root), sheet = need$sheet,
       current_trust = NA_real_, current_trust_wages = NA_real_, basis = "", rule = "", provenance_status = "", proposal_trust = NA_real_, proposal_trust_wages = NA_real_, status = "unresolved",
-      evidence = evidence, next_step = "Choose a trust region in config/admin_trust_regions.yml.", stringsAsFactors = FALSE)
+      evidence = evidence, next_step = "Review the Admin trust proposal.", stringsAsFactors = FALSE)
   })
   proposals <- do.call(rbind, out)
   legacy_trust <- rows[rows$provenance_status == "legacy_unverified", , drop = FALSE]
@@ -475,10 +499,14 @@ dina_admin_trust_review <- function(root = dina_repo_root(), config = dina_confi
   list(proposals = proposals, decisions = proposals[proposals$status == "configured", , drop = FALSE], provenance = provenance, valid = all(proposals$status == "configured"))
 }
 
-dina_write_admin_trust_runtime <- function(root = dina_repo_root(), session = NULL, config = dina_session_config(session, root, expand_env = FALSE)) {
-  check <- dina_admin_trust_validate(root, config)
+dina_write_admin_trust_runtime <- function(root = dina_repo_root(), session = NULL,
+                                           config = dina_session_config(session, root, expand_env = FALSE),
+                                           trust_path = dina_admin_trust_regions_path(root),
+                                           output_path = dina_admin_trust_snapshot_path(root, session),
+                                           manifest_path = paste0(output_path, ".manifest.json")) {
+  check <- dina_admin_trust_validate(root, config, trust_path = trust_path)
   if (!isTRUE(check$valid)) stop(check$errors[[1L]], call. = FALSE)
-  path <- dina_admin_trust_runtime_path(root, session)
+  path <- output_path
   dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
   countries <- toupper(as.character(config$countries %||% character()))
   scoped <- check$rows[check$rows$country %in% countries &
@@ -486,7 +514,93 @@ dina_write_admin_trust_runtime <- function(root = dina_repo_root(), session = NU
     c("country", "year", "trust", "trust_wages", "basis"), drop = FALSE]
   scoped <- scoped[order(scoped$country, scoped$year), , drop = FALSE]
   utils::write.csv(scoped, path, row.names = FALSE, na = "")
+  scope <- dina_admin_trust_snapshot_scope(config, session)
+  dina_write_json(c(
+    list(
+      artifact = "admin_trust_regions",
+      created_at = dina_now(),
+      registry_sha256 = dina_hash_file(trust_path),
+      table_sha256 = dina_hash_file(path),
+      rows = nrow(scoped)
+    ),
+    scope
+  ), manifest_path)
   path
+}
+
+dina_admin_trust_snapshot_problem <- function(root = dina_repo_root(), session = NULL,
+                                              config = dina_session_config(session, root, expand_env = FALSE)) {
+  path <- dina_admin_trust_snapshot_path(root, session)
+  manifest_path <- dina_admin_trust_snapshot_manifest_path(root, session)
+  if (!file.exists(path) || !file.exists(manifest_path)) {
+    return("Admin sources have not been included for this scope; explore and include Admin.")
+  }
+  manifest <- tryCatch(dina_read_json(manifest_path), error = function(e) NULL)
+  expected <- dina_admin_trust_snapshot_scope(config, session)
+  same_scope <- is.list(manifest) &&
+    identical(as.character(manifest$artifact %||% ""), "admin_trust_regions") &&
+    identical(as.character(manifest$scope %||% ""), expected$scope) &&
+    identical(as.character(manifest$scope_fingerprint %||% ""), expected$scope_fingerprint)
+  if (!same_scope) {
+    return("The included Admin trust snapshot does not match this scope; explore and include Admin again.")
+  }
+  if (!identical(as.character(manifest$table_sha256 %||% ""), as.character(dina_hash_file(path)))) {
+    return("The included Admin trust snapshot was modified or corrupted; explore and include Admin again.")
+  }
+  rows <- tryCatch(utils::read.csv(path, stringsAsFactors = FALSE, check.names = FALSE), error = function(e) e)
+  required <- c("country", "year", "trust", "trust_wages", "basis")
+  if (inherits(rows, "error") || !all(required %in% names(rows))) {
+    return("The included Admin trust snapshot is unreadable; explore and include Admin again.")
+  }
+  character()
+}
+
+# The scoped CSV is a derived runtime artifact of an accepted Admin review.
+# Early inclusions made before this artifact was introduced are still valid:
+# they have accepted sources and a valid trust registry, but no CSV yet.  Do
+# not make a reviewer repeat that decision just to create a deterministic file
+# the CLI can derive without new judgement.
+dina_admin_trust_snapshot_backfill_status <- function(root = dina_repo_root(), session = NULL,
+                                                      config = dina_session_config(session, root, expand_env = FALSE)) {
+  path <- dina_admin_trust_snapshot_path(root, session)
+  manifest_path <- dina_admin_trust_snapshot_manifest_path(root, session)
+  if (file.exists(path) || file.exists(manifest_path)) {
+    return(list(eligible = FALSE, reason = "A trust snapshot already exists."))
+  }
+  if (!exists("dina_review_read", mode = "function") ||
+      !exists("dina_review_included_watch_changed", mode = "function")) {
+    return(list(eligible = FALSE, reason = "The source-review interface is unavailable."))
+  }
+  record <- dina_review_read(root, "admin")
+  if (is.null(record) || !identical(record$status, "included")) {
+    return(list(eligible = FALSE, reason = "Admin sources have not been included."))
+  }
+  if (isTRUE(dina_review_included_watch_changed(record))) {
+    return(list(eligible = FALSE, reason = "The included Admin review needs rechecking."))
+  }
+  trust <- dina_admin_trust_validate(root, config)
+  if (!isTRUE(trust$valid)) {
+    return(list(eligible = FALSE, reason = trust$errors[[1L]] %||% "The included Admin trust decisions are incomplete."))
+  }
+  list(eligible = TRUE, record = record, reason = "Accepted Admin sources have no scoped runtime trust snapshot yet.")
+}
+
+dina_admin_trust_snapshot_ensure <- function(root = dina_repo_root(), session = NULL,
+                                             config = dina_session_config(session, root, expand_env = FALSE)) {
+  status <- dina_admin_trust_snapshot_backfill_status(root, session, config)
+  if (!isTRUE(status$eligible)) return(c(status, list(created = FALSE)))
+  path <- dina_write_admin_trust_runtime(root, session = session, config = config)
+  # Record the new derived artifact in the accepted review's watch.  Future
+  # edits to the trust registry will correctly request a new Admin review,
+  # while this one-time compatibility migration remains invisible to users.
+  record <- status$record
+  record$admin_trust_watch <- dina_review_watch(c(
+    dina_admin_trust_regions_path(root),
+    path,
+    dina_admin_trust_snapshot_manifest_path(root, session)
+  ))
+  dina_review_save(record, root)
+  c(status, list(created = TRUE, path = path))
 }
 
 dina_pushover_local_path <- function(root = dina_repo_root()) {
@@ -3256,11 +3370,26 @@ dina_review_paths_changed_after_inclusion <- function(paths, included_at) {
 
 dina_review_included_watch_changes <- function(record) {
   changed <- dina_review_included_watch_raw_changes(record)
-  if (!length(changed) || identical(changed, "review evidence was not recorded")) return(changed)
+  raw_watch_missing <- identical(changed, "review evidence was not recorded")
+  if (raw_watch_missing) changed <- character()
   # When a legacy acceptance snapshot disagrees, retain it only where the
   # filesystem shows a real edit after inclusion.  This makes the migration
   # safe: a subsequent source edit still produces a recheck request.
-  intersect(changed, dina_review_paths_changed_after_inclusion(changed, record$included_at %||% record$reviewed_at %||% ""))
+  changed <- if (length(changed)) intersect(changed, dina_review_paths_changed_after_inclusion(changed, record$included_at %||% record$reviewed_at %||% "")) else character()
+  # Trust settings are Admin source-review evidence.  They are intentionally
+  # excluded from generic source watches (which omit config/output paths), so
+  # track the accepted registry and its scoped snapshot explicitly here.
+  if (identical(record$family, "admin") && length(record$admin_trust_watch %||% list())) {
+    trust_paths <- names(record$admin_trust_watch)
+    trust_current <- dina_review_watch(trust_paths)
+    trust_changed <- trust_paths[!vapply(trust_paths, function(path) identical(trust_current[[path]], record$admin_trust_watch[[path]]), logical(1))]
+    if (length(trust_changed)) {
+      trust_changed <- intersect(trust_changed, dina_review_paths_changed_after_inclusion(trust_changed, record$included_at %||% record$reviewed_at %||% ""))
+      changed <- unique(c(changed, trust_changed))
+    }
+  }
+  if (raw_watch_missing && !length(changed) && !length(record$admin_trust_watch %||% list())) return("review evidence was not recorded")
+  changed
 }
 
 dina_review_included_watch_changed <- function(record) {
@@ -3617,6 +3746,10 @@ dina_task_status <- function(task, root = dina_repo_root(), session = NULL, seen
   }
   inputs <- unique(c(task$inputs %||% character(), task$script %||% character(), config_inputs))
   outputs <- task$outputs %||% character()
+  trust_snapshot <- if (dina_task_requires_admin_trust_snapshot(task)) {
+    dina_relative(dina_admin_trust_snapshot_path(root, session), root)
+  } else character()
+  freshness_inputs <- unique(c(inputs, trust_snapshot))
 
   input_files <- dina_filter_ignored_paths(dina_expand_paths(inputs, root), root)
   output_files <- dina_filter_ignored_paths(dina_expand_paths(outputs, root), root)
@@ -3629,12 +3762,17 @@ dina_task_status <- function(task, root = dina_repo_root(), session = NULL, seen
     status <- "missing_inputs"
     reasons <- c(reasons, sprintf("Missing input: %s", dina_relative(missing_inputs, root)))
   }
+  trust_issue <- dina_task_admin_source_issues(task, root, session)
+  if (length(trust_issue)) {
+    status <- if (identical(status, "current")) "missing_inputs" else status
+    reasons <- c(reasons, trust_issue)
+  }
   if (!length(existing_outputs)) {
     status <- if (identical(status, "current")) "missing_outputs" else status
     reasons <- c(reasons, "No declared outputs exist.")
   }
 
-  latest_input <- dina_latest_mtime(inputs, root, ignore = TRUE, recursive_dirs = "auto")
+  latest_input <- dina_latest_mtime(freshness_inputs, root, ignore = TRUE, recursive_dirs = "auto")
   earliest_output <- dina_earliest_mtime(outputs, root, ignore = TRUE, recursive_dirs = FALSE)
   if (!is.na(latest_input) && !is.na(earliest_output) && latest_input > earliest_output) {
     status <- if (identical(status, "current")) "stale" else status
@@ -3675,6 +3813,24 @@ dina_task_missing_inputs <- function(task, root = dina_repo_root(), session = NU
   paths[!file.exists(paths)]
 }
 
+dina_task_requires_admin_trust_snapshot <- function(task) {
+  identical(task$id %||% "", "03a-run-bfm") ||
+    identical(task$id %||% "", "03b-run-bfm-2stage") ||
+    identical(task$id %||% "", "03d-prepare-theta-extrapolation")
+}
+
+dina_task_admin_source_issues <- function(task, root = dina_repo_root(), session = NULL) {
+  if (!dina_task_requires_admin_trust_snapshot(task)) return(character())
+  config <- dina_session_config(session, root, expand_env = FALSE)
+  issue <- dina_admin_trust_snapshot_problem(root, session, config)
+  if (!length(issue)) return(character())
+  migration <- dina_admin_trust_snapshot_backfill_status(root, session, config)
+  if (isTRUE(migration$eligible)) {
+    return("Admin sources are included; the runtime trust snapshot will be prepared when the pipeline starts.")
+  }
+  issue
+}
+
 dina_legacy_prepared_input_issues <- function(root = dina_repo_root()) {
   sources <- dina_sources(root)$sources %||% list()
   legacy <- Filter(function(source) identical(source$family %||% "", "legacy_prepared"), sources)
@@ -3695,6 +3851,15 @@ dina_legacy_prepared_input_issues <- function(root = dina_repo_root()) {
 }
 
 dina_pipeline_input_preflight <- function(tasks, root = dina_repo_root(), session = NULL) {
+  # Compatibility migration for an Admin review that was already accepted
+  # before scoped trust snapshots existed.  This writes only a deterministic
+  # runtime derivative of that accepted decision; it never promotes sources or
+  # alters configuration validation.
+  admin_snapshot <- list(created = FALSE)
+  if (any(vapply(tasks, dina_task_requires_admin_trust_snapshot, logical(1)))) {
+    config <- dina_session_config(session, root, expand_env = FALSE)
+    admin_snapshot <- dina_admin_trust_snapshot_ensure(root, session, config)
+  }
   # An input produced by an earlier selected task is expected to be absent at
   # the start of a full run.  Do not confuse that ordinary dependency with a
   # missing external/static input.
@@ -3708,11 +3873,15 @@ dina_pipeline_input_preflight <- function(tasks, root = dina_repo_root(), sessio
   missing <- unlist(lapply(tasks, function(task) {
     paths <- dina_task_missing_inputs(task, root = root, session = session)
     paths <- paths[!vapply(paths, output_matches, logical(1), declared = declared_outputs)]
-    if (!length(paths)) return(character())
-    paste0(task$id, " :: ", dina_relative(paths, root))
+    issues <- c(
+      if (length(paths)) paste0("missing input: ", dina_relative(paths, root)) else character(),
+      dina_task_admin_source_issues(task, root, session)
+    )
+    if (!length(issues)) return(character())
+    paste0(task$id, " :: ", issues)
   }), use.names = FALSE)
   missing <- c(missing, dina_legacy_prepared_input_issues(root))
-  if (!length(missing)) return(invisible(TRUE))
+  if (!length(missing)) return(invisible(list(admin_trust_snapshot = admin_snapshot)))
   stop(
     "Pipeline has not started because required inputs are missing:\n  - ",
     paste(missing, collapse = "\n  - "),
@@ -3790,9 +3959,14 @@ dina_run_task <- function(task, root = dina_repo_root(), session = dina_load_ses
       configuration = validation$identity, source_reviews = source_advisory))
   }
   missing_inputs <- dina_task_missing_inputs(task, root = root, session = session)
-  if (length(missing_inputs)) {
-    stop("Task ", task$id, " cannot start; missing input: ",
-      paste(dina_relative(missing_inputs, root), collapse = ", "), call. = FALSE)
+  source_issues <- dina_task_admin_source_issues(task, root, session)
+  if (length(c(missing_inputs, source_issues))) {
+    issues <- c(
+      if (length(missing_inputs)) paste0("missing input: ", dina_relative(missing_inputs, root)) else character(),
+      source_issues
+    )
+    stop("Task ", task$id, " cannot start:\n  - ",
+      paste(issues, collapse = "\n  - "), call. = FALSE)
   }
   if (!nzchar(command[[1]]) || identical(command[[1]], "<DINA_STATA_CMD>")) {
     stop("No executable configured for task ", task$id, call. = FALSE)
@@ -4383,11 +4557,11 @@ dina_config_validation_snapshot <- function(root, session = dina_load_session(ro
   baseline <- if (!is.null(config)) config$export_validation$previous_update_file %||% "" else ""
   dina_need("digest")
   list(
+    receipt_version = 2L,
     scope = dina_config_scope(session)$id,
     benchmark_config_hash = dina_hash_file(dina_config_path(root)),
-    trust_config_hash = dina_hash_file(dina_admin_trust_regions_path(root)),
     update_override_hash = if (nzchar(override)) dina_hash_file(override) else NA_character_,
-    effective_config_hash = if (!is.null(effective_config)) digest::digest(list(config = effective_config, trust_config_hash = dina_hash_file(dina_admin_trust_regions_path(root))), algo = "sha256", serialize = TRUE) else NA_character_,
+    effective_config_hash = if (!is.null(effective_config)) digest::digest(effective_config, algo = "sha256", serialize = TRUE) else NA_character_,
     baseline = dina_config_validation_baseline_signature(baseline, root, hash = hash_baseline)
   )
 }
@@ -4422,12 +4596,15 @@ dina_config_validation_state <- function(root, session = dina_load_session(root 
     dina_same_cheap_signature(receipt$baseline, snapshot$baseline)
   current <- identical(receipt$scope %||% "", snapshot$scope) &&
     same_hash(receipt$benchmark_config_hash, snapshot$benchmark_config_hash) &&
-    same_hash(receipt$trust_config_hash, snapshot$trust_config_hash) &&
     same_hash(receipt$update_override_hash, snapshot$update_override_hash) && same_baseline
-  current <- current && same_hash(receipt$effective_config_hash, snapshot$effective_config_hash)
+  # Version-one receipts folded the Admin trust registry into their effective
+  # fingerprint.  Configuration files and the comparison baseline still prove
+  # their validity; ignore that retired coupling so an Admin inclusion does
+  # not force users to repeat configuration validation.
+  if (identical(as.integer(receipt$receipt_version %||% 1L), 2L)) {
+    current <- current && same_hash(receipt$effective_config_hash, snapshot$effective_config_hash)
+  }
   if (!current) return(list(code = "out_of_date", label = "Validation out of date", detail = "Settings or the comparison baseline changed after the last validation.", action = action))
-  trust_runtime <- dina_admin_trust_runtime_path(root, session)
-  if (!file.exists(trust_runtime)) return(list(code = "needs_attention", label = "Needs attention", detail = paste0("The validated trust-region runtime table is missing. Run ", action, "."), action = action))
   checked_at <- receipt$checked_at %||% "unknown time"
   if (identical(receipt$status, "passed")) return(list(code = "validated", label = paste("Validated ·", checked_at), detail = "Settings and comparison baseline match the recorded validation.", action = ""))
   list(code = "needs_attention", label = paste("Needs attention ·", checked_at), detail = receipt$errors[[1L]] %||% "The last configuration validation did not pass.", action = action)
@@ -4441,10 +4618,6 @@ dina_record_config_validation <- function(root, session, check, progress = NULL)
     snapshot
   )
   dina_write_json(receipt, dina_config_validation_receipt_path(root, session))
-  if (isTRUE(check$valid)) {
-    dina_progress(progress, "Writing the validated trust-region runtime table.")
-    dina_write_admin_trust_runtime(root, session, check$config)
-  }
   if (is.null(session)) return(invisible(NULL))
   session$config_validation <- receipt
   session$updated_at <- dina_now()
@@ -4553,8 +4726,6 @@ dina_settings_check <- function(root, session = dina_load_session(root = root), 
     if (!config$run$lang %in% c("eng", "esp")) errors <- c(errors, "run.lang must be eng or esp.")
     for (name in c("debug", "bfm_replace")) if (!is.logical(config$run[[name]]) || length(config$run[[name]]) != 1L || is.na(config$run[[name]])) errors <- c(errors, paste("run", name, "must be true or false."))
     for (name in c("units", "steps")) if (!length(unlist(config$run[[name]])) || anyNA(unlist(config$run[[name]]))) errors <- c(errors, paste("run", name, "must contain values."))
-    trust <- dina_admin_trust_validate(root, config)
-    errors <- c(errors, trust$errors)
     baseline <- character()
     if (isTRUE(validate_baseline)) {
       baseline_path <- config$export_validation$previous_update_file %||% ""

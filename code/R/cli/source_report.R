@@ -1205,9 +1205,14 @@ dina_review_show_rows <- function(rows, columns = names(rows), country = NULL, l
 }
 
 dina_review_print <- function(record, country = NULL, limit = 12L, root = dina_repo_root()) {
-  stale <- !is.null(record$watch) && !identical(dina_review_watch(names(record$watch)), record$watch)
+  stale <- if (identical(record$status, "included")) {
+    dina_review_included_watch_changed(record)
+  } else {
+    !is.null(record$watch) && !identical(dina_review_watch(names(record$watch)), record$watch)
+  }
   label <- switch(record$status, all_good = "Review available", included = "Included", blocked = "Needs attention",
     check_following = "Needs attention", nothing_to_include = "Nothing to include", inclusion_failed = "Inclusion incomplete", including = "Inclusion incomplete", "Needs attention")
+  if (identical(record$status, "included") && stale) label <- "Included · recheck needed"
   dina_cli_cat(dina_cli_dim("Status: "), dina_cli_emphasis(label))
   dina_cli_cat(dina_cli_dim("Explore reviews incoming files. Include accepts a clean review; accepted source files stay unchanged until then."))
   scope <- if (is.list(record$scope)) record$scope else list()

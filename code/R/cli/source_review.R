@@ -688,6 +688,9 @@ dina_review_reset_before_explore <- function(root, family, engine, progress = fu
   if (failed) {
     stop("Could not reset the prior ", family, " source inclusion completely. Inspect ", restored$paths$restore_report, call. = FALSE)
   }
+  if (identical(family, "admin")) {
+    dina_admin_trust_restore_from_confirmation(root, confirm_root)
+  }
   progress(sprintf("Prior %s inclusion reset: %s source file%s returned to the pre-include state.",
     tolower(dina_review_families()[[family]]), nrow(report), if (nrow(report) == 1L) "" else "s"))
   invisible(restored)
@@ -976,10 +979,84 @@ dina_review_assert_sna_scope <- function(record, root) {
   dina_review_assert_config_scope(record, root)
 }
 
+# Admin Include owns the trust registry and its scope-specific runtime
+# snapshot.  Keep a small recoverable backup while source promotion runs so a
+# failed inclusion cannot leave either artifact half-promoted.
+dina_admin_trust_inclusion_backup <- function(root = dina_repo_root(), session = dina_load_session(root = root)) {
+  paths <- c(
+    dina_admin_trust_regions_path(root),
+    dina_admin_trust_snapshot_path(root, session),
+    dina_admin_trust_snapshot_manifest_path(root, session)
+  )
+  lapply(paths, function(path) {
+    backup <- tempfile("admin-trust-include-")
+    existed <- file.exists(path)
+    if (existed && !file.copy(path, backup, overwrite = TRUE, copy.date = TRUE)) {
+      stop("Could not back up Admin trust artifact before inclusion: ", dina_relative(path, root), call. = FALSE)
+    }
+    list(path = path, existed = existed, backup = backup)
+  })
+}
+
+dina_admin_trust_restore_inclusion_files <- function(backups) {
+  for (item in backups %||% list()) {
+    if (isTRUE(item$existed)) {
+      dir.create(dirname(item$path), recursive = TRUE, showWarnings = FALSE)
+      file.copy(item$backup, item$path, overwrite = TRUE, copy.date = TRUE)
+    } else if (file.exists(item$path)) {
+      unlink(item$path)
+    }
+    if (file.exists(item$backup)) unlink(item$backup)
+  }
+  invisible(NULL)
+}
+
+dina_admin_trust_discard_inclusion_backups <- function(backups) {
+  for (item in backups %||% list()) if (file.exists(item$backup)) unlink(item$backup)
+  invisible(NULL)
+}
+
+dina_admin_trust_store_inclusion_backup <- function(backups, confirmation_root, root = dina_repo_root()) {
+  if (!length(backups)) return(invisible(NULL))
+  backup_root <- file.path(confirmation_root, "admin_trust_backup")
+  dir.create(backup_root, recursive = TRUE, showWarnings = FALSE)
+  entries <- lapply(seq_along(backups), function(i) {
+    item <- backups[[i]]
+    name <- paste0(sprintf("%02d", i), "-", basename(item$path))
+    saved <- file.path(backup_root, name)
+    if (isTRUE(item$existed) && !file.copy(item$backup, saved, overwrite = TRUE, copy.date = TRUE)) {
+      stop("Could not save the Admin trust backup in the confirmation record.", call. = FALSE)
+    }
+    list(path = dina_relative(item$path, root), existed = isTRUE(item$existed), backup = name)
+  })
+  dina_write_json(list(artifacts = entries), file.path(backup_root, "manifest.json"))
+  invisible(backup_root)
+}
+
+dina_admin_trust_restore_from_confirmation <- function(root = dina_repo_root(), confirmation_root) {
+  manifest_path <- file.path(confirmation_root, "admin_trust_backup", "manifest.json")
+  if (!file.exists(manifest_path)) return(invisible(FALSE))
+  manifest <- dina_read_json(manifest_path)
+  for (item in manifest$artifacts %||% list()) {
+    path <- as.character(item$path %||% "")
+    if (!grepl("^/", path)) path <- file.path(root, path)
+    backup <- file.path(confirmation_root, "admin_trust_backup", as.character(item$backup %||% ""))
+    if (isTRUE(item$existed)) {
+      dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+      if (!file.copy(backup, path, overwrite = TRUE, copy.date = TRUE)) {
+        stop("Could not restore an Admin trust artifact from ", confirmation_root, call. = FALSE)
+      }
+    } else if (file.exists(path)) {
+      unlink(path)
+    }
+  }
+  invisible(TRUE)
+}
+
 dina_review_include <- function(root, family, flags = list(), input = "stdin", is_terminal = isatty(stdin()), record = dina_review_read(root, family)) {
   if (is.null(record) || identical(record$status, "incomplete")) stop("Explore this family first: dina sources explore ", family, call. = FALSE)
   if (identical(record$status, "included")) {
-    if (dina_review_included_watch_changed(record)) stop("Source data or configuration changed since inclusion. Explore this family again: dina sources explore ", family, call. = FALSE)
+    if (dina_review_included_watch_changed(record)) stop("Accepted source evidence changed since inclusion. Explore this family again: dina sources explore ", family, call. = FALSE)
     dina_cli_ok("This family review has already been included.")
     return(invisible(record))
   }
@@ -992,8 +1069,10 @@ dina_review_include <- function(root, family, flags = list(), input = "stdin", i
   dina_review_verify(record, root)
   dina_review_assert_config_scope(record, root)
   dina_cli_header(paste("Include", dina_review_families()[[family]]))
-  dina_cli_cat(dina_cli_dim(if (is.null(trust_candidate)) {
+  dina_cli_cat(dina_cli_dim(if (!identical(family, "admin")) {
     "Include accepts the complete saved review. It does not run the pipeline."
+  } else if (is.null(trust_candidate)) {
+    "Include accepts the complete saved review and records its Admin trust snapshot. It does not run the pipeline."
   } else {
     "Include accepts the complete saved review and its edited trust configuration together. It does not run the pipeline."
   }))
@@ -1024,22 +1103,25 @@ dina_review_include <- function(root, family, flags = list(), input = "stdin", i
   operation <- dina_cli_operation(paste(dina_review_families()[[family]], "source inclusion"))
   completed <- FALSE
   on.exit(if (!completed) operation$finish("Failed"), add = TRUE)
-  trust_path <- dina_admin_trust_regions_path(root)
-  trust_original <- NULL
+  trust_backup <- NULL
   trust_written <- FALSE
-  on.exit(if (!completed && trust_written) dina_write_yaml(trust_original, trust_path), add = TRUE)
+  on.exit(if (!completed && trust_written) dina_admin_trust_restore_inclusion_files(trust_backup), add = TRUE)
   engine <- dina_review_engine(root, family)
   operation$progress("Rechecking reviewed evidence before accepting source files.")
   dina_review_verify(record, root)
   dina_review_assert_config_scope(record, root)
-  if (trust_pending) {
+  if (identical(family, "admin")) {
     # Read it again immediately before work starts so Include uses the exact
     # candidate the reviewer just saved, while source evidence stays fixed.
-    trust_candidate <- dina_admin_trust_candidate_for_include(root, record)
-    trust_original <- dina_admin_trust_regions(root)
-    dina_write_yaml(trust_candidate$config, trust_path)
+    trust_candidate <- if (trust_pending) dina_admin_trust_candidate_for_include(root, record) else dina_admin_trust_current_for_include(root)
+    trust_backup <- dina_admin_trust_inclusion_backup(root)
+    trust_path <- dina_admin_trust_regions_path(root)
     trust_written <- TRUE
-    operation$progress("Validated the complete Admin trust configuration for this inclusion.")
+    dina_write_yaml(trust_candidate$config, trust_path)
+    session <- dina_load_session(root = root)
+    dina_write_admin_trust_runtime(root, session = session,
+      config = dina_session_config(session, root, expand_env = FALSE), trust_path = trust_path)
+    operation$progress("Validated and recorded the Admin trust snapshot for this inclusion.")
   }
   record$status <- "including"
   record$backup_root <- file.path(dirname(dirname(record$run)), "confirms")
@@ -1074,6 +1156,7 @@ dina_review_include <- function(root, family, flags = list(), input = "stdin", i
     dina_review_save(record, root)
     stop("Inclusion did not complete. Inspect the backup and inclusion report at ", result$paths$root, call. = FALSE)
   }
+  if (trust_written) dina_admin_trust_store_inclusion_backup(trust_backup, result$paths$root, root)
   record$status <- "included"
   record$included_at <- dina_now()
   record$confirmation <- result$paths$root
@@ -1081,8 +1164,16 @@ dina_review_include <- function(root, family, flags = list(), input = "stdin", i
   # changes do not.  This avoids falsely showing an accepted family as stale
   # after a presentation-only improvement.
   record$acceptance_watch <- dina_review_watch(dina_review_acceptance_watch_paths(names(record$inputs)))
+  if (identical(family, "admin")) {
+    record$admin_trust_watch <- dina_review_watch(c(
+      dina_admin_trust_regions_path(root),
+      dina_admin_trust_snapshot_path(root, dina_load_session(root = root)),
+      dina_admin_trust_snapshot_manifest_path(root, dina_load_session(root = root))
+    ))
+  }
   record$watch <- record$acceptance_watch
   dina_review_save(record, root)
+  if (trust_written) dina_admin_trust_discard_inclusion_backups(trust_backup)
   dina_cli_ok("Family included. The pipeline has not been run.")
   dina_cli_cat(sprintf("Next family: dina sources\nRestore backup: dina sources include %s --restore %s", family, result$paths$root))
   completed <- TRUE
@@ -1231,6 +1322,19 @@ dina_admin_trust_candidate_for_include <- function(root, record) {
   list(config = candidate, proposal_path = proposal_path)
 }
 
+# Even when no proposal was needed, Admin Include validates and snapshots the
+# current registry with the complete reviewed family.
+dina_admin_trust_current_for_include <- function(root) {
+  candidate <- dina_admin_trust_regions(root)
+  candidate_path <- tempfile("admin-trust-config-", fileext = ".yml")
+  on.exit(unlink(candidate_path), add = TRUE)
+  dina_write_yaml(candidate, candidate_path)
+  config <- dina_session_config(dina_load_session(root = root), root, expand_env = FALSE)
+  check <- dina_admin_trust_validate(root, config, trust_path = candidate_path)
+  if (!isTRUE(check$valid)) stop(paste(check$errors, collapse = "\n"), call. = FALSE)
+  list(config = candidate, proposal_path = "")
+}
+
 dina_sources_configure_admin <- function(root = dina_repo_root(), flags = list(), input = "stdin", is_terminal = isatty(stdin())) {
   path <- dina_admin_trust_regions_path(root)
   proposal_path <- flags$proposal %||% dina_admin_trust_proposal_path(root)
@@ -1373,6 +1477,11 @@ dina_cmd_sources <- function(root, args, input = "stdin", is_terminal = isatty(s
     result <- dina_cmd_sources_legacy(root, args)
     if (identical(sub, "include") && !is.null(flags$restore)) {
       family <- dina_source_workflow_family(dina_arg(flags$positional, 1L, "sna"))
+      if (identical(family, "admin")) {
+        confirmation <- flags$restore
+        if (!grepl("^/", confirmation)) confirmation <- file.path(root, confirmation)
+        dina_admin_trust_restore_from_confirmation(root, confirmation)
+      }
       record <- dina_review_read(root, family)
       if (!is.null(record)) {
         record$status <- "restored"

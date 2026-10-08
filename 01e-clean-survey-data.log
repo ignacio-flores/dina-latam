@@ -20,7 +20,24 @@ Notes:
       3.  More than 2 billion observations are allowed; see help obs_advice.
       4.  Maximum number of variables is set to 5000; see help set_maxvar.
 
-. do code/Stata/01e-clean-survey-data.do 
+. do /Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261007-223335
+> /01e-clean-survey-data.wrapper.do 
+
+. capture log close _all
+
+. log using "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/2026100
+> 7-223335/01e-clean-survey-data.stata.log", text replace
+(note: file /Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261007
+> -223335/01e-clean-survey-data.stata.log not found)
+-------------------------------------------------------------------------------
+      name:  <unnamed>
+       log:  /Users/iflores/Documents/GitHub/dina-latam/output/run_logs/2026100
+> 7-223335/01e-clean-survey-data.stata.log
+  log type:  text
+ opened on:   7 Oct 2026, 22:33:36
+
+. capture noisily do "/Users/iflores/Documents/GitHub/dina-latam/code/Stata/01e
+> -clean-survey-data.do"
 
 . /*===========================================================================
 > ==*
@@ -60,7 +77,6 @@ Notes:
 .         if (scalar(exists) == 0) {
 .                 mkdir "`dirpath'"
 .                 display "Created directory: `dirpath'"
-Created directory: intermediary_data/microdata/raw
 .         }
 
 .  
@@ -258,33 +274,31 @@ Created directory: intermediary_data/microdata/raw
  93.                 }       
  94.         }
  95. }
-Created directory: intermediary_data/microdata/raw/COL
-01e - part 1: Cleaning survey in COL - 2002 at 14:42:15
-01e - part 1: Cleaning survey in COL - 2003 at 14:42:16
-01e - part 1: Cleaning survey in COL - 2004 at 14:42:17
-01e - part 1: Cleaning survey in COL - 2005 at 14:42:18
-01e - part 1: Cleaning survey in COL - 2008 at 14:42:19
-01e - part 1: Cleaning survey in COL - 2009 at 14:42:20
-01e - part 1: Cleaning survey in COL - 2010 at 14:42:22
-01e - part 1: Cleaning survey in COL - 2011 at 14:42:24
-01e - part 1: Cleaning survey in COL - 2012 at 14:42:25
-01e - part 1: Cleaning survey in COL - 2013 at 14:42:27
-01e - part 1: Cleaning survey in COL - 2014 at 14:42:28
-01e - part 1: Cleaning survey in COL - 2015 at 14:42:30
-01e - part 1: Cleaning survey in COL - 2016 at 14:42:31
-01e - part 1: Cleaning survey in COL - 2017 at 14:42:33
-01e - part 1: Cleaning survey in COL - 2018 at 14:42:34
-01e - part 1: Cleaning survey in COL - 2019 at 14:42:36
-01e - part 1: Cleaning survey in COL - 2020 at 14:42:37
-01e - part 1: Cleaning survey in COL - 2021 at 14:42:39
-01e - part 1: Cleaning survey in COL - 2022 at 14:42:40
-01e - part 1: Cleaning survey in COL - 2023 at 14:42:42
-01e - part 1: Cleaning survey in COL - 2024 at 14:42:43
-01e - part 1: Cleaning survey in ARG - 2000 at 14:42:45
-Created directory: intermediary_data/microdata/raw/ARG
-01e - part 1: Cleaning survey in ARG - 2001 at 14:42:45
-01e - part 1: Cleaning survey in ARG - 2002 at 14:42:45
-01e - part 1: Cleaning survey in ARG - 2003 at 14:42:45
+01e - part 1: Cleaning survey in COL - 2002 at 22:33:36
+01e - part 1: Cleaning survey in COL - 2003 at 22:33:37
+01e - part 1: Cleaning survey in COL - 2004 at 22:33:38
+01e - part 1: Cleaning survey in COL - 2005 at 22:33:39
+01e - part 1: Cleaning survey in COL - 2008 at 22:33:40
+01e - part 1: Cleaning survey in COL - 2009 at 22:33:41
+01e - part 1: Cleaning survey in COL - 2010 at 22:33:43
+01e - part 1: Cleaning survey in COL - 2011 at 22:33:44
+01e - part 1: Cleaning survey in COL - 2012 at 22:33:46
+01e - part 1: Cleaning survey in COL - 2013 at 22:33:47
+01e - part 1: Cleaning survey in COL - 2014 at 22:33:49
+01e - part 1: Cleaning survey in COL - 2015 at 22:33:50
+01e - part 1: Cleaning survey in COL - 2016 at 22:33:51
+01e - part 1: Cleaning survey in COL - 2017 at 22:33:53
+01e - part 1: Cleaning survey in COL - 2018 at 22:33:54
+01e - part 1: Cleaning survey in COL - 2019 at 22:33:56
+01e - part 1: Cleaning survey in COL - 2020 at 22:33:57
+01e - part 1: Cleaning survey in COL - 2021 at 22:33:58
+01e - part 1: Cleaning survey in COL - 2022 at 22:34:00
+01e - part 1: Cleaning survey in COL - 2023 at 22:34:02
+01e - part 1: Cleaning survey in COL - 2024 at 22:34:03
+01e - part 1: Cleaning survey in ARG - 2000 at 22:34:05
+01e - part 1: Cleaning survey in ARG - 2001 at 22:34:05
+01e - part 1: Cleaning survey in ARG - 2002 at 22:34:05
+01e - part 1: Cleaning survey in ARG - 2003 at 22:34:05
 extreme values: 1
 
        +-------------------------------------------------------------------+
@@ -294,9 +308,9 @@ extreme values: 1
        |                                               categ5_p | excluder |
        | Asalariados (puede incluir o no el servicio doméstico) | 643.4277 |
        +-------------------------------------------------------------------+
-01e - part 1: Cleaning survey in ARG - 2004 at 14:42:45
-01e - part 1: Cleaning survey in ARG - 2005 at 14:42:46
-01e - part 1: Cleaning survey in ARG - 2006 at 14:42:46
+01e - part 1: Cleaning survey in ARG - 2004 at 22:34:05
+01e - part 1: Cleaning survey in ARG - 2005 at 22:34:06
+01e - part 1: Cleaning survey in ARG - 2006 at 22:34:06
 extreme values: 1
 
         +--------------------------------------------------+
@@ -304,108 +318,104 @@ extreme values: 1
         |--------------------------------------------------|
  92318. |    26765         1     47   Empleador    852.417 |
         +--------------------------------------------------+
-01e - part 1: Cleaning survey in ARG - 2007 at 14:42:46
-01e - part 1: Cleaning survey in ARG - 2008 at 14:42:46
-01e - part 1: Cleaning survey in ARG - 2009 at 14:42:46
-01e - part 1: Cleaning survey in ARG - 2010 at 14:42:47
-01e - part 1: Cleaning survey in ARG - 2011 at 14:42:47
-01e - part 1: Cleaning survey in ARG - 2012 at 14:42:47
-01e - part 1: Cleaning survey in ARG - 2013 at 14:42:47
-01e - part 1: Cleaning survey in ARG - 2014 at 14:42:48
-01e - part 1: Cleaning survey in ARG - 2016 at 14:42:48
-01e - part 1: Cleaning survey in ARG - 2017 at 14:42:48
-01e - part 1: Cleaning survey in ARG - 2018 at 14:42:48
-01e - part 1: Cleaning survey in ARG - 2019 at 14:42:49
-01e - part 1: Cleaning survey in ARG - 2020 at 14:42:49
-01e - part 1: Cleaning survey in ARG - 2021 at 14:42:49
-01e - part 1: Cleaning survey in ARG - 2022 at 14:42:49
-01e - part 1: Cleaning survey in ARG - 2023 at 14:42:50
-01e - part 1: Cleaning survey in ARG - 2024 at 14:42:50
-01e - part 1: Cleaning survey in PER - 2000 at 14:42:50
-Created directory: intermediary_data/microdata/raw/PER
-01e - part 1: Cleaning survey in PER - 2001 at 14:42:50
-01e - part 1: Cleaning survey in PER - 2002 at 14:42:50
-01e - part 1: Cleaning survey in PER - 2003 at 14:42:50
-01e - part 1: Cleaning survey in PER - 2004 at 14:42:51
-01e - part 1: Cleaning survey in PER - 2005 at 14:42:51
-01e - part 1: Cleaning survey in PER - 2006 at 14:42:51
-01e - part 1: Cleaning survey in PER - 2007 at 14:42:51
-01e - part 1: Cleaning survey in PER - 2008 at 14:42:51
-01e - part 1: Cleaning survey in PER - 2009 at 14:42:52
-01e - part 1: Cleaning survey in PER - 2010 at 14:42:52
-01e - part 1: Cleaning survey in PER - 2011 at 14:42:52
-01e - part 1: Cleaning survey in PER - 2012 at 14:42:52
-01e - part 1: Cleaning survey in PER - 2013 at 14:42:52
-01e - part 1: Cleaning survey in PER - 2014 at 14:42:53
-01e - part 1: Cleaning survey in PER - 2015 at 14:42:53
-01e - part 1: Cleaning survey in PER - 2016 at 14:42:53
-01e - part 1: Cleaning survey in PER - 2017 at 14:42:54
-01e - part 1: Cleaning survey in PER - 2018 at 14:42:54
-01e - part 1: Cleaning survey in PER - 2019 at 14:42:54
-01e - part 1: Cleaning survey in PER - 2020 at 14:42:55
-01e - part 1: Cleaning survey in PER - 2021 at 14:42:55
-01e - part 1: Cleaning survey in PER - 2022 at 14:42:55
-01e - part 1: Cleaning survey in PER - 2023 at 14:42:55
-01e - part 1: Cleaning survey in PER - 2024 at 14:42:56
-01e - part 1: Cleaning survey in URY - 2000 at 14:42:56
-Created directory: intermediary_data/microdata/raw/URY
-01e - part 1: Cleaning survey in URY - 2001 at 14:42:56
+01e - part 1: Cleaning survey in ARG - 2007 at 22:34:06
+01e - part 1: Cleaning survey in ARG - 2008 at 22:34:06
+01e - part 1: Cleaning survey in ARG - 2009 at 22:34:06
+01e - part 1: Cleaning survey in ARG - 2010 at 22:34:07
+01e - part 1: Cleaning survey in ARG - 2011 at 22:34:07
+01e - part 1: Cleaning survey in ARG - 2012 at 22:34:07
+01e - part 1: Cleaning survey in ARG - 2013 at 22:34:07
+01e - part 1: Cleaning survey in ARG - 2014 at 22:34:08
+01e - part 1: Cleaning survey in ARG - 2016 at 22:34:08
+01e - part 1: Cleaning survey in ARG - 2017 at 22:34:08
+01e - part 1: Cleaning survey in ARG - 2018 at 22:34:08
+01e - part 1: Cleaning survey in ARG - 2019 at 22:34:08
+01e - part 1: Cleaning survey in ARG - 2020 at 22:34:09
+01e - part 1: Cleaning survey in ARG - 2021 at 22:34:09
+01e - part 1: Cleaning survey in ARG - 2022 at 22:34:09
+01e - part 1: Cleaning survey in ARG - 2023 at 22:34:09
+01e - part 1: Cleaning survey in ARG - 2024 at 22:34:10
+01e - part 1: Cleaning survey in PER - 2000 at 22:34:10
+01e - part 1: Cleaning survey in PER - 2001 at 22:34:10
+01e - part 1: Cleaning survey in PER - 2002 at 22:34:10
+01e - part 1: Cleaning survey in PER - 2003 at 22:34:10
+01e - part 1: Cleaning survey in PER - 2004 at 22:34:10
+01e - part 1: Cleaning survey in PER - 2005 at 22:34:11
+01e - part 1: Cleaning survey in PER - 2006 at 22:34:11
+01e - part 1: Cleaning survey in PER - 2007 at 22:34:11
+01e - part 1: Cleaning survey in PER - 2008 at 22:34:11
+01e - part 1: Cleaning survey in PER - 2009 at 22:34:11
+01e - part 1: Cleaning survey in PER - 2010 at 22:34:11
+01e - part 1: Cleaning survey in PER - 2011 at 22:34:12
+01e - part 1: Cleaning survey in PER - 2012 at 22:34:12
+01e - part 1: Cleaning survey in PER - 2013 at 22:34:12
+01e - part 1: Cleaning survey in PER - 2014 at 22:34:12
+01e - part 1: Cleaning survey in PER - 2015 at 22:34:13
+01e - part 1: Cleaning survey in PER - 2016 at 22:34:13
+01e - part 1: Cleaning survey in PER - 2017 at 22:34:13
+01e - part 1: Cleaning survey in PER - 2018 at 22:34:14
+01e - part 1: Cleaning survey in PER - 2019 at 22:34:14
+01e - part 1: Cleaning survey in PER - 2020 at 22:34:14
+01e - part 1: Cleaning survey in PER - 2021 at 22:34:14
+01e - part 1: Cleaning survey in PER - 2022 at 22:34:15
+01e - part 1: Cleaning survey in PER - 2023 at 22:34:15
+01e - part 1: Cleaning survey in PER - 2024 at 22:34:15
+01e - part 1: Cleaning survey in URY - 2000 at 22:34:15
+01e - part 1: Cleaning survey in URY - 2001 at 22:34:16
      yotr_pe: 52954 missing values recoded
-01e - part 1: Cleaning survey in URY - 2002 at 14:42:56
+01e - part 1: Cleaning survey in URY - 2002 at 22:34:16
      yotr_pe: 54755 missing values recoded
-01e - part 1: Cleaning survey in URY - 2003 at 14:42:56
+01e - part 1: Cleaning survey in URY - 2003 at 22:34:16
      yotr_pe: 53854 missing values recoded
-01e - part 1: Cleaning survey in URY - 2004 at 14:42:56
+01e - part 1: Cleaning survey in URY - 2004 at 22:34:16
      yotr_pe: 53727 missing values recoded
-01e - part 1: Cleaning survey in URY - 2005 at 14:42:56
+01e - part 1: Cleaning survey in URY - 2005 at 22:34:16
      yotr_pe: 51404 missing values recoded
-01e - part 1: Cleaning survey in URY - 2007 at 14:42:57
-01e - part 1: Cleaning survey in URY - 2008 at 14:42:57
-01e - part 1: Cleaning survey in URY - 2009 at 14:42:57
-01e - part 1: Cleaning survey in URY - 2010 at 14:42:58
-01e - part 1: Cleaning survey in URY - 2011 at 14:42:58
-01e - part 1: Cleaning survey in URY - 2012 at 14:42:58
-01e - part 1: Cleaning survey in URY - 2013 at 14:42:58
-01e - part 1: Cleaning survey in URY - 2014 at 14:42:59
-01e - part 1: Cleaning survey in URY - 2015 at 14:42:59
-01e - part 1: Cleaning survey in URY - 2016 at 14:42:59
-01e - part 1: Cleaning survey in URY - 2017 at 14:43:00
-01e - part 1: Cleaning survey in URY - 2018 at 14:43:00
-01e - part 1: Cleaning survey in URY - 2019 at 14:43:00
-01e - part 1: Cleaning survey in URY - 2020 at 14:43:01
-01e - part 1: Cleaning survey in URY - 2021 at 14:43:01
-01e - part 1: Cleaning survey in URY - 2022 at 14:43:01
-01e - part 1: Cleaning survey in URY - 2023 at 14:43:01
-01e - part 1: Cleaning survey in URY - 2024 at 14:43:01
-01e - part 1: Cleaning survey in CRI - 2000 at 14:43:01
-Created directory: intermediary_data/microdata/raw/CRI
-01e - part 1: Cleaning survey in CRI - 2001 at 14:43:01
-01e - part 1: Cleaning survey in CRI - 2002 at 14:43:02
-01e - part 1: Cleaning survey in CRI - 2003 at 14:43:02
-01e - part 1: Cleaning survey in CRI - 2004 at 14:43:02
-01e - part 1: Cleaning survey in CRI - 2005 at 14:43:02
-01e - part 1: Cleaning survey in CRI - 2006 at 14:43:02
-01e - part 1: Cleaning survey in CRI - 2007 at 14:43:02
-01e - part 1: Cleaning survey in CRI - 2008 at 14:43:02
-01e - part 1: Cleaning survey in CRI - 2009 at 14:43:02
-01e - part 1: Cleaning survey in CRI - 2010 at 14:43:02
-01e - part 1: Cleaning survey in CRI - 2011 at 14:43:03
-01e - part 1: Cleaning survey in CRI - 2012 at 14:43:03
-01e - part 1: Cleaning survey in CRI - 2013 at 14:43:03
-01e - part 1: Cleaning survey in CRI - 2014 at 14:43:03
-01e - part 1: Cleaning survey in CRI - 2015 at 14:43:03
-01e - part 1: Cleaning survey in CRI - 2016 at 14:43:03
-01e - part 1: Cleaning survey in CRI - 2017 at 14:43:03
-01e - part 1: Cleaning survey in CRI - 2018 at 14:43:03
-01e - part 1: Cleaning survey in CRI - 2019 at 14:43:03
-01e - part 1: Cleaning survey in CRI - 2020 at 14:43:03
-01e - part 1: Cleaning survey in CRI - 2021 at 14:43:04
-01e - part 1: Cleaning survey in CRI - 2022 at 14:43:04
-01e - part 1: Cleaning survey in CRI - 2023 at 14:43:04
-01e - part 1: Cleaning survey in CRI - 2024 at 14:43:04
-Created directory: intermediary_data/microdata/raw/ECU
-01e - part 1: Cleaning survey in ECU - 2001 at 14:43:04
-01e - part 1: Cleaning survey in ECU - 2003 at 14:43:04
+01e - part 1: Cleaning survey in URY - 2007 at 22:34:16
+01e - part 1: Cleaning survey in URY - 2008 at 22:34:16
+01e - part 1: Cleaning survey in URY - 2009 at 22:34:17
+01e - part 1: Cleaning survey in URY - 2010 at 22:34:17
+01e - part 1: Cleaning survey in URY - 2011 at 22:34:17
+01e - part 1: Cleaning survey in URY - 2012 at 22:34:18
+01e - part 1: Cleaning survey in URY - 2013 at 22:34:18
+01e - part 1: Cleaning survey in URY - 2014 at 22:34:18
+01e - part 1: Cleaning survey in URY - 2015 at 22:34:19
+01e - part 1: Cleaning survey in URY - 2016 at 22:34:19
+01e - part 1: Cleaning survey in URY - 2017 at 22:34:19
+01e - part 1: Cleaning survey in URY - 2018 at 22:34:19
+01e - part 1: Cleaning survey in URY - 2019 at 22:34:20
+01e - part 1: Cleaning survey in URY - 2020 at 22:34:20
+01e - part 1: Cleaning survey in URY - 2021 at 22:34:20
+01e - part 1: Cleaning survey in URY - 2022 at 22:34:20
+01e - part 1: Cleaning survey in URY - 2023 at 22:34:20
+01e - part 1: Cleaning survey in URY - 2024 at 22:34:20
+01e - part 1: Cleaning survey in CRI - 2000 at 22:34:21
+01e - part 1: Cleaning survey in CRI - 2001 at 22:34:21
+01e - part 1: Cleaning survey in CRI - 2002 at 22:34:21
+01e - part 1: Cleaning survey in CRI - 2003 at 22:34:21
+01e - part 1: Cleaning survey in CRI - 2004 at 22:34:21
+01e - part 1: Cleaning survey in CRI - 2005 at 22:34:21
+01e - part 1: Cleaning survey in CRI - 2006 at 22:34:21
+01e - part 1: Cleaning survey in CRI - 2007 at 22:34:21
+01e - part 1: Cleaning survey in CRI - 2008 at 22:34:21
+01e - part 1: Cleaning survey in CRI - 2009 at 22:34:22
+01e - part 1: Cleaning survey in CRI - 2010 at 22:34:22
+01e - part 1: Cleaning survey in CRI - 2011 at 22:34:22
+01e - part 1: Cleaning survey in CRI - 2012 at 22:34:22
+01e - part 1: Cleaning survey in CRI - 2013 at 22:34:22
+01e - part 1: Cleaning survey in CRI - 2014 at 22:34:22
+01e - part 1: Cleaning survey in CRI - 2015 at 22:34:22
+01e - part 1: Cleaning survey in CRI - 2016 at 22:34:22
+01e - part 1: Cleaning survey in CRI - 2017 at 22:34:22
+01e - part 1: Cleaning survey in CRI - 2018 at 22:34:22
+01e - part 1: Cleaning survey in CRI - 2019 at 22:34:22
+01e - part 1: Cleaning survey in CRI - 2020 at 22:34:22
+01e - part 1: Cleaning survey in CRI - 2021 at 22:34:23
+01e - part 1: Cleaning survey in CRI - 2022 at 22:34:23
+01e - part 1: Cleaning survey in CRI - 2023 at 22:34:23
+01e - part 1: Cleaning survey in CRI - 2024 at 22:34:23
+01e - part 1: Cleaning survey in ECU - 2001 at 22:34:23
+01e - part 1: Cleaning survey in ECU - 2003 at 22:34:23
 extreme values: 4
 
        +-------------------------------------------------------------------+
@@ -439,8 +449,8 @@ extreme values: 4
        |                                               categ5_p | excluder |
        | Asalariados (puede incluir o no el servicio doméstico) | 2712.873 |
        +-------------------------------------------------------------------+
-01e - part 1: Cleaning survey in ECU - 2005 at 14:43:04
-01e - part 1: Cleaning survey in ECU - 2006 at 14:43:04
+01e - part 1: Cleaning survey in ECU - 2005 at 22:34:23
+01e - part 1: Cleaning survey in ECU - 2006 at 22:34:23
 extreme values: 2
 
        +--------------------------------------------------+
@@ -449,78 +459,75 @@ extreme values: 2
 12447. |     3152         1     34   Empleador   2349.346 |
 62495. |    15076         1     68   Empleador   2221.137 |
        +--------------------------------------------------+
-01e - part 1: Cleaning survey in ECU - 2007 at 14:43:05
-01e - part 1: Cleaning survey in ECU - 2008 at 14:43:05
-01e - part 1: Cleaning survey in ECU - 2009 at 14:43:05
-01e - part 1: Cleaning survey in ECU - 2010 at 14:43:05
-01e - part 1: Cleaning survey in ECU - 2011 at 14:43:05
-01e - part 1: Cleaning survey in ECU - 2012 at 14:43:05
-01e - part 1: Cleaning survey in ECU - 2013 at 14:43:06
-01e - part 1: Cleaning survey in ECU - 2014 at 14:43:06
-01e - part 1: Cleaning survey in ECU - 2015 at 14:43:06
-01e - part 1: Cleaning survey in ECU - 2016 at 14:43:06
-01e - part 1: Cleaning survey in ECU - 2017 at 14:43:07
-01e - part 1: Cleaning survey in ECU - 2018 at 14:43:07
-01e - part 1: Cleaning survey in ECU - 2019 at 14:43:07
-01e - part 1: Cleaning survey in ECU - 2020 at 14:43:07
-01e - part 1: Cleaning survey in ECU - 2021 at 14:43:07
-01e - part 1: Cleaning survey in ECU - 2022 at 14:43:08
+01e - part 1: Cleaning survey in ECU - 2007 at 22:34:23
+01e - part 1: Cleaning survey in ECU - 2008 at 22:34:24
+01e - part 1: Cleaning survey in ECU - 2009 at 22:34:24
+01e - part 1: Cleaning survey in ECU - 2010 at 22:34:24
+01e - part 1: Cleaning survey in ECU - 2011 at 22:34:24
+01e - part 1: Cleaning survey in ECU - 2012 at 22:34:24
+01e - part 1: Cleaning survey in ECU - 2013 at 22:34:24
+01e - part 1: Cleaning survey in ECU - 2014 at 22:34:24
+01e - part 1: Cleaning survey in ECU - 2015 at 22:34:25
+01e - part 1: Cleaning survey in ECU - 2016 at 22:34:25
+01e - part 1: Cleaning survey in ECU - 2017 at 22:34:25
+01e - part 1: Cleaning survey in ECU - 2018 at 22:34:25
+01e - part 1: Cleaning survey in ECU - 2019 at 22:34:26
+01e - part 1: Cleaning survey in ECU - 2020 at 22:34:26
+01e - part 1: Cleaning survey in ECU - 2021 at 22:34:26
+01e - part 1: Cleaning survey in ECU - 2022 at 22:34:27
      yjub_pe: 1 missing value recoded
       yto_pe: 1 missing value recoded
-01e - part 1: Cleaning survey in ECU - 2023 at 14:43:09
-01e - part 1: Cleaning survey in ECU - 2024 at 14:43:09
-01e - part 1: Cleaning survey in CHL - 2000 at 14:43:10
-Created directory: intermediary_data/microdata/raw/CHL
-01e - part 1: Cleaning survey in CHL - 2003 at 14:43:11
-01e - part 1: Cleaning survey in CHL - 2006 at 14:43:11
+01e - part 1: Cleaning survey in ECU - 2023 at 22:34:27
+01e - part 1: Cleaning survey in ECU - 2024 at 22:34:28
+01e - part 1: Cleaning survey in CHL - 2000 at 22:34:29
+01e - part 1: Cleaning survey in CHL - 2003 at 22:34:30
+01e - part 1: Cleaning survey in CHL - 2006 at 22:34:30
       gan_pe: 3 missing values recoded
-01e - part 1: Cleaning survey in CHL - 2009 at 14:43:12
-01e - part 1: Cleaning survey in CHL - 2011 at 14:43:12
-01e - part 1: Cleaning survey in CHL - 2013 at 14:43:13
-01e - part 1: Cleaning survey in CHL - 2015 at 14:43:13
-01e - part 1: Cleaning survey in CHL - 2017 at 14:43:14
-01e - part 1: Cleaning survey in CHL - 2020 at 14:43:15
-01e - part 1: Cleaning survey in CHL - 2022 at 14:43:15
-01e - part 1: Cleaning survey in CHL - 2024 at 14:43:16
-Created directory: intermediary_data/microdata/raw/BRA
-01e - part 1: Cleaning survey in BRA - 2001 at 14:43:16
-01e - part 1: Cleaning survey in BRA - 2002 at 14:43:17
-01e - part 1: Cleaning survey in BRA - 2003 at 14:43:18
-01e - part 1: Cleaning survey in BRA - 2004 at 14:43:19
-01e - part 1: Cleaning survey in BRA - 2005 at 14:43:19
-01e - part 1: Cleaning survey in BRA - 2006 at 14:43:20
-01e - part 1: Cleaning survey in BRA - 2007 at 14:43:21
-01e - part 1: Cleaning survey in BRA - 2008 at 14:43:22
-01e - part 1: Cleaning survey in BRA - 2009 at 14:43:23
-01e - part 1: Cleaning survey in BRA - 2011 at 14:43:24
-01e - part 1: Cleaning survey in BRA - 2012 at 14:43:25
-01e - part 1: Cleaning survey in BRA - 2013 at 14:43:26
-01e - part 1: Cleaning survey in BRA - 2014 at 14:43:26
-01e - part 1: Cleaning survey in BRA - 2015 at 14:43:27
-01e - part 1: Cleaning survey in BRA - 2016 at 14:43:28
-01e - part 1: Cleaning survey in BRA - 2017 at 14:43:29
-01e - part 1: Cleaning survey in BRA - 2018 at 14:43:30
-01e - part 1: Cleaning survey in BRA - 2019 at 14:43:31
-01e - part 1: Cleaning survey in BRA - 2020 at 14:43:32
-01e - part 1: Cleaning survey in BRA - 2021 at 14:43:33
+01e - part 1: Cleaning survey in CHL - 2009 at 22:34:31
+01e - part 1: Cleaning survey in CHL - 2011 at 22:34:31
+01e - part 1: Cleaning survey in CHL - 2013 at 22:34:32
+01e - part 1: Cleaning survey in CHL - 2015 at 22:34:32
+01e - part 1: Cleaning survey in CHL - 2017 at 22:34:33
+01e - part 1: Cleaning survey in CHL - 2020 at 22:34:33
+01e - part 1: Cleaning survey in CHL - 2022 at 22:34:34
+01e - part 1: Cleaning survey in CHL - 2024 at 22:34:34
+01e - part 1: Cleaning survey in BRA - 2001 at 22:34:35
+01e - part 1: Cleaning survey in BRA - 2002 at 22:34:35
+01e - part 1: Cleaning survey in BRA - 2003 at 22:34:36
+01e - part 1: Cleaning survey in BRA - 2004 at 22:34:37
+01e - part 1: Cleaning survey in BRA - 2005 at 22:34:38
+01e - part 1: Cleaning survey in BRA - 2006 at 22:34:39
+01e - part 1: Cleaning survey in BRA - 2007 at 22:34:40
+01e - part 1: Cleaning survey in BRA - 2008 at 22:34:41
+01e - part 1: Cleaning survey in BRA - 2009 at 22:34:41
+01e - part 1: Cleaning survey in BRA - 2011 at 22:34:42
+01e - part 1: Cleaning survey in BRA - 2012 at 22:34:43
+01e - part 1: Cleaning survey in BRA - 2013 at 22:34:44
+01e - part 1: Cleaning survey in BRA - 2014 at 22:34:45
+01e - part 1: Cleaning survey in BRA - 2015 at 22:34:46
+01e - part 1: Cleaning survey in BRA - 2016 at 22:34:47
+01e - part 1: Cleaning survey in BRA - 2017 at 22:34:48
+01e - part 1: Cleaning survey in BRA - 2018 at 22:34:49
+01e - part 1: Cleaning survey in BRA - 2019 at 22:34:50
+01e - part 1: Cleaning survey in BRA - 2020 at 22:34:51
+01e - part 1: Cleaning survey in BRA - 2021 at 22:34:52
      yaim_he: 5 missing values recoded
       yto_he: 5 missing values recoded
-01e - part 1: Cleaning survey in BRA - 2022 at 14:43:34
-01e - part 1: Cleaning survey in BRA - 2023 at 14:43:35
-01e - part 1: Cleaning survey in BRA - 2024 at 14:43:36
-01e - part 1: Cleaning survey in SLV - 2000 at 14:43:37
-Created directory: intermediary_data/microdata/raw/SLV
-01e - part 1: Cleaning survey in SLV - 2001 at 14:43:38
-01e - part 1: Cleaning survey in SLV - 2002 at 14:43:38
-01e - part 1: Cleaning survey in SLV - 2003 at 14:43:38
-01e - part 1: Cleaning survey in SLV - 2004 at 14:43:38
-01e - part 1: Cleaning survey in SLV - 2005 at 14:43:38
-01e - part 1: Cleaning survey in SLV - 2006 at 14:43:39
-01e - part 1: Cleaning survey in SLV - 2007 at 14:43:39
-01e - part 1: Cleaning survey in SLV - 2009 at 14:43:39
-01e - part 1: Cleaning survey in SLV - 2010 at 14:43:39
-01e - part 1: Cleaning survey in SLV - 2012 at 14:43:40
-01e - part 1: Cleaning survey in SLV - 2013 at 14:43:40
+01e - part 1: Cleaning survey in BRA - 2022 at 22:34:52
+01e - part 1: Cleaning survey in BRA - 2023 at 22:34:53
+01e - part 1: Cleaning survey in BRA - 2024 at 22:34:54
+01e - part 1: Cleaning survey in SLV - 2000 at 22:34:55
+01e - part 1: Cleaning survey in SLV - 2001 at 22:34:55
+01e - part 1: Cleaning survey in SLV - 2002 at 22:34:56
+01e - part 1: Cleaning survey in SLV - 2003 at 22:34:56
+01e - part 1: Cleaning survey in SLV - 2004 at 22:34:56
+01e - part 1: Cleaning survey in SLV - 2005 at 22:34:56
+01e - part 1: Cleaning survey in SLV - 2006 at 22:34:57
+01e - part 1: Cleaning survey in SLV - 2007 at 22:34:57
+01e - part 1: Cleaning survey in SLV - 2009 at 22:34:57
+01e - part 1: Cleaning survey in SLV - 2010 at 22:34:57
+01e - part 1: Cleaning survey in SLV - 2012 at 22:34:57
+01e - part 1: Cleaning survey in SLV - 2013 at 22:34:58
 extreme values: 1
 
        +--------------------------------------------------+
@@ -528,28 +535,27 @@ extreme values: 1
        |--------------------------------------------------|
  5322. |     1441         1     65   Empleador   1519.968 |
        +--------------------------------------------------+
-01e - part 1: Cleaning survey in SLV - 2014 at 14:43:40
-01e - part 1: Cleaning survey in SLV - 2015 at 14:43:40
-01e - part 1: Cleaning survey in SLV - 2016 at 14:43:40
-01e - part 1: Cleaning survey in SLV - 2017 at 14:43:41
-01e - part 1: Cleaning survey in SLV - 2018 at 14:43:41
-01e - part 1: Cleaning survey in SLV - 2019 at 14:43:41
-01e - part 1: Cleaning survey in SLV - 2020 at 14:43:41
-01e - part 1: Cleaning survey in SLV - 2021 at 14:43:42
-01e - part 1: Cleaning survey in SLV - 2022 at 14:43:42
-01e - part 1: Cleaning survey in SLV - 2023 at 14:43:42
+01e - part 1: Cleaning survey in SLV - 2014 at 22:34:58
+01e - part 1: Cleaning survey in SLV - 2015 at 22:34:58
+01e - part 1: Cleaning survey in SLV - 2016 at 22:34:58
+01e - part 1: Cleaning survey in SLV - 2017 at 22:34:58
+01e - part 1: Cleaning survey in SLV - 2018 at 22:34:59
+01e - part 1: Cleaning survey in SLV - 2019 at 22:34:59
+01e - part 1: Cleaning survey in SLV - 2020 at 22:34:59
+01e - part 1: Cleaning survey in SLV - 2021 at 22:34:59
+01e - part 1: Cleaning survey in SLV - 2022 at 22:34:59
+01e - part 1: Cleaning survey in SLV - 2023 at 22:34:59
      yjub_pe: 1 missing value recoded
       yto_pe: 1 missing value recoded
-01e - part 1: Cleaning survey in SLV - 2024 at 14:43:42
-01e - part 1: Cleaning survey in MEX - 2000 at 14:43:42
-Created directory: intermediary_data/microdata/raw/MEX
-01e - part 1: Cleaning survey in MEX - 2002 at 14:43:42
-01e - part 1: Cleaning survey in MEX - 2004 at 14:43:43
-01e - part 1: Cleaning survey in MEX - 2006 at 14:43:43
-01e - part 1: Cleaning survey in MEX - 2008 at 14:43:43
-01e - part 1: Cleaning survey in MEX - 2010 at 14:43:44
-01e - part 1: Cleaning survey in MEX - 2012 at 14:43:45
-01e - part 1: Cleaning survey in MEX - 2014 at 14:43:45
+01e - part 1: Cleaning survey in SLV - 2024 at 22:35:00
+01e - part 1: Cleaning survey in MEX - 2000 at 22:35:00
+01e - part 1: Cleaning survey in MEX - 2002 at 22:35:00
+01e - part 1: Cleaning survey in MEX - 2004 at 22:35:00
+01e - part 1: Cleaning survey in MEX - 2006 at 22:35:00
+01e - part 1: Cleaning survey in MEX - 2008 at 22:35:01
+01e - part 1: Cleaning survey in MEX - 2010 at 22:35:01
+01e - part 1: Cleaning survey in MEX - 2012 at 22:35:02
+01e - part 1: Cleaning survey in MEX - 2014 at 22:35:02
 extreme values: 1
 
         +---------------------------------------------------+
@@ -557,7 +563,7 @@ extreme values: 1
         |---------------------------------------------------|
 140675. | 2.108e+10         1     74   Empleador   1126.342 |
         +---------------------------------------------------+
-01e - part 1: Cleaning survey in MEX - 2016 at 14:43:46
+01e - part 1: Cleaning survey in MEX - 2016 at 22:35:03
 extreme values: 2
 
         +-------------------------------------------------------+
@@ -566,36 +572,35 @@ extreme values: 2
  91306. | 1.106e+10         1     63       Empleador   1521.973 |
 154401. | 1.908e+10         1     65   Cuenta propia   3193.303 |
         +-------------------------------------------------------+
-01e - part 1: Cleaning survey in MEX - 2018 at 14:43:47
-01e - part 1: Cleaning survey in MEX - 2020 at 14:43:47
-01e - part 1: Cleaning survey in MEX - 2022 at 14:43:48
-01e - part 1: Cleaning survey in MEX - 2024 at 14:43:49
-01e - part 1: Cleaning survey in DOM - 2000 at 14:43:49
-Created directory: intermediary_data/microdata/raw/DOM
-01e - part 1: Cleaning survey in DOM - 2001 at 14:43:50
-01e - part 1: Cleaning survey in DOM - 2002 at 14:43:50
-01e - part 1: Cleaning survey in DOM - 2003 at 14:43:50
-01e - part 1: Cleaning survey in DOM - 2004 at 14:43:50
-01e - part 1: Cleaning survey in DOM - 2005 at 14:43:50
-01e - part 1: Cleaning survey in DOM - 2006 at 14:43:50
-01e - part 1: Cleaning survey in DOM - 2007 at 14:43:50
-01e - part 1: Cleaning survey in DOM - 2008 at 14:43:50
-01e - part 1: Cleaning survey in DOM - 2009 at 14:43:50
-01e - part 1: Cleaning survey in DOM - 2010 at 14:43:50
-01e - part 1: Cleaning survey in DOM - 2011 at 14:43:50
-01e - part 1: Cleaning survey in DOM - 2012 at 14:43:50
-01e - part 1: Cleaning survey in DOM - 2013 at 14:43:50
-01e - part 1: Cleaning survey in DOM - 2014 at 14:43:50
-01e - part 1: Cleaning survey in DOM - 2015 at 14:43:51
-01e - part 1: Cleaning survey in DOM - 2016 at 14:43:51
-01e - part 1: Cleaning survey in DOM - 2017 at 14:43:51
-01e - part 1: Cleaning survey in DOM - 2018 at 14:43:51
-01e - part 1: Cleaning survey in DOM - 2019 at 14:43:51
-01e - part 1: Cleaning survey in DOM - 2020 at 14:43:52
-01e - part 1: Cleaning survey in DOM - 2021 at 14:43:52
-01e - part 1: Cleaning survey in DOM - 2022 at 14:43:52
-01e - part 1: Cleaning survey in DOM - 2023 at 14:43:52
-01e - part 1: Cleaning survey in DOM - 2024 at 14:43:52
+01e - part 1: Cleaning survey in MEX - 2018 at 22:35:03
+01e - part 1: Cleaning survey in MEX - 2020 at 22:35:04
+01e - part 1: Cleaning survey in MEX - 2022 at 22:35:04
+01e - part 1: Cleaning survey in MEX - 2024 at 22:35:05
+01e - part 1: Cleaning survey in DOM - 2000 at 22:35:06
+01e - part 1: Cleaning survey in DOM - 2001 at 22:35:06
+01e - part 1: Cleaning survey in DOM - 2002 at 22:35:06
+01e - part 1: Cleaning survey in DOM - 2003 at 22:35:06
+01e - part 1: Cleaning survey in DOM - 2004 at 22:35:06
+01e - part 1: Cleaning survey in DOM - 2005 at 22:35:06
+01e - part 1: Cleaning survey in DOM - 2006 at 22:35:06
+01e - part 1: Cleaning survey in DOM - 2007 at 22:35:06
+01e - part 1: Cleaning survey in DOM - 2008 at 22:35:06
+01e - part 1: Cleaning survey in DOM - 2009 at 22:35:06
+01e - part 1: Cleaning survey in DOM - 2010 at 22:35:06
+01e - part 1: Cleaning survey in DOM - 2011 at 22:35:06
+01e - part 1: Cleaning survey in DOM - 2012 at 22:35:06
+01e - part 1: Cleaning survey in DOM - 2013 at 22:35:06
+01e - part 1: Cleaning survey in DOM - 2014 at 22:35:06
+01e - part 1: Cleaning survey in DOM - 2015 at 22:35:07
+01e - part 1: Cleaning survey in DOM - 2016 at 22:35:07
+01e - part 1: Cleaning survey in DOM - 2017 at 22:35:07
+01e - part 1: Cleaning survey in DOM - 2018 at 22:35:07
+01e - part 1: Cleaning survey in DOM - 2019 at 22:35:07
+01e - part 1: Cleaning survey in DOM - 2020 at 22:35:07
+01e - part 1: Cleaning survey in DOM - 2021 at 22:35:07
+01e - part 1: Cleaning survey in DOM - 2022 at 22:35:07
+01e - part 1: Cleaning survey in DOM - 2023 at 22:35:08
+01e - part 1: Cleaning survey in DOM - 2024 at 22:35:08
 
 . 
 . *------------------------------------------------------------------------
@@ -605,6 +610,15 @@ Created directory: intermediary_data/microdata/raw/DOM
 . * Brazil
 . qui do "code/Stata/BRA/svy_adj_BRA.do"
 lower not allowed
+r(101);
+
+end of do-file
+
+. local dina_task_rc = _rc
+
+. capture log close _all
+
+. exit `dina_task_rc'
 r(101);
 
 end of do-file

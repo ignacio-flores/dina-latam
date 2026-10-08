@@ -173,7 +173,6 @@ tasks:
     inputs:
       - intermediary_data/microdata/raw
       - input_data/admin_data
-      - config/admin_trust_regions.yml
     outputs:
       - intermediary_data/microdata/bfm_norep_pre
       - output/bfm_summary
@@ -186,7 +185,6 @@ tasks:
       - 03a-run-bfm
     inputs:
       - intermediary_data/microdata/bfm_norep_pre
-      - config/admin_trust_regions.yml
     outputs:
       - intermediary_data/microdata/bfm_norep_pos
 
@@ -199,7 +197,6 @@ tasks:
       - 03b-run-bfm-2stage
     inputs:
       - output/bfm_summary
-      - config/admin_trust_regions.yml
     outputs:
       - output/bfm_summary/pseudo_thetas.xlsx
 
