@@ -71,7 +71,9 @@ program define bra_admin_thresholds, rclass
 		}
 	restore
 
-	local require : lower local require
+	// `: lower local ...' is not available in Stata 16.  Use the ordinary
+	// string function so this helper works with the project's supported Stata.
+	local require = lower("`require'")
 	local require : subinstr local require "," " ", all
 	local require : subinstr local require "-" "_", all
 	foreach var of local require {

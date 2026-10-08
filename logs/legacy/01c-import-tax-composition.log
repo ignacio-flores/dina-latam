@@ -20,21 +20,21 @@ Notes:
       3.  More than 2 billion observations are allowed; see help obs_advice.
       4.  Maximum number of variables is set to 5000; see help set_maxvar.
 
-. do /Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261007-223034
+. do /Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261008-070045
 > /01c-import-tax-composition.wrapper.do 
 
 . capture log close _all
 
 . log using "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/2026100
-> 7-223034/01c-import-tax-composition.stata.log", text replace
-(note: file /Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261007
-> -223034/01c-import-tax-composition.stata.log not found)
+> 8-070045/01c-import-tax-composition.stata.log", text replace
+(note: file /Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261008
+> -070045/01c-import-tax-composition.stata.log not found)
 -------------------------------------------------------------------------------
       name:  <unnamed>
        log:  /Users/iflores/Documents/GitHub/dina-latam/output/run_logs/2026100
-> 7-223034/01c-import-tax-composition.stata.log
+> 8-070045/01c-import-tax-composition.stata.log
   log type:  text
- opened on:   7 Oct 2026, 22:30:34
+ opened on:   8 Oct 2026, 07:00:45
 
 . capture noisily do "/Users/iflores/Documents/GitHub/dina-latam/code/Stata/01c
 > -import-tax-composition.do"

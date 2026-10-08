@@ -36,3 +36,8 @@ config/pushover.local.R
 input_data/_new/
 output/run_logs
 0*.log
+# Legacy task logs are deliberately archived in version control rather than
+# generated at the repository root.
+!logs/
+!logs/legacy/
+!logs/legacy/*.log

@@ -20,21 +20,21 @@ Notes:
       3.  More than 2 billion observations are allowed; see help obs_advice.
       4.  Maximum number of variables is set to 5000; see help set_maxvar.
 
-. do /Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261007-223003
+. do /Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261008-070013
 > /01b-add-country-sna.wrapper.do 
 
 . capture log close _all
 
 . log using "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/2026100
-> 7-223003/01b-add-country-sna.stata.log", text replace
-(note: file /Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261007
-> -223003/01b-add-country-sna.stata.log not found)
+> 8-070013/01b-add-country-sna.stata.log", text replace
+(note: file /Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261008
+> -070013/01b-add-country-sna.stata.log not found)
 -------------------------------------------------------------------------------
       name:  <unnamed>
        log:  /Users/iflores/Documents/GitHub/dina-latam/output/run_logs/2026100
-> 7-223003/01b-add-country-sna.stata.log
+> 8-070013/01b-add-country-sna.stata.log
   log type:  text
- opened on:   7 Oct 2026, 22:30:03
+ opened on:   8 Oct 2026, 07:00:13
 
 . capture noisily do "/Users/iflores/Documents/GitHub/dina-latam/code/Stata/01b
 > -add-country-sna.do"

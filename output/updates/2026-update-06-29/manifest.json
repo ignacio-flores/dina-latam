@@ -3,7 +3,7 @@
   "year": "2026",
   "status": "initialized",
   "created_at": "2026-07-08T11:49:56+0200",
-  "updated_at": "2026-10-07T22:35:09+0200",
+  "updated_at": "2026-10-08T07:08:17+0200",
   "preferences": [],
   "config_override": "output/updates/2026-update-06-29/config.override.yml",
   "config_override_hash": "11524e9ec2eb8b72d49f98049cb600680fdbe7f7268a8c0238f66fa377a7af62",
@@ -10092,7 +10092,12 @@
     },
     "01a-clean-macro-data": {
       "status": "succeeded",
-      "command": ["/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp", "-b", "do", "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261007-222912/01a-clean-macro-data.wrapper.do"],
+      "command": [
+        "/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp",
+        "-b",
+        "do",
+        "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261007-222912/01a-clean-macro-data.wrapper.do"
+      ],
       "run_id": "20261007-222912",
       "ended_at": "2026-10-07T22:30:02+0200",
       "configuration": {
@@ -10132,9 +10137,9 @@
     },
     "01b-add-country-sna": {
       "status": "succeeded",
-      "command": ["/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp", "-b", "do", "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261007-223003/01b-add-country-sna.wrapper.do"],
-      "run_id": "20261007-223003",
-      "ended_at": "2026-10-07T22:30:33+0200",
+      "command": ["/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp", "-b", "do", "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261008-070013/01b-add-country-sna.wrapper.do"],
+      "run_id": "20261008-070013",
+      "ended_at": "2026-10-08T07:00:44+0200",
       "configuration": {
         "scope": "update:2026-update-06-29",
         "fingerprint": "ba25532433b95114c87edb154796ec6841f1cd20428c4dd695140ff4ef7235b8",
@@ -10172,9 +10177,9 @@
     },
     "01c-import-tax-composition": {
       "status": "succeeded",
-      "command": ["/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp", "-b", "do", "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261007-223034/01c-import-tax-composition.wrapper.do"],
-      "run_id": "20261007-223034",
-      "ended_at": "2026-10-07T22:31:13+0200",
+      "command": ["/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp", "-b", "do", "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261008-070045/01c-import-tax-composition.wrapper.do"],
+      "run_id": "20261008-070045",
+      "ended_at": "2026-10-08T07:01:24+0200",
       "configuration": {
         "scope": "update:2026-update-06-29",
         "fingerprint": "ba25532433b95114c87edb154796ec6841f1cd20428c4dd695140ff4ef7235b8",
@@ -10212,9 +10217,9 @@
     },
     "01d-import-ceq-data": {
       "status": "succeeded",
-      "command": ["/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp", "-b", "do", "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261007-223114/01d-import-ceq-data.wrapper.do"],
-      "run_id": "20261007-223114",
-      "ended_at": "2026-10-07T22:33:34+0200",
+      "command": ["/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp", "-b", "do", "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261008-070125/01d-import-ceq-data.wrapper.do"],
+      "run_id": "20261008-070125",
+      "ended_at": "2026-10-08T07:03:46+0200",
       "configuration": {
         "scope": "update:2026-update-06-29",
         "fingerprint": "ba25532433b95114c87edb154796ec6841f1cd20428c4dd695140ff4ef7235b8",
@@ -10251,10 +10256,130 @@
       ]
     },
     "01e-clean-survey-data": {
+      "status": "succeeded",
+      "command": ["/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp", "-b", "do", "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261008-070347/01e-clean-survey-data.wrapper.do"],
+      "run_id": "20261008-070347",
+      "ended_at": "2026-10-08T07:07:36+0200",
+      "configuration": {
+        "scope": "update:2026-update-06-29",
+        "fingerprint": "ba25532433b95114c87edb154796ec6841f1cd20428c4dd695140ff4ef7235b8",
+        "effective_config_fingerprint": "ba25532433b95114c87edb154796ec6841f1cd20428c4dd695140ff4ef7235b8",
+        "baseline_fingerprint": "8e823b0c7408aa4ba5383eb53fa163b355c0c89a4e3b012905a050206687c647",
+        "admin_trust_regions": "output/updates/2026-update-06-29/admin_trust_regions.csv",
+        "validated_at": "2026-09-28T15:14:55+0200"
+      },
+      "source_reviews": [
+        {
+          "family": "wid",
+          "status": "included",
+          "label": "Included · 2026-09-24",
+          "detail": "Saved candidate accepted; pipeline status is separate."
+        },
+        {
+          "family": "surveys",
+          "status": "included",
+          "label": "Included · 2026-09-28",
+          "detail": "Saved candidate accepted; pipeline status is separate."
+        },
+        {
+          "family": "admin",
+          "status": "included",
+          "label": "Included · 2026-10-07",
+          "detail": "Saved candidate accepted; pipeline status is separate."
+        },
+        {
+          "family": "sna",
+          "status": "included",
+          "label": "Included · 2026-09-28",
+          "detail": "Saved candidate accepted; pipeline status is separate."
+        }
+      ]
+    },
+    "01f-adjust-country-survey-data": {
+      "status": "succeeded",
+      "command": ["/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp", "-b", "do", "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261008-070737/01f-adjust-country-survey-data.wrapper.do"],
+      "run_id": "20261008-070737",
+      "ended_at": "2026-10-08T07:07:57+0200",
+      "configuration": {
+        "scope": "update:2026-update-06-29",
+        "fingerprint": "ba25532433b95114c87edb154796ec6841f1cd20428c4dd695140ff4ef7235b8",
+        "effective_config_fingerprint": "ba25532433b95114c87edb154796ec6841f1cd20428c4dd695140ff4ef7235b8",
+        "baseline_fingerprint": "8e823b0c7408aa4ba5383eb53fa163b355c0c89a4e3b012905a050206687c647",
+        "admin_trust_regions": "output/updates/2026-update-06-29/admin_trust_regions.csv",
+        "validated_at": "2026-09-28T15:14:55+0200"
+      },
+      "source_reviews": [
+        {
+          "family": "wid",
+          "status": "included",
+          "label": "Included · 2026-09-24",
+          "detail": "Saved candidate accepted; pipeline status is separate."
+        },
+        {
+          "family": "surveys",
+          "status": "included",
+          "label": "Included · 2026-09-28",
+          "detail": "Saved candidate accepted; pipeline status is separate."
+        },
+        {
+          "family": "admin",
+          "status": "included",
+          "label": "Included · 2026-10-07",
+          "detail": "Saved candidate accepted; pipeline status is separate."
+        },
+        {
+          "family": "sna",
+          "status": "included",
+          "label": "Included · 2026-09-28",
+          "detail": "Saved candidate accepted; pipeline status is separate."
+        }
+      ]
+    },
+    "01g-add-public-spending-data": {
+      "status": "succeeded",
+      "command": ["/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp", "-b", "do", "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261008-070757/01g-add-public-spending-data.wrapper.do"],
+      "run_id": "20261008-070757",
+      "ended_at": "2026-10-08T07:08:07+0200",
+      "configuration": {
+        "scope": "update:2026-update-06-29",
+        "fingerprint": "ba25532433b95114c87edb154796ec6841f1cd20428c4dd695140ff4ef7235b8",
+        "effective_config_fingerprint": "ba25532433b95114c87edb154796ec6841f1cd20428c4dd695140ff4ef7235b8",
+        "baseline_fingerprint": "8e823b0c7408aa4ba5383eb53fa163b355c0c89a4e3b012905a050206687c647",
+        "admin_trust_regions": "output/updates/2026-update-06-29/admin_trust_regions.csv",
+        "validated_at": "2026-09-28T15:14:55+0200"
+      },
+      "source_reviews": [
+        {
+          "family": "wid",
+          "status": "included",
+          "label": "Included · 2026-09-24",
+          "detail": "Saved candidate accepted; pipeline status is separate."
+        },
+        {
+          "family": "surveys",
+          "status": "included",
+          "label": "Included · 2026-09-28",
+          "detail": "Saved candidate accepted; pipeline status is separate."
+        },
+        {
+          "family": "admin",
+          "status": "included",
+          "label": "Included · 2026-10-07",
+          "detail": "Saved candidate accepted; pipeline status is separate."
+        },
+        {
+          "family": "sna",
+          "status": "included",
+          "label": "Included · 2026-09-28",
+          "detail": "Saved candidate accepted; pipeline status is separate."
+        }
+      ]
+    },
+    "02c-prepare-static-admin-data": {
       "status": "failed",
-      "command": ["/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp", "-b", "do", "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261007-223335/01e-clean-survey-data.wrapper.do"],
-      "run_id": "20261007-223335",
-      "ended_at": "2026-10-07T22:35:09+0200",
+      "command": ["/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp", "-b", "do", "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261008-070815/02c-prepare-static-admin-data.wrapper.do"],
+      "run_id": "20261008-070815",
+      "ended_at": "2026-10-08T07:08:17+0200",
       "configuration": {
         "scope": "update:2026-update-06-29",
         "fingerprint": "ba25532433b95114c87edb154796ec6841f1cd20428c4dd695140ff4ef7235b8",

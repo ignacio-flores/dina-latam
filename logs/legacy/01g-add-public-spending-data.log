@@ -20,7 +20,24 @@ Notes:
       3.  More than 2 billion observations are allowed; see help obs_advice.
       4.  Maximum number of variables is set to 5000; see help set_maxvar.
 
-. do code/Stata/01g-add-public-spending-data.do 
+. do /Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261008-070757
+> /01g-add-public-spending-data.wrapper.do 
+
+. capture log close _all
+
+. log using "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/2026100
+> 8-070757/01g-add-public-spending-data.stata.log", text replace
+(note: file /Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261008
+> -070757/01g-add-public-spending-data.stata.log not found)
+-------------------------------------------------------------------------------
+      name:  <unnamed>
+       log:  /Users/iflores/Documents/GitHub/dina-latam/output/run_logs/2026100
+> 8-070757/01g-add-public-spending-data.stata.log
+  log type:  text
+ opened on:   8 Oct 2026, 07:07:58
+
+. capture noisily do "/Users/iflores/Documents/GitHub/dina-latam/code/Stata/01g
+> -add-public-spending-data.do"
 
 . /////////////////////////////////////////////////////////////////////////////
 > ///
@@ -131,8 +148,66 @@ NAMES_STD GEO
 . //Merge to SNA-WID-OECD database
 . qui use "intermediary_data/national_accounts/UNDATA-WID-OECD-Merged.dta", cle
 > ar
-file intermediary_data/national_accounts/UNDATA-WID-OECD-Merged.dta not found
-r(601);
+
+. cap drop __*
+
+. qui merge m:m country year using `tf_exp', nogen
+
+. 
+. //Keep relevant countries 
+. tempvar discriminate 
+
+. qui gen `discriminate' = . 
+
+. foreach c in $all_countries {
+  2.         qui replace `discriminate' = 1 if country == "`c'"
+  3. }
+
+. qui drop if `discriminate' != 1 
+
+. 
+. // Create directory if it doesnt exist 
+. local dirpath "output/figures/spending/"
+
+. mata: st_numscalar("exists", direxists(st_local("dirpath")))
+
+. if (scalar(exists) == 0) {
+.         mkdir "`dirpath'"
+.         display "Created directory: `dirpath'"
+. }
+
+. 
+. foreach i in edu hea oex {
+  2.         //graph item by source with legend
+.         graph twoway ///
+>                 (connect `i'_gdp_wb  year if !missing(`i'_gdp_wb), msize(smal
+> l)) ///
+>                 (connect `i'_gdp_wid year if !missing(`i'_gdp_wid), msize(sma
+> ll)) ///
+>                 if year >= 2000 & country != "ARG", by(country_long) $graph_s
+> cheme ///
+>                 legend(order(1 "Old" 2 "New")) ///
+>                 ylabel(, $lab_opts) xlab(,$lab_opts) xtit("") ytit("Share of 
+> GDP")
+  3.                 //save
+.                 qui graph export "output/figures/spending/`i'_wid_vs_old.pdf"
+> , replace
+  4. }       
+
+. qui drop *_wb
+
+. 
+. //save dataset
+. qui save "intermediary_data/national_accounts/UNDATA-WID-OECD-Merged.dta", re
+> place
+
+. 
+end of do-file
+
+. local dina_task_rc = _rc
+
+. capture log close _all
+
+. exit `dina_task_rc'
 
 end of do-file
-r(601);

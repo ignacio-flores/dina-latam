@@ -20,7 +20,24 @@ Notes:
       3.  More than 2 billion observations are allowed; see help obs_advice.
       4.  Maximum number of variables is set to 5000; see help set_maxvar.
 
-. do code/Stata/01f-adjust-country-survey-data.do 
+. do /Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261008-070737
+> /01f-adjust-country-survey-data.wrapper.do 
+
+. capture log close _all
+
+. log using "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/2026100
+> 8-070737/01f-adjust-country-survey-data.stata.log", text replace
+(note: file /Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261008
+> -070737/01f-adjust-country-survey-data.stata.log not found)
+-------------------------------------------------------------------------------
+      name:  <unnamed>
+       log:  /Users/iflores/Documents/GitHub/dina-latam/output/run_logs/2026100
+> 8-070737/01f-adjust-country-survey-data.stata.log
+  log type:  text
+ opened on:   8 Oct 2026, 07:07:37
+
+. capture noisily do "/Users/iflores/Documents/GitHub/dina-latam/code/Stata/01f
+> -adjust-country-survey-data.do"
 
 . /*===========================================================================
 > ==*
@@ -168,7 +185,7 @@ Notes:
  62.                 }
  63.         }
  64. }
-Adjusting survey data (01f) for ARG at 14:43:54 ...
+Adjusting survey data (01f) for ARG at 07:07:37 ...
 ARG 2000 adj factor: 1.5880163
 ARG 2001 adj factor: 1.5796061
 ARG 2002 adj factor: 1.5469164
@@ -193,7 +210,7 @@ ARG 2021 adj factor: 1.5626276
 ARG 2022 adj factor: 1.5518095
 ARG 2023 adj factor: 1.5426297
 ARG 2024 adj factor: 1.5346785
-Adjusting survey data (01f) for BRA at 14:43:58 ...
+Adjusting survey data (01f) for BRA at 07:07:39 ...
 
 . /*===========================================================================
 > ==*
@@ -471,11 +488,104 @@ Adjusting survey data (01f) for BRA at 14:43:58 ...
  77.         
 . }
 intermediary_data/microdata/raw/BRA/BRA_2000_raw.dta not found
-lower not allowed
-r(101);
+(378,837 real changes made)
+(385,431 real changes made)
+(384,834 real changes made)
+(399,354 real changes made)
+(408,148 real changes made)
+(410,241 real changes made)
+(399,964 real changes made)
+(391,868 real changes made)
+(399,387 real changes made)
+intermediary_data/microdata/raw/BRA/BRA_2010_raw.dta not found
+(358,919 real changes made)
+(351,648 real changes made)
+(353,215 real changes made)
+(352,750 real changes made)
+(348,216 real changes made)
+(422,886 real changes made)
+(422,142 real changes made)
+(418,595 real changes made)
+(410,326 real changes made)
+(328,166 real changes made)
+
+. 
+. 
+end of do-file
+Adjusting survey data (01f) for CRI at 07:07:55 ...
+2010
+2011
+2012
+2013
+2014
+2015
+2016
+2017
+2018
+
+. 
+. // 4. Correct Dom. Rep income variables to exclude private transfers
+. /*
+> if ("`c'"=="DOM") {
+>         
+>         local pf "pos"
+>         local pre_lab "`pre_lab'"
+>         
+>         forvalues year = 2016 / 2020 { 
+>                 
+>                 di as result "`c'`year'"
+> 
+>                 qui cap use "${svypath}`c'/raw/`c'_`year'_raw.dta", clear
+>                 
+>                 cap drop `pf'_othp_svy
+>                 qui gen `pf'_othp_svy = yotrp_pe
+>                 cap drop `pf'_bencor_svy 
+>                 qui gen `pf'_bencor_svy = `pf'_pen_svy + `pf'_oth_svy ///
+>                         - `pf'_othp_svy
+>                 cap drop `pf'_totcor_svy        
+>                 qui gen `pf'_totcor_svy =  `pf'_wag_svy + `pf'_pen_svy + ///
+>                         `pf'_mix_svy + `pf'_cap_svy + `pf'_oth_svy - `pf'_oth
+> p_svy
+>                 
+>                 // Label monthly variables
+>                 local endlab "(survey) - `pre_lab'"
+>                 qui la var `pf'_othp_svy ///
+>                         "Private transfer income `endlab'"
+>                 qui la var `pf'_bencor_svy ///
+>                         "Total Social benefits (excl. private transfers) `end
+> lab'"                      
+>                 qui la var `pf'_totcor_svy ///
+>                         "Total income (excl. private trasnfers) `endlab'"    
+>    
+>                 
+>                 //Annualize income variables 
+>                 foreach var in "othp" "bencor" "totcor" {
+>                         cap drop ind_`pf'_`var' 
+>                         qui gen ind_`pf'_`var' = `pf'_`var'_svy * 12
+>                 }
+>                 
+>                 // Label annual variables
+>                 local endlab "(survey) - annual `pre_lab'"
+>                 qui la var ind_`pf'_othp "Private transfers `endlab2'"
+>                 qui la var ind_`pf'_bencor ///
+>                         "Total Social benefits (excl. private transfers) `end
+> lab2'"
+>                 qui la var ind_`pf'_totcor ///
+>                         "Total income (excl. private transfers) `endlab2'"
+>                 
+>                 // Save dataset
+>                 qui save "${svypath}`c'/raw/`c'_`year'_raw.dta", replace     
+>    
+>         }
+> }
+> */
+. 
+end of do-file
+
+. local dina_task_rc = _rc
+
+. capture log close _all
+
+. exit `dina_task_rc'
 
 end of do-file
-r(101);
-
-end of do-file
-r(101);

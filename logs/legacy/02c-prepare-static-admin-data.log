@@ -20,7 +20,24 @@ Notes:
       3.  More than 2 billion observations are allowed; see help obs_advice.
       4.  Maximum number of variables is set to 5000; see help set_maxvar.
 
-. do code/Stata/02c-prepare-static-admin-data.do 
+. do /Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261008-070815
+> /02c-prepare-static-admin-data.wrapper.do 
+
+. capture log close _all
+
+. log using "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/2026100
+> 8-070815/02c-prepare-static-admin-data.stata.log", text replace
+(note: file /Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261008
+> -070815/02c-prepare-static-admin-data.stata.log not found)
+-------------------------------------------------------------------------------
+      name:  <unnamed>
+       log:  /Users/iflores/Documents/GitHub/dina-latam/output/run_logs/2026100
+> 8-070815/02c-prepare-static-admin-data.stata.log
+  log type:  text
+ opened on:   8 Oct 2026, 07:08:15
+
+. capture noisily do "/Users/iflores/Documents/GitHub/dina-latam/code/Stata/02c
+> -prepare-static-admin-data.do"
 
 . /////////////////////////////////////////////////////////////////////////////
 > //
@@ -51,9 +68,9 @@ Notes:
 .     }
 .     quietly do "`dina_config_do'"
 .     foreach required in dina_config_scope dina_config_fingerprint dina_baseli
-> ne_fingerprint dina_config_countries all_countries first_y last_y lang debug 
-> bfm_replace all_units all_steps export_unit export_steps export_last_y previo
-> us_update {
+> ne_fingerprint dina_config_countries admin_trust_regions all_countries first_
+> y last_y lang debug bfm_replace all_units all_steps export_unit export_steps 
+> export_last_y previous_update {
   2.         if `"${`required'}"' == "" {
   3.             di as error "Generated DINA runtime configuration is missing `
 > required'."
@@ -82,8 +99,17 @@ end of do-file
   5.                 quietly do "code/Stata/tax-data/`dofile'.do"
   6.         }
   7. }
-(02c) Doing DOM-diverse.do at (14:44:10)
+(02c) Doing DOM-diverse.do at (07:08:15)
 type mismatch
+r(109);
+
+end of do-file
+
+. local dina_task_rc = _rc
+
+. capture log close _all
+
+. exit `dina_task_rc'
 r(109);
 
 end of do-file

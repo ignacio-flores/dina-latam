@@ -542,6 +542,12 @@ test_that("Brazil threshold locals and direct Chile UTA scrape are not duplicate
   expect_false(any(grepl("utm/utm", chl_lines, fixed = TRUE)))
 })
 
+test_that("Brazil threshold helper uses Stata-16-compatible requirement normalization", {
+  helper <- readLines(file.path(repo_root_for_tests, "code", "Stata", "BRA", "aux_bra_admin_thresholds.do"), warn = FALSE)
+  expect_false(any(grepl(": lower local require", helper, fixed = TRUE)))
+  expect_true(any(grepl('local require = lower\\("`require\'"\\)', helper)))
+})
+
 test_that("isolated PIT admin confirm refuses changed incoming source fingerprints", {
   skip_if_not_installed("digest")
   skip_if_not_installed("openxlsx")
