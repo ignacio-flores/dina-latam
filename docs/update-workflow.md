@@ -219,6 +219,20 @@ a provisional update run. Use `--benchmark` to run the validated benchmark
 configuration while an update is active. Use `--dry-run` when you only want to see
 the commands.
 
+Task `02d5-interpolate-admin-data` runs the installed `gpinter` R package on
+each selected country's `_clean` Admin tabulations. It creates the
+`gpinter_output/total-pos-COUNTRY.xlsx` workbooks (`total-pre-BRA.xlsx` for
+Brazil) consumed by `02e-format-for-bfm`. The run preflight reports a missing
+`_clean` workbook before starting tasks; the interpolation task fits and checks
+all selected countries before replacing any `gpinter_output` workbook. The
+generated manifest in `output/data_reports/admin_gpinter_manifest.json` records
+the package version, source hashes (including Brazil's publisher averages for
+2000, 2002, and 2006), output hashes, and covered years. Ecuador is excluded
+until a current `_clean` workbook is available; Chile 2012 is excluded because
+its bracket average is below its own threshold. Uruguay's 127-row files come
+directly from its large Admin microdata. They need no gpinter interpolation;
+`02e` reads them without rewriting them.
+
 ## Todo
 
 The todo list is a loose helper from `config/todo.yml`. Checked state lives in

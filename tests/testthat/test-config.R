@@ -157,12 +157,54 @@ test_that("Stata r() errors fail the task even when its command exits zero", {
   expect_equal(dina_load_session(root = root)$task_runs[["stata-error"]]$status, "failed")
 })
 
+test_that("R pipeline tasks launch with an absolute Rscript path", {
+  skip_if_not_installed("processx")
+  root <- mini_repo(); config_test_baseline(root); session <- dina_update_start("2026", root = root)
+  script <- file.path(root, "code", "R", "r-task.R")
+  writeLines('writeLines("ran", "output/r-task.txt")', script)
+  task <- list(id = "r-task", type = "r", script = "code/R/r-task.R",
+               inputs = character(), outputs = "output/r-task.txt")
+  session <- dina_record_config_validation(root, session,
+    dina_settings_check(root, session, validate_baseline = TRUE, validate_runtime = FALSE))
+  result <- dina_run_task(task, root = root, session = session, dry_run = FALSE, force = TRUE)
+  expect_equal(result$status, "succeeded")
+  expect_equal(readLines(file.path(root, "output", "r-task.txt")), "ran")
+})
+
 test_that("pipeline input preflight blocks before any task process starts", {
   root <- mini_repo(); session <- dina_update_start("2026", root = root)
   task <- list(id = "missing-input", type = "stata", script = "code/Stata/01a.do",
     inputs = "input_data/required.xlsx", outputs = character())
   expect_error(dina_pipeline_input_preflight(list(task), root = root, session = session),
     "required inputs are missing")
+})
+
+test_that("Admin gpinter task requires current cleaned inputs for selected countries", {
+  root <- mini_repo()
+  task <- list(id = "02d5-interpolate-admin-data", script = "code/Stata/01a.do", inputs = character(), outputs = character())
+  missing <- dina_task_missing_inputs(task, root = root)
+  expect_true(any(grepl("COL/_clean/total-pos-COL.xlsx", missing, fixed = TRUE)))
+  expect_false(any(grepl("BRA/_clean", missing, fixed = TRUE)))
+
+  path <- file.path(root, "input_data", "admin_data", "COL", "_clean", "total-pos-COL.xlsx")
+  dir.create(dirname(path), recursive = TRUE)
+  writeLines("fixture", path)
+  expect_false(any(grepl("COL/_clean", dina_task_missing_inputs(task, root = root), fixed = TRUE)))
+})
+
+test_that("Admin gpinter preflight tracks Brazil fallback sources and excludes Ecuador", {
+  root <- mini_repo()
+  config <- dina_read_yaml(file.path(root, "config", "dina.yml"))
+  config$countries <- c("BRA", "ECU")
+  dina_write_yaml(config, file.path(root, "config", "dina.yml"))
+  dina_write_yaml(list(excluded_countries = "ECU"), file.path(root, "config", "admin_gpinter.yml"))
+  interpolate <- list(id = "02d5-interpolate-admin-data", inputs = character())
+  format <- list(id = "02e-format-for-bfm", inputs = character())
+  interpolation_inputs <- dina_task_effective_inputs(interpolate, root)
+  format_inputs <- dina_task_effective_inputs(format, root)
+  expect_true(any(grepl("BRA/ptot_2002.xlsx", interpolation_inputs, fixed = TRUE)))
+  expect_true(any(grepl("BRA/gpinter_output/total-pre-BRA.xlsx", format_inputs, fixed = TRUE)))
+  expect_false(any(grepl("/ECU/", c(interpolation_inputs, format_inputs), fixed = TRUE)))
 })
 
 test_that("Pushover templates are not treated as configured credentials", {

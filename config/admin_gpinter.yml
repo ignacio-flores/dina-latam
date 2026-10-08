@@ -1,0 +1,12 @@
+version: 1
+# No current ECU Admin _clean input is available. Keep Ecuador in the general
+# DINA country list, but do not fabricate an Admin interpolation for it.
+excluded_countries:
+  - ECU
+
+# The 2012 Chile bracket average (57,748,347) is below that bracket's lower
+# threshold (57,896,640). gpinter rejects it, and the historical output also
+# omits this year. Keep the source intact and record the exclusion explicitly.
+excluded_years:
+  CHL:
+    - 2012

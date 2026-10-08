@@ -1,0 +1,82 @@
+{
+  "generated_at": "2026-10-08T16:26:01+0200",
+  "gpinter_version": "0.0.0.9000",
+  "first_year": 2000,
+  "last_year": 2024,
+  "excluded_countries": "ECU",
+  "workbooks": [
+    {
+      "country": "SLV",
+      "clean": "input_data/admin_data/SLV/_clean/total-SLV.xlsx",
+      "clean_sha256": "284ad1075f712beb4b040a28cbca8543497d07c9c48ae9ba8f5b9c3ee1f44daa",
+      "output": "input_data/admin_data/SLV/gpinter_output/total-pos-SLV.xlsx",
+      "output_sha256": "3db39b43c7e600feb22733ddf772370386e9fd28dc8fc8cdf3cdef84f7816b9e",
+      "years": [2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2009, 2010, 2012, 2013, 2014, 2015, 2016, 2017],
+      "excluded_years": [],
+      "auxiliary_sources": []
+    },
+    {
+      "country": "PER",
+      "clean": "input_data/admin_data/PER/_clean/total-PER.xlsx",
+      "clean_sha256": "195fdb92e8392de5bcfea99dd98621c2c9a0726940347a995109ed58eaaa782e",
+      "output": "input_data/admin_data/PER/gpinter_output/total-pos-PER.xlsx",
+      "output_sha256": "c26bb39ea223d97b08cfef38232f3c1e14d9fa3804e35a5e2a35716539fb00af",
+      "years": [2016, 2017, 2018],
+      "excluded_years": [],
+      "auxiliary_sources": []
+    },
+    {
+      "country": "DOM",
+      "clean": "input_data/admin_data/DOM/_clean/total-pos-DOM.xlsx",
+      "clean_sha256": "c1d1e5068f85338c9850c04cef647f630f3300d661193c1670e12c40b8a976a9",
+      "output": "input_data/admin_data/DOM/gpinter_output/total-pos-DOM.xlsx",
+      "output_sha256": "0497105c4961d9513fcd19526be1bbfee418dfa6c1aac1fc15453bf056c9c541",
+      "years": [2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020],
+      "excluded_years": [],
+      "auxiliary_sources": []
+    },
+    {
+      "country": "BRA",
+      "clean": "input_data/admin_data/BRA/_clean/total-pre-BRA.xlsx",
+      "clean_sha256": "60d2c3f2446959731a16b7b91dce744a4674891efb62aa1e22cbd29feb2fadd0",
+      "output": "input_data/admin_data/BRA/gpinter_output/total-pre-BRA.xlsx",
+      "output_sha256": "a86f04585e3d6dde773bbe2340bf80012b847c638244d55a7202f29c84c5d32e",
+      "years": [2000, 2002, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024],
+      "excluded_years": [],
+      "auxiliary_sources": [
+        {
+          "path": "input_data/admin_data/BRA/ptot_2000.xlsx",
+          "sha256": "72627e20e77aac1cc3dba3e5f9ab295d2d79026d5ce970dadfe724556deb1d57"
+        },
+        {
+          "path": "input_data/admin_data/BRA/ptot_2002.xlsx",
+          "sha256": "10fba5cd0499f9b768a9014dc39559512be6557e3f15808c801054847ae8cb90"
+        },
+        {
+          "path": "input_data/admin_data/BRA/ptot_2006.xlsx",
+          "sha256": "22aff96bfbaa399c538d0592fbbb66e6422dc13e594fcb382af59e6edb42caf7"
+        }
+      ]
+    },
+    {
+      "country": "CHL",
+      "clean": "input_data/admin_data/CHL/_clean/total-pos-CHL.xlsx",
+      "clean_sha256": "3b13282ad84a759559a3632c4c0621a10a78b81ed7abc10797b8beb61012e1ec",
+      "output": "input_data/admin_data/CHL/gpinter_output/total-pos-CHL.xlsx",
+      "output_sha256": "d5923f2ed6bd138560236ae37c73ec1cea9606e9e3a6e963314952fe77f11e07",
+      "years": [2005, 2006, 2007, 2008, 2009, 2010, 2011, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024],
+      "excluded_years": 2012,
+      "auxiliary_sources": []
+    },
+    {
+      "country": "COL",
+      "clean": "input_data/admin_data/COL/_clean/total-pos-COL.xlsx",
+      "clean_sha256": "dc37fc2a1198620572196acce0cf01266f6c98871bf0f657404561be6092bb97",
+      "output": "input_data/admin_data/COL/gpinter_output/total-pos-COL.xlsx",
+      "output_sha256": "d0062578b9e0f89ab52bcea7c3bd44c32752e72a4c97bd9c83f30284987996d5",
+      "years": [2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023],
+      "excluded_years": [],
+      "auxiliary_sources": []
+    }
+  ]
+}

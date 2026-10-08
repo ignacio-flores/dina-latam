@@ -139,24 +139,45 @@ tasks:
       - input_data/admin_data/BRA/_clean
       - input_data/admin_data/COL/_clean
 
+  - id: 02d5-interpolate-admin-data
+    stage: admin
+    type: r
+    script: code/R/02d5_interpolate_admin_data.R
+    deps:
+      - 02c-prepare-static-admin-data
+      - 02d-prepare-updated-admin-data
+    inputs:
+      - code/R/admin_cleaners/gpinter_admin.R
+      - config/admin_gpinter.yml
+    outputs:
+      - output/data_reports/admin_gpinter_manifest.json
+      - output/data_reports/admin_gpinter_countries.csv
+      - input_data/admin_data/SLV/gpinter_output/total-pos-SLV.xlsx
+      - input_data/admin_data/PER/gpinter_output/total-pos-PER.xlsx
+      - input_data/admin_data/DOM/gpinter_output/total-pos-DOM.xlsx
+      - input_data/admin_data/BRA/gpinter_output/total-pre-BRA.xlsx
+      - input_data/admin_data/CHL/gpinter_output/total-pos-CHL.xlsx
+      - input_data/admin_data/COL/gpinter_output/total-pos-COL.xlsx
+    notes:
+      - Runs the local gpinter R package on each selected country's _clean Admin tabulation.
+
   - id: 02e-format-for-bfm
     stage: admin
     type: stata
     script: code/Stata/02e-format-for-bfm.do
     deps:
-      - 02c-prepare-static-admin-data
-      - 02d-prepare-updated-admin-data
+      - 02d5-interpolate-admin-data
     inputs:
-      - input_data/admin_data
+      - input_data/admin_data/URY/gpinter_URY_*.xlsx
+      - output/data_reports/admin_gpinter_manifest.json
+      - output/data_reports/admin_gpinter_countries.csv
     outputs:
       - input_data/admin_data/SLV/gpinter_SLV_*.xlsx
       - input_data/admin_data/PER/gpinter_PER_*.xlsx
       - input_data/admin_data/DOM/gpinter_DOM_*.xlsx
-      - input_data/admin_data/URY/gpinter_URY_*.xlsx
       - input_data/admin_data/BRA/gpinter_BRA_*.xlsx
       - input_data/admin_data/CHL/gpinter_CHL_*.xlsx
       - input_data/admin_data/COL/gpinter_COL_*.xlsx
-      - input_data/admin_data/ECU/gpinter_ECU_*.xlsx
 
   - id: 03a-run-bfm
     stage: bfm

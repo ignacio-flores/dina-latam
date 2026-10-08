@@ -3850,6 +3850,38 @@ dina_earliest_mtime <- function(paths, root = dina_repo_root(), ignore = FALSE, 
   min(file.info(files)$mtime, na.rm = TRUE)
 }
 
+dina_task_effective_inputs <- function(task, root = dina_repo_root(), session = NULL) {
+  inputs <- as.character(task$inputs %||% character())
+  if ((task$id %||% "") %in% c("02d5-interpolate-admin-data", "02e-format-for-bfm")) {
+    clean <- c(SLV = "total-SLV.xlsx", PER = "total-PER.xlsx", DOM = "total-pos-DOM.xlsx",
+               BRA = "total-pre-BRA.xlsx", CHL = "total-pos-CHL.xlsx",
+               COL = "total-pos-COL.xlsx", ECU = "total-pos-ECU.xlsx")
+    output <- c(SLV = "total-pos-SLV.xlsx", PER = "total-pos-PER.xlsx", DOM = "total-pos-DOM.xlsx",
+                BRA = "total-pre-BRA.xlsx", CHL = "total-pos-CHL.xlsx",
+                COL = "total-pos-COL.xlsx", ECU = "total-pos-ECU.xlsx")
+    selected <- toupper(as.character(dina_session_config(session, root, expand_env = FALSE)$countries %||% character()))
+    method <- dina_read_yaml(file.path(root, "config", "admin_gpinter.yml"))
+    excluded <- toupper(as.character(unlist(method$excluded_countries %||% character(), use.names = FALSE)))
+    countries <- setdiff(intersect(names(clean), selected), excluded)
+    if (identical(task$id, "02d5-interpolate-admin-data")) {
+      inputs <- c(inputs, file.path("input_data", "admin_data", countries, "_clean", unname(clean[countries])))
+    } else {
+      inputs <- c(inputs, file.path("input_data", "admin_data", countries,
+                                    "gpinter_output", unname(output[countries])))
+    }
+    if (identical(task$id, "02d5-interpolate-admin-data") && "BRA" %in% countries) {
+      # The retained BRA 2000/2002/2006 _clean sheets have zero average
+      # placeholders, so interpolation reads the publisher ptot workbooks.
+      years <- dina_session_config(session, root, expand_env = FALSE)$years
+      fallback_years <- c(2000L, 2002L, 2006L)
+      fallback_years <- fallback_years[fallback_years >= as.integer(years$first) &
+                                         fallback_years <= as.integer(years$last)]
+      inputs <- c(inputs, file.path("input_data", "admin_data", "BRA", sprintf("ptot_%s.xlsx", fallback_years)))
+    }
+  }
+  unique(inputs)
+}
+
 dina_task_status <- function(task, root = dina_repo_root(), session = NULL, seen = character()) {
   if (!dina_task_active(task)) {
     return(list(
@@ -3868,7 +3900,7 @@ dina_task_status <- function(task, root = dina_repo_root(), session = NULL, seen
       config_inputs <- c(config_inputs, dina_relative(override, root))
     }
   }
-  inputs <- unique(c(task$inputs %||% character(), task$script %||% character(), config_inputs))
+  inputs <- unique(c(dina_task_effective_inputs(task, root, session), task$script %||% character(), config_inputs))
   outputs <- task$outputs %||% character()
   trust_snapshot <- if (dina_task_requires_admin_trust_snapshot(task)) {
     dina_relative(dina_admin_trust_snapshot_path(root, session), root)
@@ -3932,7 +3964,7 @@ dina_task_missing_inputs <- function(task, root = dina_repo_root(), session = NU
     override <- dina_session_config_override_path(session$id, root)
     if (file.exists(override)) config_inputs <- c(config_inputs, dina_relative(override, root))
   }
-  inputs <- unique(c(task$inputs %||% character(), task$script %||% character(), config_inputs))
+  inputs <- unique(c(dina_task_effective_inputs(task, root, session), task$script %||% character(), config_inputs))
   paths <- dina_filter_ignored_paths(dina_expand_paths(inputs, root), root)
   paths[!file.exists(paths)]
 }
@@ -3948,7 +3980,7 @@ dina_task_requires_admin_pit_outputs <- function(task) {
   # listed too so running a downstream slice cannot bypass the same included
   # artifact check.
   (task$id %||% "") %in% c(
-    "02d-prepare-updated-admin-data", "02e-format-for-bfm",
+    "02d-prepare-updated-admin-data", "02d5-interpolate-admin-data", "02e-format-for-bfm",
     "03a-run-bfm", "03b-run-bfm-2stage", "03d-prepare-theta-extrapolation",
     "04a-compute-effective-rates"
   )
@@ -4111,7 +4143,11 @@ dina_run_task <- function(task, root = dina_repo_root(), session = dina_load_ses
   if (identical(task$type, "stata")) {
     command <- c(if (nzchar(stata_cmd)) stata_cmd else "<DINA_STATA_CMD>", config$stata$batch_args %||% c("-b", "do"), task$script)
   } else if (identical(task$type, "r")) {
-    command <- c("Rscript", task$script)
+    # processx receives an explicit environment for pipeline tasks. Resolve
+    # Rscript before that environment is installed, so the child does not
+    # depend on PATH being preserved by the launcher.
+    rscript <- file.path(R.home("bin"), if (.Platform$OS.type == "windows") "Rscript.exe" else "Rscript")
+    command <- c(rscript, task$script)
   } else {
     command <- c(task$type %||% "unknown", task$script)
   }

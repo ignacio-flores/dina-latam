@@ -1,8 +1,20 @@
 do "code/Stata/auxiliar/dina_runtime_config.do"
+capture confirm file "output/data_reports/admin_gpinter_countries.csv"
+if _rc {
+    di as error "Admin gpinter country handoff is missing; run 02d5-interpolate-admin-data."
+    exit 601
+}
+quietly import delimited using "output/data_reports/admin_gpinter_countries.csv", clear varnames(1)
+quietly levelsof country if status == "excluded", local(gpinter_excluded) clean
+clear
 local list_noquotes : subinstr global all_countries `"""' "" , all
 foreach c in "SLV" "PER" "DOM" "URY" "BRA" "CHL" "COL" "ECU" {
 	
 	if strpos("`list_noquotes'", "`c'") > 0 {
+		if strpos(" `gpinter_excluded' ", " `c' ") > 0 {
+			di as result "Skipping Admin gpinter for `c' (explicit exclusion)."
+			continue
+		}
 		
 		*define locals for each country 
 		local vars year country component average
@@ -16,12 +28,19 @@ foreach c in "SLV" "PER" "DOM" "URY" "BRA" "CHL" "COL" "ECU" {
 			mata: st_numscalar("exists", direxists(st_local("dirpath")))
 			if (scalar(exists) == 0) {
 				di as error "Directory not found input_data/admin_data/`c'/gpinter_output/"
-				di as error  "You need to apply gpinter to the _clean data before moving forward"
+				di as error "Run 02d5-interpolate-admin-data to generate the workbook."
 				exit 1 
 			}
 		}
 		
 		*store worksheet names 
+		if "`c'" != "URY" {
+			capture confirm file "input_data/admin_data/`c'/gpinter_output/total-`short'-`c'.xlsx"
+			if _rc {
+				di as error "Admin gpinter output workbook missing for `c'."
+				exit 601
+			}
+		}
 		cap import excel using ///
 			"input_data/admin_data/`c'/gpinter_output/total-`short'-`c'.xlsx", describe		
 		if _rc == 0 {
@@ -98,9 +117,12 @@ foreach c in "SLV" "PER" "DOM" "URY" "BRA" "CHL" "COL" "ECU" {
 				assert tester2 > -1e-12 
 				qui drop n tester tester2
 				
-				*export 1 file per year 
-				export excel using "input_data/admin_data/`c'/gpinter_`c'_`t'.xlsx", /// 
-					firstrow(variables) keepcellfmt replace
+				* URY is calculated directly from Admin microdata. Its workbooks are
+				* already BFM-ready; rewriting them changes their source checksums.
+				if "`c'" != "URY" {
+					export excel using "input_data/admin_data/`c'/gpinter_`c'_`t'.xlsx", ///
+						firstrow(variables) keepcellfmt replace
+				}
 			}
 			else {
 				di as error "input_data/admin_data/`c'/gpinter_output/total-`short'-`c'.xlsx, sheet(`component', `c', `t') not found"
