@@ -1,21 +1,17 @@
-//clean admin data with yearly updates 
+// Reviewed Admin PIT handoff
+//
+// Chile, Brazil and Colombia are cleaned during Admin Explore and accepted
+// together by Admin Include. This task intentionally does not re-run their
+// historical cleaners: doing so could choose a different publisher workbook
+// or overwrite the reviewed interpolation-ready tables.
 do "code/Stata/auxiliar/dina_runtime_config.do"
-local list_noquotes : subinstr global all_countries `"""' "" , all
 
-//CHL 
-di as txt "Using an R to clean chilean admin data..."
-if strpos("`list_noquotes'", "CHL") > 0 {
-	rcall: source("code/R/02c_clean_admin_chl.R")
-} 
-
-//BRA
-di as txt "Using an R to clean brazilian admin data..."
-if strpos("`list_noquotes'", "BRA") > 0 {
-	rcall: source("code/R/02c_clean_admin_bra.R")
+capture confirm file "${admin_pit_outputs_manifest}"
+if _rc {
+    di as err "Admin PIT outputs are not the reviewed included version; explore and include Admin."
+    exit 601
 }
 
-//COL
-di as txt "Using an R to clean colombian admin data..."
-if strpos("`list_noquotes'", "COL") > 0 {
-	do "code/Stata/tax-data/COL-diverse.do"
-}	
+di as txt "Using reviewed included Admin PIT outputs."
+di as txt "02d is a validation-only handoff; no country cleaner is run here."
+di as txt "Manifest: ${admin_pit_outputs_manifest}"

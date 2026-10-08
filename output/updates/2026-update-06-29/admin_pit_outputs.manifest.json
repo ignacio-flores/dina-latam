@@ -1,0 +1,277 @@
+{
+  "artifact": "admin_pit_outputs",
+  "manifest_version": 1,
+  "created_at": "2026-10-08 13:58:34",
+  "include_run": "/Users/iflores/Documents/GitHub/dina-latam/output/experiments/admin_pit_include/runs/review-20261007-204324-file17d7e2ab583f0",
+  "cleaner_contract_version": "1",
+  "cleaner_contract_path": "config/admin_pit_include.yml",
+  "cleaner_contract_sha256": "2ba4e9961ce66be9c00ef00f27037af60db5ea10a94e2d74de199cfdef88cc0f",
+  "artifacts": [
+    {
+      "source_id": "chl-pit",
+      "country": "CHL",
+      "artifact_type": "raw_source",
+      "path": "input_data/admin_data/CHL/PUB_Total_2024.xlsb",
+      "sha256": "f898b72a67e052a0b1f7dc9084374e9f2e1f98fcfaa0bc9c568f36e7b68e2c08"
+    },
+    {
+      "source_id": "bra-pit",
+      "country": "BRA",
+      "artifact_type": "raw_source",
+      "path": "input_data/admin_data/BRA/gn-irpf-ac2024.xlsx",
+      "sha256": "11c257affb3d00dce5de63baae86924213e2ffe0a36a76176c697358b5098334"
+    },
+    {
+      "source_id": "col-pit",
+      "country": "COL",
+      "artifact_type": "raw_source",
+      "path": "input_data/admin_data/COL/1_Cuantiles_Ingreso_Bruto_Naturales_2014-2023",
+      "sha256": "4ad9d5e9f07e4e329ee2bfb67206cf01073e659ed68b849bff413698d4dcded9"
+    },
+    {
+      "source_id": "chl-pit",
+      "country": "CHL",
+      "artifact_type": "clean_output",
+      "path": "input_data/admin_data/CHL/_clean/total-pre-CHL.xlsx",
+      "sha256": "07a7a58e214d9656ab977b3f375be051d68370b519b59a7d5fb917c75929e403"
+    },
+    {
+      "source_id": "chl-pit",
+      "country": "CHL",
+      "artifact_type": "clean_output",
+      "path": "input_data/admin_data/CHL/_clean/total-pos-CHL.xlsx",
+      "sha256": "3b13282ad84a759559a3632c4c0621a10a78b81ed7abc10797b8beb61012e1ec"
+    },
+    {
+      "source_id": "bra-pit",
+      "country": "BRA",
+      "artifact_type": "clean_output",
+      "path": "input_data/admin_data/BRA/_clean/total-pre-BRA.xlsx",
+      "sha256": "60d2c3f2446959731a16b7b91dce744a4674891efb62aa1e22cbd29feb2fadd0"
+    },
+    {
+      "source_id": "col-pit",
+      "country": "COL",
+      "artifact_type": "clean_output",
+      "path": "input_data/admin_data/COL/_clean/total-pos-COL.xlsx",
+      "sha256": "dc37fc2a1198620572196acce0cf01266f6c98871bf0f657404561be6092bb97"
+    },
+    {
+      "source_id": "chl-uta",
+      "country": "CHL",
+      "artifact_type": "aux_source",
+      "path": "input_data/admin_data/CHL/uta_december.csv",
+      "sha256": "2cb7521e02fc7ce4fc7fdb65bc33a281b7a7d30551a08e2b82ec0d6c125c9062"
+    },
+    {
+      "source_id": "bra-minwage",
+      "country": "BRA",
+      "artifact_type": "aux_source",
+      "path": "input_data/admin_data/BRA/downloads/wiki_minwage.csv",
+      "sha256": "02f46b264ff42d55c3ac3caf607991a4a20abf0782d8f620ecef31c71826403b"
+    },
+    {
+      "source_id": "bra-admin-thresholds",
+      "country": "BRA",
+      "artifact_type": "aux_source",
+      "path": "input_data/admin_data/BRA/downloads/admin_thresholds.csv",
+      "sha256": "6966b525feb394db1aa1c8e8fe0b268b631140039b926974242707d64f22daa5"
+    }
+  ],
+  "resolved_sources": [
+    {
+      "source_id": "chl-pit",
+      "country": "CHL",
+      "source_set": "old",
+      "path": null,
+      "years": "2005,2006,2007,2008,2009,2010,2011,2012,2013,2014,2015,2016,2017,2018,2019,2020,2021,2022"
+    },
+    {
+      "source_id": "chl-pit",
+      "country": "CHL",
+      "source_set": "new",
+      "path": "input_data/admin_data/CHL/PUB_Total_2024.xlsb",
+      "years": "2005,2006,2007,2008,2009,2010,2011,2012,2013,2014,2015,2016,2017,2018,2019,2020,2021,2022,2023,2024"
+    },
+    {
+      "source_id": "bra-pit",
+      "country": "BRA",
+      "source_set": "old",
+      "path": null,
+      "years": "2007"
+    },
+    {
+      "source_id": "bra-pit",
+      "country": "BRA",
+      "source_set": "old",
+      "path": null,
+      "years": "2008"
+    },
+    {
+      "source_id": "bra-pit",
+      "country": "BRA",
+      "source_set": "old",
+      "path": null,
+      "years": "2009"
+    },
+    {
+      "source_id": "bra-pit",
+      "country": "BRA",
+      "source_set": "old",
+      "path": null,
+      "years": "2010"
+    },
+    {
+      "source_id": "bra-pit",
+      "country": "BRA",
+      "source_set": "old",
+      "path": null,
+      "years": "2011"
+    },
+    {
+      "source_id": "bra-pit",
+      "country": "BRA",
+      "source_set": "old",
+      "path": null,
+      "years": "2012"
+    },
+    {
+      "source_id": "bra-pit",
+      "country": "BRA",
+      "source_set": "old",
+      "path": null,
+      "years": "2013"
+    },
+    {
+      "source_id": "bra-pit",
+      "country": "BRA",
+      "source_set": "old",
+      "path": null,
+      "years": "2014"
+    },
+    {
+      "source_id": "bra-pit",
+      "country": "BRA",
+      "source_set": "old",
+      "path": null,
+      "years": "2015"
+    },
+    {
+      "source_id": "bra-pit",
+      "country": "BRA",
+      "source_set": "old",
+      "path": null,
+      "years": "2016"
+    },
+    {
+      "source_id": "bra-pit",
+      "country": "BRA",
+      "source_set": "old",
+      "path": null,
+      "years": "2017"
+    },
+    {
+      "source_id": "bra-pit",
+      "country": "BRA",
+      "source_set": "old",
+      "path": null,
+      "years": "2018"
+    },
+    {
+      "source_id": "bra-pit",
+      "country": "BRA",
+      "source_set": "old",
+      "path": null,
+      "years": "2019"
+    },
+    {
+      "source_id": "bra-pit",
+      "country": "BRA",
+      "source_set": "old",
+      "path": null,
+      "years": "2020"
+    },
+    {
+      "source_id": "bra-pit",
+      "country": "BRA",
+      "source_set": "old",
+      "path": null,
+      "years": "2021"
+    },
+    {
+      "source_id": "bra-pit",
+      "country": "BRA",
+      "source_set": "old",
+      "path": null,
+      "years": "2022"
+    },
+    {
+      "source_id": "bra-pit",
+      "country": "BRA",
+      "source_set": "old",
+      "path": null,
+      "years": "2023"
+    },
+    {
+      "source_id": "bra-pit",
+      "country": "BRA",
+      "source_set": "old",
+      "path": null,
+      "years": "2000"
+    },
+    {
+      "source_id": "bra-pit",
+      "country": "BRA",
+      "source_set": "old",
+      "path": null,
+      "years": "2002"
+    },
+    {
+      "source_id": "bra-pit",
+      "country": "BRA",
+      "source_set": "old",
+      "path": null,
+      "years": "2006"
+    },
+    {
+      "source_id": "bra-pit",
+      "country": "BRA",
+      "source_set": "new",
+      "path": "input_data/admin_data/BRA/gn-irpf-ac2024.xlsx",
+      "years": "2024"
+    },
+    {
+      "source_id": "col-pit",
+      "country": "COL",
+      "source_set": "old",
+      "path": null,
+      "years": "2014,2015,2016,2017,2018,2019,2020"
+    },
+    {
+      "source_id": "col-pit",
+      "country": "COL",
+      "source_set": "old",
+      "path": null,
+      "years": "2014,2015,2016,2017,2018,2019,2020,2021,2022"
+    },
+    {
+      "source_id": "col-pit",
+      "country": "COL",
+      "source_set": "old",
+      "path": null,
+      "years": null
+    },
+    {
+      "source_id": "col-pit",
+      "country": "COL",
+      "source_set": "new",
+      "path": "input_data/admin_data/COL/1_Cuantiles_Ingreso_Bruto_Naturales_2014-2023",
+      "years": "2014,2015,2016,2017,2018,2019,2020,2021,2022,2023"
+    }
+  ],
+  "scope": "update:2026-update-06-29",
+  "effective_config_fingerprint": "ba25532433b95114c87edb154796ec6841f1cd20428c4dd695140ff4ef7235b8",
+  "countries": ["COL", "ARG", "PER", "URY", "CRI", "ECU", "CHL", "BRA", "SLV", "MEX", "DOM"],
+  "first_year": 2000,
+  "last_year": 2024
+}

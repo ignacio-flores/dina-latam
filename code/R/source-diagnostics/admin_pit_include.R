@@ -821,6 +821,8 @@ admin_pit_include_run_r_candidate_cleaner <- function(root, paths, contract, sou
     result <- withCallingHandlers(
       if (identical(country, "CHL")) {
         admin_pit_candidate_clean_chl(repo_root = root, input_root = input_root, output_root = paths$staged_repo, config_path = config_path, override_path = override_path)
+      } else if (identical(country, "COL")) {
+        admin_pit_candidate_clean_col(repo_root = root, input_root = input_root, output_root = paths$staged_repo, config_path = config_path, override_path = override_path)
       } else {
         admin_pit_candidate_clean_bra(repo_root = root, input_root = input_root, output_root = paths$staged_repo, config_path = config_path, override_path = override_path)
       },
@@ -848,99 +850,6 @@ admin_pit_include_run_r_candidate_cleaner <- function(root, paths, contract, sou
     list(status = "failed", log = log, exit_status = 1L, reason = conditionMessage(e))
   })
   out
-}
-
-admin_pit_include_stata_command <- function(root, contract) {
-  config <- admin_pit_include_effective_config(root, contract)
-  cmd <- Sys.getenv("DINA_STATA_CMD", unset = config$stata$command %||% "")
-  if (!nzchar(cmd) || identical(cmd, "${DINA_STATA_CMD}")) "" else cmd
-}
-
-# The COL normalizer shares aux_general.do with pipeline tasks. It therefore
-# needs the same generated configuration authority, even though Explore itself
-# is not gated on a validation receipt. Persist the snapshot beside the review
-# so its scope is auditable with the cleaner log.
-admin_pit_include_stata_runtime_config <- function(root, paths) {
-  required <- c("dina_load_session", "dina_session_config", "dina_config_validation_identity", "dina_config_validation_receipt", "dina_render_config_do")
-  if (!all(vapply(required, exists, logical(1), mode = "function", inherits = TRUE))) return("")
-  session <- dina_load_session(root = root)
-  config <- dina_session_config(session, root, expand_env = FALSE)
-  identity <- dina_config_validation_identity(root, session, dina_config_validation_receipt(root, session))
-  path <- file.path(paths$logs, "cleaner-runtime-config.do")
-  dina_render_config_do(config, identity = identity, path = path)
-  path
-}
-
-admin_pit_include_col_temp_do <- function(root, paths, source_dir, output_dir, first_year, last_year) {
-  original <- file.path(root, "code", "Stata", "tax-data", "COL-diverse.do")
-  lines <- readLines(original, warn = FALSE)
-  # The source cleaner uses project-relative paths.  R's interactive CLI may
-  # be launched from a home directory or an IDE, so establish the supplied
-  # repository root explicitly before Stata reads any of them.
-  lines <- c(sprintf('cd "%s"', normalizePath(root, mustWork = FALSE)), lines)
-  lines <- gsub("local lasty_col_tax = 2023", sprintf("local lasty_col_tax = %s", last_year), lines, fixed = TRUE)
-  lines <- gsub("forvalues y = 2014/`lasty_col_tax' {", sprintf("forvalues y = %s/`lasty_col_tax' {", first_year), lines, fixed = TRUE)
-  route_line <- grep("^\\s*global route\\s*///\\s*$", lines)
-  if (length(route_line)) {
-    i <- route_line[[1L]]
-    lines[[i]] <- sprintf('global route "%s"', normalizePath(source_dir, mustWork = FALSE))
-    if (length(lines) >= i + 1L && grepl("input_data/admin_data/COL/1_Cuantiles", lines[[i + 1L]], fixed = TRUE)) {
-      lines[[i + 1L]] <- ""
-    }
-  }
-  lines <- gsub('local dirpath "input_data/admin_data/COL/_clean"', sprintf('local dirpath "%s"', normalizePath(output_dir, mustWork = FALSE)), lines, fixed = TRUE)
-  lines <- gsub('"input_data/admin_data/COL/_clean/total-`v\'-COL.xlsx"', sprintf('"%s/total-`v\'-COL.xlsx"', normalizePath(output_dir, mustWork = FALSE)), lines, fixed = TRUE)
-  do_file <- file.path(paths$logs, "cleaner-COL-isolated.do")
-  writeLines(lines, do_file)
-  do_file
-}
-
-admin_pit_include_run_col_cleaner <- function(root, paths, contract, exploration, source_set = "new") {
-  stata <- admin_pit_include_stata_command(root, contract)
-  if (!nzchar(stata)) {
-    return(list(status = "failed", log = "", exit_status = NA_integer_, reason = "stata_not_configured"))
-  }
-  years <- admin_pit_include_col_years(exploration, source_set = source_set)
-  if (!length(years)) {
-    return(list(status = "failed", log = "", exit_status = NA_integer_, reason = "col_years_missing"))
-  }
-  source_dir <- admin_pit_include_col_source_dir(paths, exploration, source_set = source_set)
-  if (!dir.exists(source_dir)) {
-    return(list(status = "failed", log = "", exit_status = NA_integer_, reason = "col_source_dir_missing"))
-  }
-  output_dir <- file.path(paths$staged_repo, "input_data", "admin_data", "COL", "_clean")
-  dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
-  do_file <- admin_pit_include_col_temp_do(root, paths, source_dir, output_dir, min(years), max(years))
-  runtime_config <- admin_pit_include_stata_runtime_config(root, paths)
-  stata_log <- file.path(paths$logs, "cleaner-COL.stata.log")
-  wrapper <- file.path(paths$logs, "cleaner-COL-wrapper.do")
-  stata_quote <- function(path) gsub('"', "'", path, fixed = TRUE)
-  writeLines(c(
-    "capture log close _all",
-    sprintf('log using "%s", text replace', stata_quote(stata_log)),
-    sprintf('capture noisily do "%s"', stata_quote(do_file)),
-    "local cleaner_rc = _rc",
-    "capture log close _all",
-    "exit `cleaner_rc'"
-  ), wrapper)
-  # system2() takes environment entries as literal NAME=value strings (unlike
-  # processx::run(), which accepts a named vector).
-  env <- if (nzchar(runtime_config)) paste0("DINA_CONFIG_DO=", runtime_config) else character()
-  out <- tryCatch(system2(stata, args = c("-b", "do", wrapper), stdout = TRUE, stderr = TRUE, env = env), error = function(e) structure(conditionMessage(e), status = 1L))
-  status <- attr(out, "status")
-  if (is.null(status)) status <- 0L
-  log <- file.path(paths$logs, "cleaner-COL.log")
-  stata_lines <- if (file.exists(stata_log)) readLines(stata_log, warn = FALSE) else character()
-  writeLines(c(
-    sprintf("Runtime config: %s", if (nzchar(runtime_config)) runtime_config else "not generated"),
-    sprintf("Wrapper: %s", wrapper),
-    as.character(out),
-    if (length(stata_lines)) c("", "Stata log:", stata_lines) else ""
-  ), log)
-  expected <- file.path(paths$staged_repo, admin_pit_include_expected_outputs(contract, "col-pit"))
-  output_missing <- !identical(as.integer(status), 0L) || !length(expected) || any(!file.exists(expected))
-  reason <- if (!identical(as.integer(status), 0L)) "stata_cleaner_failed" else if (output_missing) "stata_completed_without_expected_output" else ""
-  list(status = if (output_missing) "failed" else "succeeded", log = log, exit_status = as.integer(status), reason = reason)
 }
 
 admin_pit_include_cleaner_output_rows <- function(paths, contract, source_id) {
@@ -974,9 +883,11 @@ admin_pit_include_run_cleaners <- function(root, paths, contract, exploration, s
   for (source_id in source_ids) {
     country <- admin_pit_include_source_country(source_id)
     country_paths <- paths
-    if (identical(source_set, "old")) {
-      country_paths$cleaner_last_year <- admin_pit_include_source_last_year(exploration, source_id, source_set)
-    }
+    # Each cleaner receives the years actually resolved by the review.  This
+    # matters for a publisher package whose reported coverage ends before the
+    # configured update horizon: it is evidence of available PIT data, not a
+    # licence to invent a missing workbook.
+    country_paths$cleaner_last_year <- admin_pit_include_source_last_year(exploration, source_id, source_set)
     source_row <- source_summary[source_summary$source_id == source_id & source_summary$country == country, , drop = FALSE]
     static <- static_dependencies[static_dependencies$source_id == source_id & static_dependencies$country == country & static_dependencies$severity == "blocked", , drop = FALSE]
     aux <- aux_dependencies[aux_dependencies$source_id == source_id & aux_dependencies$country == country & aux_dependencies$severity == "blocked", , drop = FALSE]
@@ -989,10 +900,8 @@ admin_pit_include_run_cleaners <- function(root, paths, contract, exploration, s
     } else if (identical(mode, "mock")) {
       ok <- tryCatch(admin_pit_include_mock_cleaner(country_paths, contract, exploration, source_id), error = function(e) e)
       run <- if (isTRUE(ok)) list(status = "succeeded", log = "", exit_status = 0L, reason = "") else list(status = "failed", log = "", exit_status = 1L, reason = conditionMessage(ok))
-    } else if (source_id %in% c("chl-pit", "bra-pit")) {
+    } else if (source_id %in% c("chl-pit", "bra-pit", "col-pit")) {
       run <- admin_pit_include_run_r_candidate_cleaner(root, country_paths, contract, source_id, country)
-    } else if (identical(source_id, "col-pit")) {
-      run <- admin_pit_include_run_col_cleaner(root, country_paths, contract, exploration, source_set = source_set)
     } else {
       run <- list(status = "failed", log = "", exit_status = 1L, reason = "unsupported_cleaner")
     }
@@ -1379,6 +1288,118 @@ admin_pit_include_confirm_manifest <- function(confirm_id, include_run, status) 
   data.frame(key = c("confirm_id", "source_type", "workflow", "status", "include_run", "confirmed_at"), value = c(confirm_id, "admin", "admin_pit", status, normalizePath(include_run, mustWork = FALSE), as.character(Sys.time())), stringsAsFactors = FALSE)
 }
 
+# The clean workbooks are a reviewed pipeline handoff, not disposable side
+# effects.  This receipt records both their hashes and the source artifacts
+# from which the reviewed cleaner produced them.  It is intentionally written
+# only after the complete all-or-nothing promotion succeeds.
+admin_pit_include_output_manifest_path <- function(root, session = NULL) {
+  if (exists("dina_admin_pit_outputs_manifest_path", mode = "function", inherits = TRUE)) {
+    return(dina_admin_pit_outputs_manifest_path(root, session))
+  }
+  file.path(root, "output", "experiments", "admin_pit_include", "admin_pit_outputs.manifest.json")
+}
+
+admin_pit_include_output_manifest_scope <- function(root, session = NULL) {
+  if (exists("dina_admin_pit_outputs_scope", mode = "function", inherits = TRUE)) {
+    return(dina_admin_pit_outputs_scope(root, session))
+  }
+  list(scope = "benchmark", effective_config_fingerprint = "", countries = character(), first_year = NA_integer_, last_year = NA_integer_)
+}
+
+admin_pit_include_write_json <- function(value, path) {
+  admin_pit_include_need("jsonlite")
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+  temporary <- tempfile("admin-pit-output-manifest-", tmpdir = dirname(path), fileext = ".json")
+  jsonlite::write_json(value, temporary, pretty = TRUE, auto_unbox = TRUE, null = "null")
+  if (file.exists(path)) file.remove(path)
+  if (!file.rename(temporary, path)) stop("Could not write the included Admin PIT output manifest.", call. = FALSE)
+  invisible(path)
+}
+
+admin_pit_include_output_manifest_artifacts <- function(root, include_run) {
+  mappings <- admin_pit_include_read_csv(file.path(include_run, "tables", "staged_source_mappings.csv"))
+  clean <- admin_pit_include_read_csv(file.path(include_run, "tables", "cleaner_outputs.csv"))
+  promotion <- admin_pit_include_read_csv(file.path(include_run, "tables", "promotion_plan.csv"))
+  raw_rows <- list()
+  if (nrow(mappings)) for (i in seq_len(nrow(mappings))) {
+    row <- mappings[i, , drop = FALSE]
+    # The accepted handoff is based on the incoming publisher release.  The
+    # old-source rows exist solely for review comparison; do not make an
+    # unrelated retained historical package a pipeline authority.
+    if (!identical(as.character(row$source_set[[1L]] %||% ""), "new")) next
+    rel <- row$to_rel[[1L]] %||% ""
+    if (!is.na(rel) && nzchar(rel)) raw_rows[[length(raw_rows) + 1L]] <- data.frame(
+      source_id = row$source_id[[1L]], country = row$country[[1L]], artifact_type = "raw_source",
+      path = rel, stringsAsFactors = FALSE
+    )
+  }
+  clean_rows <- list()
+  if (nrow(clean)) for (i in seq_len(nrow(clean))) {
+    row <- clean[i, , drop = FALSE]
+    rel <- row$rel[[1L]] %||% ""
+    if (!is.na(rel) && nzchar(rel) && identical(as.character(row$status[[1L]] %||% ""), "generated")) clean_rows[[length(clean_rows) + 1L]] <- data.frame(
+      source_id = row$source_id[[1L]], country = row$country[[1L]], artifact_type = "clean_output",
+      path = rel, stringsAsFactors = FALSE
+    )
+  }
+  aux_rows <- list()
+  if (nrow(promotion)) for (i in seq_len(nrow(promotion))) {
+    row <- promotion[i, , drop = FALSE]
+    if (identical(as.character(row$artifact_type[[1L]] %||% ""), "aux_source")) aux_rows[[length(aux_rows) + 1L]] <- data.frame(
+      source_id = row$source_id[[1L]], country = row$country[[1L]], artifact_type = "aux_source",
+      path = row$to_rel[[1L]], stringsAsFactors = FALSE
+    )
+  }
+  artifacts <- admin_pit_include_bind(c(raw_rows, clean_rows, aux_rows))
+  if (!nrow(artifacts)) return(list())
+  artifacts <- artifacts[!duplicated(artifacts[c("artifact_type", "path")]), , drop = FALSE]
+  artifacts$sha256 <- vapply(artifacts$path, function(rel) admin_pit_include_hash_path(file.path(root, rel)), character(1))
+  if (any(is.na(artifacts$sha256) | !nzchar(artifacts$sha256))) {
+    stop("Included Admin PIT artifacts are missing; cannot create the pipeline handoff manifest.", call. = FALSE)
+  }
+  lapply(seq_len(nrow(artifacts)), function(i) as.list(artifacts[i, , drop = FALSE]))
+}
+
+admin_pit_include_write_output_manifest <- function(root, include_run, contract, session = NULL) {
+  scope <- admin_pit_include_output_manifest_scope(root, session)
+  exploration <- admin_pit_include_read_exploration(root, contract, admin_pit_include_manifest_value(
+    admin_pit_include_read_csv(file.path(include_run, "logs", "include_manifest.csv")), "exploration_run"
+  ))
+  inventory <- exploration$source_inventory
+  resolved <- if (nrow(inventory)) lapply(seq_len(nrow(inventory)), function(i) {
+    row <- inventory[i, , drop = FALSE]
+    list(source_id = row$source_id[[1L]], country = row$country[[1L]], source_set = row$source_set[[1L]],
+      path = row$destination[[1L]] %||% row$rel[[1L]] %||% "", years = row$years[[1L]] %||% "")
+  }) else list()
+  manifest <- c(list(
+    artifact = "admin_pit_outputs",
+    manifest_version = 1L,
+    created_at = as.character(Sys.time()),
+    include_run = normalizePath(include_run, mustWork = FALSE),
+    cleaner_contract_version = as.character(contract$cleaners$contract_version %||% contract$version %||% "1"),
+    cleaner_contract_path = admin_pit_include_relative_path(contract$contract_path, root),
+    cleaner_contract_sha256 = admin_pit_include_hash_path(contract$contract_path),
+    artifacts = admin_pit_include_output_manifest_artifacts(root, include_run),
+    resolved_sources = resolved
+  ), scope)
+  path <- admin_pit_include_output_manifest_path(root, session)
+  admin_pit_include_write_json(manifest, path)
+  list(path = path, manifest = manifest)
+}
+
+admin_pit_include_backfill_output_manifest <- function(root = admin_pit_include_repo_root(), session = NULL, confirm_run = NULL,
+                                                        contract_path = file.path(root, "config", "admin_pit_include.yml")) {
+  contract <- admin_pit_include_read_contract(root, contract_path)
+  if (is.null(confirm_run) || !nzchar(confirm_run)) stop("No accepted Admin confirmation is available to backfill.", call. = FALSE)
+  confirm_manifest <- admin_pit_include_read_csv(file.path(confirm_run, "logs", "confirm_manifest.csv"))
+  if (!identical(admin_pit_include_manifest_value(confirm_manifest, "status"), "confirmed")) {
+    stop("The accepted Admin confirmation is incomplete; explore and include Admin.", call. = FALSE)
+  }
+  include_run <- admin_pit_include_manifest_value(confirm_manifest, "include_run")
+  if (!dir.exists(include_run)) stop("The accepted Admin review evidence is unavailable; explore and include Admin.", call. = FALSE)
+  admin_pit_include_write_output_manifest(root, include_run, contract, session)
+}
+
 admin_pit_include_confirm_sources <- function(root = admin_pit_include_repo_root(), contract_path = file.path(root, "config", "admin_pit_include.yml"), include_run = NULL, output_dir = NULL, progress = NULL) {
   progress <- progress %||% function(message) invisible(message)
   contract <- admin_pit_include_read_contract(root, contract_path)
@@ -1419,7 +1440,11 @@ admin_pit_include_confirm_sources <- function(root = admin_pit_include_repo_root
   failed <- any(!promote_report$backup_status %in% c("backed_up", "destination_absent") | promote_report$promote_status != "staged")
   manifest <- admin_pit_include_confirm_manifest(confirm_id, include_run, if (failed) "confirm_failed" else "confirmed")
   utils::write.csv(manifest, file.path(paths$logs, "confirm_manifest.csv"), row.names = FALSE, na = "")
-  list(paths = paths, outputs = list(promote_report = promote_report, source_fingerprint_check = fingerprint_check, staged_artifact_fingerprint_check = artifact_fingerprint_check), manifest = manifest, contract = contract)
+  handoff <- if (!failed) {
+    session <- if (exists("dina_load_session", mode = "function", inherits = TRUE)) dina_load_session(root = root) else NULL
+    admin_pit_include_write_output_manifest(root, include_run, contract, session)
+  } else list(path = "")
+  list(paths = paths, outputs = list(promote_report = promote_report, source_fingerprint_check = fingerprint_check, staged_artifact_fingerprint_check = artifact_fingerprint_check, admin_pit_output_manifest = handoff$path), manifest = manifest, contract = contract)
 }
 
 admin_pit_include_restore_sources <- function(root = admin_pit_include_repo_root(), contract_path = file.path(root, "config", "admin_pit_include.yml"), confirm_run = NULL) {

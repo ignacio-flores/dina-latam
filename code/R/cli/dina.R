@@ -4778,6 +4778,22 @@ dina_print_country_sna_include <- function(result, mode = "dry_run") {
       ))
     }
   }
+  inventory <- result$outputs$source_inventory %||% data.frame()
+  selected <- if (nrow(inventory)) inventory[inventory$source_set == "new" & inventory$status == "matched", , drop = FALSE] else data.frame()
+  if (nrow(selected)) {
+    dina_cli_cat("")
+    dina_cli_cat("Selected incoming PIT sources:")
+    dina_cli_cat(dina_cli_row(c("country", "input", "detected coverage", "formatted handoff"), widths = c(10, 34, 22, 28), dim = TRUE))
+    for (i in seq_len(nrow(selected))) {
+      destination <- selected$destination[[i]] %||% ""
+      dina_cli_cat(dina_cli_row(c(
+        selected$country[[i]],
+        dina_refresh_shorten(basename(selected$file[[i]]), 34L),
+        dina_admin_pit_year_label(selected$years[[i]], max_chars = 22L),
+        if (nzchar(destination)) dina_refresh_shorten(destination, 28L) else "resolved during Include"
+      ), widths = c(10, 34, 22, 28)))
+    }
+  }
   dina_cli_ok(sprintf("Include dry-run output: %s", result$paths$root))
   dina_cli_alert("No production files changed. Fix code/contract and rerun safely.")
   dina_cli_alert(sprintf("Confirm after a clean run: dina sources include sna --confirm --include-run %s", result$paths$root))
@@ -5264,7 +5280,14 @@ dina_print_admin_pit_include <- function(result) {
       dina_cli_alert("Dependency defaults: primary PIT files come from _new; static inputs are carried from canonical paths; aux inputs prefer _new and fall back to canonical.")
       dina_print_admin_pit_blockers(result)
     } else {
-      dina_cli_alert("Cleaner outputs were generated in the staged repo.")
+      dina_cli_ok("Reviewed formatted PIT outputs are ready to be included with their source files.")
+      dina_cli_cat(dina_cli_row(c("source", "country", "outputs", "result"), widths = c(18, 10, 12, 28), dim = TRUE))
+      for (i in seq_len(nrow(cleaner_summary))) {
+        dina_cli_cat(dina_cli_row(c(
+          cleaner_summary$source_id[[i]], cleaner_summary$country[[i]],
+          cleaner_summary$outputs_found[[i]], "ready to include together"
+        ), widths = c(18, 10, 12, 28)))
+      }
     }
   }
   dina_cli_ok(sprintf("Include dry-run output: %s", result$paths$root))
@@ -5279,6 +5302,11 @@ dina_print_admin_pit_confirm <- function(result) {
   report <- result$outputs$promote_report
   dina_cli_header("PIT Admin Include Confirm")
   dina_print_data_frame_compact(report, limit = 20L)
+  handoff <- result$outputs$admin_pit_output_manifest %||% ""
+  if (length(handoff) && nzchar(handoff[[1L]])) {
+    dina_cli_ok("Included source files and their formatted PIT outputs were accepted together.")
+    dina_cli_alert(sprintf("Pipeline handoff manifest: %s", handoff[[1L]]))
+  }
   dina_cli_ok(sprintf("Confirm run: %s", result$paths$root))
   dina_cli_alert(sprintf("Rollback: dina sources include admin --restore %s", result$paths$root))
   invisible(result)

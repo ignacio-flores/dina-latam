@@ -1,8 +1,7 @@
-# Isolated candidate PIT admin cleaners for the experimental include workflow.
+# Shared PIT Admin cleaners used by Explore and Include.
 #
-# These functions intentionally duplicate/refactor legacy CHL/BRA cleaner logic
-# into an experimental namespace. They do not modify or replace the legacy
-# pipeline scripts.
+# They produce the reviewed interpolation-ready handoff. Pipeline task 02d
+# validates the included handoff; it deliberately does not clean sources again.
 
 `%||%` <- function(x, y) {
   if (is.null(x) || length(x) == 0L) y else x
@@ -52,7 +51,7 @@ admin_pit_candidate_read_workbook <- function(path, sheet, range = NULL, col_nam
     return(readxlsb::read_xlsb(path, sheet = sheet, range = range, col_names = col_names))
   }
   admin_pit_candidate_need("readxl")
-  readxl::read_excel(path, sheet = sheet, range = range, col_names = col_names, col_types = col_types)
+  readxl::read_excel(path, sheet = sheet, range = range, col_names = col_names, col_types = col_types, .name_repair = "minimal")
 }
 
 admin_pit_candidate_workbook_years <- function(path, sheet = "Datos", range = "A8:A5000") {
@@ -475,4 +474,144 @@ admin_pit_candidate_clean_bra <- function(
   out_path <- file.path(out_dir, "total-pre-BRA.xlsx")
   admin_pit_candidate_write_sheeted_workbook(out_path, tables, bra_tab_years)
   data.frame(country = "BRA", output = out_path, first_year = min(bra_tab_years), last_year = max(bra_tab_years), stringsAsFactors = FALSE)
+}
+
+# Colombia releases the F-210 workbooks inside publisher packaging folders.
+# Resolve the documented filename for each expected year recursively: the
+# folder name is evidence only and is never used as a proxy for coverage.
+admin_pit_candidate_col_contract <- function(repo_root) {
+  admin_pit_candidate_need("yaml")
+  explorer <- yaml::read_yaml(file.path(repo_root, "config", "admin_pit_explorer.yml"))
+  contract <- explorer$source_discovery$structure_checks$`col-pit` %||% list()
+  required <- c("first_year", "expected_file_template", "index_offset")
+  if (!all(required %in% names(contract))) stop("Colombia PIT source contract is incomplete.", call. = FALSE)
+  contract
+}
+
+admin_pit_candidate_resolve_col_pit <- function(input_root, years, expected_file_template, index_offset) {
+  base <- file.path(input_root, "input_data", "admin_data", "COL")
+  if (!dir.exists(base)) stop("Colombia PIT source package is missing.", call. = FALSE)
+  years <- sort(unique(as.integer(years)))
+  expected <- vapply(years, function(year) {
+    out <- gsub("\\{index\\}", as.character(year - as.integer(index_offset)), expected_file_template)
+    gsub("\\{year\\}", as.character(year), out)
+  }, character(1))
+  files <- list.files(base, recursive = TRUE, full.names = TRUE, pattern = "_F-210\\.xlsx$", ignore.case = FALSE)
+  # The same F-210 filenames also occur in other publisher packages.  The
+  # declared incoming source is the *income natural persons* package; do not
+  # accidentally resolve wealth or .dta companion releases.
+  files <- files[grepl("(^|/)1_Cuantiles_Ingreso_Bruto_Naturales_[0-9]{4}-[0-9]{4}(/|$)", normalizePath(files, winslash = "/", mustWork = FALSE), perl = TRUE)]
+  package_dirs <- unique(dirname(files[basename(files) == expected[[1L]]]))
+  package_dirs <- package_dirs[vapply(package_dirs, function(dir) all(file.exists(file.path(dir, expected))), logical(1))]
+  if (!length(package_dirs)) {
+    missing <- expected[!vapply(expected, function(name) any(basename(files) == name), logical(1))]
+    stop("Colombia PIT source package is missing the documented F-210 file(s): ", paste(missing %||% expected, collapse = ", "), call. = FALSE)
+  }
+  # A newer release may coexist with an older retained one.  Select the one
+  # whose declared package endpoint is newest; equally current candidates are
+  # genuinely ambiguous and must be resolved in source review.
+  endpoint <- suppressWarnings(as.integer(sub(".*_([0-9]{4})-([0-9]{4})$", "\\2", basename(package_dirs))))
+  best <- package_dirs[endpoint == max(endpoint, na.rm = TRUE)]
+  if (length(best) != 1L) stop("Colombia PIT source package has multiple equally current folders with the documented F-210 files.", call. = FALSE)
+  data.frame(year = years, path = normalizePath(file.path(best[[1L]], expected), winslash = "/", mustWork = FALSE), basename = expected, stringsAsFactors = FALSE)
+}
+
+admin_pit_candidate_col_header <- function(path) {
+  sheets <- readxl::excel_sheets(path)
+  preferred <- sheets[tolower(trimws(sheets)) == "ag cuantiles ingreso bruto"]
+  for (sheet in c(preferred, setdiff(sheets, preferred))) {
+    preview <- tryCatch(admin_pit_candidate_read_workbook(path, sheet, range = "A1:ZZ30", col_names = FALSE), error = function(e) NULL)
+    if (is.null(preview) || !nrow(preview)) next
+    for (row in seq_len(nrow(preview))) {
+      labels <- janitor::make_clean_names(as.character(unlist(preview[row, ], use.names = FALSE)))
+      has_cases <- any(labels == "numero_de_casos")
+      has_quantile <- any(labels == "cuantil")
+      has_tax <- any(labels == "impuesto_neto_de_renta")
+      has_income <- any(labels %in% c("total_ingresos_recibidos_por_con", "total_ingresos_brutos_1"))
+      if (has_cases && has_quantile && has_tax && has_income) return(list(sheet = sheet, header_row = row))
+    }
+  }
+  stop("Colombia PIT workbook has no recognized F-210 quantile table header.", call. = FALSE)
+}
+
+admin_pit_candidate_col_read <- function(path) {
+  header <- admin_pit_candidate_col_header(path)
+  data <- admin_pit_candidate_read_workbook(path, header$sheet, range = paste0("A", header$header_row, ":ZZ5000"), col_names = TRUE)
+  names(data) <- janitor::make_clean_names(names(data))
+  choose <- function(candidates, label) {
+    hit <- which(names(data) %in% candidates)
+    if (length(hit) != 1L) stop("Colombia PIT table must contain exactly one ", label, " column.", call. = FALSE)
+    hit[[1L]]
+  }
+  cols <- c(
+    n = choose("numero_de_casos", "number-of-cases"),
+    quantile = choose("cuantil", "quantile"),
+    income = choose(c("total_ingresos_recibidos_por_con", "total_ingresos_brutos_1"), "total-income"),
+    tax = choose("impuesto_neto_de_renta", "net-tax")
+  )
+  out <- data[, cols, drop = FALSE]
+  names(out) <- names(cols)
+  out$n <- suppressWarnings(as.numeric(out$n))
+  out$income <- suppressWarnings(as.numeric(out$income))
+  out$tax <- suppressWarnings(as.numeric(out$tax))
+  out[is.finite(out$n) & out$n > 0 & is.finite(out$income), c("n", "income", "tax"), drop = FALSE]
+}
+
+admin_pit_candidate_col_breaks <- function() {
+  unique(c(0, seq(0.01, 0.99, 0.01), seq(0.991, 0.999, 0.001), seq(0.9991, 0.9999, 0.0001), seq(0.99991, 0.99999, 0.00001), 1))
+}
+
+admin_pit_candidate_clean_col <- function(
+  repo_root = getwd(), input_root = repo_root, output_root = input_root,
+  config_path = Sys.getenv("DINA_CONFIG_YML", unset = file.path(repo_root, "config", "dina.yml")),
+  override_path = Sys.getenv("DINA_CONFIG_OVERRIDE_YML", unset = "")
+) {
+  admin_pit_candidate_load(c("readxl", "haven", "janitor", "openxlsx"))
+  config <- admin_pit_candidate_read_config(repo_root, config_path, override_path)
+  last_year <- as.integer(config$years$last)
+  contract <- admin_pit_candidate_col_contract(repo_root)
+  first_year <- as.integer(contract$first_year)
+  resolved <- admin_pit_candidate_resolve_col_pit(
+    input_root, seq.int(first_year, last_year),
+    expected_file_template = as.character(contract$expected_file_template),
+    index_offset = as.integer(contract$index_offset)
+  )
+  pop <- haven::read_dta(file.path(input_root, "intermediary_data", "population", "SurveyPop.dta"))
+  tables <- lapply(seq_len(nrow(resolved)), function(i) {
+    year <- resolved$year[[i]]
+    total_pop <- suppressWarnings(as.numeric(pop$totpop_ie[pop$country == "COL" & pop$year == year][[1L]]))
+    if (!is.finite(total_pop) || total_pop <= 0) stop("Colombia PIT cleaner needs SurveyPop total population for ", year, ".", call. = FALSE)
+    raw <- admin_pit_candidate_col_read(resolved$path[[i]])
+    pre <- raw$income * 1e6 / raw$n
+    pos <- pre - raw$tax * 1e6 / raw$n
+    keep <- is.finite(pos) & pos >= 0
+    raw <- raw[keep, , drop = FALSE]
+    pos <- pos[keep]
+    order_desc <- order(pos, decreasing = TRUE)
+    weight <- raw$n[order_desc]
+    value <- pos[order_desc]
+    cumulative <- cumsum(weight) / total_pop
+    p <- 1 - cumulative
+    topavg <- cumsum(value * weight) / cumsum(weight)
+    group <- cut(p, breaks = admin_pit_candidate_col_breaks(), include.lowest = TRUE, right = FALSE, labels = FALSE)
+    split_index <- split(seq_along(group), group)
+    rows <- lapply(split_index, function(index) {
+      ix <- as.integer(index)
+      data.frame(
+        year = year, country = "COL", component = "posttax", popsize = total_pop,
+        average = sum(value * weight, na.rm = TRUE) / total_pop,
+        p = min(p[ix], na.rm = TRUE), thr = min(value[ix], na.rm = TRUE),
+        bracketavg = stats::weighted.mean(value[ix], weight[ix]), topavg = min(topavg[ix], na.rm = TRUE),
+        eff_tax_rate = NA_real_, stringsAsFactors = FALSE
+      )
+    })
+    out <- do.call(rbind, rows)
+    out <- out[out$thr >= 1e6 & is.finite(out$bracketavg) & out$bracketavg != out$thr, , drop = FALSE]
+    out <- out[order(out$thr), , drop = FALSE]
+    if (nrow(out) > 1L) out[2:nrow(out), c("year", "country", "component", "popsize", "average")] <- NA
+    out
+  })
+  path <- file.path(output_root, "input_data", "admin_data", "COL", "_clean", "total-pos-COL.xlsx")
+  admin_pit_candidate_write_sheeted_workbook(path, tables, resolved$year)
+  data.frame(country = "COL", output = path, first_year = min(resolved$year), last_year = max(resolved$year), stringsAsFactors = FALSE)
 }

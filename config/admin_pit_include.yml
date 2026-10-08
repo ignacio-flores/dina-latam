@@ -1,9 +1,9 @@
 version: 1
 name: admin_pit_include_contract
 description: >
-  Experimental PIT admin include contract. Dry-run stages incoming PIT sources
-  and isolated candidate cleaner outputs without modifying mainstream pipeline
-  scripts.
+  PIT Admin include contract. Dry-run stages incoming PIT sources and their
+  formatted interpolation-ready outputs. Include promotes the complete
+  reviewed handoff for pipeline consumption.
 
 output_root: output/experiments/admin_pit_include
 explore_output_root: output/experiments/admin_pit_explore
@@ -41,6 +41,7 @@ fingerprints:
     - sha256
 
 cleaners:
+  contract_version: 1
   mode: real
   review_harmonized_outputs:
     description: >

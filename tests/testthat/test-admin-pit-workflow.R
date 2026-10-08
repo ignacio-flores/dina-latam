@@ -230,6 +230,25 @@ test_that("COL cleaner reads a staged incoming archive but the repository baseli
   expect_equal(accepted, file.path(root, "input_data", "admin_data", "COL", "1_Cuantiles_Ingreso_Bruto_Naturales_2014-2022"))
 })
 
+test_that("COL shared resolver accepts publisher nesting and rejects a missing documented year", {
+  root <- admin_pit_fixture_repo()
+  source(file.path(repo_root_for_tests, "code", "R", "admin_cleaners", "admin_pit_candidate_cleaners.R"), local = TRUE)
+  stage <- file.path(tempdir(), paste0("col-resolver-", as.integer(stats::runif(1) * 1e9)))
+  if (requireNamespace("withr", quietly = TRUE)) withr::defer(unlink(stage, recursive = TRUE), envir = parent.frame())
+  dir.create(file.path(stage, "input_data", "admin_data", "COL"), recursive = TRUE)
+  source_dir <- file.path(root, "input_data", "_new", "admin", "COL", "1_Cuantiles_Ingreso_Bruto_Naturales_2014-2023")
+  admin_pit_include_copy_path(source_dir, file.path(stage, "input_data", "admin_data", "COL", basename(source_dir)))
+  contract <- admin_pit_candidate_col_contract(repo_root_for_tests)
+  resolve <- function(years) admin_pit_candidate_resolve_col_pit(
+    stage, years, contract$expected_file_template, contract$index_offset
+  )
+  resolved <- resolve(2014:2023)
+  expect_equal(resolved$year, 2014:2023)
+  expect_true(all(file.exists(resolved$path)))
+  unlink(resolved$path[resolved$year == 2023L])
+  expect_error(resolve(2014:2023), "missing the documented F-210")
+})
+
 test_that("PIT admin explorer reports Brazil min-wage dependency actions", {
   skip_if_not_installed("openxlsx")
   missing <- run_admin_pit_explorer(root = admin_pit_fixture_repo(minwage = "missing"), write_outputs = FALSE)
@@ -561,27 +580,12 @@ test_that("isolated PIT admin confirm refuses changed incoming source fingerprin
   admin_pit_expect_false(file.exists(file.path(root, "input_data", "admin_data", "BRA", "gn-irpf-ac2024.xlsx")))
 })
 
-test_that("isolated COL cleaner uses a temporary patched do-file only", {
-  skip_if_not_installed("digest")
-  original <- file.path(repo_root_for_tests, "code", "Stata", "tax-data", "COL-diverse.do")
-  before <- digest::digest(file = original, algo = "sha256")
-  paths <- list(logs = tempfile("admin-pit-col-logs-"))
-  dir.create(paths$logs, recursive = TRUE)
-  do_file <- admin_pit_include_col_temp_do(
-    repo_root_for_tests,
-    paths,
-    source_dir = "/tmp/admin-pit-col-source",
-    output_dir = "/tmp/admin-pit-col-output",
-    first_year = 2015L,
-    last_year = 2023L
-  )
-  lines <- readLines(do_file, warn = FALSE)
-  admin_pit_expect_true(identical(lines[[1L]], sprintf('cd "%s"', normalizePath(repo_root_for_tests, mustWork = FALSE))))
-  admin_pit_expect_true(any(grepl('global route "/tmp/admin-pit-col-source"', lines, fixed = TRUE)))
-  admin_pit_expect_true(any(grepl('forvalues y = 2015/`lasty_col_tax', lines, fixed = TRUE)))
-  admin_pit_expect_true(any(grepl('"/tmp/admin-pit-col-output/total-`v\'-COL.xlsx"', lines, fixed = TRUE)))
-  admin_pit_expect_true(any(grepl("rename poptot popsize", lines, fixed = TRUE)))
-  expect_equal(digest::digest(file = original, algo = "sha256"), before)
+test_that("COL uses the shared Admin cleaner rather than a temporary Stata rewrite", {
+  include_code <- paste(readLines(file.path(repo_root_for_tests, "code", "R", "source-diagnostics", "admin_pit_include.R"), warn = FALSE), collapse = "\n")
+  handoff_task <- paste(readLines(file.path(repo_root_for_tests, "code", "Stata", "02d-prepare-updated-admin-data.do"), warn = FALSE), collapse = "\n")
+  expect_false(grepl("col_temp_do|run_col_cleaner", include_code))
+  expect_false(grepl("COL-diverse.do", handoff_task, fixed = TRUE))
+  expect_match(handoff_task, "validation-only handoff")
 })
 
 test_that("standalone isolated admin PIT entrypoint runs without touching the mainstream CLI", {

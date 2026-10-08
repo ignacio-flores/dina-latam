@@ -1168,7 +1168,8 @@ dina_review_include <- function(root, family, flags = list(), input = "stdin", i
     record$admin_trust_watch <- dina_review_watch(c(
       dina_admin_trust_regions_path(root),
       dina_admin_trust_snapshot_path(root, dina_load_session(root = root)),
-      dina_admin_trust_snapshot_manifest_path(root, dina_load_session(root = root))
+      dina_admin_trust_snapshot_manifest_path(root, dina_load_session(root = root)),
+      dina_admin_pit_outputs_manifest_path(root, dina_load_session(root = root))
     ))
   }
   record$watch <- record$acceptance_watch

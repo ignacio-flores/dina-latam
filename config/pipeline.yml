@@ -134,11 +134,6 @@ tasks:
       - input_data/admin_data/CHL
       - input_data/admin_data/BRA
       - input_data/admin_data/COL
-      - input_data/wid/population_total_adult_npopul.dta
-      - intermediary_data/population/SurveyPop.dta
-      - code/R/02c_clean_admin_chl.R
-      - code/R/source-helpers/chl_uta.R
-      - code/R/02c_clean_admin_bra.R
     outputs:
       - input_data/admin_data/CHL/_clean
       - input_data/admin_data/BRA/_clean

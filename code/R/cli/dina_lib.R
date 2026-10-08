@@ -192,6 +192,115 @@ dina_admin_trust_snapshot_manifest_path <- function(root = dina_repo_root(), ses
   paste0(dina_admin_trust_snapshot_path(root, session), ".manifest.json")
 }
 
+# Admin Include is the authority that turns publisher PIT workbooks into the
+# interpolation-ready tables consumed by the pipeline.  Keep its handoff
+# beside the selected scope, just like the trust snapshot: an update can be
+# tested without changing the benchmark, and a later source edit cannot alter
+# an already-included handoff silently.
+dina_admin_pit_outputs_manifest_path <- function(root = dina_repo_root(), session = NULL) {
+  if (is.null(session)) return(file.path(root, "output", "experiments", "admin_pit_include", "admin_pit_outputs.manifest.json"))
+  file.path(dina_update_dir(session$id, root), "admin_pit_outputs.manifest.json")
+}
+
+dina_hash_path <- function(path) {
+  if (!file.exists(path)) return(NA_character_)
+  if (!dir.exists(path)) return(dina_hash_file(path))
+  dina_need("digest")
+  files <- list.files(path, recursive = TRUE, all.files = TRUE, no.. = TRUE, full.names = TRUE)
+  files <- files[file.exists(files) & !dir.exists(files)]
+  if (!length(files)) return(digest::digest("", algo = "sha256"))
+  root <- normalizePath(path, winslash = "/", mustWork = FALSE)
+  rel <- substring(normalizePath(files, winslash = "/", mustWork = FALSE), nchar(root) + 2L)
+  entries <- paste(rel, vapply(files, dina_hash_file, character(1)), sep = " ")
+  digest::digest(paste(sort(entries), collapse = "\n"), algo = "sha256")
+}
+
+dina_admin_pit_outputs_scope <- function(root = dina_repo_root(), session = NULL) {
+  config <- dina_session_config(session, root, expand_env = TRUE)
+  identity <- dina_config_validation_identity(root, session, dina_config_validation_receipt(root, session))
+  list(
+    scope = identity$scope,
+    effective_config_fingerprint = identity$effective_config_fingerprint,
+    countries = toupper(as.character(config$countries %||% character())),
+    first_year = as.integer(config$years$first %||% NA),
+    last_year = as.integer(config$years$last %||% NA)
+  )
+}
+
+dina_admin_pit_outputs_manifest_problem <- function(root = dina_repo_root(), session = NULL) {
+  path <- dina_admin_pit_outputs_manifest_path(root, session)
+  remedy <- "Explore and include Admin."
+  if (!file.exists(path)) {
+    return(sprintf("Admin PIT handoff manifest is missing (%s). %s", dina_relative(path, root), remedy))
+  }
+  manifest <- tryCatch(dina_read_json(path), error = function(e) NULL)
+  expected <- dina_admin_pit_outputs_scope(root, session)
+  if (!is.list(manifest) || !identical(as.character(manifest$artifact %||% ""), "admin_pit_outputs")) {
+    return(sprintf("Admin PIT handoff manifest is unreadable or invalid (%s). %s", dina_relative(path, root), remedy))
+  }
+  actual_scope <- as.character(manifest$scope %||% "")
+  if (!identical(actual_scope, expected$scope)) {
+    return(sprintf("Admin PIT handoff belongs to %s, but this run uses %s. %s", actual_scope %||% "an unknown scope", expected$scope, remedy))
+  }
+  actual_config <- as.character(manifest$effective_config_fingerprint %||% "")
+  if (!identical(actual_config, expected$effective_config_fingerprint)) {
+    return(sprintf("Admin PIT handoff was created for a different effective configuration. %s", remedy))
+  }
+  artifacts <- manifest$artifacts %||% list()
+  if (!length(artifacts)) return(sprintf("Admin PIT handoff records no included artifacts. %s", remedy))
+  for (artifact in artifacts) {
+    rel <- as.character(artifact$path %||% "")
+    target <- file.path(root, rel)
+    expected_hash <- as.character(artifact$sha256 %||% "")
+    if (!nzchar(rel) || !nzchar(expected_hash)) {
+      return(sprintf("Admin PIT handoff has an incomplete artifact record. %s", remedy))
+    }
+    if (!file.exists(target)) {
+      return(sprintf("Included Admin artifact is missing: %s. %s", rel, remedy))
+    }
+    if (!identical(dina_hash_path(target), expected_hash)) {
+      return(sprintf("Included Admin artifact changed after inclusion: %s. %s", rel, remedy))
+    }
+  }
+  character()
+}
+
+# A pre-manifest Include did not lack a review decision; it only lacks this
+# machine-readable handoff receipt.  Backfill it only when the original
+# confirmation and every currently canonical artifact still match.
+dina_admin_pit_outputs_backfill_status <- function(root = dina_repo_root(), session = NULL) {
+  path <- dina_admin_pit_outputs_manifest_path(root, session)
+  if (file.exists(path)) return(list(eligible = FALSE, reason = "An Admin PIT output manifest already exists."))
+  if (!exists("dina_review_read", mode = "function") || !exists("admin_pit_include_backfill_output_manifest", mode = "function")) {
+    return(list(eligible = FALSE, reason = "The Admin source-review handoff is unavailable."))
+  }
+  record <- dina_review_read(root, "admin")
+  if (is.null(record) || !identical(record$status, "included")) {
+    return(list(eligible = FALSE, reason = "Admin sources have not been included."))
+  }
+  # The historical review watch deliberately covers the broad Admin inbox and
+  # can change for unrelated source work.  The backfill itself verifies the
+  # exact promoted raw and clean artifact hashes from the confirmation, which
+  # is stricter and avoids asking for a needless repeat review.
+  list(eligible = TRUE, record = record)
+}
+
+dina_admin_pit_outputs_manifest_ensure <- function(root = dina_repo_root(), session = NULL) {
+  issue <- dina_admin_pit_outputs_manifest_problem(root, session)
+  if (!length(issue)) return(list(created = FALSE, path = dina_admin_pit_outputs_manifest_path(root, session)))
+  if (!exists("admin_pit_include_backfill_output_manifest", mode = "function")) {
+    # The backfill helper is also used by the pipeline preflight, whose
+    # caller frame is not visible to the status helper.  Load it in the CLI
+    # environment rather than a transient function frame.
+    source(file.path(root, "code", "R", "source-diagnostics", "admin_pit_include.R"), local = globalenv())
+  }
+  status <- dina_admin_pit_outputs_backfill_status(root, session)
+  if (!isTRUE(status$eligible)) return(c(status, list(created = FALSE, issue = issue)))
+  result <- tryCatch(admin_pit_include_backfill_output_manifest(root = root, session = session, confirm_run = status$record$confirmation %||% NULL), error = function(e) e)
+  if (inherits(result, "error")) return(c(status, list(created = FALSE, issue = conditionMessage(result))))
+  c(status, list(created = TRUE, path = result$path))
+}
+
 dina_admin_trust_snapshot_scope <- function(config, session = NULL) {
   dina_need("digest")
   countries <- toupper(as.character(config$countries %||% character()))
@@ -1122,6 +1231,7 @@ dina_render_config_do <- function(config = dina_config(), path = NULL, identity 
     sprintf("global dina_config_validated_at \"%s\"", validated_at),
     sprintf("global dina_config_countries \"%s\"", paste(config$countries %||% character(), collapse = ",")),
     sprintf("global admin_trust_regions \"%s\"", identity$admin_trust_regions %||% ""),
+    sprintf("global admin_pit_outputs_manifest \"%s\"", identity$admin_pit_outputs_manifest %||% ""),
     "",
     sprintf("global all_countries %s", dina_stata_quote_list(config$countries %||% character())),
     sprintf("global first_y %s", config$years$first %||% ""),
@@ -3376,6 +3486,20 @@ dina_review_included_watch_changes <- function(record) {
   # filesystem shows a real edit after inclusion.  This makes the migration
   # safe: a subsequent source edit still produces a recheck request.
   changed <- if (length(changed)) intersect(changed, dina_review_paths_changed_after_inclusion(changed, record$included_at %||% record$reviewed_at %||% "")) else character()
+  if (identical(record$family, "admin")) {
+    # Newer Admin inclusions have an exact clean-output handoff manifest.  It
+    # is more precise than the old broad country-directory watcher: generated
+    # files inside a legacy country directory must not make an accepted source
+    # look stale.  Continue watching the incoming inbox, and treat any
+    # included-artifact manifest mismatch as a real recheck condition.
+    session <- tryCatch(dina_load_session(), error = function(e) NULL)
+    manifest_issue <- tryCatch(dina_admin_pit_outputs_manifest_problem(session = session), error = function(e) "")
+    if (!length(manifest_issue)) {
+      changed <- changed[grepl("/input_data/_new/admin(?:/|$)", changed, perl = TRUE)]
+    } else if (file.exists(dina_admin_pit_outputs_manifest_path(session = session))) {
+      changed <- unique(c(changed, "included Admin PIT artifact changed"))
+    }
+  }
   # Trust settings are Admin source-review evidence.  They are intentionally
   # excluded from generic source watches (which omit config/output paths), so
   # track the accepted registry and its scoped snapshot explicitly here.
@@ -3819,16 +3943,36 @@ dina_task_requires_admin_trust_snapshot <- function(task) {
     identical(task$id %||% "", "03d-prepare-theta-extrapolation")
 }
 
+dina_task_requires_admin_pit_outputs <- function(task) {
+  # 02d is deliberately a validation-only boundary.  The later tasks are
+  # listed too so running a downstream slice cannot bypass the same included
+  # artifact check.
+  (task$id %||% "") %in% c(
+    "02d-prepare-updated-admin-data", "02e-format-for-bfm",
+    "03a-run-bfm", "03b-run-bfm-2stage", "03d-prepare-theta-extrapolation",
+    "04a-compute-effective-rates"
+  )
+}
+
 dina_task_admin_source_issues <- function(task, root = dina_repo_root(), session = NULL) {
-  if (!dina_task_requires_admin_trust_snapshot(task)) return(character())
-  config <- dina_session_config(session, root, expand_env = FALSE)
-  issue <- dina_admin_trust_snapshot_problem(root, session, config)
-  if (!length(issue)) return(character())
-  migration <- dina_admin_trust_snapshot_backfill_status(root, session, config)
-  if (isTRUE(migration$eligible)) {
-    return("Admin sources are included; the runtime trust snapshot will be prepared when the pipeline starts.")
+  issues <- character()
+  if (dina_task_requires_admin_pit_outputs(task)) {
+    issue <- dina_admin_pit_outputs_manifest_problem(root, session)
+    if (length(issue)) issues <- c(issues, issue)
   }
-  issue
+  if (dina_task_requires_admin_trust_snapshot(task)) {
+    config <- dina_session_config(session, root, expand_env = FALSE)
+    issue <- dina_admin_trust_snapshot_problem(root, session, config)
+    if (length(issue)) {
+      migration <- dina_admin_trust_snapshot_backfill_status(root, session, config)
+      if (isTRUE(migration$eligible)) {
+        issues <- c(issues, "Admin sources are included; the runtime trust snapshot will be prepared when the pipeline starts.")
+      } else {
+        issues <- c(issues, issue)
+      }
+    }
+  }
+  unique(issues)
 }
 
 dina_legacy_prepared_input_issues <- function(root = dina_repo_root()) {
@@ -3860,6 +4004,10 @@ dina_pipeline_input_preflight <- function(tasks, root = dina_repo_root(), sessio
     config <- dina_session_config(session, root, expand_env = FALSE)
     admin_snapshot <- dina_admin_trust_snapshot_ensure(root, session, config)
   }
+  admin_pit_outputs <- list(created = FALSE)
+  if (any(vapply(tasks, dina_task_requires_admin_pit_outputs, logical(1)))) {
+    admin_pit_outputs <- dina_admin_pit_outputs_manifest_ensure(root, session)
+  }
   # An input produced by an earlier selected task is expected to be absent at
   # the start of a full run.  Do not confuse that ordinary dependency with a
   # missing external/static input.
@@ -3880,8 +4028,21 @@ dina_pipeline_input_preflight <- function(tasks, root = dina_repo_root(), sessio
     if (!length(issues)) return(character())
     paste0(task$id, " :: ", issues)
   }), use.names = FALSE)
+  # The included Admin PIT handoff is shared by several downstream tasks.
+  # Report it once, with its consumers, rather than repeating the same opaque
+  # rejection for every task in the chain.
+  admin_pit_issue <- dina_admin_pit_outputs_manifest_problem(root, session)
+  if (length(admin_pit_issue)) {
+    admin_tasks <- vapply(tasks, dina_task_requires_admin_pit_outputs, logical(1))
+    admin_task_ids <- vapply(tasks[admin_tasks], function(task) task$id, character(1))
+    if (length(admin_task_ids)) {
+      shared_pattern <- " :: .*Admin PIT (outputs|handoff|artifact)"
+      missing <- missing[!grepl(shared_pattern, missing, perl = TRUE)]
+      missing <- c(missing, sprintf("Admin PIT handoff (required by %s) :: %s", paste(admin_task_ids, collapse = ", "), admin_pit_issue))
+    }
+  }
   missing <- c(missing, dina_legacy_prepared_input_issues(root))
-  if (!length(missing)) return(invisible(list(admin_trust_snapshot = admin_snapshot)))
+  if (!length(missing)) return(invisible(list(admin_trust_snapshot = admin_snapshot, admin_pit_outputs = admin_pit_outputs)))
   stop(
     "Pipeline has not started because required inputs are missing:\n  - ",
     paste(missing, collapse = "\n  - "),
@@ -3957,6 +4118,9 @@ dina_run_task <- function(task, root = dina_repo_root(), session = dina_load_ses
   if (dry_run) {
     return(list(task = task$id, status = "dry_run", command = command, reasons = status$reasons,
       configuration = validation$identity, source_reviews = source_advisory))
+  }
+  if (dina_task_requires_admin_pit_outputs(task)) {
+    dina_admin_pit_outputs_manifest_ensure(root, session)
   }
   missing_inputs <- dina_task_missing_inputs(task, root = root, session = session)
   source_issues <- dina_task_admin_source_issues(task, root, session)
@@ -4579,6 +4743,7 @@ dina_config_validation_identity <- function(root, session = NULL, receipt = NULL
     effective_config_fingerprint = snapshot$effective_config_hash %||% "",
     baseline_fingerprint = baseline_fingerprint,
     admin_trust_regions = dina_relative(dina_admin_trust_runtime_path(root, session), root),
+    admin_pit_outputs_manifest = dina_relative(dina_admin_pit_outputs_manifest_path(root, session), root),
     validated_at = receipt$checked_at %||% ""
   )
 }
@@ -4649,7 +4814,7 @@ dina_stata_runtime_preflight <- function(root, session, config, progress = NULL)
   lines <- c(
     "clear all",
     sprintf("do \"%s\"", bootstrap),
-    "foreach required in dina_config_scope dina_config_fingerprint dina_baseline_fingerprint dina_config_countries admin_trust_regions all_countries first_y last_y export_unit export_steps export_last_y previous_update {",
+    "foreach required in dina_config_scope dina_config_fingerprint dina_baseline_fingerprint dina_config_countries admin_trust_regions admin_pit_outputs_manifest all_countries first_y last_y export_unit export_steps export_last_y previous_update {",
     "  if `\"${`required'}\"' == \"\" exit 198",
     "}",
     sprintf("if \"${dina_config_scope}\" != \"%s\" exit 198", stata_string(identity$scope)),
@@ -4722,6 +4887,14 @@ dina_settings_check <- function(root, session = dina_load_session(root = root), 
     required_ados <- unlist(config$stata$required_ados %||% character())
     if (!is.character(required_ados) || anyNA(required_ados) || any(!grepl("^[A-Za-z_][A-Za-z0-9_]*$", required_ados))) {
       errors <- c(errors, "Stata required_ados must contain valid command names.")
+    }
+    # Admin Include may receive either Excel or binary Excel PIT workbooks.
+    # Check the readers up front so the reviewer gets an actionable setup
+    # error during configuration validation rather than a late cleaner crash.
+    readers <- c("readxl", "readxlsb", "openxlsx", "haven")
+    missing_readers <- readers[!vapply(readers, requireNamespace, logical(1), quietly = TRUE)]
+    if (length(missing_readers)) {
+      errors <- c(errors, paste0("Required R reader package(s) missing: ", paste(missing_readers, collapse = ", "), ". Run `dina install` before Admin Explore or a pipeline run."))
     }
     if (!config$run$lang %in% c("eng", "esp")) errors <- c(errors, "run.lang must be eng or esp.")
     for (name in c("debug", "bfm_replace")) if (!is.logical(config$run[[name]]) || length(config$run[[name]]) != 1L || is.na(config$run[[name]])) errors <- c(errors, paste("run", name, "must be true or false."))
