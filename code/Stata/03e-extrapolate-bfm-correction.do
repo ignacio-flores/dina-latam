@@ -6,13 +6,10 @@ Authors: Mauricio De ROSA, Ignacio FLORES, Marc MORGAN
 //General settings
 clear all
 
-//to replace or not to replace
-if "${bfm_replace}" == "yes" local ext ""	  	
-if "${bfm_replace}" == "no" local ext "_norep"
-
 //preliminary
 global aux_part  ""preliminary"" 
 qui do "code/Stata/auxiliar/aux_general.do"
+local ext "_norep"
 // -----------------------------------------------------------------------------
 
 
@@ -152,9 +149,6 @@ foreach c in $extrap_countries {
 		local min_p_`c'_`t' = r(min) - 0.05
 		qui use `tf', clear
 		
-		//to replace or not to replace?
-		if ("`ext'" == "_norep") local addoption "noreplace"
-		
 		local slope = -0.99
 		local pen = 20
 		if "`c'" == "ECU" local slope = -0.6
@@ -171,7 +165,7 @@ foreach c in $extrap_countries {
 			trust(`min_p_`c'_`t'') mergingpoint(`mp_`c'_`t'') ///
 			thetalimit(/*${t_limit}*/20) ///
 			holdmargins(sex age_group) slope(`slope') pen(`pen') /// 
-			sampletop(0.01) `addoption'	/*minbracket(1)*/
+			sampletop(0.01) noreplace	/*minbracket(1)*/
 				
 		//check if the correction was made to continue
 		if _rc == 0 {
@@ -255,4 +249,3 @@ di as result "successful cases: " _continue
 di as text "`ctry_yr_list`ext''" 
 di as result "failed cases: " _continue 
 di as text "`fail_`ext''" 	
-

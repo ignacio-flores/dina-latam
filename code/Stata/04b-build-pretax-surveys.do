@@ -210,39 +210,3 @@ foreach c in $all_countries   {
 		}		
 	}
 }
-
-*-------------------------------------------------------------------------------
-* III. Subtract social contributions in Brazil in pre-tax and post-tax
-* (exceptional case)
-*-------------------------------------------------------------------------------
-local ext ""
-forvalues  year = $first_y / $last_y {
-	
-	//locate relevant files 
-	foreach x in "pre" "pos" {
-		clear
-		
-		local BRA_svy_`x' ///
-			"${data_svy}bfm`ext'_`x'/BRA_`year'_bfm`ext'_`x'.dta"
-		di as result "working with `BRA_svy_`x'' ..." 
-		cap use `BRA_svy_`x'', clear
-		qui cap assert _N == 0
-		
-		if _rc != 0 {
-			foreach var in "wag" "fwag" "tot" {			
-				qui replace `x'_`var'_svy = `x'_`var'_svy ///
-					- socsec_valid_contribs_svy
-				qui replace ind_`x'_`var' = ind_`x'_`var' ///
-					- socsec_valid_contribs	
-				qui qui replace `x'_`var'_svy = 0 if `x'_`var'_svy < 0
-				qui replace ind_`x'_`var' = 0 if ind_`x'_`var' < 0
-			}
-		qui save `BRA_svy_`x'', replace		
-		di as result " done"
-		} 
-		else {
-			di as error "not found"
-		}
-	}
-}
-

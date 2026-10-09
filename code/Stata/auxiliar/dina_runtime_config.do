@@ -23,3 +23,7 @@ if "${dina_runtime_config_loaded}" != "yes" {
     }
     global dina_runtime_config_loaded "yes"
 }
+if "${bfm_replace}" != "no" {
+    di as error "Only BFM noreplace is supported; bfm_replace must be no."
+    exit 198
+}

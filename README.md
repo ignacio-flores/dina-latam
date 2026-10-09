@@ -50,7 +50,10 @@ Edit `config/dina.yml` manually to set:
 | `run.lang` | Output language | `eng` |
 | `run.units` | Units (e.g., individuals, equal-split adults) | `ind, esn, pch` |
 | `run.steps` | Processing steps | `natinc, pon` |
-| Flags | Debug or overwrite options | `run.debug`, `run.bfm_replace` |
+| Debug flag | Enable diagnostic output | `run.debug` |
+
+BFM uses the `noreplace` method. The configuration must keep `run.bfm_replace: false`;
+replacing estimates are not supported by this pipeline.
 
 ### 3. Run the Pipeline
 

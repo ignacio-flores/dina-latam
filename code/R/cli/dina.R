@@ -6345,14 +6345,16 @@ dina_cmd_run <- function(root, args) {
   }
   completed <- FALSE
   results <- list()
+  notification_failure <- NULL
+  active_task <- NULL
   if (notify) {
     on.exit({
-      message <- if (completed) {
-        summary <- paste(vapply(results, function(x) sprintf("%s=%s", x$task, x$status), character(1)), collapse = ", ")
-        sprintf("DINA run finished: %s", summary)
-      } else {
-        "DINA run failed before completing. Check console output and run logs."
+      failure <- notification_failure
+      if (!completed && is.null(failure) && !is.null(active_task)) {
+        failure <- list(stage = "interrupted", task = active_task$id, script = active_task$script,
+                        detail = "Run interrupted while this script was active.")
       }
+      message <- dina_run_notification_message(completed, results, failure)
       tryCatch(
         dina_notify(message, root = root),
         error = function(e) dina_cli_warn(sprintf("Could not send Pushover notification: %s", conditionMessage(e)))
@@ -6360,21 +6362,38 @@ dina_cmd_run <- function(root, args) {
     }, add = TRUE)
   }
   if (!dry_run) {
-    dina_assert_current_config_validation(root, session)
-    preflight <- dina_pipeline_input_preflight(tasks, root = root, session = session)
+    preflight <- tryCatch({
+      dina_assert_current_config_validation(root, session)
+      dina_pipeline_input_preflight(tasks, root = root, session = session)
+    }, error = function(e) {
+      notification_failure <<- list(stage = "preflight", detail = conditionMessage(e))
+      stop(e)
+    })
     if (isTRUE(preflight$admin_trust_snapshot$created)) {
       dina_cli_ok("Admin sources are included; prepared their scoped trust snapshot for this run.")
     }
   }
   for (task in tasks) {
-    result <- dina_cli_run_task(task, root, session = session, dry_run = dry_run, force = isTRUE(flags$force))
+    active_task <- task
+    result <- tryCatch(
+      dina_cli_run_task(task, root, session = session, dry_run = dry_run, force = isTRUE(flags$force)),
+      error = function(e) {
+        notification_failure <<- list(stage = "task", task = task$id, script = task$script,
+                                      detail = conditionMessage(e))
+        stop(e)
+      }
+    )
     results[[task$id]] <- result
     if (!is.null(result$session)) session <- result$session
     dina_cli_cat(sprintf("%s: %s", result$task, dina_cli_dim(result$status)))
     if (!is.null(result$command)) dina_cli_cat(sprintf("  %s", dina_cli_command(paste(result$command, collapse = " "))))
     if (identical(result$status, "failed")) {
+      notification_failure <- list(stage = "task", task = task$id, script = task$script,
+                                   detail = result$failure %||% "Command failed; inspect the task log.",
+                                   log_dir = result$log_dir %||% "")
       stop(sprintf("Task %s failed. Downstream tasks were not started; inspect %s.", task$id, result$log_dir), call. = FALSE)
     }
+    active_task <- NULL
   }
   completed <- TRUE
 }

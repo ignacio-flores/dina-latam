@@ -10,14 +10,12 @@
 clear all
 
 //0. General settings ----------------------------------------------------------
-if "${bfm_replace}" == "yes" local ext ""
-if "${bfm_replace}" == "no" local ext "_norep"
-
 //get list of paths 
 global aux_part " "preliminary" " 
 qui do "code/Stata/auxiliar/aux_general.do"
 global aux_part " "graph_basics" " 
 qui do "code/Stata/auxiliar/aux_general.do"
+local ext "_norep"
 
 local lang $lang 
 local interpolation "spline" //for data from ceq
@@ -659,5 +657,4 @@ foreach c in $area {
 		}
 	}
 }
-
 

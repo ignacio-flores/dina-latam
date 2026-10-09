@@ -10,13 +10,10 @@ clear all
 
 //0. General settings ----------------------------------------------------------
 
-//define macros 
-if "${bfm_replace}" == "yes" local ext ""
-if "${bfm_replace}" == "no" local ext "_norep"
-
 //get list of paths 
 global aux_part " "preliminary" " 
 qui do "code/Stata/auxiliar/aux_general.do"
+local ext "_norep"
 local lang $lang 
 
 global area " ${all_countries} "

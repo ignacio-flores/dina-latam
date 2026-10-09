@@ -227,6 +227,25 @@ dina_admin_pit_outputs_scope <- function(root = dina_repo_root(), session = NULL
   )
 }
 
+# Version 1 Admin inclusion manifests sorted directory entries under C.UTF-8.
+# R's default sort follows the caller's LC_COLLATE; under C the unchanged COL
+# publisher directory gets a different digest. Preserve the accepted digest
+# algorithm while making verification independent of the launching shell.
+dina_admin_pit_hash_path <- function(path) {
+  original_all <- Sys.getenv("LC_ALL", unset = NA_character_)
+  original_collate <- Sys.getlocale("LC_COLLATE")
+  on.exit({
+    suppressWarnings(Sys.setlocale("LC_COLLATE", original_collate))
+    if (is.na(original_all)) Sys.unsetenv("LC_ALL") else Sys.setenv(LC_ALL = original_all)
+  }, add = TRUE)
+  Sys.setenv(LC_ALL = "C.UTF-8")
+  selected <- suppressWarnings(Sys.setlocale("LC_COLLATE", "C.UTF-8"))
+  if (is.na(selected) || !nzchar(selected)) {
+    stop("Cannot verify the Admin inclusion manifest: C.UTF-8 locale is unavailable.", call. = FALSE)
+  }
+  dina_hash_path(path)
+}
+
 dina_admin_pit_outputs_manifest_problem <- function(root = dina_repo_root(), session = NULL) {
   path <- dina_admin_pit_outputs_manifest_path(root, session)
   remedy <- "Explore and include Admin."
@@ -258,7 +277,7 @@ dina_admin_pit_outputs_manifest_problem <- function(root = dina_repo_root(), ses
     if (!file.exists(target)) {
       return(sprintf("Included Admin artifact is missing: %s. %s", rel, remedy))
     }
-    if (!identical(dina_hash_path(target), expected_hash)) {
+    if (!identical(dina_admin_pit_hash_path(target), expected_hash)) {
       return(sprintf("Included Admin artifact changed after inclusion: %s. %s", rel, remedy))
     }
   }
@@ -1218,6 +1237,9 @@ dina_export_validation_config <- function(config) {
 }
 
 dina_render_config_do <- function(config = dina_config(), path = NULL, identity = list()) {
+  if (!identical(config$run$bfm_replace, FALSE)) {
+    stop("run.bfm_replace must be false; only BFM noreplace is supported.", call. = FALSE)
+  }
   export <- dina_export_validation_config(config)
   scope <- identity$scope %||% "unvalidated"
   fingerprint <- identity$fingerprint %||% ""
@@ -1239,7 +1261,7 @@ dina_render_config_do <- function(config = dina_config(), path = NULL, identity 
     "",
     sprintf("global lang \"%s\"", config$run$lang %||% "eng"),
     sprintf("global debug \"%s\"", dina_bool_stata(config$run$debug %||% FALSE)),
-    sprintf("global bfm_replace \"%s\"", dina_bool_stata(config$run$bfm_replace %||% FALSE)),
+    "global bfm_replace \"no\"",
     "",
     sprintf("global all_units %s", dina_stata_quote_list(config$run$units %||% character())),
     sprintf("global all_steps %s", dina_stata_quote_list(config$run$steps %||% character())),
@@ -4121,6 +4143,65 @@ dina_assert_current_config_validation <- function(root, session) {
   list(state = state, receipt = dina_config_validation_receipt(root, session), identity = dina_config_validation_identity(root, session, dina_config_validation_receipt(root, session)))
 }
 
+dina_task_failure_detail <- function(result, root = dina_repo_root()) {
+  if (nzchar(result$stata_log %||% "")) {
+    path <- file.path(root, result$stata_log)
+    if (file.exists(path)) {
+      lines <- trimws(readLines(path, warn = FALSE))
+      codes <- grep("^r\\([1-9][0-9]*\\);$", lines)
+      if (length(codes)) {
+        index <- codes[[1L]]
+        prior <- if (index > 1L) lines[seq.int(max(1L, index - 12L), index - 1L)] else character()
+        prior <- prior[nzchar(prior) & !grepl("^(\\.|>|end of do-file|[-=]+$)", prior)]
+        detail <- if (length(prior)) tail(prior, 1L) else "Stata stopped"
+        return(sprintf("%s %s", detail, sub(";$", "", lines[[index]])))
+      }
+    }
+  }
+  if (nzchar(result$log_dir %||% "") && nzchar(result$task %||% "")) {
+    path <- file.path(root, result$log_dir, paste0(result$task, ".err.log"))
+    if (file.exists(path)) {
+      lines <- trimws(readLines(path, warn = FALSE))
+      errors <- lines[grepl("^Error", lines)]
+      if (length(errors)) return(tail(errors, 1L))
+      lines <- lines[nzchar(lines) & lines != "Execution halted"]
+      if (length(lines)) return(tail(lines, 1L))
+    }
+  }
+  sprintf("Command exited with status %s", result$exit_status %||% "unknown")
+}
+
+dina_notification_excerpt <- function(message, max_chars = 480L) {
+  lines <- trimws(strsplit(as.character(message %||% ""), "\n", fixed = TRUE)[[1L]])
+  lines <- lines[nzchar(lines)]
+  if (length(lines) > 1L && grepl("^Pipeline has not started", lines[[1L]])) {
+    lines <- lines[-1L]
+  }
+  if (!length(lines)) return("No error detail was recorded.")
+  value <- gsub("[[:space:]]+", " ", sub("^-[[:space:]]*", "", lines[[1L]]))
+  if (nchar(value) > max_chars) paste0(substr(value, 1L, max_chars - 1L), "…") else value
+}
+
+dina_run_notification_message <- function(completed, results, failure = NULL) {
+  if (isTRUE(completed)) {
+    statuses <- vapply(results, function(x) x$status %||% "unknown", character(1))
+    counts <- table(statuses)
+    summary <- paste(sprintf("%s %s", as.integer(counts), names(counts)), collapse = ", ")
+    last <- if (length(results)) tail(vapply(results, function(x) x$task %||% "?", character(1)), 1L) else "none"
+    return(sprintf("DINA run finished: %s. Last task: %s.", summary, last))
+  }
+  if (is.null(failure)) return("DINA run stopped; no error detail was recorded.")
+  detail <- dina_notification_excerpt(failure$detail %||% "")
+  if (identical(failure$stage, "preflight")) {
+    return(substr(sprintf("DINA preflight failed; no script started. Error: %s", detail), 1L, 900L))
+  }
+  lead <- if (identical(failure$stage, "interrupted")) "DINA interrupted at" else "DINA failed at"
+  message <- sprintf("%s %s\nScript: %s\nError: %s", lead,
+                     failure$task %||% "unknown task", failure$script %||% "unknown script", detail)
+  if (nzchar(failure$log_dir %||% "")) message <- paste0(message, "\nLogs: ", failure$log_dir)
+  substr(message, 1L, 900L)
+}
+
 dina_run_task <- function(task, root = dina_repo_root(), session = dina_load_session(root = root), dry_run = TRUE, force = FALSE,
                           progress = NULL) {
   validation <- if (isTRUE(dry_run)) {
@@ -4232,12 +4313,15 @@ dina_run_task <- function(task, root = dina_repo_root(), session = dina_load_ses
   status_value <- if (identical(result$status, 0L) && !stata_error) "succeeded" else "failed"
   writeLines(result$stdout, file.path(log_dir, paste0(task$id, ".out.log")))
   writeLines(result$stderr, file.path(log_dir, paste0(task$id, ".err.log")))
+  failure_detail <- if (identical(status_value, "failed")) dina_task_failure_detail(list(
+    task = task$id, log_dir = dina_relative(log_dir, root),
+    stata_log = if (nzchar(stata_log)) dina_relative(stata_log, root) else NULL,
+    exit_status = result$status
+  ), root) else NULL
   run_manifest <- list(task = task$id, status = status_value, command = command, run_id = run_id,
     ended_at = dina_now(), configuration = validation$identity, validation = validation$receipt,
     source_reviews = source_advisory, stata_log = if (nzchar(stata_log)) dina_relative(stata_log, root) else NULL,
-    failure = if (identical(status_value, "failed")) {
-      if (stata_error) "Stata reported an r() error; downstream tasks were not started." else sprintf("Command exited with status %s.", result$status)
-    } else NULL)
+    failure = failure_detail)
   dina_write_json(run_manifest, file.path(log_dir, "run-manifest.json"))
   if (!is.null(session)) {
     session$task_runs[[task$id]] <- c(list(status = status_value, command = command, run_id = run_id, ended_at = dina_now()),
@@ -4248,7 +4332,7 @@ dina_run_task <- function(task, root = dina_repo_root(), session = dina_load_ses
   dina_progress(progress, "%s; logs written to %s.", if (identical(status_value, "succeeded")) "Task completed" else "Task failed", dina_relative(log_dir, root))
   list(task = task$id, status = status_value, command = command, exit_status = result$status,
     log_dir = dina_relative(log_dir, root), stata_log = if (nzchar(stata_log)) dina_relative(stata_log, root) else NULL,
-    session = session)
+    failure = failure_detail, session = session)
 }
 
 dina_make_export <- function(path = dina_path("Makefile.dina", root = root), root = dina_repo_root()) {
@@ -4934,6 +5018,7 @@ dina_settings_check <- function(root, session = dina_load_session(root = root), 
     }
     if (!config$run$lang %in% c("eng", "esp")) errors <- c(errors, "run.lang must be eng or esp.")
     for (name in c("debug", "bfm_replace")) if (!is.logical(config$run[[name]]) || length(config$run[[name]]) != 1L || is.na(config$run[[name]])) errors <- c(errors, paste("run", name, "must be true or false."))
+    if (isTRUE(config$run$bfm_replace)) errors <- c(errors, "run.bfm_replace must be false; only BFM noreplace is supported.")
     for (name in c("units", "steps")) if (!length(unlist(config$run[[name]])) || anyNA(unlist(config$run[[name]]))) errors <- c(errors, paste("run", name, "must contain values."))
     baseline <- character()
     if (isTRUE(validate_baseline)) {

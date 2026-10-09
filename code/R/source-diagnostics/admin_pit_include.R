@@ -202,6 +202,19 @@ admin_pit_include_hash_path <- function(path) {
   if (!length(files)) return(digest::digest("", algo = "sha256"))
   rel <- substring(files, nchar(normalizePath(path, mustWork = FALSE)) + 2L)
   lines <- sprintf("%s %s", rel, vapply(files, function(file) digest::digest(file = file, algo = "sha256"), character(1)))
+  # Match the version 1 inclusion manifest's collation regardless of the
+  # locale in the Terminal session that runs the include or the pipeline.
+  original_all <- Sys.getenv("LC_ALL", unset = NA_character_)
+  original_collate <- Sys.getlocale("LC_COLLATE")
+  on.exit({
+    suppressWarnings(Sys.setlocale("LC_COLLATE", original_collate))
+    if (is.na(original_all)) Sys.unsetenv("LC_ALL") else Sys.setenv(LC_ALL = original_all)
+  }, add = TRUE)
+  Sys.setenv(LC_ALL = "C.UTF-8")
+  selected <- suppressWarnings(Sys.setlocale("LC_COLLATE", "C.UTF-8"))
+  if (is.na(selected) || !nzchar(selected)) {
+    stop("Cannot hash the Admin source directory: C.UTF-8 locale is unavailable.", call. = FALSE)
+  }
   digest::digest(paste(sort(lines), collapse = "\n"), algo = "sha256")
 }
 

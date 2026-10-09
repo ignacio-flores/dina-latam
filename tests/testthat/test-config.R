@@ -21,6 +21,18 @@ test_that("config loads and renders Stata globals", {
   expect_true(any(grepl('global previous_update "input_data/_new/previous_series/dina_latam_3Oct2024.dta"', lines, fixed = TRUE)))
 })
 
+test_that("BFM replacing configurations are rejected before a task runs", {
+  root <- mini_repo()
+  cfg <- dina_config(root)
+  cfg$run$bfm_replace <- TRUE
+  expect_error(dina_render_config_do(cfg), "only BFM noreplace is supported")
+
+  dina_write_yaml(cfg, file.path(root, "config", "dina.yml"))
+  check <- dina_settings_check(root, session = NULL, validate_baseline = FALSE,
+    validate_runtime = FALSE)
+  expect_true(any(grepl("only BFM noreplace is supported", check$errors, fixed = TRUE)))
+})
+
 test_that("export validation config fails without required values", {
   root <- mini_repo()
   cfg <- dina_config(root)

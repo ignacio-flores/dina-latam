@@ -3,7 +3,7 @@
   "year": "2026",
   "status": "initialized",
   "created_at": "2026-07-08T11:49:56+0200",
-  "updated_at": "2026-10-08T16:26:48+0200",
+  "updated_at": "2026-10-09T00:54:36+0200",
   "preferences": [],
   "config_override": "output/updates/2026-update-06-29/config.override.yml",
   "config_override_hash": "11524e9ec2eb8b72d49f98049cb600680fdbe7f7268a8c0238f66fa377a7af62",
@@ -10137,14 +10137,9 @@
     },
     "01b-add-country-sna": {
       "status": "succeeded",
-      "command": [
-        "/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp",
-        "-b",
-        "do",
-        "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261008-150951/01b-add-country-sna.wrapper.do"
-      ],
-      "run_id": "20261008-150951",
-      "ended_at": "2026-10-08T15:10:58+0200",
+      "command": ["/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp", "-b", "do", "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261009-000924/01b-add-country-sna.wrapper.do"],
+      "run_id": "20261009-000924",
+      "ended_at": "2026-10-09T00:09:56+0200",
       "configuration": {
         "scope": "update:2026-update-06-29",
         "fingerprint": "ba25532433b95114c87edb154796ec6841f1cd20428c4dd695140ff4ef7235b8",
@@ -10169,9 +10164,9 @@
         },
         {
           "family": "admin",
-          "status": "included",
-          "label": "Included · 2026-10-07",
-          "detail": "Saved candidate accepted; pipeline status is separate."
+          "status": "unknown",
+          "label": "Unavailable",
+          "detail": "Could not find DINA repo root from /Users/iflores"
         },
         {
           "family": "sna",
@@ -10183,14 +10178,9 @@
     },
     "01c-import-tax-composition": {
       "status": "succeeded",
-      "command": [
-        "/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp",
-        "-b",
-        "do",
-        "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261008-151059/01c-import-tax-composition.wrapper.do"
-      ],
-      "run_id": "20261008-151059",
-      "ended_at": "2026-10-08T15:11:41+0200",
+      "command": ["/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp", "-b", "do", "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261009-000957/01c-import-tax-composition.wrapper.do"],
+      "run_id": "20261009-000957",
+      "ended_at": "2026-10-09T00:10:38+0200",
       "configuration": {
         "scope": "update:2026-update-06-29",
         "fingerprint": "ba25532433b95114c87edb154796ec6841f1cd20428c4dd695140ff4ef7235b8",
@@ -10215,9 +10205,9 @@
         },
         {
           "family": "admin",
-          "status": "included",
-          "label": "Included · 2026-10-07",
-          "detail": "Saved candidate accepted; pipeline status is separate."
+          "status": "unknown",
+          "label": "Unavailable",
+          "detail": "Could not find DINA repo root from /Users/iflores"
         },
         {
           "family": "sna",
@@ -10229,14 +10219,9 @@
     },
     "01d-import-ceq-data": {
       "status": "succeeded",
-      "command": [
-        "/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp",
-        "-b",
-        "do",
-        "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261008-151143/01d-import-ceq-data.wrapper.do"
-      ],
-      "run_id": "20261008-151143",
-      "ended_at": "2026-10-08T15:14:17+0200",
+      "command": ["/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp", "-b", "do", "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261009-001039/01d-import-ceq-data.wrapper.do"],
+      "run_id": "20261009-001039",
+      "ended_at": "2026-10-09T00:13:06+0200",
       "configuration": {
         "scope": "update:2026-update-06-29",
         "fingerprint": "ba25532433b95114c87edb154796ec6841f1cd20428c4dd695140ff4ef7235b8",
@@ -10261,9 +10246,9 @@
         },
         {
           "family": "admin",
-          "status": "included",
-          "label": "Included · 2026-10-07",
-          "detail": "Saved candidate accepted; pipeline status is separate."
+          "status": "unknown",
+          "label": "Unavailable",
+          "detail": "Could not find DINA repo root from /Users/iflores"
         },
         {
           "family": "sna",
@@ -10275,14 +10260,9 @@
     },
     "01e-clean-survey-data": {
       "status": "succeeded",
-      "command": [
-        "/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp",
-        "-b",
-        "do",
-        "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261008-151419/01e-clean-survey-data.wrapper.do"
-      ],
-      "run_id": "20261008-151419",
-      "ended_at": "2026-10-08T15:18:49+0200",
+      "command": ["/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp", "-b", "do", "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261009-001307/01e-clean-survey-data.wrapper.do"],
+      "run_id": "20261009-001307",
+      "ended_at": "2026-10-09T00:17:04+0200",
       "configuration": {
         "scope": "update:2026-update-06-29",
         "fingerprint": "ba25532433b95114c87edb154796ec6841f1cd20428c4dd695140ff4ef7235b8",
@@ -10307,9 +10287,9 @@
         },
         {
           "family": "admin",
-          "status": "included",
-          "label": "Included · 2026-10-07",
-          "detail": "Saved candidate accepted; pipeline status is separate."
+          "status": "unknown",
+          "label": "Unavailable",
+          "detail": "Could not find DINA repo root from /Users/iflores"
         },
         {
           "family": "sna",
@@ -10321,14 +10301,9 @@
     },
     "01f-adjust-country-survey-data": {
       "status": "succeeded",
-      "command": [
-        "/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp",
-        "-b",
-        "do",
-        "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261008-151850/01f-adjust-country-survey-data.wrapper.do"
-      ],
-      "run_id": "20261008-151850",
-      "ended_at": "2026-10-08T15:19:11+0200",
+      "command": ["/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp", "-b", "do", "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261009-001705/01f-adjust-country-survey-data.wrapper.do"],
+      "run_id": "20261009-001705",
+      "ended_at": "2026-10-09T00:17:25+0200",
       "configuration": {
         "scope": "update:2026-update-06-29",
         "fingerprint": "ba25532433b95114c87edb154796ec6841f1cd20428c4dd695140ff4ef7235b8",
@@ -10353,9 +10328,9 @@
         },
         {
           "family": "admin",
-          "status": "included",
-          "label": "Included · 2026-10-07",
-          "detail": "Saved candidate accepted; pipeline status is separate."
+          "status": "unknown",
+          "label": "Unavailable",
+          "detail": "Could not find DINA repo root from /Users/iflores"
         },
         {
           "family": "sna",
@@ -10367,14 +10342,9 @@
     },
     "01g-add-public-spending-data": {
       "status": "succeeded",
-      "command": [
-        "/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp",
-        "-b",
-        "do",
-        "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261008-151912/01g-add-public-spending-data.wrapper.do"
-      ],
-      "run_id": "20261008-151912",
-      "ended_at": "2026-10-08T15:19:23+0200",
+      "command": ["/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp", "-b", "do", "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261009-001726/01g-add-public-spending-data.wrapper.do"],
+      "run_id": "20261009-001726",
+      "ended_at": "2026-10-09T00:17:36+0200",
       "configuration": {
         "scope": "update:2026-update-06-29",
         "fingerprint": "ba25532433b95114c87edb154796ec6841f1cd20428c4dd695140ff4ef7235b8",
@@ -10399,9 +10369,9 @@
         },
         {
           "family": "admin",
-          "status": "included",
-          "label": "Included · 2026-10-07",
-          "detail": "Saved candidate accepted; pipeline status is separate."
+          "status": "unknown",
+          "label": "Unavailable",
+          "detail": "Could not find DINA repo root from /Users/iflores"
         },
         {
           "family": "sna",
@@ -10413,14 +10383,9 @@
     },
     "02c-prepare-static-admin-data": {
       "status": "succeeded",
-      "command": [
-        "/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp",
-        "-b",
-        "do",
-        "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261008-151935/02c-prepare-static-admin-data.wrapper.do"
-      ],
-      "run_id": "20261008-151935",
-      "ended_at": "2026-10-08T15:21:16+0200",
+      "command": ["/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp", "-b", "do", "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261009-001744/02c-prepare-static-admin-data.wrapper.do"],
+      "run_id": "20261009-001744",
+      "ended_at": "2026-10-09T00:19:00+0200",
       "configuration": {
         "scope": "update:2026-update-06-29",
         "fingerprint": "ba25532433b95114c87edb154796ec6841f1cd20428c4dd695140ff4ef7235b8",
@@ -10445,9 +10410,9 @@
         },
         {
           "family": "admin",
-          "status": "included",
-          "label": "Included · 2026-10-07",
-          "detail": "Saved candidate accepted; pipeline status is separate."
+          "status": "unknown",
+          "label": "Unavailable",
+          "detail": "Could not find DINA repo root from /Users/iflores"
         },
         {
           "family": "sna",
@@ -10459,14 +10424,9 @@
     },
     "02d-prepare-updated-admin-data": {
       "status": "succeeded",
-      "command": [
-        "/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp",
-        "-b",
-        "do",
-        "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261008-152119/02d-prepare-updated-admin-data.wrapper.do"
-      ],
-      "run_id": "20261008-152119",
-      "ended_at": "2026-10-08T15:21:21+0200",
+      "command": ["/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp", "-b", "do", "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261009-001903/02d-prepare-updated-admin-data.wrapper.do"],
+      "run_id": "20261009-001903",
+      "ended_at": "2026-10-09T00:19:04+0200",
       "configuration": {
         "scope": "update:2026-update-06-29",
         "fingerprint": "ba25532433b95114c87edb154796ec6841f1cd20428c4dd695140ff4ef7235b8",
@@ -10491,9 +10451,9 @@
         },
         {
           "family": "admin",
-          "status": "included",
-          "label": "Included · 2026-10-07",
-          "detail": "Saved candidate accepted; pipeline status is separate."
+          "status": "unknown",
+          "label": "Unavailable",
+          "detail": "Could not find DINA repo root from /Users/iflores"
         },
         {
           "family": "sna",
@@ -10505,9 +10465,9 @@
     },
     "02e-format-for-bfm": {
       "status": "succeeded",
-      "command": ["/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp", "-b", "do", "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261008-162606/02e-format-for-bfm.wrapper.do"],
-      "run_id": "20261008-162606",
-      "ended_at": "2026-10-08T16:26:48+0200",
+      "command": ["/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp", "-b", "do", "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261009-001923/02e-format-for-bfm.wrapper.do"],
+      "run_id": "20261009-001923",
+      "ended_at": "2026-10-09T00:19:32+0200",
       "configuration": {
         "scope": "update:2026-update-06-29",
         "fingerprint": "ba25532433b95114c87edb154796ec6841f1cd20428c4dd695140ff4ef7235b8",
@@ -10532,9 +10492,9 @@
         },
         {
           "family": "admin",
-          "status": "included",
-          "label": "Included · 2026-10-07",
-          "detail": "Saved candidate accepted; pipeline status is separate."
+          "status": "unknown",
+          "label": "Unavailable",
+          "detail": "Could not find DINA repo root from /Users/iflores"
         },
         {
           "family": "sna",
@@ -10547,8 +10507,8 @@
     "02d5-interpolate-admin-data": {
       "status": "succeeded",
       "command": ["/Library/Frameworks/R.framework/Resources/bin/Rscript", "code/R/02d5_interpolate_admin_data.R"],
-      "run_id": "20261008-162547",
-      "ended_at": "2026-10-08T16:26:02+0200",
+      "run_id": "20261009-001906",
+      "ended_at": "2026-10-09T00:19:20+0200",
       "configuration": {
         "scope": "update:2026-update-06-29",
         "fingerprint": "ba25532433b95114c87edb154796ec6841f1cd20428c4dd695140ff4ef7235b8",
@@ -10573,9 +10533,173 @@
         },
         {
           "family": "admin",
+          "status": "unknown",
+          "label": "Unavailable",
+          "detail": "Could not find DINA repo root from /Users/iflores"
+        },
+        {
+          "family": "sna",
           "status": "included",
-          "label": "Included · 2026-10-07",
+          "label": "Included · 2026-09-28",
           "detail": "Saved candidate accepted; pipeline status is separate."
+        }
+      ]
+    },
+    "03a-run-bfm": {
+      "status": "succeeded",
+      "command": ["/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp", "-b", "do", "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261009-001941/03a-run-bfm.wrapper.do"],
+      "run_id": "20261009-001941",
+      "ended_at": "2026-10-09T00:42:26+0200",
+      "configuration": {
+        "scope": "update:2026-update-06-29",
+        "fingerprint": "ba25532433b95114c87edb154796ec6841f1cd20428c4dd695140ff4ef7235b8",
+        "effective_config_fingerprint": "ba25532433b95114c87edb154796ec6841f1cd20428c4dd695140ff4ef7235b8",
+        "baseline_fingerprint": "8e823b0c7408aa4ba5383eb53fa163b355c0c89a4e3b012905a050206687c647",
+        "admin_trust_regions": "output/updates/2026-update-06-29/admin_trust_regions.csv",
+        "admin_pit_outputs_manifest": "output/updates/2026-update-06-29/admin_pit_outputs.manifest.json",
+        "validated_at": "2026-09-28T15:14:55+0200"
+      },
+      "source_reviews": [
+        {
+          "family": "wid",
+          "status": "included",
+          "label": "Included · 2026-09-24",
+          "detail": "Saved candidate accepted; pipeline status is separate."
+        },
+        {
+          "family": "surveys",
+          "status": "included",
+          "label": "Included · 2026-09-28",
+          "detail": "Saved candidate accepted; pipeline status is separate."
+        },
+        {
+          "family": "admin",
+          "status": "unknown",
+          "label": "Unavailable",
+          "detail": "Could not find DINA repo root from /Users/iflores"
+        },
+        {
+          "family": "sna",
+          "status": "included",
+          "label": "Included · 2026-09-28",
+          "detail": "Saved candidate accepted; pipeline status is separate."
+        }
+      ]
+    },
+    "03b-run-bfm-2stage": {
+      "status": "succeeded",
+      "command": ["/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp", "-b", "do", "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261009-004229/03b-run-bfm-2stage.wrapper.do"],
+      "run_id": "20261009-004229",
+      "ended_at": "2026-10-09T00:45:07+0200",
+      "configuration": {
+        "scope": "update:2026-update-06-29",
+        "fingerprint": "ba25532433b95114c87edb154796ec6841f1cd20428c4dd695140ff4ef7235b8",
+        "effective_config_fingerprint": "ba25532433b95114c87edb154796ec6841f1cd20428c4dd695140ff4ef7235b8",
+        "baseline_fingerprint": "8e823b0c7408aa4ba5383eb53fa163b355c0c89a4e3b012905a050206687c647",
+        "admin_trust_regions": "output/updates/2026-update-06-29/admin_trust_regions.csv",
+        "admin_pit_outputs_manifest": "output/updates/2026-update-06-29/admin_pit_outputs.manifest.json",
+        "validated_at": "2026-09-28T15:14:55+0200"
+      },
+      "source_reviews": [
+        {
+          "family": "wid",
+          "status": "included",
+          "label": "Included · 2026-09-24",
+          "detail": "Saved candidate accepted; pipeline status is separate."
+        },
+        {
+          "family": "surveys",
+          "status": "included",
+          "label": "Included · 2026-09-28",
+          "detail": "Saved candidate accepted; pipeline status is separate."
+        },
+        {
+          "family": "admin",
+          "status": "unknown",
+          "label": "Unavailable",
+          "detail": "Could not find DINA repo root from /Users/iflores"
+        },
+        {
+          "family": "sna",
+          "status": "included",
+          "label": "Included · 2026-09-28",
+          "detail": "Saved candidate accepted; pipeline status is separate."
+        }
+      ]
+    },
+    "03d-prepare-theta-extrapolation": {
+      "status": "succeeded",
+      "command": ["/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp", "-b", "do", "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261009-004510/03d-prepare-theta-extrapolation.wrapper.do"],
+      "run_id": "20261009-004510",
+      "ended_at": "2026-10-09T00:52:34+0200",
+      "configuration": {
+        "scope": "update:2026-update-06-29",
+        "fingerprint": "ba25532433b95114c87edb154796ec6841f1cd20428c4dd695140ff4ef7235b8",
+        "effective_config_fingerprint": "ba25532433b95114c87edb154796ec6841f1cd20428c4dd695140ff4ef7235b8",
+        "baseline_fingerprint": "8e823b0c7408aa4ba5383eb53fa163b355c0c89a4e3b012905a050206687c647",
+        "admin_trust_regions": "output/updates/2026-update-06-29/admin_trust_regions.csv",
+        "admin_pit_outputs_manifest": "output/updates/2026-update-06-29/admin_pit_outputs.manifest.json",
+        "validated_at": "2026-09-28T15:14:55+0200"
+      },
+      "source_reviews": [
+        {
+          "family": "wid",
+          "status": "included",
+          "label": "Included · 2026-09-24",
+          "detail": "Saved candidate accepted; pipeline status is separate."
+        },
+        {
+          "family": "surveys",
+          "status": "included",
+          "label": "Included · 2026-09-28",
+          "detail": "Saved candidate accepted; pipeline status is separate."
+        },
+        {
+          "family": "admin",
+          "status": "unknown",
+          "label": "Unavailable",
+          "detail": "Could not find DINA repo root from /Users/iflores"
+        },
+        {
+          "family": "sna",
+          "status": "included",
+          "label": "Included · 2026-09-28",
+          "detail": "Saved candidate accepted; pipeline status is separate."
+        }
+      ]
+    },
+    "03e-extrapolate-bfm-correction": {
+      "status": "failed",
+      "command": ["/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp", "-b", "do", "/Users/iflores/Documents/GitHub/dina-latam/output/run_logs/20261009-005235/03e-extrapolate-bfm-correction.wrapper.do"],
+      "run_id": "20261009-005235",
+      "ended_at": "2026-10-09T00:54:36+0200",
+      "configuration": {
+        "scope": "update:2026-update-06-29",
+        "fingerprint": "ba25532433b95114c87edb154796ec6841f1cd20428c4dd695140ff4ef7235b8",
+        "effective_config_fingerprint": "ba25532433b95114c87edb154796ec6841f1cd20428c4dd695140ff4ef7235b8",
+        "baseline_fingerprint": "8e823b0c7408aa4ba5383eb53fa163b355c0c89a4e3b012905a050206687c647",
+        "admin_trust_regions": "output/updates/2026-update-06-29/admin_trust_regions.csv",
+        "admin_pit_outputs_manifest": "output/updates/2026-update-06-29/admin_pit_outputs.manifest.json",
+        "validated_at": "2026-09-28T15:14:55+0200"
+      },
+      "source_reviews": [
+        {
+          "family": "wid",
+          "status": "included",
+          "label": "Included · 2026-09-24",
+          "detail": "Saved candidate accepted; pipeline status is separate."
+        },
+        {
+          "family": "surveys",
+          "status": "included",
+          "label": "Included · 2026-09-28",
+          "detail": "Saved candidate accepted; pipeline status is separate."
+        },
+        {
+          "family": "admin",
+          "status": "unknown",
+          "label": "Unavailable",
+          "detail": "Could not find DINA repo root from /Users/iflores"
         },
         {
           "family": "sna",
