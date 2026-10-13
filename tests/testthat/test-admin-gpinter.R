@@ -50,3 +50,39 @@ test_that("BRA placeholder average comes from its current ptot source", {
   expect_equal(manifest$workbooks[[1L]]$auxiliary_sources[[1L]]$path,
                "input_data/admin_data/BRA/ptot_2000.xlsx")
 })
+
+test_that("Chile pre-tax interpolation keeps 2012 while post-tax excludes it", {
+  skip_if_not_installed("gpinter")
+  skip_if_not_installed("openxlsx")
+  skip_if_not_installed("readxl")
+  root <- mini_repo()
+  dina_write_yaml(
+    list(version = 1L, excluded_years = list(CHL = list(`total-pos-CHL.xlsx` = 2012L))),
+    file.path(root, "config", "admin_gpinter.yml")
+  )
+  clean_dir <- file.path(root, "input_data", "admin_data", "CHL", "_clean")
+  dir.create(clean_dir, recursive = TRUE)
+  sample <- data.frame(
+    component = c("pretax", rep(NA_character_, 3L)),
+    average = c(2.25, rep(NA_real_, 3L)),
+    p = c(0, 0.5, 0.9, 0.99),
+    thr = c(0, 1, 5, 20),
+    bracketavg = c(0.5, 2, 10, 30)
+  )
+  openxlsx::write.xlsx(list(`2011` = sample, `2012` = sample),
+                       file.path(clean_dir, "total-pre-CHL.xlsx"))
+  sample$component[[1L]] <- "posttax"
+  openxlsx::write.xlsx(list(`2011` = sample, `2012` = sample),
+                       file.path(clean_dir, "total-pos-CHL.xlsx"))
+
+  dina_admin_gpinter_run(root, config = list(countries = "CHL", years = list(first = 2011L, last = 2012L)))
+  output_dir <- file.path(root, "input_data", "admin_data", "CHL", "gpinter_output")
+  expect_equal(readxl::excel_sheets(file.path(output_dir, "total-pre-CHL.xlsx")),
+               c("series", "pretax, CHL, 2011", "pretax, CHL, 2012"))
+  expect_equal(readxl::excel_sheets(file.path(output_dir, "total-pos-CHL.xlsx")),
+               c("series", "posttax, CHL, 2011"))
+  countries <- utils::read.csv(file.path(root, "output", "data_reports", "admin_gpinter_countries.csv"))
+  expect_equal(countries$country, "CHL")
+  manifest <- jsonlite::read_json(file.path(root, "output", "data_reports", "admin_gpinter_manifest.json"))
+  expect_equal(length(manifest$workbooks), 2L)
+})

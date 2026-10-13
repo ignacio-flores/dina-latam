@@ -3887,6 +3887,9 @@ dina_task_effective_inputs <- function(task, root = dina_repo_root(), session = 
     countries <- setdiff(intersect(names(clean), selected), excluded)
     if (identical(task$id, "02d5-interpolate-admin-data")) {
       inputs <- c(inputs, file.path("input_data", "admin_data", countries, "_clean", unname(clean[countries])))
+      if ("CHL" %in% countries) {
+        inputs <- c(inputs, "input_data/admin_data/CHL/_clean/total-pre-CHL.xlsx")
+      }
     } else {
       inputs <- c(inputs, file.path("input_data", "admin_data", countries,
                                     "gpinter_output", unname(output[countries])))

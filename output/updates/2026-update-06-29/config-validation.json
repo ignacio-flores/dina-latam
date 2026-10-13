@@ -1,7 +1,8 @@
 {
   "status": "passed",
-  "checked_at": "2026-09-28T15:14:55+0200",
+  "checked_at": "2026-10-11T10:23:50+0200",
   "errors": [],
+  "receipt_version": 2,
   "scope": "update:2026-update-06-29",
   "benchmark_config_hash": "b7285fdb09739f89a7e3cd881d5ee7b66055cb04b4fa551d618712308c7983b0",
   "update_override_hash": "11524e9ec2eb8b72d49f98049cb600680fdbe7f7268a8c0238f66fa377a7af62",

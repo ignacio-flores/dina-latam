@@ -157,6 +157,7 @@ tasks:
       - input_data/admin_data/DOM/gpinter_output/total-pos-DOM.xlsx
       - input_data/admin_data/BRA/gpinter_output/total-pre-BRA.xlsx
       - input_data/admin_data/CHL/gpinter_output/total-pos-CHL.xlsx
+      - input_data/admin_data/CHL/gpinter_output/total-pre-CHL.xlsx
       - input_data/admin_data/COL/gpinter_output/total-pos-COL.xlsx
     notes:
       - Runs the local gpinter R package on each selected country's _clean Admin tabulation.
@@ -236,6 +237,7 @@ tasks:
     inputs:
       - input_data/admin_data
       - input_data/admin_data/MEX/gpinter_MEX_2009.xlsx
+      - input_data/admin_data/CHL/gpinter_output/total-pre-CHL.xlsx
     outputs:
       - output/efftax
 

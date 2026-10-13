@@ -5,12 +5,14 @@
 
 dina_admin_gpinter_specs <- function() {
   data.frame(
-    country = c("SLV", "PER", "DOM", "BRA", "CHL", "COL", "ECU"),
+    country = c("SLV", "PER", "DOM", "BRA", "CHL", "CHL", "COL", "ECU"),
     clean = c("total-SLV.xlsx", "total-PER.xlsx", "total-pos-DOM.xlsx",
-              "total-pre-BRA.xlsx", "total-pos-CHL.xlsx", "total-pos-COL.xlsx",
+              "total-pre-BRA.xlsx", "total-pos-CHL.xlsx", "total-pre-CHL.xlsx",
+              "total-pos-COL.xlsx",
               "total-pos-ECU.xlsx"),
     output = c("total-pos-SLV.xlsx", "total-pos-PER.xlsx", "total-pos-DOM.xlsx",
-               "total-pre-BRA.xlsx", "total-pos-CHL.xlsx", "total-pos-COL.xlsx",
+               "total-pre-BRA.xlsx", "total-pos-CHL.xlsx", "total-pre-CHL.xlsx",
+               "total-pos-COL.xlsx",
                "total-pos-ECU.xlsx"),
     stringsAsFactors = FALSE
   )
@@ -144,8 +146,9 @@ dina_admin_gpinter_run <- function(root = getwd(), config, output_root = file.pa
   excluded <- toupper(as.character(unlist(method$excluded_countries %||% character(), use.names = FALSE)))
   specs <- dina_admin_gpinter_specs()
   specs <- specs[specs$country %in% selected, , drop = FALSE]
-  country_status <- data.frame(country = specs$country,
-                               status = ifelse(specs$country %in% excluded, "excluded", "generated"),
+  status_countries <- unique(specs$country)
+  country_status <- data.frame(country = status_countries,
+                               status = ifelse(status_countries %in% excluded, "excluded", "generated"),
                                stringsAsFactors = FALSE)
   specs <- specs[!specs$country %in% excluded, , drop = FALSE]
   first_year <- as.integer(config$years$first)
@@ -166,7 +169,11 @@ dina_admin_gpinter_run <- function(root = getwd(), config, output_root = file.pa
     source <- specs$clean_path[[i]]
     staged <- file.path(stage, country, specs$output[[i]])
     cat(sprintf("Interpolating %s from %s\n", country, source))
-    excluded_years <- as.integer(unlist(method$excluded_years[[country]] %||% integer(), use.names = FALSE))
+    year_rule <- method$excluded_years[[country]] %||% integer()
+    if (is.list(year_rule) && !is.null(names(year_rule))) {
+      year_rule <- year_rule[[specs$output[[i]]]] %||% integer()
+    }
+    excluded_years <- as.integer(unlist(year_rule, use.names = FALSE))
     years <- dina_admin_gpinter_workbook(source, staged, country, first_year, last_year, excluded_years)
     auxiliary_sources <- attr(years, "auxiliary_sources")
     rows[[i]] <- list(country = country, clean = source, staged = staged,

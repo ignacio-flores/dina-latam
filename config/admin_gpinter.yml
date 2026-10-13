@@ -9,4 +9,5 @@ excluded_countries:
 # omits this year. Keep the source intact and record the exclusion explicitly.
 excluded_years:
   CHL:
-    - 2012
+    total-pos-CHL.xlsx:
+      - 2012
