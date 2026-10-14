@@ -25,7 +25,21 @@ global data_tax 	"input_data/admin_data"
 * to fill the gap when it does not exist.
 *-------------------------------------------------------------------------------
 
-foreach c in $all_countries  	{  
+foreach c in $all_countries {
+	clear
+	local found 0
+	if "`c'" == "ARG" {
+		forvalues arg_year = 2002/2019 {
+			if inrange(`arg_year', $first_y, $last_y) {
+				local arg_rate_file "$data_tax/ARG/eff-tax-rate/ARG_effrates_`arg_year'.dta"
+				capture confirm file `arg_rate_file'
+				if _rc {
+					di as error "ARG `arg_year' rate file is missing; run 04a5-generate-arg-rates."
+					exit 601
+				}
+			}
+		}
+	}
 	forvalues  year = $first_y / $last_y {
 	
 		local eff_tax_file ///
@@ -35,8 +49,10 @@ foreach c in $all_countries  	{
 		
 		*Take the first eff_tax_rate file, and merge with all the following
 		local year_p = `year' + 1
-		qui cap confirm file `eff_tax_file' 
-		if _rc==0 {
+		qui cap confirm file `eff_tax_file'
+		local rate_found = (_rc == 0)
+		if `rate_found' == 1 {
+			local found 1
 			di as result  "`eff_tax_file' found"
 			qui cap use `eff_tax_file', clear
 			
@@ -66,10 +82,16 @@ foreach c in $all_countries  	{
 			*di as text "`eff_tax_file' not found"
 		}		
 	}
-	
+	if `found' == 0 {
+		di as error "`c': no yearly effective tax rates found; cannot build a synthetic rate."
+		exit 601
+	}
+
 	//write them down
-	qui cap egen eff_tax_rate_ipol_syn = rmean(eff_tax_rate_ipol*)
+	qui egen eff_tax_rate_ipol_syn = rmean(eff_tax_rate_ipol*)
 	qui cap egen eff_ss_rate_ipol_syn  = rmean(eff_ss_rate_ipol*)
+	assert !missing(eff_tax_rate_ipol_syn)
+	isid p_merge
 	
 	//keep selected variables 
 	qui cap confirm variable eff_ss_rate_ipol_syn 
@@ -82,7 +104,6 @@ foreach c in $all_countries  	{
 	
 	//save 
 	*qui cap duplicates drop p_merge
-	*assert !missing(eff_tax_rate_ipol_syn)
 	qui save `syneff_tax_file', replace
 }
 
@@ -127,7 +148,8 @@ foreach c in $all_countries   {
 						di as text " found (`eff_tax_file')" _continue 
 						di as result "using average instead"
 						qui cap drop _merge
-						qui cap merge m:1 p_merge using `syneff_tax_file'
+						qui merge m:1 p_merge using `syneff_tax_file'
+						rename eff_tax_rate_ipol_syn eff_tax_rate_ipol
 					}
 	
 				qui cap drop if _merge == 2
@@ -135,6 +157,7 @@ foreach c in $all_countries   {
 				//create fractiles in survey to prepare merge
 				global section ""adjustment""
 				qui do "$codes/auxiliar/aux_pretax.do"
+				assert !missing(eff_tax_rate_ipol)
 					
 					foreach var in 	///
 						"wag" "fwag" "prfwag" "mix" "cap" "oth" ///
@@ -181,7 +204,8 @@ foreach c in $all_countries   {
 					di as text "`c' `year' eff. tax rates not found (`eff_tax_file')" _continue
 					di as result " using country average instead"
 					qui cap drop _merge
-					qui  merge m:1 p_merge using `syneff_tax_file'
+					qui merge m:1 p_merge using `syneff_tax_file'
+					rename eff_tax_rate_ipol_syn eff_tax_rate_ipol
 
 				}
 				
@@ -190,6 +214,7 @@ foreach c in $all_countries   {
 				//create fractiles in survey to prepare merge
 				global section ""adjustment""
 				qui do "$codes/auxiliar/aux_pretax.do"
+				assert !missing(eff_tax_rate_ipol)
 				
 				foreach var in 	"wag" "fwag" "prfwag" "mix" "cap" "oth" ///
 					"ben" "imp" "kap" "mir" "tot" "totnb" "totesn" "totesb" ///

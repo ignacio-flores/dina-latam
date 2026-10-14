@@ -5,12 +5,12 @@
 
 dina_admin_gpinter_specs <- function() {
   data.frame(
-    country = c("SLV", "PER", "DOM", "BRA", "CHL", "CHL", "COL", "ECU"),
-    clean = c("total-SLV.xlsx", "total-PER.xlsx", "total-pos-DOM.xlsx",
+    country = c("SLV", "PER", "DOM", "DOM", "BRA", "CHL", "CHL", "COL", "ECU"),
+    clean = c("total-SLV.xlsx", "total-PER.xlsx", "total-pos-DOM.xlsx", "total-pre-DOM.xlsx",
               "total-pre-BRA.xlsx", "total-pos-CHL.xlsx", "total-pre-CHL.xlsx",
               "total-pos-COL.xlsx",
               "total-pos-ECU.xlsx"),
-    output = c("total-pos-SLV.xlsx", "total-pos-PER.xlsx", "total-pos-DOM.xlsx",
+    output = c("total-pos-SLV.xlsx", "total-pos-PER.xlsx", "total-pos-DOM.xlsx", "total-pre-DOM.xlsx",
                "total-pre-BRA.xlsx", "total-pos-CHL.xlsx", "total-pre-CHL.xlsx",
                "total-pos-COL.xlsx",
                "total-pos-ECU.xlsx"),

@@ -1,15 +1,17 @@
 
 
 clear all
+do "code/Stata/auxiliar/dina_runtime_config.do"
 
 global data "input_data/admin_data/BRA"
 global results 	"output/figures/eff_tax_rates/test"
+capture mkdir "$results"
 
 local x = 4
-forvalues year = 2007/2023 {
+forvalues year = 2007/$last_y {
 
 	* import effective tax rates for known points
-		import excel "$data/eff-tax-rate/eff-tax-rates-BRA.xlsx", ///
+		import excel "intermediary_data/tax_rates/BRA/eff-tax-rates-BRA.xlsx", ///
 				sheet("`year'") cellrange(N25:O36) firstrow clear
 				
 		forvalues i = 1/11 {

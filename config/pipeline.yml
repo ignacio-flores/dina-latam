@@ -155,6 +155,7 @@ tasks:
       - input_data/admin_data/SLV/gpinter_output/total-pos-SLV.xlsx
       - input_data/admin_data/PER/gpinter_output/total-pos-PER.xlsx
       - input_data/admin_data/DOM/gpinter_output/total-pos-DOM.xlsx
+      - input_data/admin_data/DOM/gpinter_output/total-pre-DOM.xlsx
       - input_data/admin_data/BRA/gpinter_output/total-pre-BRA.xlsx
       - input_data/admin_data/CHL/gpinter_output/total-pos-CHL.xlsx
       - input_data/admin_data/CHL/gpinter_output/total-pre-CHL.xlsx
@@ -228,18 +229,50 @@ tasks:
     outputs:
       - intermediary_data/weight_adjusters
 
+  - id: 04a0-prepare-bra-rate-points
+    stage: taxes
+    type: r
+    script: code/R/04a0_prepare_bra_rate_points.R
+    deps:
+      - 02d5-interpolate-admin-data
+    inputs:
+      - input_data/admin_data/BRA/gn-irpf-ac*.xlsx
+    outputs:
+      - intermediary_data/tax_rates/BRA/eff-tax-rates-BRA.xlsx
+      - intermediary_data/tax_rates/BRA/eff-tax-rates-BRA_manifest.csv
+    notes:
+      - Builds BRA effective PIT rate anchors directly from the publisher tables.
+
   - id: 04a-compute-effective-rates
     stage: taxes
     type: stata
     script: code/Stata/04a-compute-effective-rates-all.do
     deps:
       - 02e-format-for-bfm
+      - 04a0-prepare-bra-rate-points
     inputs:
       - input_data/admin_data
       - input_data/admin_data/MEX/gpinter_MEX_2009.xlsx
       - input_data/admin_data/CHL/gpinter_output/total-pre-CHL.xlsx
+      - intermediary_data/tax_rates/BRA/eff-tax-rates-BRA.xlsx
     outputs:
       - output/efftax
+
+  - id: 04a5-generate-arg-rates
+    stage: taxes
+    type: r
+    script: code/R/04a_generate_arg_rates.R
+    deps:
+      - 04a-compute-effective-rates
+    inputs:
+      - code/R/admin_cleaners/gpinter_admin.R
+      - input_data/admin_data/ARG/EstadisticasTributarias*/tabulation_*.dta
+      - input_data/admin_data/ARG/EstadisticasTributarias*/2.2.2.1.11.dta
+      - input_data/admin_data/ARG/EstadisticasTributarias2009/2.2.2.1.11.xlsx
+    outputs:
+      - input_data/admin_data/ARG/eff-tax-rate/ARG_rates_manifest.csv
+    notes:
+      - Rebuilds ARG yearly effective PIT rates with the local gpinter R package.
 
   - id: 04b-build-pretax-surveys
     stage: taxes
@@ -248,11 +281,13 @@ tasks:
     deps:
       - 03a-run-bfm
       - 04a-compute-effective-rates
+      - 04a5-generate-arg-rates
     inputs:
       - intermediary_data/microdata/bfm_norep_pre
       - output/efftax
     outputs:
-      - intermediary_data/microdata/pretax
+      - intermediary_data/microdata/bfm_norep_pre
+      - intermediary_data/microdata/bfm_norep_pos
 
   - id: 04c-create-raw-postax-units
     stage: taxes
@@ -261,9 +296,9 @@ tasks:
     deps:
       - 04b-build-pretax-surveys
     inputs:
-      - intermediary_data/microdata/pretax
+      - intermediary_data/microdata/bfm_norep_pre
     outputs:
-      - intermediary_data/microdata/posttax
+      - intermediary_data/microdata/bfm_norep_pre
 
   - id: 05a-compare-sna-totals
     stage: imputation
@@ -288,7 +323,7 @@ tasks:
       - intermediary_data/microdata
       - intermediary_data/national_accounts
     outputs:
-      - intermediary_data/microdata/rescaled
+      - intermediary_data/microdata/bfm_norep_pre
 
   - id: 05c-impute-pretax
     stage: imputation
@@ -298,9 +333,9 @@ tasks:
       - 05b-rescale-and-impute
       - 01g-add-public-spending-data
     inputs:
-      - intermediary_data/microdata/rescaled
+      - intermediary_data/microdata/bfm_norep_pre
     outputs:
-      - intermediary_data/microdata/pretax_imputed
+      - intermediary_data/microdata/bfm_norep_pre
 
   - id: 05d-impute-posttax
     stage: imputation
@@ -309,9 +344,9 @@ tasks:
     deps:
       - 05c-impute-pretax
     inputs:
-      - intermediary_data/microdata/pretax_imputed
+      - intermediary_data/microdata/bfm_norep_pre
     outputs:
-      - intermediary_data/microdata/posttax_imputed
+      - intermediary_data/microdata/bfm_norep_pre
 
   - id: 06a-run-ineqstats
     stage: statistics

@@ -14,8 +14,7 @@ if (scalar(exists) == 0) {
 	display "Created directory: `dirpath'"
 }
 
-//we need to fix BRA
-foreach c in  "COL" /*"BRA"*/ "MEX"{
+foreach c in "COL" "BRA" "MEX" {
 	di as result "running $codes/compute-eff-tax-rate-`c'-alt.do"
 	global codes "code/Stata/eff-tax-rates"
 	qui do "$codes/compute-eff-tax-rate-`c'-alt.do"
@@ -41,6 +40,7 @@ di as result "running $codes/compute-eff-tax-ss-rate-PER.do"
 global codes "code/Stata/eff-tax-rates"
 qui do "$codes/compute-eff-tax-rate-theo-PER.do"
 
-clear
+di as result "running $codes/compute-eff-tax-rate-DOM-alt.do"
+qui do "$codes/compute-eff-tax-rate-DOM-alt.do"
 
-//DOM?
+clear

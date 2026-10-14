@@ -3,6 +3,8 @@
 clear all
 global data "input_data/admin_data/DOM"
 global results 	"output/figures/eff_tax_rates/"
+
+capture mkdir "$data/eff-tax-rate"
 	
 //call graph parameters 
 global aux_part  ""graph_basics"" 
@@ -51,7 +53,7 @@ forvalues year = 2012/2020 {
 	tempfile tab_`year'
 	quietly save `tab_`year'', replace
 	
-	cap use "intermediary_data/microdata/raw/DOM_`year'_raw.dta", clear
+	use "intermediary_data/microdata/raw/DOM/DOM_`year'_raw.dta", clear
 	
 	cap assert _N == 0
 	if _rc != 0 {
