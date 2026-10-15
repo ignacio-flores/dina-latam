@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "status": "preparing",
+  "date": "14Oct2026",
+  "started_at": "2026-10-14T22:31:23+0200",
+  "baseline": "input_data/_new/previous_series/dina_latam_7Nov2025.dta",
+  "baseline_hash": "8e823b0c7408aa4ba5383eb53fa163b355c0c89a4e3b012905a050206687c647",
+  "settings": {
+    "countries": ["COL", "ARG", "PER", "URY", "CRI", "ECU", "CHL", "BRA", "SLV", "MEX", "DOM"],
+    "years": {
+      "first": 2000,
+      "last": 2024
+    },
+    "export_validation": {
+      "unit": "esn",
+      "steps": "nat",
+      "last_year": 2025,
+      "previous_update_date": "7Nov2025",
+      "previous_update_file": "input_data/_new/previous_series/dina_latam_7Nov2025.dta"
+    }
+  }
+}

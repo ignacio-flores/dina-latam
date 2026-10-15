@@ -191,9 +191,15 @@ tasks:
     inputs:
       - intermediary_data/microdata/raw
       - input_data/admin_data
+      - input_data/admin_data/ECU/gpinter_ECU_2008.xlsx
+      - input_data/admin_data/ECU/gpinter_ECU_2009.xlsx
+      - input_data/admin_data/ECU/gpinter_ECU_2010.xlsx
+      - input_data/admin_data/ECU/gpinter_ECU_2011.xlsx
     outputs:
       - intermediary_data/microdata/bfm_norep_pre
       - output/bfm_summary
+    notes:
+      - Uses historical BFM-ready ECU workbooks until the replacement Admin data is included.
 
   - id: 03b-run-bfm-2stage
     stage: bfm
@@ -203,8 +209,13 @@ tasks:
       - 03a-run-bfm
     inputs:
       - intermediary_data/microdata/bfm_norep_pre
+      - input_data/admin_data/MEX/wage_MEX_2010.xlsx
+      - input_data/admin_data/MEX/wage_MEX_2012.xlsx
+      - input_data/admin_data/MEX/wage_MEX_2014.xlsx
     outputs:
       - intermediary_data/microdata/bfm_norep_pos
+    notes:
+      - Uses historical MEX wage tabulations instead of rebuilding heavy tax microdata.
 
   - id: 03d-prepare-theta-extrapolation
     stage: bfm
