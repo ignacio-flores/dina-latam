@@ -1,3 +1,19 @@
+* DINA country-run entry; the worker writes only to its temporary output folder.
+args dina_requested_countries
+local dina_worker : environment DINA_COUNTRY_WORKER
+if "`dina_worker'" != "06b-graph-ineqstats-countries" {
+    do "code/Stata/auxiliar/dina_country_task.do" "06b-graph-ineqstats-countries" "`dina_requested_countries'"
+    exit
+}
+local dina_output_env : environment DINA_OUTPUT_ROOT
+local dina_countries_env : environment DINA_RUN_COUNTRIES
+if `"`dina_output_env'"' == "" | trim("`dina_countries_env'") == "" {
+    di as error "Missing country-run output folder or selected countries."
+    exit 198
+}
+global dina_output_root `"`dina_output_env'"'
+global dina_run_countries "`dina_countries_env'"
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 // 						Title: INEQUALITY STATISTICS - GRAPHS 
@@ -21,7 +37,16 @@ local graph_avg "NO" // "YES" if we want it
 //Preliminary   
 global aux_part  ""preliminary"" 
 qui do "code/Stata/auxiliar/aux_general.do"
-local lang $lang 
+local lang $lang
+local dina_shared_env : environment DINA_RUN_SHARED
+local dina_shared = "`dina_shared_env'" != "0"
+
+tempname dina_coverage
+file open `dina_coverage' using "${dina_output_root}/_coverage.csv", write text replace
+file write `dina_coverage' "country,year,step,unit,status,reason" _n
+foreach c in $dina_run_countries {
+    local dina_figures_`c' = 0
+}
 
 // PART 0: Inflation (WID.WORLD & World Bank)------------------------------
 
@@ -174,6 +199,8 @@ global units "$unit_list"
 		qui gen avg_ppp_`last_y' = . 
 		qui levelsof country, local(ctrs) clean 
 		foreach c in `ctrs' {
+			local selected : list c in dina_countries_env
+			if !`selected' & ("`c'" != "BRA" | !`dina_shared') continue
 			qui replace avg_ppp_`last_y' = ///
 				avg_lcu_`last_y' / `xppp`last_y'_`c'' if country == "`c'"
 			qui replace xppp_${last_y} = `xppp`last_y'_`c'' if country == "`c'"	
@@ -233,7 +260,7 @@ global units "$unit_list"
 		//Graph indexes of all groups in the same country --------------------------
 		
 		//create main folders 
-		local dirpath "output/figures/ineqstats"
+		local dirpath "${dina_output_root}/output/figures/ineqstats"
 		mata: st_numscalar("exists", direxists(st_local("dirpath")))
 		if (scalar(exists) == 0) {
 			mkdir "`dirpath'"
@@ -241,7 +268,7 @@ global units "$unit_list"
 		}
 		
 		//create main folders 
-		local dirpath "output/figures/ineqstats/countries"
+		local dirpath "${dina_output_root}/output/figures/ineqstats/countries"
 		mata: st_numscalar("exists", direxists(st_local("dirpath")))
 		if (scalar(exists) == 0) {
 			mkdir "`dirpath'"
@@ -249,11 +276,15 @@ global units "$unit_list"
 		}
 		
 		foreach c in `ctrs' {
+			local selected : list c in dina_countries_env
+			if !`selected' & ("`c'" != "BRA" | !`dina_shared') continue
 			local c_tit = lower("`c'")
 			qui count if !missing(t10_avg_idx) & country == "`c'" 
 			if r(N) != 0 {
 				
-				//one graph by country 
+				//one graph by selected country
+				if `selected' {
+                file write `dina_coverage' "`c',0,`type'_index,`unit',expected,Country index figure" _n
 				graph twoway ///
 					(line t1_avg_idx year, lcolor($c_cap) lwidth(thick)) ///
 					(line t10_avg_idx year, lcolor($c_kap) lwidth(thick)) ///
@@ -267,10 +298,13 @@ global units "$unit_list"
 					ylabel(/*0.5(0.5)2.5*/, $ylab_opts format(%2.1f)) ///
 					xlabel(${first_y}(5)2025, $xlab_opts) $graph_scheme /*legend(off)*/ 
 				qui graph export ///
-					"output/figures/ineqstats/countries/`type'_`c'_idx_groups_`unit'.pdf", replace
+					"${dina_output_root}/output/figures/ineqstats/countries/`type'_`c'_idx_groups_`unit'.pdf", replace
+                file write `dina_coverage' "`c',0,`type'_index,`unit',success,Country index figure exported" _n
+                local dina_figures_`c' = `dina_figures_`c'' + 1
+				}
 
 				*get one with a legend 
-				if "`c'" == "BRA" {		
+				if "`c'" == "BRA" & `dina_shared' {
 				graph twoway ///
 					(line t1_avg_idx year, lcolor($c_cap) lwidth(thick)) ///
 					(line t10_avg_idx year, lcolor($c_kap) lwidth(thick)) ///
@@ -282,14 +316,16 @@ global units "$unit_list"
 					ylabel(0.5(0.5)2.5, $ylab_opts format(%2.1f)) ///
 					xlabel(${first_y}(5)2025, $xlab_opts) $graph_scheme  
 				qui graph export ///
-			"output/figures/ineqstats/countries/legend_idx_groups.pdf", ///
+			"${dina_output_root}/output/figures/ineqstats/countries/legend_idx_groups.pdf", ///
 					replace
 			
 				}	
 			}		
 		}
 		
-		//loop over variables 
+        // Pooled figures use complete inputs once per explicit invocation.
+        if `dina_shared' {
+		//loop over variables
 		foreach var in $ineqvars ///
 			`idxvars_`shortlab_type'_`unit'' ///
 			`pppvars_`shortlab_type'_`unit'' {
@@ -426,7 +462,7 @@ global units "$unit_list"
 				if strpos("`var'", "ppp_`last_y'") local ylabs ""
 				
 				//create main folders 
-				local dirpath "output/figures/ineqstats/variables"
+				local dirpath "${dina_output_root}/output/figures/ineqstats/variables"
 				mata: st_numscalar("exists", direxists(st_local("dirpath")))
 				if (scalar(exists) == 0) {
 					mkdir "`dirpath'"
@@ -442,7 +478,7 @@ global units "$unit_list"
 					xlabel(${first_y}(5)2025, $xlab_opts) ///
 					$graph_scheme legend(off)
 				qui graph export ///
-					"output/figures/ineqstats/variables/`var'_`unit'_`type'.pdf", replace 
+					"${dina_output_root}/output/figures/ineqstats/variables/`var'_`unit'_`type'.pdf", replace
 				*qui graph export ///
 				*	"figures/`type'/ineqstats/variables/`var'_`unit'.png", replace
 
@@ -468,9 +504,10 @@ global units "$unit_list"
 			`lines_`var'_`shortlab_type'_`unit' ' if !missing(`var'), ///
 			legend(`labels_`var'_`shortlab_type'_`unit'') $graph_scheme
 		qui graph export ///
-			"output/figures/ineqstats/variables/legend_ctries.pdf", replace	
+			"${dina_output_root}/output/figures/ineqstats/variables/legend_ctries.pdf", replace
 					
 
+        }
 		// PART 2: COMPOSITION -------------------------------------------------
 		//import summary 	
 		qui import excel "output/ineqstats/ineqstats_`type'_`unit'.xlsx", ///
@@ -552,7 +589,9 @@ global units "$unit_list"
 					
 					//Graph composition of each country by group
 					qui levelsof country if !missing(gini), local(graph_ctries)
-					foreach  c in `graph_ctries' { 
+					foreach  c in `graph_ctries' {
+						local selected : list c in dina_countries_env
+						if !`selected' continue
 					
 						display as text "      preparing data for `c' at $S_TIME"
 					
@@ -637,13 +676,14 @@ global units "$unit_list"
 						}
 						
 						//create main folders 
-						local dirpath "output/figures/ineqstats/composition/"
+						local dirpath "${dina_output_root}/output/figures/ineqstats/composition/"
 						mata: st_numscalar("exists", direxists(st_local("dirpath")))
 						if (scalar(exists) == 0) {
 							mkdir "`dirpath'"
 							display "Created directory: `dirpath'"
 						}
 						
+                        file write `dina_coverage' "`c',0,`type'_`group'_`class',`unit',expected,Composition figure" _n
 						graph twoway `alines_`group'_`type'_`class'_`unit'' ///
 							`graph_share' `extrapolated' ///
 							 if country == "`c'" `addcond', xtitle("") ///
@@ -653,8 +693,10 @@ global units "$unit_list"
 							legend(`ll_`group'_`type'_`class'_`unit'') ///
 							$graph_scheme
 						qui graph export ///
-							"output/figures/ineqstats/composition/`type'_`group'_`c'_`unit'.pdf" ///
+							"${dina_output_root}/output/figures/ineqstats/composition/`type'_`group'_`c'_`unit'.pdf" ///
 							, replace
+                        file write `dina_coverage' "`c',0,`type'_`group'_`class',`unit',success,Composition figure exported" _n
+                        local dina_figures_`c' = `dina_figures_`c'' + 1
 						
 					}
 				}		
@@ -662,3 +704,8 @@ global units "$unit_list"
 		}	
 	}
 }
+
+foreach c in $dina_run_countries {
+    if `dina_figures_`c'' == 0 file write `dina_coverage' "`c',0,figures,all,excluded,No eligible country figures" _n
+}
+file close `dina_coverage'

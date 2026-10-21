@@ -955,6 +955,7 @@ dina_source_public_family_map <- function() {
     `admin-microdata` = c("admin_microdata"),
     surveys = c("surveys"),
     wid = c("wid"),
+    dina = c("dina"),
     other = c(
       "balance_sheet",
       "ceq",
@@ -1004,6 +1005,8 @@ dina_source_resolve_family_filter <- function(value, root = dina_repo_root()) {
     admin_tax_aux = "admin_aux",
     country_sna = "country_sna",
     country_sna_sources = "country_sna",
+    finished_dina = "dina",
+    finished_series = "dina",
     normalized
   )
   registry <- dina_sources(root)$sources
@@ -1150,7 +1153,9 @@ dina_source_registry_warnings <- function(registry, root = dina_repo_root()) {
     if (!dina_source_needs_destination(source) && !dina_source_has_destination(source) && !dina_source_integration_none(source)) {
       add(source, "reference", "Reference-only source has no destination metadata.")
     }
-    if (dina_source_has_destination(source) && !length(dina_source_values(dina_source_field(source, "transformer")))) {
+    if (dina_source_has_destination(source) &&
+        !identical(source$integration %||% "", "review_only") &&
+        !length(dina_source_values(dina_source_field(source, "transformer")))) {
       add(source, "transformer", "Missing transformer for a source with configured destinations.")
     }
     method <- source$method %||% ""
@@ -3568,13 +3573,60 @@ dina_review_family_status <- function(root, family, record = dina_review_read(ro
   }
   if (record$status %in% c("including", "inclusion_failed")) return(answer("failed", "Inclusion incomplete", "Inspect the inclusion report and backup.", "table"))
   if (record$status == "incomplete" || is.null(record$run)) return(answer("attention", "Needs attention", "The last exploration did not complete."))
+  if (identical(family, "dina") && identical(record$status, "included") &&
+      !is.null(record$accepted_candidate) && exists("dina_finished_include_verify_candidate", mode = "function")) {
+    problem <- tryCatch({
+      accepted <- record
+      accepted$include_candidate <- record$accepted_candidate
+      candidate <- dina_finished_candidate_read(accepted)
+      dina_finished_include_verify_candidate(candidate, accepted, root)
+      for (artifact in candidate$artifacts) {
+        if (!identical(dina_hash_file(artifact$destination), artifact$sha256)) {
+          stop("An accepted finished DINA artifact is missing or changed: ", artifact$destination)
+        }
+      }
+      NULL
+    }, error = function(e) conditionMessage(e))
+    if (!is.null(problem)) return(answer("included_stale", "Included · recheck needed", problem, "table"))
+  }
   changed <- is.null(record$watch) || !identical(dina_review_watch(names(record$watch)), record$watch)
+  if (identical(family, "dina") && !is.null(record$watch)) {
+    paths <- names(record$watch)
+    paths <- paths[!grepl("/code/R/cli/", paths, fixed = TRUE)]
+    changed <- !identical(dina_review_watch(paths), record$watch[paths])
+  }
   if (record$status == "included") changed <- dina_review_included_watch_changed(record)
   if (record$status == "included" && changed) {
     return(answer("included_stale", "Included · recheck needed",
       dina_review_included_stale_reason(record), "explore"))
   }
   if (changed || record$status == "restored") return(answer("stale", "Explore again", "Relevant evidence changed since the saved review."))
+  if (identical(family, "dina")) {
+    if (record$status == "included") return(answer("included",
+      paste("Included ·", substr(record$included_at %||% record$reviewed_at, 1, 10)),
+      "Original and prepared source accepted; continuation and publication activation remain separate.", "table"))
+    if (!is.null(record$include_candidate) && exists("dina_finished_candidate_read", mode = "function")) {
+      candidate <- tryCatch(dina_finished_candidate_read(record), error = function(e) NULL)
+      if (!is.null(candidate) && identical(candidate$status, "ready")) {
+        problem <- tryCatch({
+          dina_finished_include_verify_candidate(candidate, record, root)
+          NULL
+        }, error = function(e) conditionMessage(e))
+        if (!is.null(problem)) return(answer("stale", "Prepare again", problem, "table"))
+      }
+      if (!is.null(candidate) && identical(candidate$status, "ready")) return(answer("ready",
+        "Prepared · review changes", "Prepared source and correction report are available for acceptance.", "include"))
+      if (!is.null(candidate) && identical(candidate$status, "blocked")) return(answer("blocked",
+        "Preparation blocked", "Inspect the preparation report; accepted files remain unchanged.", "table"))
+    }
+    if (record$status == "reviewed") return(answer("reviewed", "Reviewed · source checks passed",
+      "Source review complete; continuation and publication activation remain a later step.", "table"))
+    if (record$status == "needs_review") return(answer("needs_review", "Needs review",
+      "Inspect the affected cases and unconfirmed definitions in the saved source checks.", "table"))
+    if (record$status == "blocked") return(answer("blocked", "Source checks blocked",
+      "Resolve the structural or coverage failures identified in the saved source checks.", "table"))
+    return(answer("attention", "Needs attention", "The finished-series review did not record a recognized validation result.", "table"))
+  }
   if (record$status == "included") return(answer("included", paste("Included ·", substr(record$included_at %||% record$reviewed_at, 1, 10)), "Saved candidate accepted; pipeline status is separate.", "table"))
   if (record$status == "nothing_to_include") return(answer("nothing", "Nothing to include", "The engine found no eligible changes.", "table"))
   if (record$status == "all_good") return(answer("ready", "Review available", "Prepared evidence is ready for your decision.", "include"))
@@ -3582,17 +3634,17 @@ dina_review_family_status <- function(root, family, record = dina_review_read(ro
 }
 
 dina_review_recommendation <- function(root) {
-  families <- c("sna", "admin", "surveys", "wid")
+  families <- c("sna", "admin", "surveys", "wid", "dina")
   states <- lapply(families, function(family) dina_review_family_status(root, family))
   times <- vapply(states, function(x) x$record$reviewed_at %||% "", character(1))
   for (i in order(times, decreasing = TRUE)) {
     state <- states[[i]]; family <- families[[i]]
-    if (state$code %in% c("empty", "included", "nothing")) next
+    if (state$code %in% c("empty", "included", "nothing", "reviewed")) next
     command <- paste("dina sources", state$action, family)
     return(dina_session_result(if (state$code == "ready") "sources_include_ready" else "sources_pending",
       dina_recommendation(command = command, why = state$reason,
-        expected_action = "Inspect the saved family evidence before acceptance.",
-        next_command = if (state$code == "ready") "dina sources" else paste("dina sources explore", family),
+        expected_action = if (family == "dina") "Inspect the supplied-series checks; continuation and activation are deferred." else "Inspect the saved family evidence before acceptance.",
+        next_command = if (family == "dina" && state$action == "table") command else if (state$code == "ready") "dina sources" else paste("dina sources explore", family),
         next_note = "Continue one family at a time.", recommendation = command)))
   }
   NULL
@@ -3705,7 +3757,7 @@ dina_task_active <- function(task) {
 }
 
 dina_task_short_id <- function(id) {
-  match <- regmatches(id, regexpr("^[0-9]{2}[A-Za-z]", id, perl = TRUE))
+  match <- regmatches(id, regexpr("^[0-9]{2}[A-Za-z][0-9]*", id, perl = TRUE))
   if (!length(match) || identical(match, "")) id else match
 }
 
@@ -3765,7 +3817,7 @@ dina_resolve_task_selector <- function(selector, ids, mode = c("all", "single", 
     return(ids[[exact]])
   }
 
-  if (grepl("^[0-9]{2}[A-Za-z]$", selector, perl = TRUE)) {
+  if (grepl("^[0-9]{2}[A-Za-z][0-9]*$", selector, perl = TRUE)) {
     hits <- which(startsWith(ids_lower, paste0(selector_lower, "-")))
     if (length(hits) == 1L) {
       return(ids[[hits]])
@@ -3986,13 +4038,24 @@ dina_task_status <- function(task, root = dina_repo_root(), session = NULL, seen
 # These are the files that must be present before a task can safely start.
 # Output freshness is deliberately not part of this check: it is a preflight
 # for avoiding partial pipelines, not a reason to skip a requested task.
-dina_task_missing_inputs <- function(task, root = dina_repo_root(), session = NULL) {
+# Explicit country paths are filtered without narrowing shared donor inputs.
+dina_country_input_paths <- function(paths, countries = NULL, universe = character()) {
+  if (is.null(countries)) return(paths)
+  other <- setdiff(toupper(as.character(unlist(universe))), toupper(as.character(unlist(countries))))
+  if (!length(other)) return(paths)
+  pattern <- paste0("(^|/)(", paste(other, collapse = "|"), ")(/|[_-])|[_-](", paste(other, collapse = "|"), ")([_.-]|$)")
+  paths[!grepl(pattern, paths, perl = TRUE)]
+}
+
+dina_task_missing_inputs <- function(task, root = dina_repo_root(), session = NULL, countries = NULL) {
   config_inputs <- "config/dina.yml"
   if (!is.null(session)) {
     override <- dina_session_config_override_path(session$id, root)
     if (file.exists(override)) config_inputs <- c(config_inputs, dina_relative(override, root))
   }
   inputs <- unique(c(dina_task_effective_inputs(task, root, session), task$script %||% character(), config_inputs))
+  inputs <- dina_country_input_paths(inputs, countries,
+    dina_session_config(session, root, expand_env = FALSE)$countries %||% character())
   paths <- dina_filter_ignored_paths(dina_expand_paths(inputs, root), root)
   paths[!file.exists(paths)]
 }
@@ -4000,6 +4063,7 @@ dina_task_missing_inputs <- function(task, root = dina_repo_root(), session = NU
 dina_task_requires_admin_trust_snapshot <- function(task) {
   identical(task$id %||% "", "03a-run-bfm") ||
     identical(task$id %||% "", "03b-run-bfm-2stage") ||
+    identical(task$id %||% "", "03c-graph-thetas") ||
     identical(task$id %||% "", "03d-prepare-theta-extrapolation")
 }
 
@@ -4035,9 +4099,10 @@ dina_task_admin_source_issues <- function(task, root = dina_repo_root(), session
   unique(issues)
 }
 
-dina_legacy_prepared_input_issues <- function(root = dina_repo_root()) {
+dina_legacy_prepared_input_issues <- function(root = dina_repo_root(), countries = NULL) {
   sources <- dina_sources(root)$sources %||% list()
   legacy <- Filter(function(source) identical(source$family %||% "", "legacy_prepared"), sources)
+  if (!is.null(countries)) legacy <- Filter(function(source) (source$country %||% "") %in% countries, legacy)
   if (!length(legacy)) return(character())
   unlist(lapply(legacy, function(source) {
     canonical <- as.character(source$canonical %||% character())
@@ -4054,33 +4119,39 @@ dina_legacy_prepared_input_issues <- function(root = dina_repo_root()) {
   }), use.names = FALSE)
 }
 
-dina_pipeline_input_preflight <- function(tasks, root = dina_repo_root(), session = NULL) {
+dina_pipeline_input_preflight <- function(tasks, root = dina_repo_root(), session = NULL, progress = NULL, countries = NULL) {
   # Compatibility migration for an Admin review that was already accepted
   # before scoped trust snapshots existed.  This writes only a deterministic
   # runtime derivative of that accepted decision; it never promotes sources or
   # alters configuration validation.
   admin_snapshot <- list(created = FALSE)
   if (any(vapply(tasks, dina_task_requires_admin_trust_snapshot, logical(1)))) {
+    dina_progress(progress, "Checking the accepted Admin source snapshot.")
     config <- dina_session_config(session, root, expand_env = FALSE)
     admin_snapshot <- dina_admin_trust_snapshot_ensure(root, session, config)
   }
   admin_pit_outputs <- list(created = FALSE)
   if (any(vapply(tasks, dina_task_requires_admin_pit_outputs, logical(1)))) {
+    dina_progress(progress, "Checking prepared Admin inputs.")
     admin_pit_outputs <- dina_admin_pit_outputs_manifest_ensure(root, session)
   }
   # An input produced by an earlier selected task is expected to be absent at
   # the start of a full run.  Do not confuse that ordinary dependency with a
   # missing external/static input.
-  declared_outputs <- unlist(lapply(tasks, function(task) task$outputs %||% character()), use.names = FALSE)
+  declared_outputs <- character()
   output_matches <- function(path, declared) {
-    rel <- dina_relative(path, root)
+    prefix <- paste0(sub("/+$", "", root), "/")
+    rel <- if (startsWith(path, prefix)) substring(path, nchar(prefix) + 1L) else dina_relative(path, root)
     any(vapply(declared, function(output) {
-      grepl(utils::glob2rx(output), rel, perl = TRUE)
+      grepl(utils::glob2rx(output), rel, perl = TRUE) ||
+        (!grepl("[*?[]", output) && startsWith(rel, paste0(sub("/+$", "", output), "/")))
     }, logical(1)))
   }
   missing <- unlist(lapply(tasks, function(task) {
-    paths <- dina_task_missing_inputs(task, root = root, session = session)
+    dina_progress(progress, "Checking inputs for %s.", task$id)
+    paths <- dina_task_missing_inputs(task, root = root, session = session, countries = countries)
     paths <- paths[!vapply(paths, output_matches, logical(1), declared = declared_outputs)]
+    declared_outputs <<- unique(c(declared_outputs, task$outputs %||% character()))
     issues <- c(
       if (length(paths)) paste0("missing input: ", dina_relative(paths, root)) else character(),
       dina_task_admin_source_issues(task, root, session)
@@ -4101,7 +4172,7 @@ dina_pipeline_input_preflight <- function(tasks, root = dina_repo_root(), sessio
       missing <- c(missing, sprintf("Admin PIT handoff (required by %s) :: %s", paste(admin_task_ids, collapse = ", "), admin_pit_issue))
     }
   }
-  missing <- c(missing, dina_legacy_prepared_input_issues(root))
+  missing <- c(missing, dina_legacy_prepared_input_issues(root, countries = countries))
   if (!length(missing)) return(invisible(list(admin_trust_snapshot = admin_snapshot, admin_pit_outputs = admin_pit_outputs)))
   stop(
     "Pipeline has not started because required inputs are missing:\n  - ",
@@ -4130,7 +4201,7 @@ dina_topological_downstream <- function(task_ids, root = dina_repo_root()) {
 }
 
 dina_source_review_advisory <- function(root = dina_repo_root()) {
-  families <- c("wid", "surveys", "admin", "sna")
+  families <- c("wid", "surveys", "admin", "sna", "dina")
   if (!exists("dina_review_family_status", mode = "function")) {
     return(lapply(families, function(family) list(family = family, status = "unavailable", label = "Unavailable", detail = "Source-review interface was not loaded.")))
   }
@@ -4209,32 +4280,33 @@ dina_run_notification_message <- function(completed, results, failure = NULL) {
 }
 
 dina_run_task <- function(task, root = dina_repo_root(), session = dina_load_session(root = root), dry_run = TRUE, force = FALSE,
-                          progress = NULL) {
+                          progress = NULL, env_extra = character(), script_args = character(),
+                          config_override = NULL, skip_current = FALSE, record_session = TRUE) {
   validation <- if (isTRUE(dry_run)) {
     list(state = dina_config_validation_state(root, session), receipt = dina_config_validation_receipt(root, session), identity = dina_config_validation_identity(root, session, dina_config_validation_receipt(root, session)))
   } else {
     dina_assert_current_config_validation(root, session)
   }
   source_advisory <- dina_source_review_advisory(root)
-  config <- dina_session_config(session, root)
+  config <- config_override %||% dina_session_config(session, root)
   countries <- paste(config$countries %||% character(), collapse = ", ")
   validated_at <- validation$receipt$checked_at %||% "not validated"
   dina_progress(progress, "Configuration scope: %s; validated %s.", validation$identity$scope, validated_at)
   dina_progress(progress, "Effective configuration: %s–%s; countries: %s.", config$years$first %||% "?", config$years$last %||% "?", countries)
   dina_progress(progress, "Source reviews are advisory: %s.", paste(vapply(source_advisory, function(x) paste0(x$family, "=", x$status), character(1)), collapse = ", "))
-  status <- dina_task_status(task, root = root, session = session)
-  if (!force && identical(status$status, "current")) {
+  status <- if (isTRUE(skip_current)) list(status = "requested", reasons = "Explicit country work is checked by the country runner.") else dina_task_status(task, root = root, session = session)
+  if (!force && !isTRUE(skip_current) && identical(status$status, "current")) {
     return(list(task = task$id, status = "skipped", reason = "Task is current."))
   }
   stata_cmd <- Sys.getenv("DINA_STATA_CMD", unset = config$stata$command %||% "")
   if (identical(task$type, "stata")) {
-    command <- c(if (nzchar(stata_cmd)) stata_cmd else "<DINA_STATA_CMD>", config$stata$batch_args %||% c("-b", "do"), task$script)
+    command <- c(if (nzchar(stata_cmd)) stata_cmd else "<DINA_STATA_CMD>", config$stata$batch_args %||% c("-b", "do"), task$script, script_args)
   } else if (identical(task$type, "r")) {
     # processx receives an explicit environment for pipeline tasks. Resolve
     # Rscript before that environment is installed, so the child does not
     # depend on PATH being preserved by the launcher.
     rscript <- file.path(R.home("bin"), if (.Platform$OS.type == "windows") "Rscript.exe" else "Rscript")
-    command <- c(rscript, task$script)
+    command <- c(rscript, task$script, script_args)
   } else {
     command <- c(task$type %||% "unknown", task$script)
   }
@@ -4245,7 +4317,8 @@ dina_run_task <- function(task, root = dina_repo_root(), session = dina_load_ses
   if (dina_task_requires_admin_pit_outputs(task)) {
     dina_admin_pit_outputs_manifest_ensure(root, session)
   }
-  missing_inputs <- dina_task_missing_inputs(task, root = root, session = session)
+  requested_countries <- if ("DINA_RUN_COUNTRIES" %in% names(env_extra)) strsplit(env_extra[["DINA_RUN_COUNTRIES"]], "[,[:space:]]+")[[1L]] else NULL
+  missing_inputs <- dina_task_missing_inputs(task, root = root, session = session, countries = requested_countries)
   source_issues <- dina_task_admin_source_issues(task, root, session)
   if (length(c(missing_inputs, source_issues))) {
     issues <- c(
@@ -4260,6 +4333,7 @@ dina_run_task <- function(task, root = dina_repo_root(), session = dina_load_ses
   }
   dina_need("processx")
   run_id <- format(Sys.time(), "%Y%m%d-%H%M%S")
+  if (length(env_extra)) run_id <- paste0(run_id, "-", Sys.getpid(), "-", basename(tempfile()))
   log_dir <- dina_path("output", "run_logs", run_id, root = root)
   dir.create(log_dir, recursive = TRUE, showWarnings = FALSE)
   runtime_config_do <- ""
@@ -4273,10 +4347,12 @@ dina_run_task <- function(task, root = dina_repo_root(), session = dina_load_ses
     wrapper_do <- file.path(log_dir, paste0(task$id, ".wrapper.do"))
     stata_path <- normalizePath(file.path(root, task$script), mustWork = FALSE)
     stata_quote <- function(path) gsub('"', "'", path, fixed = TRUE)
+    if (any(grepl('["\\r\\n]', script_args, perl = TRUE))) stop("Stata script arguments cannot contain quotes or line breaks.", call. = FALSE)
+    script_suffix <- if (length(script_args)) paste0(" ", paste(sprintf('"%s"', script_args), collapse = " ")) else ""
     writeLines(c(
       "capture log close _all",
       sprintf('log using "%s", text replace', stata_quote(stata_log)),
-      sprintf('capture noisily do "%s"', stata_quote(stata_path)),
+      sprintf('capture noisily do "%s"%s', stata_quote(stata_path), script_suffix),
       "local dina_task_rc = _rc",
       "capture log close _all",
       "exit `dina_task_rc'"
@@ -4292,13 +4368,32 @@ dina_run_task <- function(task, root = dina_repo_root(), session = dina_load_ses
     DINA_CONFIG_YML = dina_config_path(root),
     DINA_CONFIG_OVERRIDE_YML = override_path
   )
+  if (length(env_extra)) {
+    if (is.null(names(env_extra)) || any(!nzchar(names(env_extra))) || anyDuplicated(names(env_extra))) {
+      stop("Task environment overrides must have unique, nonempty names.", call. = FALSE)
+    }
+    env[names(env_extra)] <- as.character(env_extra)
+  }
   dina_progress(progress, "Running %s. Live status will be reported while it works.", task$id)
+  stdout_path <- file.path(log_dir, paste0(task$id, ".out.log"))
+  stderr_path <- file.path(log_dir, paste0(task$id, ".err.log"))
+  file.create(stdout_path, stderr_path)
   process <- processx::process$new(command[[1]], command[-1], wd = root, stdout = "|", stderr = "|", env = env,
     cleanup_tree = TRUE)
+  on.exit(if (process$is_alive()) process$kill_tree(), add = TRUE)
+  append_output <- function(value, path) {
+    if (length(value) && nzchar(value)) cat(value, file = path, append = TRUE)
+  }
+  drain_output <- function() {
+    append_output(process$read_output(), stdout_path)
+    append_output(process$read_error(), stderr_path)
+  }
   started <- Sys.time()
   last_update <- started
   while (process$is_alive()) {
-    Sys.sleep(1)
+    io <- process$poll_io(1000L)
+    drain_output()
+    if (all(io %in% c("closed", "nopipe"))) Sys.sleep(0.1)
     now <- Sys.time()
     if (as.numeric(difftime(now, last_update, units = "secs")) >= 15) {
       elapsed <- round(as.numeric(difftime(now, started, units = "secs")))
@@ -4310,15 +4405,15 @@ dina_run_task <- function(task, root = dina_repo_root(), session = dina_load_ses
     }
   }
   process$wait()
-  result <- list(status = process$get_exit_status(), stdout = process$read_all_output(), stderr = process$read_all_error())
+  append_output(process$read_all_output(), stdout_path)
+  append_output(process$read_all_error(), stderr_path)
+  result <- list(status = process$get_exit_status())
   stata_error <- FALSE
   if (nzchar(stata_log) && file.exists(stata_log)) {
     log_lines <- readLines(stata_log, warn = FALSE)
     stata_error <- any(grepl("^r\\([1-9][0-9]*\\);$", trimws(log_lines)))
   }
   status_value <- if (identical(result$status, 0L) && !stata_error) "succeeded" else "failed"
-  writeLines(result$stdout, file.path(log_dir, paste0(task$id, ".out.log")))
-  writeLines(result$stderr, file.path(log_dir, paste0(task$id, ".err.log")))
   failure_detail <- if (identical(status_value, "failed")) dina_task_failure_detail(list(
     task = task$id, log_dir = dina_relative(log_dir, root),
     stata_log = if (nzchar(stata_log)) dina_relative(stata_log, root) else NULL,
@@ -4327,9 +4422,9 @@ dina_run_task <- function(task, root = dina_repo_root(), session = dina_load_ses
   run_manifest <- list(task = task$id, status = status_value, command = command, run_id = run_id,
     ended_at = dina_now(), configuration = validation$identity, validation = validation$receipt,
     source_reviews = source_advisory, stata_log = if (nzchar(stata_log)) dina_relative(stata_log, root) else NULL,
-    failure = failure_detail)
+    failure = failure_detail, country_scope = if ("DINA_RUN_COUNTRIES" %in% names(env_extra)) unname(env_extra[["DINA_RUN_COUNTRIES"]]) else NULL)
   dina_write_json(run_manifest, file.path(log_dir, "run-manifest.json"))
-  if (!is.null(session)) {
+  if (!is.null(session) && isTRUE(record_session)) {
     session$task_runs[[task$id]] <- c(list(status = status_value, command = command, run_id = run_id, ended_at = dina_now()),
       list(configuration = validation$identity, source_reviews = source_advisory))
     session$updated_at <- dina_now()

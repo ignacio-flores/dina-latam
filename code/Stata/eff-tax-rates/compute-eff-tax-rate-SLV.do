@@ -3,9 +3,16 @@
 
 clear all
 global data "input_data/admin_data/SLV"
-global results 	"output/figures/eff_tax_rates"
+global results 	"${dina_output_root}/output/figures/eff_tax_rates"
 
 forvalues x = 2000/2017 {
+	dina_coverage, country("SLV") year(`x') step("effective_rates") status("expected")
+	// The Admin tabulation producer intentionally omits these years.
+	// Keep the existing country-average fallback in 04b.
+	if inlist(`x', 2008, 2011) {
+		dina_coverage, country("SLV") year(`x') step("effective_rates") status("excluded")
+		continue
+	}
 	clear
 	import excel "$data/Tabulaciones_SLV.xls", ///
 					sheet("`x'") cellrange(E9:L19) clear first
@@ -129,14 +136,15 @@ forvalues x = 2000/2017 {
 	qui format p_merge %9.0g
 	
 	// Create directory if it doesnt exist 
-	local dirpath "$data/eff-tax-rate/"
+	local dirpath "${dina_output_root}/$data/eff-tax-rate/"
 	mata: st_numscalar("exists", direxists(st_local("dirpath")))
 	if (scalar(exists) == 0) {
 		mkdir "`dirpath'"
 		display "Created directory: `dirpath'"
 	}
 	
-	save "$data/eff-tax-rate/SLV_effrates_`x'", replace
+	save "${dina_output_root}/$data/eff-tax-rate/SLV_effrates_`x'", replace
+	dina_coverage, country("SLV") year(`x') step("effective_rates") status("success")
 					
 }
 

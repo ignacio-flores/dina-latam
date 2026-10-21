@@ -182,6 +182,8 @@ tasks:
       - input_data/admin_data/COL/gpinter_COL_*.xlsx
 
   - id: 03a-run-bfm
+    country_scope: selected
+    country_applicability: [COL, URY, BRA, DOM, SLV, ECU, PER, CHL]
     stage: bfm
     type: stata
     script: code/Stata/03a-run-bfm.do
@@ -202,6 +204,8 @@ tasks:
       - Uses historical BFM-ready ECU workbooks until the replacement Admin data is included.
 
   - id: 03b-run-bfm-2stage
+    country_scope: selected
+    country_applicability: [ARG, CRI, MEX]
     stage: bfm
     type: stata
     script: code/Stata/03b-run-bfm-2stage.do
@@ -217,30 +221,78 @@ tasks:
     notes:
       - Uses historical MEX wage tabulations instead of rebuilding heavy tax microdata.
 
+  - id: 03c-graph-thetas
+    country_scope: shared
+    stage: bfm
+    type: stata
+    script: code/Stata/03c-graph-thetas.do
+    deps:
+      - "03a-run-bfm"
+      - "03b-run-bfm-2stage"
+    inputs:
+      - "output/bfm_summary/bfm_norep_pos/merging_points.xlsx"
+      - "output/bfm_summary/bfm_norep_pre/merging_points.xlsx"
+    outputs:
+      - output/bfm_summary/all_thetas.xlsx
+      - output/bfm_summary/03c_validation.json
+      - output/figures/thetas
+
   - id: 03d-prepare-theta-extrapolation
+    country_scope: selected
     stage: bfm
     type: stata
     script: code/Stata/03d-prepare-theta-extrapolation.do
     deps:
-      - 03a-run-bfm
-      - 03b-run-bfm-2stage
+      - "03a-run-bfm"
+      - "03b-run-bfm-2stage"
+      - "03c-graph-thetas"
+      - "01e-clean-survey-data"
+      - "01f-adjust-country-survey-data"
     inputs:
-      - output/bfm_summary
+      - "output/bfm_summary/all_thetas.xlsx"
+      - "output/bfm_summary/03c_validation.json"
+      - "intermediary_data/microdata/raw"
+      - "intermediary_data/microdata/bfm_norep_pre"
+      - "intermediary_data/microdata/bfm_norep_pos"
+      - "output/bfm_summary/bfm_norep_pos/merging_points.xlsx"
+      - "output/bfm_summary/bfm_norep_pre/merging_points.xlsx"
+      - "input_data/admin_data/*/gpinter_*.xlsx"
+      - "input_data/admin_data/*/wage_*.xlsx"
     outputs:
-      - output/bfm_summary/pseudo_thetas.xlsx
+      - "output/bfm_summary/pseudo_thetas.xlsx"
+      - "intermediary_data/weight_adjusters/index.xlsx"
+      - "intermediary_data/weight_adjusters/*.xlsx"
+      - "output/figures/pthetas"
 
   - id: 03e-extrapolate-bfm-correction
+    country_scope: selected
     stage: bfm
     type: stata
     script: code/Stata/03e-extrapolate-bfm-correction.do
     deps:
-      - 03d-prepare-theta-extrapolation
+      - "03c-graph-thetas"
+      - "03d-prepare-theta-extrapolation"
+      - "01e-clean-survey-data"
+      - "01f-adjust-country-survey-data"
     inputs:
-      - output/bfm_summary/pseudo_thetas.xlsx
+      - "intermediary_data/microdata/raw"
+      - "output/bfm_summary/all_thetas.xlsx"
+      - "output/bfm_summary/03c_validation.json"
+      - "intermediary_data/weight_adjusters/index.xlsx"
+      - "intermediary_data/weight_adjusters/[A-Z][A-Z][A-Z]*.xlsx"
     outputs:
-      - intermediary_data/weight_adjusters
+      - "intermediary_data/microdata/bfm_norep_pre"
+      - "intermediary_data/microdata/bfm_norep_pos"
+      - "output/bfm_summary/bfm_norep_pre/merging_points.xlsx"
+      - "output/bfm_summary/bfm_norep_pre/bfm_summary_[A-Z][A-Z][A-Z]_extrap.xlsx"
+      - "output/bfm_summary/bfm_norep_pos/merging_points.xlsx"
+      - "output/bfm_summary/bfm_norep_pos/bfm_summary_[A-Z][A-Z][A-Z]_extrap.xlsx"
+      - "intermediary_data/weight_adjusters/index.xlsx"
+      - "output/figures/MP"
 
   - id: 04a0-prepare-bra-rate-points
+    country_scope: selected
+    country_applicability: [BRA]
     stage: taxes
     type: r
     script: code/R/04a0_prepare_bra_rate_points.R
@@ -255,6 +307,8 @@ tasks:
       - Builds BRA effective PIT rate anchors directly from the publisher tables.
 
   - id: 04a-compute-effective-rates
+    country_scope: selected
+    country_applicability: [COL, BRA, MEX, CRI, CHL, SLV, ECU, URY, PER, DOM]
     stage: taxes
     type: stata
     script: code/Stata/04a-compute-effective-rates-all.do
@@ -270,6 +324,8 @@ tasks:
       - output/efftax
 
   - id: 04a5-generate-arg-rates
+    country_scope: selected
+    country_applicability: [ARG]
     stage: taxes
     type: r
     script: code/R/04a_generate_arg_rates.R
@@ -286,6 +342,7 @@ tasks:
       - Rebuilds ARG yearly effective PIT rates with the local gpinter R package.
 
   - id: 04b-build-pretax-surveys
+    country_scope: selected
     stage: taxes
     type: stata
     script: code/Stata/04b-build-pretax-surveys.do
@@ -301,6 +358,7 @@ tasks:
       - intermediary_data/microdata/bfm_norep_pos
 
   - id: 04c-create-raw-postax-units
+    country_scope: selected
     stage: taxes
     type: stata
     script: code/Stata/04c-create-raw-postax-units.do
@@ -312,6 +370,7 @@ tasks:
       - intermediary_data/microdata/bfm_norep_pre
 
   - id: 05a-compare-sna-totals
+    country_scope: shared
     stage: imputation
     type: stata
     script: code/Stata/05a-compare-sna-totals.do
@@ -325,6 +384,7 @@ tasks:
       - output/snacompare_summary
 
   - id: 05b-rescale-and-impute
+    country_scope: selected
     stage: imputation
     type: stata
     script: code/Stata/05b-rescale-and-impute.do
@@ -337,6 +397,7 @@ tasks:
       - intermediary_data/microdata/bfm_norep_pre
 
   - id: 05c-impute-pretax
+    country_scope: selected
     stage: imputation
     type: stata
     script: code/Stata/05c-impute-pretax.do
@@ -349,6 +410,7 @@ tasks:
       - intermediary_data/microdata/bfm_norep_pre
 
   - id: 05d-impute-posttax
+    country_scope: selected
     stage: imputation
     type: stata
     script: code/Stata/05d-impute-posttax-disp-nat.do
@@ -360,6 +422,7 @@ tasks:
       - intermediary_data/microdata/bfm_norep_pre
 
   - id: 06a-run-ineqstats
+    country_scope: selected
     stage: statistics
     type: stata
     script: code/Stata/06a-run-ineqstats.do
@@ -371,6 +434,7 @@ tasks:
       - output/ineqstats
 
   - id: 06b-graph-ineqstats-countries
+    country_scope: selected
     stage: reporting
     type: stata
     script: code/Stata/06b-graph-ineqstats-countries-variables.do
@@ -384,6 +448,7 @@ tasks:
       - output/figures/ineqstats
 
   - id: 07a-export-synthetic-microfiles
+    country_scope: selected
     stage: export
     type: stata
     script: code/Stata/07a-export-synthetic-microfiles.do
@@ -396,6 +461,7 @@ tasks:
       - output/synthetic_microfiles
 
   - id: 07b-report-data-availability
+    country_scope: shared
     stage: validation
     type: stata
     script: code/Stata/07b-report_data_availability.do
@@ -408,6 +474,7 @@ tasks:
       - output/data_reports/latam_availability.xlsx
 
   - id: 07c-interpolate-ineqstats
+    country_scope: selected
     stage: export
     type: stata
     script: code/Stata/07c-interpolate_ineqstats_results.do
@@ -417,9 +484,10 @@ tasks:
       - output/synthetic_microfiles
       - code/R/07c_interpolate_ineqstats.R
     outputs:
-      - output/data_reports/gpinter_errors.log
+      - output/ineqstats/_gpinter_all_topcorrected.csv
 
   - id: 07d-export-results-to-wid
+    country_scope: shared
     stage: export
     type: stata
     requirements:

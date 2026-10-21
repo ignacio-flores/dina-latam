@@ -243,7 +243,7 @@ dina_workspace_config <- function(root, input = "stdin", is_terminal = isatty(st
 dina_pipeline_snapshot <- function(root, session = dina_load_session(root = root), inspect_files = TRUE) {
   tasks <- dina_task_map(root)
   rows <- dina_review_bind(lapply(tasks, function(task) {
-    files <- if (inspect_files) dina_task_status(task, root, session = NULL) else list(status = "Not inspected")
+    files <- if (inspect_files) dina_task_status(task, root, session = session) else list(status = "Not inspected")
     run <- session$task_runs[[task$id]]
     data.frame(task = task$id, recorded_run = run$status %||% "No recorded run", ended = run$ended_at %||% "",
       files = files$status, stringsAsFactors = FALSE)
@@ -254,8 +254,8 @@ dina_pipeline_snapshot <- function(root, session = dina_load_session(root = root
   list(rows = rows, latest = latest, run = runs[[latest %||% ""]], attention = attention, failures = sum(rows$recorded_run == "failed"))
 }
 
-dina_pipeline_print <- function(root) {
-  snapshot <- dina_pipeline_snapshot(root)
+dina_pipeline_print <- function(root, session = dina_load_session(root = root)) {
+  snapshot <- dina_pipeline_snapshot(root, session)
   dina_cli_header("Pipeline")
   if (is.null(snapshot$latest)) dina_cli_cat("No CLI run recorded in this update.") else {
     dina_cli_cat(sprintf("Last recorded run: %s — %s · %s", snapshot$latest, snapshot$run$status, snapshot$run$ended_at))

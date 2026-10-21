@@ -2,20 +2,17 @@ clear all
 
 //set directories
 global data 	"input_data/admin_data/COL"
-global results 	"output/figures/eff_tax_rates"
+global results 	"${dina_output_root}/output/figures/eff_tax_rates"
 
  local x = 0
  forvalues y=2014/2023 {
+	dina_coverage, country("COL") year(`y') step("effective_rates") status("expected")
 	
 	local x = `x' + 1
 	global route "$data/_clean"
 	global excel "total-pos-COL"
-	qui cap erase "$route/total-pos-COL_`x'.dta"
-	qui xls2dta, sheet("`y'") save($route) : /// 
-		import excel  "$route/$excel.xlsx" ,  firstrow cellrange(A1)
-		qui	use 	  	  "$route/total-pos-COL_`x'.dta", clear
-		qui cap erase     "$route/total-pos-COL_`x'.dta"	
-				
+	qui import excel "$route/$excel.xlsx", sheet("`y'") firstrow cellrange(A1) clear
+
 	ipolate eff_tax_rate p, gen(eff_tax_rate_ipol) e
 	
 	gen p_merge = round(p,.00001)
@@ -52,7 +49,7 @@ global results 	"output/figures/eff_tax_rates"
 	qui format p_merge %9.0g
 	
 	// Create directory if it doesnt exist 
-	local dirpath "$data/eff-tax-rate"
+	local dirpath "${dina_output_root}/$data/eff-tax-rate"
 	mata: st_numscalar("exists", direxists(st_local("dirpath")))
 	if (scalar(exists) == 0) {
 		mkdir "`dirpath'"
@@ -60,7 +57,8 @@ global results 	"output/figures/eff_tax_rates"
 	}
 
 
-	save "$data/eff-tax-rate/COL_effrates_`y'", replace
+	save "${dina_output_root}/$data/eff-tax-rate/COL_effrates_`y'", replace
+	dina_coverage, country("COL") year(`y') step("effective_rates") status("success")
 	
 		
  }

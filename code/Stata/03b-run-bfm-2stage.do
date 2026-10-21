@@ -1,3 +1,11 @@
+// Direct and runner execution share country selection and staged publication.
+args dina_requested_countries
+local dina_country_worker : environment DINA_COUNTRY_WORKER
+if "`dina_country_worker'" != "03b-run-bfm-2stage" {
+    do "code/Stata/auxiliar/dina_country_task.do" "03b-run-bfm-2stage" "`dina_requested_countries'"
+    exit
+}
+
 /*=============================================================================*
 Goal: correct CEPAL surveys with bfmcorr command for cases with tax and wage
 data and save theta coefficients for analysis and further extrapolations
@@ -24,14 +32,27 @@ if "${bfm_replace}" == "no" {
 
 // -----------------------------------------------------------------------------
 
+// Create the shared result folders before saving BFM results.
+foreach path in "intermediary_data/microdata" "output/figures" "output/figures/MP" "output/bfm_summary" {
+    capture mkdir "${dina_output_root}/`path'"
+}
+foreach pf in pre pos {
+    capture mkdir "${dina_output_root}/intermediary_data/microdata/bfm_norep_`pf'"
+    capture mkdir "${dina_output_root}/output/bfm_summary/bfm_norep_`pf'"
+}
+
 //Loop over countries
 foreach c in $countries_2stage {
+	local selected_countries "${dina_run_countries}"
+	local selected : list c in selected_countries
+	if !`selected' continue
 
 	local pf "pos"
 	if inlist("`c'", "CRI") local pf "pre"
 
 	//Loop over years
 	foreach t in ${years_`c'} {
+		if !inrange(`t', $first_y, $last_y) continue
 
 		//Define file paths
 		local taxfile "input_data/admin_data/`c'/diverse_`c'_`t'.xlsx"
@@ -56,18 +77,20 @@ foreach c in $countries_2stage {
 			cap confirm file `svyfile'
 			if !_rc {
 
+				local dina_has_cases_`c' 1
+				dina_coverage, country("`c'") year(`t') step("observed_bfm") status("expected")
 				di as result "`c' `t': Both survey and tax data " _continue
 				di as result "exist, combining datasets (02b)... " _continue
 				di as text "at $S_TIME"
 
 				//Get trust region
-				quietly import delimited using "${admin_trust_regions}", clear varnames(1)
+				quietly import delimited using "${admin_trust_regions}", clear varnames(1) asdouble
 				quietly sum trust if country == "`c'" & year == `t'
 				local trust_`c'_`t' = r(mean)
 
 				//Run code if trust exists
 				quietly sum trust_wages if country == "`c'" & year == `t'
-				if ("`r(mean)'" != "") {
+				if !missing(r(mean)) {
 					local trustw_`c'_`t' = `r(mean)'
 
 
@@ -169,16 +192,16 @@ foreach c in $countries_2stage {
 
 						//path to files
 						local corrfile ///
-							"intermediary_data/microdata/bfm`ext'_`pf'/`c'_`t'_bfm`ext'_`pf'.dta"
+							"${dina_output_root}/intermediary_data/microdata/bfm`ext'_`pf'/`c'_`t'_bfm`ext'_`pf'.dta"
 						local MPgraph_wages ///
-							"output/figures/MP/`c'_`t'_MP.pdf"
-						local MPgraph "output/figures/MP/`c'_`t'_MP.pdf"
+							"${dina_output_root}/output/figures/MP/`c'_`t'_MP.pdf"
+						local MPgraph "${dina_output_root}/output/figures/MP/`c'_`t'_MP.pdf"
 						local export_results_wages ///
-							"output/bfm_summary/bfm`ext'_`pf'/bfm_summary_wages_`c'.xlsx"
-						local export_results "output/bfm_summary/bfm`ext'_`pf'/bfm_summary_`c'.xlsx"
+							"${dina_output_root}/output/bfm_summary/bfm`ext'_`pf'/bfm_summary_wages_`c'.xlsx"
+						local export_results "${dina_output_root}/output/bfm_summary/bfm`ext'_`pf'/bfm_summary_`c'.xlsx"
 						local mpfile_wages ///
-							"output/bfm_summary/bfm`ext'_`pf'/merging_points_wages.xlsx"
-						local mpfile "output/bfm_summary/bfm`ext'_`pf'/merging_points.xlsx"
+							"${dina_output_root}/output/bfm_summary/bfm`ext'_`pf'/merging_points_wages.xlsx"
+						local mpfile "${dina_output_root}/output/bfm_summary/bfm`ext'_`pf'/merging_points.xlsx"
 
 						//exceptions (only 1st stage)
 						if inlist("`c'", "MEX", "ARG") {
@@ -195,15 +218,15 @@ foreach c in $countries_2stage {
 						//3.1 Apply 1st-stage BFM correction (wages) -----------
 
 						di as result "adjusting wage distribution..."
-						`capornot' bfmcorr_experiments using `wagefile', ///
+						bfmcorr_experiments using `wagefile', ///
 							weight(`raw_weight') income(ind_`pf'_wag) ///
 							taxincome(`w') households(`id') taxu(i) ///
 							trust(`yrtrustw') thetalimit(${t_limit}) ///
 							holdmargins(sexo age_group) /*slope(-1)*/ ///
 							pen(50) sampletop(0.01) `command'
 
-						cap assert _N == 0
-						if _rc!= 0 {
+						capture confirm variable _weight
+						if _rc == 0 & _N > 0 {
 
 							//save merging points
 							preserve
@@ -232,7 +255,7 @@ foreach c in $countries_2stage {
 							save `tf', replace
 
 							//save list of country-years
-							local ctry_yr_list`ext' "`ctry_yr_list`ext'' `c'_`t'"
+							local ctry_yr_list`ext'_`pf' "`ctry_yr_list`ext'_`pf'' `c'_`t'"
 
 							//if done with 1st stage
 							if inlist("`c'", "MEX", "ARG") save `corrfile', replace
@@ -242,6 +265,8 @@ foreach c in $countries_2stage {
 							graph export `MPgraph_wages', replace
 							postbfm	summarize, export(`export_results_wages') ///
 								year(`t') replace
+
+							if inlist("`c'", "MEX", "ARG") dina_coverage, country("`c'") year(`t') step("observed_bfm") status("success")
 
 							//3.2. 2nd-stage BFM correction (diverse inc.) ----
 
@@ -319,6 +344,7 @@ foreach c in $countries_2stage {
 								graph export `MPgraph', replace
 								postbfm	summarize, export(`export_results') ///
 									year(`t') replace
+								dina_coverage, country("`c'") year(`t') step("observed_bfm") status("success")
 
 							}
 						}
@@ -335,7 +361,8 @@ foreach c in $countries_2stage {
 				//Report if trust is missing
 				else {
 					di as error "Trust region is not defined for " _continue
-					di as error "`c' - `t', skipping ... "
+					di as error "`c' - `t'. Review the trust-region handoff before rerunning."
+					exit 459
 				}
 			}
 			else {
@@ -356,6 +383,13 @@ foreach c in $countries_2stage {
 }
 
 
+foreach c in $dina_run_countries {
+    if "`dina_has_cases_`c''" == "" {
+        di as text "`c': no eligible observed BFM cases in the configured years."
+        dina_coverage, country("`c'") step("observed_bfm") status("not_applicable")
+    }
+}
+
 //record list of countries and years corrected
 foreach type in $types {
 
@@ -365,8 +399,9 @@ foreach type in $types {
 	if ("`type'" == "norep") local command "noreplace"
 	if ("`type'" == "norep") local ext "_norep"
 
-		local obs_mp = wordcount("`ctry_yr_list`ext''")
-		local mpfile "output/bfm_summary/bfm`ext'_`pf'/merging_points.xlsx"
+	foreach pf in "pre" "pos" {
+		local obs_mp = wordcount("`ctry_yr_list`ext'_`pf''")
+		local mpfile "${dina_output_root}/output/bfm_summary/bfm`ext'_`pf'/merging_points.xlsx"
 		if `obs_mp' > 0 {
 			//start from scratch
 			clear
@@ -375,7 +410,7 @@ foreach type in $types {
 
 			//loop over values
 			forvalues n = 1 / `obs_mp' {
-				local wd_`n': word `n' of `ctry_yr_list`ext''
+				local wd_`n': word `n' of `ctry_yr_list`ext'_`pf''
 				quietly replace country_year = "`wd_`n''" in `n'
 			}
 			quietly export excel `mpfile', firstrow(variables) ///
@@ -389,6 +424,5 @@ foreach type in $types {
 			quietly export excel `mpfile', firstrow(variables) ///
 				sheet("country_years_2stage") sheetreplace keepcellfmt
 		}
-
+	}
 }
-

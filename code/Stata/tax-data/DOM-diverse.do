@@ -82,7 +82,7 @@ forvalues year = 2012/2020 {
 		display "Created directory: `dirpath'"
 	}
 	
-	cap export excel `lister' using ///
+	export excel `lister' using ///
 		"input_data/admin_data/DOM/_clean/total-pre-DOM.xlsx", ///
 		sheet("`year'", replace) firstrow(variables) keepcellfmt 	
 		
@@ -90,7 +90,7 @@ forvalues year = 2012/2020 {
 	qui replace thr = thr * (1 - sh_taxdue)	
 	qui replace component = "postax" in 1 
 	
-	cap export excel `lister' using ///
+	export excel `lister' using ///
 		"input_data/admin_data/DOM/_clean/total-pos-DOM.xlsx", ///
 		sheet("`year'", replace) firstrow(variables) keepcellfmt 
 		

@@ -77,9 +77,10 @@ dina sources table surveys
 dina sources include surveys
 ```
 
-The supported families are `sna`, `admin`, `surveys`, and `wid`. Other inputs
-and heavy admin microdata retain their acquisition instructions in the registry
-but do not have a family review/inclusion workflow.
+The supported families are `sna`, `admin`, `surveys`, `wid`, and `dina`
+(Finished DINA series).
+Other inputs and heavy admin microdata retain their acquisition instructions in
+the registry but do not have a family review/inclusion workflow.
 
 Menus and typed commands use the same operations. The menu keeps the selected
 family while you find sources, explore, inspect details, and include. Return to
@@ -137,6 +138,120 @@ remain available.
 Existing named tables remain available for deeper inspection. `--run PATH`
 selects an older review or a legacy table run. `--country ISO` filters the
 report only; the saved review and inclusion cover the whole family.
+
+### Finished DINA series
+
+```bash
+dina sources explore dina
+dina sources table dina
+```
+
+Place researcher-supplied distributions in `input_data/_new/dina/`. The registry
+records the exact file, version, country/year coverage, concepts, units and
+publication citation. The current Ecuador source is
+`WIL_ECU_1990-2022_v2.dta`, attributed to Nabernegg, Markus, Stefan Nabernegg, and
+Thomas Kopp (2026), *Amplified challenges for the joint reduction of emissions
+and inequality, considering the missing-rich*, *Journal of Environmental
+Economics and Management* 139: 103353,
+https://doi.org/10.1016/j.jeem.2026.103353.
+
+Explore reports coverage and precise validation results in the existing concise
+CLI/table format. It checks required fields, keys, finite values, percentile
+coverage, ordering, distribution identities, Gini bounds and export-grid
+compatibility for all supplied concepts and units. It distinguishes structural
+failures, scientific discrepancies, format differences and unconfirmed
+definitions, using tolerances for storage precision. For Ecuador, `nat/esn`
+is the publication series. Currency, price basis and population definitions
+remain unconfirmed until documented.
+
+The overview groups discrepancies in a compact table with affected cases,
+small/larger finding counts, median and maximum gaps. For review navigation,
+“small” means at most 0.1% of the reference value; share discrepancies must also
+be at most 0.01 percentage points. These are display thresholds, not scientific
+approval or a rule for automatic correction. Definition questions, export-grid
+alignment and structural failures are listed separately.
+
+```bash
+dina sources table dina --step nat --unit esn
+dina sources table dina small
+dina sources table dina larger --check share_identity --year 1994
+dina sources table dina decisions
+```
+
+`checks` lists the check IDs. Detail tables show the largest discrepancies first;
+`--exact` gives full precision and the check explanation. Display filters do not
+change validation scope or the source's overall status.
+
+Exploration reads the supplied file independently of unfinished pipeline results.
+Missing internal Ecuador estimates do not fail this source review. No source
+values are repaired, no continuation or comparison preview is constructed, and
+no accepted inputs or published results are replaced.
+
+Prepare and inspect the inclusion candidate separately:
+
+```bash
+dina sources include dina --dry-run
+dina sources table dina changes
+dina sources table dina impact
+dina sources include dina
+```
+
+The dry run saves a validated candidate and its reports without accepting it.
+Include displays that candidate's summary and asks once before acceptance;
+`--confirm` supplies the same confirmation in scripted use. `--include-run RUN`
+selects the saved candidate explicitly. `--restore CONFIRM_RUN` restores the
+previous accepted files from the inclusion backup. All supplied years, concepts
+and units are included; display filters never narrow inclusion.
+
+The R preparation engine applies the agreed rules to a separate copy:
+
+| Issue | Preparation rule |
+| --- | --- |
+| Unequal bracket weights | Recover population mass as `share × overall mean / bracket mean`; check it against the supplied cumulative top means. |
+| Storage precision | Normalize masses and recompute the overall mean from unchanged bracket means. Reject normalization beyond `1e-6`; report the corresponding share normalization. |
+| Threshold errors | Move a threshold to the nearest feasible value between adjacent bracket means. Record substantive repairs separately from numerical boundary nudges. |
+| Tiny reversed means | Pool adjacent bins by population weight, preserving income and population; reject pooling if any affected mean changes by more than **0.001%**. |
+| Export grid | Fit local GPinter on recovered population boundaries and repaired thresholds, then derive a consistent standard **127-bracket** distribution. |
+| Gini | Preserve the supplied Gini; report the fitted Gini separately. |
+
+The interior threshold margin is the smaller of
+`1e-7 × max(abs(current mean), 1)` and one quarter of the adjacent-mean gap.
+Valid thresholds are preserved apart from these reported numerical nudges.
+Invalid population weights, unexplained identity failures or unsuccessful fits
+stop preparation; no broader automatic cleaning is used.
+
+The concise summary distinguishes population-weight explanations, precision
+adjustments, threshold repairs, pooling, grid conversion and remaining definition
+warnings. `changes` records each affected country/year/concept/unit, original
+bracket, field, before/after values, differences and reason. `impact` compares
+means, bottom-50 and top-10/1/0.1 shares and supplied/fitted Gini, explicitly
+identifying comparisons whose population boundaries changed. Regridding is not
+reported as a direct income correction. Raw exploration findings remain
+available. Explanatory notes are grey; headings, tables and results use the
+normal terminal foreground.
+
+Acceptance preserves a byte-identical original at
+`input_data/dina/WIL_ECU_1990-2022_v2.dta` and writes the prepared distribution
+separately to `input_data/dina/WIL_ECU_1990-2022_v2_prepared.dta`. The inbox file is
+unchanged. A small inclusion record retains source identity, citation, version,
+correction recipe, GPinter version and accepted candidate. Acceptance validates
+the complete candidate, backs up prior accepted files and restores them if
+publication fails. Reaccepting the same candidate performs no additional
+transformation; source or recipe changes require a new candidate review.
+Unconfirmed population and currency definitions remain visible. Acceptance does
+not activate Ecuador's replacement or run the pipeline.
+
+Once internal Ecuador results are ready after 07c, a separate review before
+publication through 07d will build the continuation. The agreed method preserves
+the researcher distribution through 2022, applies proportional changes in our
+normalized bracket incomes relative to 2022 to bracket means and thresholds,
+renormalizes, and derives consistent shares. Amounts will be scaled once to
+current WID national-income means; years beyond the latest internal estimate use
+the existing, explicitly labelled carry-forward rule. Anchor, grid, denominator
+and distribution checks and a compact figure marking the 2022 join belong to
+that later review. Publication and donor use of the replacement require that
+separate review and activation, with attribution for observations, continuation
+and WID scaling.
 
 ### Include
 
@@ -219,8 +334,142 @@ a provisional update run. Use `--benchmark` to run the validated benchmark
 configuration while an update is active. Use `--dry-run` when you only want to see
 the commands.
 
+### Delivery workflow
+
+Country runs are available for stages **03a–07d**. Omission of `--countries`
+retains the full configured execution. Preparation stages 01–02 keep their
+existing workflow and reject country selection. Country codes are validated
+against the effective configuration; they do not change that configuration or
+the donor universe.
+
+```bash
+dina run --from 03a --to 04c --countries ECU,MEX --dry-run
+dina run --from 03a --to 04c --countries ECU,MEX --notify
+dina run list --countries ECU,MEX
+dina run why 06a --countries ECU,MEX
+dina run --resume RUN_ID --notify
+```
+
+ECU/MEX are examples, not special selection rules. An explicit country run
+recomputes its requested contributions even if a whole workbook appears current.
+It preserves other countries' microdata, workbook sheets and summary rows.
+03c rebuilds the complete observed panel; 05a rebuilds the complete macro comparison;
+07b and 07d assemble complete availability and export products. Shared donor
+preparation stays complete in 05b/05d. Before a run updates 05a, it saves the small
+prepared donor tables; before 05b/05d it compares them and reports additional
+affected countries without launching them.
+
+The runner stages only changed outputs. It keeps canonical inputs in place and
+publishes a successful task-country contribution together with its shared-table
+updates. Failed contributions leave their previous published files intact.
+Successful work is recorded in `output/run_logs/RUN_ID/country-run.json`.
+06a checkpoints are country × income step × statistical unit. 07c saves successful
+country fits privately until it can assemble and validate the complete CSV.
+An interrupted publication is rolled back or completed from its small rename journal.
+
+`--resume RUN_ID` continues that same task list, scope and configuration, reusing
+completed chunks. Do not combine resume with `--force`; start a new invocation to
+recompute. This is recovery of a specific run, not automatic freshness inference
+across future updates. Existing validated inputs and outputs require no migration,
+repository-wide hashing, or new historical processing receipts.
+
+Standalone entry points use the same dispatcher and publisher:
+
+```stata
+do code/Stata/06a-run-ineqstats.do "ECU,MEX"
+```
+
+```bash
+Rscript code/R/07c_interpolate_ineqstats.R --countries ECU,MEX
+```
+
+Selection ends with that invocation. R rate generators also retain their explicit
+comparison-output options. Dry runs report selected computation, completed chunks
+to reuse, shared assembly, retained results, and missing prerequisites. They recognize
+inputs produced earlier in the requested range; they never launch prerequisites.
+`stale` remains an advisory task-level view based on the existing runner checks.
+
+`--notify` retains script names, error excerpts and log locations. A dry run
+checks the selected commands without starting calculations.
+
+03c remains after 03a/03b and publishes its observed-theta panel only after its
+own source and output checks. 03d uses that accepted panel for observed donors;
+03e writes extrapolated merging points to separate `_extrap` sheets. The agreed
+`noreplace`, PAVA boundary and merging-point precision fixes remain in place.
+Approved historical Admin files and the current scientific outputs are retained.
+
+For this delivery, the targeted completion begins at 03a for ECU and 03b for MEX:
+their recovered Admin sources exist, while their corrected survey files are missing.
+After their 03a–04c checkpoint, inspect the donor comparison before continuing
+with 05a–07d. The separate production repair is 03d–04c for CRI/SLV (the 22
+recorded extrapolation failures). The accepted theta changes also need downstream
+propagation for ARG, BRA, CHL, COL, DOM, PER and URY from 04b, alongside CRI/SLV
+after repair. These are known unfinished calculations, not a requirement to restart
+at stage 01 or rebuild countries merely because tracking records are absent.
+
+The separate preparation previews are:
+
+```bash
+dina run --from 03d --to 04c --countries CRI,SLV --dry-run
+dina run --from 04b --to 04c --countries ARG,BRA,CHL,COL,DOM,PER,URY --dry-run
+```
+
+Review and complete the needed preparation checkpoints before the final 05a–07d
+pass, so the expensive statistics work uses the intended corrected surveys.
+The October 19 fixture checks and the three delivery previews are saved under
+`output/run_logs/previews/20261019-*`. No production calculations were launched
+to create those reports.
+
+### Complete delivery sequence
+
+Keep the existing source and preparation results from stages 01–02. Finish the
+three preparation scopes before calculating the final statistics:
+
+| Checkpoint | Scope | Purpose |
+| --- | --- | --- |
+| 03a–04c | ECU, MEX | Produce missing corrected surveys using the recovered Admin inputs. |
+| 03d–04c | CRI, SLV | Apply the extrapolation repairs and rebuild the affected survey variables. |
+| 04b–04c | ARG, BRA, CHL, COL, DOM, PER, URY | Propagate the accepted BFM/theta work into survey variables, reusing existing effective rates. |
+| 05a–05d | All 11 configured countries | Rebuild macro comparisons and complete income/tax imputations. |
+| 06a | All 11 configured countries | Compute statistics for the updated surveys, with resumable country/step/unit chunks. |
+| 06b–07d | All 11 configured countries | Produce figures, synthetic files, availability reports, GPinter groups and final WID exports. |
+
+The downstream scope is the union of the three unfinished preparation scopes.
+It does not require repeating 01–02 or repeating observed BFM for the seven
+countries in the third checkpoint. The current configuration calculates surveys
+through 2024 and extrapolates the final export through 2025.
+
+This shell block runs the six checkpoints sequentially and stops at the first
+failure. The countries variable exists only inside the subshell:
+
+```bash
+(
+  set -e
+  delivery_countries=ARG,BRA,CHL,COL,CRI,DOM,ECU,MEX,PER,SLV,URY
+
+  dina run --from 03a --to 04c --countries ECU,MEX --notify
+  dina run --from 03d --to 04c --countries CRI,SLV --notify
+  dina run --from 04b --to 04c --countries ARG,BRA,CHL,COL,DOM,PER,URY --notify
+  dina run --from 05a --to 05d --countries "$delivery_countries" --notify
+  dina run 06a --countries "$delivery_countries" --notify
+  dina run --from 06b --to 07d --countries "$delivery_countries" --notify
+)
+```
+
+If a checkpoint fails, correct that error and use its printed
+`dina run --resume RUN_ID --notify` command. After it succeeds, run only the
+subsequent checkpoints; do not paste the whole block again. Do not use `--force`
+with resume or launch overlapping country runs in parallel.
+
+After successful 07d publication, run `dina results show` and review the new
+comparison figures with `dina results`. The dated deliverables are in
+`output/latest_wid_series/`; the long, wide and Amory versions share the run date.
+The supporting statistics, synthetic files, GPinter CSV and availability report
+are updated by their preceding checkpoints. A successful script run still needs
+the final scientific review of the comparison figures before handoff.
+
 Task `02d5-interpolate-admin-data` runs the installed `gpinter` R package on
-each selected country's `_clean` Admin tabulations. It creates the
+each configured country's applicable `_clean` Admin tabulations. It creates the
 `gpinter_output/total-pos-COUNTRY.xlsx` workbooks (`total-pre-BRA.xlsx` for
 Brazil), plus `total-pre-CHL.xlsx` for Chile's effective-rate calculation.
 The post-tax workbooks are consumed by `02e-format-for-bfm`. The run preflight reports a missing

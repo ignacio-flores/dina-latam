@@ -20,6 +20,10 @@ script_dir <- dirname(source_file())
 source(file.path(script_dir, "dina_lib.R"), local = environment())
 source(file.path(script_dir, "source_review.R"), local = environment())
 source(file.path(script_dir, "source_report.R"), local = environment())
+source(file.path(script_dir, "finished_dina_review.R"), local = environment())
+source(file.path(script_dir, "finished_dina_summary.R"), local = environment())
+source(file.path(script_dir, "finished_dina_include.R"), local = environment())
+source(file.path(script_dir, "finished_dina_include_report.R"), local = environment())
 source(file.path(script_dir, "workspace.R"), local = environment())
 source(file.path(script_dir, "results.R"), local = environment())
 dina_cli_root <- normalizePath(file.path(script_dir, "..", "..", ".."), mustWork = TRUE)
@@ -143,7 +147,7 @@ Source workflow
   sources table FAMILY            Revisit the saved family review
   sources include FAMILY          Accept the reviewed family after confirmation
 
-Families: sna, admin, surveys, wid.
+Families: sna, admin, surveys, wid; dina (finished series).
 Menus and typed commands follow the same source workflow.
 Explore leaves accepted sources unchanged. Include does not run the pipeline.
 
@@ -395,7 +399,8 @@ Examples:
 
 Work through one family: Explore, then Include. Refresh WID before Explore
 when a newer WID snapshot is needed; Find sources is for registry-based inputs.
-Families: sna (national accounts), admin (tax data), surveys and wid.
+Families: sna (national accounts), admin (tax data), surveys, wid, and
+dina (finished DINA series).
 Other inputs and heavy admin microdata retain their registry instructions;
 family review and inclusion are not implemented for those inputs.
 
@@ -416,6 +421,18 @@ Explore
   income values are not checked. Admin PIT checks cover structure, dependencies,
   cleaner outputs and auxiliary values; full PIT values are not checked.
   Existing family-specific validation rules still control inclusion readiness.
+  Finished DINA series: validate supplied distributions and attribution.
+  Include prepares documented corrections and the standard export grid.
+  No internal pipeline results are needed. Continuation is reviewed later,
+  after 07c and before publication through 07d.
+  Details: dina sources table dina [coverage|checks|problems|files].
+  Finished-series review also has small, larger and decisions tables.
+  Narrow with --check ID, --year YYYY, --step nat, --unit esn or
+  --size small|larger. --exact shows full numerical precision.
+  Size categories guide review; they do not authorize corrections.
+  Preview preparation: dina sources include dina --dry-run
+  Review preparation: dina sources table dina [changes|impact|preparation|prepared-checks]
+  Include accepts the original and prepared copies; it does not activate replacement.
 
 Review details
   dina sources table FAMILY revisits the saved review.
@@ -477,6 +494,7 @@ Compatibility:
   dina run stale [--benchmark] [--dry-run]
   dina run TASK [OPTIONS]
   dina run --task TASK [OPTIONS]
+  dina run --resume RUN_ID [--dry-run] [--force]
 
 What it does:
   Selects tasks from `config/pipeline.yml`, checks freshness, then executes
@@ -502,7 +520,14 @@ Options:
   --dry-run                       Print commands without executing.
   --benchmark                     Use the validated benchmark configuration
                                   instead of the active update.
-  --force                         Run even when a task appears current.
+  --force                         Run selected work even when it appears current.
+                                  Start a new invocation to recompute completed
+                                  checkpoints; cannot be combined with --resume.
+  --countries ISO3,ISO3            Process selected countries in tasks 03a–07d.
+                                  With no task selector, use that whole range.
+                                  Shared calculations retain complete inputs.
+  --resume RUN_ID                  Continue the saved tasks/countries, reusing
+                                  successful checkpoints in that run.
   --notify                        Send a Pushover message at completion/failure.
 
 Subcommands:
@@ -531,6 +556,8 @@ Examples:
   dina run 01
   dina run --from 03 --to 05
   dina run 07d --notify
+  dina run --from 03a --to 07d --countries ARG,COL --dry-run
+  dina run --resume RUN_ID --notify
 ",
     config = "Usage:
   dina config show
@@ -799,8 +826,8 @@ dina_parse_flags <- function(args) {
     } else if (grepl("^--", arg)) {
       key <- sub("^--", "", arg)
       if (grepl("=", key, fixed = TRUE)) {
-        parts <- strsplit(key, "=", fixed = TRUE)[[1]]
-        out[[parts[[1]]]] <- parts[[2]]
+        equals <- regexpr("=", key, fixed = TRUE)[[1L]]
+        out[[substr(key, 1L, equals - 1L)]] <- substring(key, equals + 1L)
       } else if (i < length(args) && !grepl("^--", args[[i + 1L]])) {
         out[[key]] <- args[[i + 1L]]
         i <- i + 1L
@@ -1596,9 +1623,9 @@ dina_command_catalog <- function(year = format(Sys.Date(), "%Y")) {
       children = list(
         dina_command_entry("sources-family", "Choose source family", "Find, explore and include one family at a time.", args = c("sources")),
         dina_command_entry("sources-list", "Source registry", "List compact source rows.", args = c("sources", "list")),
-        dina_command_entry("sources-explore-type", "Explore source family", "Review coverage, overlapping revisions and source checks.", args = c("sources", "explore", "{SOURCETYPE}"), prompts = list(SOURCETYPE = list(label = "Source type", example = "sna, admin, surveys, or wid")), help = "Currently implemented for sna, PIT admin, surveys, and WID; writes experiment outputs under output/experiments/."),
-        dina_command_entry("sources-include-type", "Include reviewed family", "Accept the exact saved family review after confirmation.", args = c("sources", "include", "{SOURCETYPE}"), prompts = list(SOURCETYPE = list(label = "Source type", example = "sna, admin, surveys, or wid")), help = "Accepts the saved review after one confirmation; keeps the existing source backup."),
-        dina_command_entry("sources-table-type", "Review family details", "Revisit saved coverage, revisions and checks.", args = c("sources", "table", "{SOURCETYPE}"), prompts = list(SOURCETYPE = list(label = "Source type", example = "sna, admin, surveys, or wid")), help = "Currently implemented for sna, PIT admin, surveys, and WID. Use --run PATH, --country ISO, and --limit N for a narrower preview."),
+        dina_command_entry("sources-explore-type", "Explore source family", "Review coverage, overlapping revisions and source checks.", args = c("sources", "explore", "{SOURCETYPE}"), prompts = list(SOURCETYPE = list(label = "Source type", example = "sna, admin, surveys, wid, or dina")), help = "Implemented for sna, PIT admin, surveys, WID, and finished DINA series; writes experiment outputs under output/experiments/."),
+        dina_command_entry("sources-include-type", "Include reviewed family", "Accept the exact saved family review after confirmation.", args = c("sources", "include", "{SOURCETYPE}"), prompts = list(SOURCETYPE = list(label = "Source type", example = "sna, admin, surveys, wid, or dina")), help = "Accepts the saved review after one confirmation; keeps the existing source backup."),
+        dina_command_entry("sources-table-type", "Review family details", "Revisit saved coverage, revisions and checks.", args = c("sources", "table", "{SOURCETYPE}"), prompts = list(SOURCETYPE = list(label = "Source type", example = "sna, admin, surveys, wid, or dina")), help = "Implemented for sna, PIT admin, surveys, WID, and finished DINA series. Use --run PATH, --country ISO, and --limit N for a narrower preview."),
         dina_command_entry(
           "source-registry-diagnostics",
           "Source diagnostics",
@@ -1608,8 +1635,8 @@ dina_command_catalog <- function(year = format(Sys.Date(), "%Y")) {
             dina_command_entry("sources-list-guide", "Source guide", "Show where sources come from and where they land.", args = c("sources", "list", "guide")),
             dina_command_entry("sources-fetch-dry-run", "Preview fetch", "Preview supported source fetches into _new buckets.", args = c("sources", "fetch", "--dry-run")),
             dina_command_entry("sources-fetch-source", "Preview source fetch", "Preview one supported source fetch.", args = c("sources", "fetch", "{ID}", "--dry-run"), prompts = list(ID = list(label = "Source id", example = "chl-pit"))),
-            dina_command_entry("sources-include-type-confirm", "Confirm source type", "Promote sources from a clean staged include run after writing backups.", args = c("sources", "include", "{SOURCETYPE}", "--confirm", "--include-run", "{RUN}"), prompts = list(SOURCETYPE = list(label = "Source type", example = "sna, admin, surveys, or wid"), RUN = list(label = "Include run", example = "output/experiments/*/runs/RUN")), mutating = TRUE, confirm = TRUE, help = "Currently implemented for sna, PIT admin, surveys, and WID. Does not run the pipeline. Use only after reviewing a clean legacy assessment."),
-            dina_command_entry("sources-include-type-restore", "Restore source type", "Restore canonical sources from a confirm backup snapshot.", args = c("sources", "include", "{SOURCETYPE}", "--restore", "{CONFIRM_RUN}"), prompts = list(SOURCETYPE = list(label = "Source type", example = "sna, admin, surveys, or wid"), CONFIRM_RUN = list(label = "Confirm run", example = "output/experiments/country_sna_include/confirms/confirm-YYYYMMDD-HHMMSS")), mutating = TRUE, confirm = TRUE),
+            dina_command_entry("sources-include-type-confirm", "Confirm source type", "Promote sources from a clean staged include run after writing backups.", args = c("sources", "include", "{SOURCETYPE}", "--confirm", "--include-run", "{RUN}"), prompts = list(SOURCETYPE = list(label = "Source type", example = "sna, admin, surveys, wid, or dina"), RUN = list(label = "Include run", example = "output/experiments/*/runs/RUN")), mutating = TRUE, confirm = TRUE, help = "Implemented for sna, PIT admin, surveys, WID, and finished DINA series. Does not run the pipeline. Review the staged candidate first."),
+            dina_command_entry("sources-include-type-restore", "Restore source type", "Restore canonical sources from a confirm backup snapshot.", args = c("sources", "include", "{SOURCETYPE}", "--restore", "{CONFIRM_RUN}"), prompts = list(SOURCETYPE = list(label = "Source type", example = "sna, admin, surveys, wid, or dina"), CONFIRM_RUN = list(label = "Confirm run", example = "output/experiments/country_sna_include/confirms/confirm-YYYYMMDD-HHMMSS")), mutating = TRUE, confirm = TRUE),
             dina_command_entry("sources-workflow", "Workflow view", "List acquisition, destinations, transformers, and task usage.", args = c("sources", "list", "workflow")),
             dina_command_entry("sources-paths", "Paths view", "List canonical, inbox, destination, and fetch target paths.", args = c("sources", "list", "paths")),
             dina_command_entry("sources-urls", "URLs view", "List source URL hints or expand URLs.", args = c("sources", "list", "urls")),
@@ -3799,6 +3826,11 @@ dina_print_sources_guide <- function(root, flags) {
     tasks <- dina_source_pipeline_users(source, root)
     dina_cli_cat(sprintf("  %s %s", dina_cli_dim("tasks:"), if (length(tasks)) paste(tasks, collapse = ", ") else "none"))
     dina_cli_cat(sprintf("  %s %s", dina_cli_dim("notes:"), dina_source_note_label(source, 110L)))
+    if (identical(source$family, "dina")) {
+      dina_cli_cat("  Review: dina sources explore dina; details: dina sources table dina")
+      dina_cli_cat("  Prepare: dina sources include dina --dry-run; accept: dina sources include dina")
+      dina_cli_cat(dina_cli_dim("  Continuation and publication activation remain deferred."))
+    }
   }
   invisible(registry)
 }
@@ -4578,7 +4610,8 @@ dina_country_sna_variable_expectation_summary <- function(rows, confirmed_missin
   out
 }
 
-dina_print_data_frame_compact <- function(rows, limit = 20L, format_value = NULL) {
+dina_print_data_frame_compact <- function(rows, limit = 20L, format_value = NULL,
+                                        dim_headers = TRUE, dim_columns = character()) {
   limit <- suppressWarnings(as.integer(limit %||% 20L))
   if (is.na(limit) || limit < 1L) limit <- 20L
   if (!nrow(rows)) {
@@ -4598,9 +4631,10 @@ dina_print_data_frame_compact <- function(rows, limit = 20L, format_value = NULL
   for (name in names(shown)) {
     widths[[name]] <- max(widths[[name]], max(nchar(shown[[name]]), na.rm = TRUE), 4L)
   }
-  dina_cli_cat(dina_cli_row(names(shown), widths = widths, dim = TRUE))
+  dina_cli_cat(dina_cli_row(names(shown), widths = widths, dim = dim_headers))
   for (i in seq_len(nrow(shown))) {
-    dina_cli_cat(dina_cli_row(as.list(shown[i, , drop = FALSE]), widths = widths))
+    dina_cli_cat(dina_cli_row(as.list(shown[i, , drop = FALSE]), widths = widths,
+      dim = names(shown) %in% dim_columns))
   }
   if (nrow(rows) > nrow(shown)) {
     dina_cli_alert(sprintf("Showing %s of %s rows. Use --limit N for more.", nrow(shown), nrow(rows)))
@@ -5786,6 +5820,9 @@ dina_source_workflow_family <- function(target = NULL, command = "explore") {
   if (identical(normalized, "surveys")) {
     return("surveys")
   }
+  if (normalized %in% c("dina", "finished_dina", "finished_series")) {
+    return("dina")
+  }
   if (normalized %in% dina_source_norm(dina_source_public_families())) {
     stop(
       sprintf(
@@ -6226,8 +6263,11 @@ dina_cmd_sources_legacy <- function(root, args) {
 dina_cmd_tasks <- function(root, args) {
   args <- dina_drop_leading_separator(args)
   sub <- dina_arg(args, 1L, "list")
+  if (any(grepl("^--(countries|resume)($|=)", args))) return(dina_cmd_run(root, args))
+  flags <- dina_parse_flags(args[-1L])
+  session <- if (isTRUE(flags$benchmark)) NULL else dina_load_session(root = root)
   if (identical(sub, "list")) {
-    statuses <- dina_all_task_status(root)
+    statuses <- dina_all_task_status(root, session = session)
     dina_cli_header("Tasks")
     dina_cli_cat(sprintf("%-6s %-38s %-14s %-8s %s", "alias", "id", "stage", "language", "status"))
     for (x in statuses) {
@@ -6240,10 +6280,11 @@ dina_cmd_tasks <- function(root, args) {
   } else if (identical(sub, "why")) {
     tasks <- dina_task_map(root)
     ids <- names(tasks)
-    selector <- if (length(args) >= 2L) args[[2]] else stop("Usage: dina tasks why TASK", call. = FALSE)
+    selector <- dina_arg(flags$positional, 1L, NULL)
+    if (is.null(selector)) stop("Usage: dina tasks why TASK", call. = FALSE)
     id <- dina_resolve_task_selector(selector, ids, mode = "single")
     if (is.null(tasks[[id]])) stop("Unknown task: ", id, call. = FALSE)
-    status <- dina_task_status(tasks[[id]], root)
+    status <- dina_task_status(tasks[[id]], root, session = session)
     dina_cli_header(sprintf("Why %s is %s", id, status$status))
     for (reason in status$reasons) dina_cli_alert(reason)
   } else {
@@ -6279,18 +6320,148 @@ dina_cmd_todo <- function(root, args) {
   }
 }
 
+dina_country_run_load <- function() {
+  if (exists("country_run_begin", mode = "function") && exists("country_run_preview", mode = "function")) return(invisible(NULL))
+  path <- file.path(script_dir, "..", "country_run.R")
+  if (!file.exists(path)) stop("Country-run support is unavailable: code/R/country_run.R is missing.", call. = FALSE)
+  previous <- getwd()
+  on.exit(setwd(previous), add = TRUE)
+  setwd(dina_cli_root)
+  sys.source(path, envir = environment(dina_country_run_load))
+}
+
+dina_country_run_flags <- function(flags, config) {
+  for (name in c("countries", "resume")) {
+    value <- flags[[name]]
+    if (!is.null(value) && (isTRUE(value) || !length(value) || !nzchar(trimws(value)))) {
+      stop("Missing value for --", name, ".", call. = FALSE)
+    }
+  }
+  if (!is.null(flags$resume) && isTRUE(flags$force)) {
+    stop("--resume reuses completed checkpoints and cannot be combined with --force. Start a new country run to recompute them.", call. = FALSE)
+  }
+  if (is.null(flags$countries)) return(NULL)
+  countries <- unique(toupper(trimws(unlist(strsplit(flags$countries, ",", fixed = TRUE), use.names = FALSE))))
+  if (!length(countries) || any(!grepl("^[A-Z]{3}$", countries))) {
+    stop("--countries requires comma-separated ISO3 codes, for example ARG,COL.", call. = FALSE)
+  }
+  universe <- toupper(as.character(unlist(config$countries %||% character(), use.names = FALSE)))
+  unknown <- setdiff(countries, universe)
+  if (length(unknown)) stop("Countries are outside the effective configuration: ", paste(unknown, collapse = ", "), ".", call. = FALSE)
+  universe[universe %in% countries]
+}
+
+dina_country_run_task_selection <- function(root, flags, sub = NULL) {
+  selectors <- c(flags$task %||% character(), flags$positional %||% character())
+  if (!length(dina_split_task_selectors(selectors))) selectors <- NULL
+  tasks <- dina_select_tasks(root, task = selectors, stage = flags$stage %||% NULL,
+    from = flags$from %||% NULL, to = flags$to %||% NULL)
+  explicit <- !is.null(selectors) || !is.null(flags$from) || !is.null(flags$to) || !is.null(flags$stage)
+  supported <- vapply(tasks, function(task) grepl("^0[3-7]", task$id), logical(1))
+  if (explicit && any(!supported)) {
+    stop("--countries supports tasks 03a through 07d. These selected tasks require the full configured run: ",
+      paste(vapply(tasks[!supported], `[[`, "", "id"), collapse = ", "), ".", call. = FALSE)
+  }
+  tasks <- tasks[supported]
+  if (!length(tasks)) stop("No supported tasks selected (country runs cover 03a through 07d).", call. = FALSE)
+  tasks
+}
+
+dina_country_preview <- function(tasks, root, session, countries, force = FALSE, run_context = NULL) {
+  dina_cli_alert(sprintf("Checking selected task inputs for %s; no calculations have started.", paste(countries, collapse = ", ")))
+  flush.console()
+  ids <- vapply(tasks, `[[`, "", "id")
+  lapply(seq_along(tasks), function(i) country_run_preview(tasks[[i]], root = root, session = session,
+    countries = countries, force = force, run_context = run_context,
+    planned_tasks = if (i > 1L) ids[seq_len(i - 1L)] else character()))
+}
+
+dina_country_preview_print <- function(previews, countries, run_context = NULL) {
+  dina_cli_header("Country run")
+  dina_cli_cat(paste("Requested countries:", paste(countries, collapse = ", ")))
+  if (!is.null(run_context$id)) dina_cli_cat(paste("Run:", run_context$id))
+  dina_cli_cat("Shared calculations retain their complete country inputs.")
+  for (preview in previews) {
+    dina_cli_cat(paste0(preview$task %||% preview$id %||% "task", ": ", preview$status %||% "planned"))
+    for (field in c("compute", "reuse", "shared")) {
+      value <- unlist(preview[[field]] %||% character(), use.names = FALSE)
+      if (length(value)) dina_cli_cat(sprintf("  %s: %s", field, paste(value, collapse = ", ")))
+    }
+    for (message in preview$messages %||% character()) dina_cli_cat(paste(" ", message))
+    for (issue in preview$issues %||% character()) dina_cli_warn(issue)
+  }
+  invisible(previews)
+}
+
+dina_cli_country_run_task <- function(task, root, session, countries, force, run_context) {
+  operation <- dina_cli_operation(paste("country task", task$id))
+  result <- tryCatch(country_run_execute(task, root = root, session = session, countries = countries,
+    force = force, progress = operation$progress, run_context = run_context), error = function(e) {
+      operation$finish("Failed")
+      stop(e)
+    })
+  operation$finish(if (result$status %in% c("succeeded", "skipped", "not_applicable")) "Completed" else "Needs attention",
+    if (!is.null(result$log_dir)) paste("Logs:", result$log_dir) else "")
+  result
+}
+
 dina_cmd_run <- function(root, args) {
   args <- dina_drop_leading_separator(args)
   sub <- dina_arg(args, 1L, NULL)
-  if (identical(sub, "list")) {
-    return(dina_pipeline_print(root))
+  flags <- dina_parse_flags(if (any(sub %in% c("list", "why", "stale"))) args[-1L] else args)
+  session <- if (isTRUE(flags$benchmark)) NULL else dina_load_session(root = root)
+  scoped <- !is.null(flags$countries) || !is.null(flags$resume)
+  default_tasks <- NULL
+  if (!scoped) {
+    selectors <- c(flags$task %||% character(), flags$positional %||% character())
+    if (!length(dina_split_task_selectors(selectors))) selectors <- NULL
+    default_tasks <- dina_select_tasks(root, task = selectors, stage = flags$stage %||% NULL,
+      from = flags$from %||% NULL, to = flags$to %||% NULL)
+    # The same resumable runner handles a subset and the full configured set.
+    # Preparation tasks retain their existing execution workflow.
+    scoped <- length(default_tasks) > 0L && all(vapply(default_tasks, function(task) {
+      grepl("^0[3-7]", task$id) && isTRUE(task$country_scope %in% c("selected", "shared"))
+    }, logical(1)))
   }
-  if (identical(sub, "why")) {
+  config <- if (scoped) dina_session_config(session, root, expand_env = FALSE) else NULL
+  countries <- if (scoped) dina_country_run_flags(flags, config) else NULL
+  if (scoped && is.null(countries) && is.null(flags$resume)) {
+    countries <- toupper(as.character(unlist(config$countries, use.names = FALSE)))
+  }
+  run_context <- NULL
+  previews <- NULL
+  if (scoped) {
+    dina_country_run_load()
+    if (!is.null(flags$resume)) {
+      if (length(c(flags$task, flags$positional, flags$from, flags$to, flags$stage))) {
+        stop("--resume uses the saved task selection; omit task selectors and ranges.", call. = FALSE)
+      }
+      saved <- country_run_read(root, flags$resume)
+      task_ids <- as.character(unlist(saved$tasks, use.names = FALSE))
+      all_tasks <- dina_task_map(root)
+      if (any(!task_ids %in% names(all_tasks))) stop("The saved run refers to tasks that are no longer configured.", call. = FALSE)
+      tasks <- unname(all_tasks[task_ids])
+      run_context <- country_run_begin(root = root, tasks = tasks, config = config, countries = countries,
+        resume = flags$resume, dry_run = TRUE)
+      countries <- as.character(unlist(run_context$countries, use.names = FALSE))
+    } else {
+      tasks <- default_tasks %||% dina_country_run_task_selection(root, flags, sub)
+    }
+    if (identical(sub, "stale") && is.null(flags$resume)) {
+      statuses <- lapply(tasks, dina_task_status, root = root, session = session)
+      tasks <- tasks[vapply(statuses, function(status) !status$status %in% c("current", "inactive"), logical(1))]
+      if (!length(tasks)) {
+        dina_cli_ok("No stale or missing tasks in the selected country-run range.")
+        return(invisible(list()))
+      }
+    }
+    previews <- dina_country_preview(tasks, root, session, countries, isTRUE(flags$force), run_context)
+    if (any(sub %in% c("list", "why"))) return(dina_country_preview_print(previews, countries, run_context))
+  } else if (identical(sub, "list")) {
+    return(dina_pipeline_print(root, session = session))
+  } else if (identical(sub, "why")) {
     return(dina_cmd_tasks(root, c("why", args[-1])))
-  }
-  if (identical(sub, "stale")) {
-    flags <- dina_parse_flags(args[-1])
-    session <- if (isTRUE(flags$benchmark)) NULL else dina_load_session(root = root)
+  } else if (identical(sub, "stale")) {
     statuses <- dina_all_task_status(root, session = session)
     stale_ids <- names(statuses)[vapply(statuses, function(x) x$status %in% c("missing_outputs", "stale", "upstream_stale", "missing_inputs", "never_run", "failed"), logical(1))]
     if (!length(stale_ids)) {
@@ -6298,43 +6469,14 @@ dina_cmd_run <- function(root, args) {
       return(invisible(list()))
     }
     tasks <- dina_task_map(root)[stale_ids]
-    if (!isTRUE(flags[["dry-run"]])) {
-      dina_assert_current_config_validation(root, session)
-      preflight <- dina_pipeline_input_preflight(tasks, root = root, session = session)
-      if (isTRUE(preflight$admin_trust_snapshot$created)) {
-        dina_cli_ok("Admin sources are included; prepared their scoped trust snapshot for this run.")
-      }
-    }
-    results <- list()
-    for (task in tasks) {
-      result <- dina_cli_run_task(task, root, session = session, dry_run = isTRUE(flags[["dry-run"]]), force = isTRUE(flags$force))
-      results[[task$id]] <- result
-      if (!is.null(result$session)) session <- result$session
-      dina_cli_cat(sprintf("%s: %s", result$task, dina_cli_dim(result$status)))
-      if (!is.null(result$command)) dina_cli_cat(sprintf("  %s", dina_cli_command(paste(result$command, collapse = " "))))
-      if (identical(result$status, "failed")) {
-        stop(sprintf("Task %s failed. Downstream tasks were not started; inspect %s.", task$id, result$log_dir), call. = FALSE)
-      }
-    }
-    return(invisible(results))
+  } else {
+    tasks <- default_tasks
   }
-  flags <- dina_parse_flags(args)
-  task_selectors <- c(flags$task %||% character(), flags$positional %||% character())
-  if (!length(dina_split_task_selectors(task_selectors))) {
-    task_selectors <- NULL
-  }
-  tasks <- dina_select_tasks(
-    root,
-    task = task_selectors,
-    stage = flags$stage %||% NULL,
-    from = flags$from %||% NULL,
-    to = flags$to %||% NULL
-  )
-  session <- if (isTRUE(flags$benchmark)) NULL else dina_load_session(root = root)
   dry_run <- isTRUE(flags[["dry-run"]])
+  if (scoped && dry_run) return(dina_country_preview_print(previews, countries, run_context))
   notification_status <- dina_pushover_status(root)
-  notification_requested <- isTRUE(flags$notify) || isTRUE(notification_status$enabled)
-  if (isTRUE(flags$notify) && !isTRUE(notification_status$configured)) {
+  notification_requested <- !dry_run && (isTRUE(flags$notify) || isTRUE(notification_status$enabled))
+  if (!dry_run && isTRUE(flags$notify) && !isTRUE(notification_status$configured)) {
     stop("Pushover was requested but is not configured. Add credentials with `dina notify init`, then verify delivery with `dina notify test`.", call. = FALSE)
   }
   notify <- notification_requested && isTRUE(notification_status$configured)
@@ -6362,21 +6504,60 @@ dina_cmd_run <- function(root, args) {
     }, add = TRUE)
   }
   if (!dry_run) {
-    preflight <- tryCatch({
-      dina_assert_current_config_validation(root, session)
-      dina_pipeline_input_preflight(tasks, root = root, session = session)
-    }, error = function(e) {
-      notification_failure <<- list(stage = "preflight", detail = conditionMessage(e))
+    preflight_log_dir <- dina_path("output", "run_logs",
+      paste0(format(Sys.time(), "%Y%m%d-%H%M%S"), "-preflight-", Sys.getpid()), root = root)
+    dir.create(preflight_log_dir, recursive = TRUE, showWarnings = FALSE)
+    preflight_log <- file.path(preflight_log_dir, "preflight.log")
+    preflight_log_relative <- file.path(dina_relative(preflight_log_dir, root), "preflight.log")
+    preflight_log_write <- function(message) {
+      cat(sprintf("[%s] %s\n", dina_now(), message), file = preflight_log, append = TRUE)
+    }
+    preflight_operation <- dina_cli_operation("pipeline preflight")
+    preflight_log_write("Starting pipeline preflight.")
+    preflight_progress <- function(message) {
+      preflight_log_write(message)
+      preflight_operation$progress(message)
+      flush.console()
+    }
+    preflight_progress(paste("Logs:", preflight_log_relative))
+    preflight_progress(sprintf("Checking %d task(s); no scripts have started.", length(tasks)))
+    preflight_stop <- function(e, interrupted = FALSE) {
+      detail <- if (interrupted) "Run interrupted during pipeline input checks." else conditionMessage(e)
+      notification_failure <<- list(stage = "preflight", detail = detail, interrupted = interrupted,
+                                   log_dir = preflight_log_relative)
+      preflight_log_write(paste(if (interrupted) "Interrupted:" else "Failed:", detail))
+      preflight_operation$finish(if (interrupted) "Interrupted" else "Failed",
+                                paste("Logs:", preflight_log_relative))
       stop(e)
-    })
+    }
+    preflight <- tryCatch({
+      preflight_progress("Validating the effective configuration.")
+      dina_assert_current_config_validation(root, session)
+      if (scoped) {
+        issues <- unlist(lapply(previews, function(preview) preview$issues %||% character()), use.names = FALSE)
+        if (length(issues)) stop("Country run prerequisites are missing:\n  - ", paste(unique(issues), collapse = "\n  - "), call. = FALSE)
+      }
+      dina_pipeline_input_preflight(tasks, root = root, session = session, progress = preflight_progress, countries = countries)
+    }, error = preflight_stop, interrupt = function(e) preflight_stop(e, interrupted = TRUE))
+    preflight_log_write("Completed pipeline preflight; selected tasks may now start.")
+    preflight_operation$finish("Completed", paste("Logs:", preflight_log_relative))
     if (isTRUE(preflight$admin_trust_snapshot$created)) {
       dina_cli_ok("Admin sources are included; prepared their scoped trust snapshot for this run.")
     }
   }
+  if (scoped) {
+    run_context <- country_run_begin(root = root, tasks = tasks, config = config, countries = countries,
+      resume = flags$resume %||% NULL, dry_run = FALSE)
+    dina_cli_alert(paste("Resume an interrupted run with: dina run --resume", run_context$id))
+    on.exit(tryCatch(country_run_finish(run_context,
+      if (completed) "succeeded" else if (is.null(notification_failure)) "interrupted" else "failed"),
+      error = function(e) dina_cli_warn(paste("Could not save run completion:", conditionMessage(e)))), add = TRUE)
+  }
   for (task in tasks) {
     active_task <- task
     result <- tryCatch(
-      dina_cli_run_task(task, root, session = session, dry_run = dry_run, force = isTRUE(flags$force)),
+      if (scoped) dina_cli_country_run_task(task, root, session, countries, isTRUE(flags$force), run_context)
+      else dina_cli_run_task(task, root, session = session, dry_run = dry_run, force = isTRUE(flags$force)),
       error = function(e) {
         notification_failure <<- list(stage = "task", task = task$id, script = task$script,
                                       detail = conditionMessage(e))
@@ -6387,7 +6568,7 @@ dina_cmd_run <- function(root, args) {
     if (!is.null(result$session)) session <- result$session
     dina_cli_cat(sprintf("%s: %s", result$task, dina_cli_dim(result$status)))
     if (!is.null(result$command)) dina_cli_cat(sprintf("  %s", dina_cli_command(paste(result$command, collapse = " "))))
-    if (identical(result$status, "failed")) {
+    if (result$status %in% c("failed", "blocked", "incomplete")) {
       notification_failure <- list(stage = "task", task = task$id, script = task$script,
                                    detail = result$failure %||% "Command failed; inspect the task log.",
                                    log_dir = result$log_dir %||% "")
@@ -6396,6 +6577,7 @@ dina_cmd_run <- function(root, args) {
     active_task <- NULL
   }
   completed <- TRUE
+  invisible(results)
 }
 
 dina_cmd_config <- function(root, args) {
@@ -6661,7 +6843,14 @@ dina_main <- function(args = commandArgs(trailingOnly = TRUE), root = dina_repo_
 
 if (!identical(Sys.getenv("DINA_CLI_SOURCE_ONLY", unset = ""), "1")) {
   tryCatch(
-    dina_main(root = dina_repo_root(dina_cli_root)),
+    {
+      # Keep nested helpers and child processes on this invocation's checkout,
+      # even when the installed launcher was called from outside the project.
+      # An explicit DINA_REPO_ROOT override still takes precedence.
+      invocation_root <- dina_repo_root(dina_cli_root)
+      Sys.setenv(DINA_REPO_ROOT = invocation_root)
+      dina_main(root = invocation_root)
+    },
     error = function(e) {
       dina_cli_err(conditionMessage(e))
       quit(status = 1)

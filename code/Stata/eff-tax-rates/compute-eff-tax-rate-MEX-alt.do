@@ -1,13 +1,14 @@
 
 	clear all
 	global data "input_data/admin_data/MEX"
-	*global results "output/figures/eff_tax_rates/test"
-	global results "output/figures/eff_tax_rates"
+	*global results "${dina_output_root}/output/figures/eff_tax_rates/test"
+	global results "${dina_output_root}/output/figures/eff_tax_rates"
 	global codes "code/Stata"
 
 
 *forvalues i = 0/3 {
 	quietly forvalues year = 2009/2014 { // 2009
+	dina_coverage, country("MEX") year(`year') step("effective_rates") status("expected")
 	
 		import excel "$data/gpinter_MEX_`year'.xlsx", ///
 			cellrange(C1:J31) firstrow clear
@@ -37,7 +38,7 @@
 			ylabel(0(0.05)0.3, $ylab_opts) ///
 			xlabel(0(0.1)1, $xlab_opts) ///
 			$graph_scheme			
-			graph export "$results/MEX_`t'.pdf", replace
+			graph export "$results/MEX_`year'.pdf", replace
 
 			
 	form p %15.3fc
@@ -48,7 +49,7 @@
 			ylabel(0(0.05)0.3, $ylab_opts) ///
 			xlabel(0.99(0.001)1, $xlab_opts) ///
 			$graph_scheme 
-			graph export "$results/MEX_`t'_top1.pdf", replace
+			graph export "$results/MEX_`year'_top1.pdf", replace
 
 	qui replace p_merge = p_merge*10000
 	qui duplicates drop p_merge, force
@@ -56,14 +57,15 @@
 	qui format p_merge %9.0g
 	
 	// Create directory if it doesnt exist 
-	local dirpath "$data/eff-tax-rate/"
+	local dirpath "${dina_output_root}/$data/eff-tax-rate/"
 	mata: st_numscalar("exists", direxists(st_local("dirpath")))
 	if (scalar(exists) == 0) {
 		mkdir "`dirpath'"
 		display "Created directory: `dirpath'"
 	}
 	
-	save "$data/eff-tax-rate/MEX_effrates_`year'", replace 
+	save "${dina_output_root}/$data/eff-tax-rate/MEX_effrates_`year'", replace
+	dina_coverage, country("MEX") year(`year') step("effective_rates") status("success")
 		
 		
 	}

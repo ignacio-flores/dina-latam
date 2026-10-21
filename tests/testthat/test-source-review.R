@@ -128,7 +128,7 @@ test_that("survey population dependency is one actionable ARG blocker", {
 
 test_that("source family navigation follows the advisory dependency order", {
   source_cli_for_tests()
-  expect_equal(dina_review_source_family_order(), c("wid", "surveys", "admin", "sna"))
+  expect_equal(dina_review_source_family_order(), c("wid", "surveys", "admin", "sna", "dina"))
   expect_equal(dina_review_source_prerequisites("surveys"), c(wid = "WID population"))
   expect_equal(dina_review_source_prerequisites("admin"), c(surveys = "Household surveys"))
   expect_length(dina_review_source_prerequisites("sna"), 0L)

@@ -41,3 +41,6 @@ output/run_logs
 !logs/
 !logs/legacy/
 !logs/legacy/*.log
+
+# Local processing receipts, caches and transactional workspaces.
+output/.pipeline_state/

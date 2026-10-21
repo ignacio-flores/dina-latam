@@ -121,7 +121,7 @@ forvalues year = 2000/2017 {
 			display "Created directory: `dirpath'"
 		}	
 		
-		cap export excel ///
+		export excel ///
 		"input_data/admin_data/SLV/_clean/`inc'-SLV.xlsx", ///
 			sheet("`year'", replace) firstrow(variables) keepcellfmt 
 	}

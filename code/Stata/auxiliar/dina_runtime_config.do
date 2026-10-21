@@ -27,3 +27,33 @@ if "${bfm_replace}" != "no" {
     di as error "Only BFM noreplace is supported; bfm_replace must be no."
     exit 198
 }
+
+* Selection belongs to this worker process; the configured donor universe stays
+* in all_countries. Every invocation refreshes these values from its own env.
+local dina_worker : environment DINA_COUNTRY_WORKER
+local dina_selected : environment DINA_RUN_COUNTRIES
+local dina_output : environment DINA_OUTPUT_ROOT
+* The generated universe quotes each ISO3. Strip those delimiters into a
+* separate list; ordinary local assignment can unbalance the end quotes.
+local dina_universe : subinstr global all_countries `"""' "", all
+local dina_universe = strtrim("`dina_universe'")
+if "`dina_worker'" != "" {
+    if trim("`dina_selected'") == "" | `"`dina_output'"' == "" {
+        di as error "Country worker requires a country selection and output folder."
+        exit 198
+    }
+    foreach dina_country in `dina_selected' {
+        local dina_one "`dina_country'"
+        local dina_known : list dina_one in dina_universe
+        if !`dina_known' {
+            di as error "Unknown execution country: `dina_country'"
+            exit 198
+        }
+    }
+    global dina_run_countries "`dina_selected'"
+    global dina_output_root `"`dina_output'"'
+}
+else {
+    global dina_run_countries "`dina_universe'"
+    global dina_output_root "."
+}

@@ -1,3 +1,11 @@
+// Direct and runner execution share country selection and staged publication.
+args dina_requested_countries
+local dina_country_worker : environment DINA_COUNTRY_WORKER
+if "`dina_country_worker'" != "03e-extrapolate-bfm-correction" {
+    do "code/Stata/auxiliar/dina_country_task.do" "03e-extrapolate-bfm-correction" "`dina_requested_countries'"
+    exit
+}
+
 /*=============================================================================*
 Goal: Run bfm with extrapolated correction factors 
 Authors: Mauricio De ROSA, Ignacio FLORES, Marc MORGAN
@@ -10,6 +18,10 @@ clear all
 global aux_part  ""preliminary"" 
 qui do "code/Stata/auxiliar/aux_general.do"
 local ext "_norep"
+global extrap_countries ""
+foreach c in $all_countries {
+	global `c'_extrap_years ""
+}
 // -----------------------------------------------------------------------------
 
 
@@ -17,8 +29,14 @@ local ext "_norep"
 preserve 
 	qui import excel "intermediary_data/weight_adjusters/index.xlsx", ///
 		sheet("country_years_03d") firstrow clear		
-	qui ds 
-	qui split `r(varlist)', parse(_) gen(v)	
+	capture confirm string variable country_year
+	if _rc quietly tostring country_year, replace
+	qui drop if inlist(country_year, "", ".")
+	qui assert regexm(country_year, "^[A-Z][A-Z][A-Z]_[0-9][0-9][0-9][0-9]$")
+	qui gen str3 v1 = substr(country_year, 1, 3)
+	qui gen str4 v2 = substr(country_year, 5, 4)
+	local selected_countries : subinstr global dina_run_countries `"""' "", all
+	qui keep if strpos(" `selected_countries' ", " " + v1 + " ")
 	qui levelsof v1, local(countries) clean
 	global extrap_countries `countries'
 	foreach c in $extrap_countries {
@@ -28,12 +46,32 @@ preserve
 	}
 restore 
 
+if trim("$extrap_countries") == "" {
+	foreach c in $dina_run_countries {
+		dina_coverage, country("`c'") step("extrapolated_bfm") status("not_applicable")
+	}
+	// Replace an older success list with an explicit empty current index.
+	clear
+	qui set obs 1
+	qui gen str1 country_year = ""
+	qui gen extrap = .
+	qui gen fail = .
+	qui export excel "${dina_output_root}/intermediary_data/weight_adjusters/index.xlsx", ///
+		firstrow(variables) sheet("country_years_03e") sheetreplace keepcellfmt
+	di as text "03e: no extrapolation cases in the current 03d index."
+	exit 0
+}
+
 //memorize merging point from closest year 
 foreach c in $extrap_countries {
 	foreach y in $`c'_extrap_years {
 		qui import excel "output/bfm_summary/all_thetas.xlsx", ///
 			sheet("panel") clear firstrow
 		qui keep if country == "`c'"
+		if _N == 0 {
+			di as error "03e: `c' has extrapolation cases but no validated observed merging points."
+			exit 459
+		}
 		cap drop distance_y y
 		qui gen y = `y'
 		qui destring year, replace 
@@ -45,6 +83,10 @@ foreach c in $extrap_countries {
 		qui keep if year == `imp'
 		qui sum mpoint 
 		local mp_`c'_`y' = r(mean) / 100
+		if missing(`mp_`c'_`y'') | `mp_`c'_`y'' <= 0 | `mp_`c'_`y'' >= 1 {
+			di as error "03e: invalid observed merging point for `c' `y'."
+			exit 459
+		}
 		local mp_`c'_`y' : display %6.5f `mp_`c'_`y''
 		if ("`c'" == "URY" & `y' <= 2008) local  mp_`c'_`y' = 0.999
 		di as result "`c' `y': `imp' (`mp_`c'_`y'')"
@@ -57,6 +99,7 @@ foreach c in $extrap_countries {
 	//Loop over years 
 	foreach t in ${`c'_extrap_years} {
 	
+		dina_coverage, country("`c'") year(`t') step("extrapolated_bfm") status("expected")
 		//Define file paths
 		local adjfile "intermediary_data/weight_adjusters/`c'`t'.xlsx"
 		local svyfile "intermediary_data/microdata/raw/`c'/`c'_`t'_raw.dta"
@@ -134,10 +177,10 @@ foreach c in $extrap_countries {
 		local pf "pos"
 		if inlist("`c'", "BRA", "CRI") local pf "pre"
 		local corrfile ///
-			"intermediary_data/microdata/bfm`ext'_`pf'/`c'_`t'_bfm`ext'_`pf'.dta"
-		local MPgraph "output/figures/MP/`c'_`t'_MP_extrap.pdf"
-		local export_results "output/bfm_summary/bfm`ext'_`pf'/bfm_summary.xlsx"
-		local mpfile "output/bfm_summary/bfm`ext'_`pf'/merging_points.xlsx"
+			"${dina_output_root}/intermediary_data/microdata/bfm`ext'_`pf'/`c'_`t'_bfm`ext'_`pf'.dta"
+		local MPgraph "${dina_output_root}/output/figures/MP/`c'_`t'_MP_extrap.pdf"
+		local export_results "${dina_output_root}/output/bfm_summary/bfm`ext'_`pf'/bfm_summary_`c'_extrap.xlsx"
+		local mpfile "${dina_output_root}/output/bfm_summary/bfm`ext'_`pf'/merging_points.xlsx"
 		 
 		//find program
 		sysdir set PERSONAL "code/Stata/ado/bfm_stata_ado/."
@@ -145,6 +188,21 @@ foreach c in $extrap_countries {
 		
 		//get trust region
 		qui import excel `adjfile', firstrow clear
+		// The accepted panel expresses percentiles as rounded decimals, while
+		// Stata-exported adjusters can retain float storage (e.g. .997 becomes
+		// .996999979). Use the same stored value for an equivalent grid point;
+		// otherwise BFM would wrongly discard that bracket and move one higher.
+		// This tolerance is below the finest 0.00001 percentile-grid spacing.
+		local dina_mp_requested = `mp_`c'_`t''
+		qui count if abs(p - `dina_mp_requested') <= 0.0000001
+		if r(N) > 1 {
+			di as error "03e: ambiguous merging-point grid for `c' `t'."
+			exit 459
+		}
+		if r(N) == 1 {
+			qui sum p if abs(p - `dina_mp_requested') <= 0.0000001
+			local mp_`c'_`t' : display %21.17g r(mean)
+		}
 		qui sum p 
 		local min_p_`c'_`t' = r(min) - 0.05
 		qui use `tf', clear
@@ -160,15 +218,16 @@ foreach c in $extrap_countries {
 		} 
 		
 		//Apply BFM correction 
-		cap bfmcorr_experiments using `adjfile', weight(`weight') ///
+		capture noisily bfmcorr_experiments using `adjfile', weight(`weight') ///
 			income(`y') `taxinc' households(`id') taxu(i) ///
 			trust(`min_p_`c'_`t'') mergingpoint(`mp_`c'_`t'') ///
 			thetalimit(/*${t_limit}*/20) ///
 			holdmargins(sex age_group) slope(`slope') pen(`pen') /// 
 			sampletop(0.01) noreplace	/*minbracket(1)*/
 				
-		//check if the correction was made to continue
-		if _rc == 0 {
+		local dina_bfm_rc = _rc
+		// Retain the error code and report every failed case explicitly.
+		if `dina_bfm_rc' == 0 {
 		
 			//save merging points 
 			preserve 	
@@ -188,7 +247,7 @@ foreach c in $extrap_countries {
 				
 				//export it
 				qui export excel `mpfile', ///
-					firstrow(variables) sheet("`c'`t'") ///
+					firstrow(variables) sheet("`c'`t'_extrap") ///
 					sheetreplace 	
 			restore 
 			
@@ -201,12 +260,14 @@ foreach c in $extrap_countries {
 			postbfm	summarize, export(`export_results') ///
 				year(`t') replace		
 			
+			dina_coverage, country("`c'") year(`t') step("extrapolated_bfm") status("success")
 			//save list of country-years
 			local ctry_yr_list`ext' "`ctry_yr_list`ext'' `c'_`t'"
 		}
 		else {
+			dina_coverage, country("`c'") year(`t') step("extrapolated_bfm") status("failed")
 			//log failed attempts 
-			di as error "`c' `t' failed to be adjusted"
+			di as error "03e: `c' `t' failed to be adjusted (Stata r(`dina_bfm_rc'))."
 			
 			//store list of failed cases 
 			local fail_`ext' "`fail_`ext'' `c'_`t'"
@@ -241,7 +302,7 @@ forvalues n = 1 / `obs_mp' {
 }
 
 //save results 
-local mpfile "intermediary_data/weight_adjusters/index.xlsx"
+local mpfile "${dina_output_root}/intermediary_data/weight_adjusters/index.xlsx"
 qui export excel `mpfile', firstrow(variables) ///
 	sheet("country_years_03e") sheetreplace keepcellfmt
 	
@@ -249,3 +310,10 @@ di as result "successful cases: " _continue
 di as text "`ctry_yr_list`ext''" 
 di as result "failed cases: " _continue 
 di as text "`fail_`ext''" 	
+
+// Persist the complete success/failure index before stopping a failed run.
+if wordcount("`fail_`ext''") > 0 {
+	di as error "03e is incomplete; failed cases: `fail_`ext''"
+	di as error "See the errors above and country_years_03e in the weight-adjuster index."
+	exit 459
+}

@@ -1,3 +1,11 @@
+// Direct and runner execution share country selection and staged publication.
+args dina_requested_countries
+local dina_country_worker : environment DINA_COUNTRY_WORKER
+if "`dina_country_worker'" != "05c-impute-pretax" {
+    do "code/Stata/auxiliar/dina_country_task.do" "05c-impute-pretax" "`dina_requested_countries'"
+    exit
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 // 							Title: IMPUTE MISSING PRETAX INCOMES
@@ -47,7 +55,7 @@ qui save `tf_sna_pretax', replace
 
 //loop over countries and years 
 local z = 1 
-global area " ${all_countries} "
+global area " ${dina_run_countries} "
 foreach c in $area {
 	forvalues y = $first_y/$last_y {
 	
@@ -67,6 +75,7 @@ foreach c in $area {
 			
 			//exceptions
 			if inlist("`c'`y'", "CRI2002", "CRI2003", "CRI2005") {
+				dina_coverage, country("`c'") year(`y') step("pretax") status("excluded")
 				continue
 			}
 			
@@ -74,6 +83,7 @@ foreach c in $area {
 			di as text "`c' `y': " _continue
 				
 			//open it
+			dina_coverage, country("`c'") year(`y') step("pretax") status("expected")
 			qui use "`survey'", clear
 				
 			//2.1 Impute taxes on production and consumption (% to factor inc)
@@ -83,6 +93,10 @@ foreach c in $area {
 			qui gen country = "`c'"
 			qui gen year = `y'
 			
+			// Refresh the consumed macro columns, including on enriched reruns.
+			foreach v of global varli {
+				if !inlist("`v'", "country", "year") capture drop `v'
+			}
 			//merge with totals from OECD/UN
 			qui merge m:1 country year using `tf_sna_pretax', ///
 				nogen keep(3)
@@ -185,6 +199,7 @@ foreach c in $area {
 				qui gen macrogap_lcu = (1 - `ind_macrogap') * TOT_B5g_wid
 				foreach u in "$unit_list" {
 					if "`u'" != "act" {
+						capture drop `u'_shtotaux
 						qui sum `u'_totaux [w=_weight], meanonly 
 						qui gen `u'_shtotaux = `u'_totaux / r(sum)
 						*qui gen `u'_check = sum(`u'_shtotaux)
@@ -229,7 +244,8 @@ foreach c in $area {
 			}
 			
 			//save 
-			qui save "`survey'", replace	
+			qui save "${dina_output_root}/`survey'", replace
+			dina_coverage, country("`c'") year(`y') step("pretax") status("success")
 		}	
 	}
 }

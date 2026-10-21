@@ -43,7 +43,8 @@ foreach c in `countries' {
 
 		//open file 
 		qui clear
-		qui cap use "input_data/surveys_CEPAL/`c'/`c'_`y'N.dta", clear
+		capture confirm file "input_data/surveys_CEPAL/`c'/`c'_`y'N.dta"
+		if !_rc quietly use "input_data/surveys_CEPAL/`c'/`c'_`y'N.dta", clear
 		
 		*Only run when data exists
 		qui cap assert _N == 0
@@ -218,7 +219,8 @@ foreach c in `countries' {
 
 		//open file 
 		qui clear
-		qui cap use "intermediary_data/microdata/raw/`c'/`c'_`y'_raw.dta", clear
+		capture confirm file "intermediary_data/microdata/raw/`c'/`c'_`y'_raw.dta"
+		if !_rc quietly use "intermediary_data/microdata/raw/`c'/`c'_`y'_raw.dta", clear
 		
 		*Only run when data exists
 		qui cap assert _N == 0

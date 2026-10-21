@@ -1,4 +1,20 @@
-*Export data to WID database 
+* DINA country-run entry; the worker writes only to its temporary output folder.
+args dina_requested_countries
+local dina_worker : environment DINA_COUNTRY_WORKER
+if "`dina_worker'" != "07d-export-results-to-wid" {
+    do "code/Stata/auxiliar/dina_country_task.do" "07d-export-results-to-wid" "`dina_requested_countries'"
+    exit
+}
+local dina_output_env : environment DINA_OUTPUT_ROOT
+local dina_countries_env : environment DINA_RUN_COUNTRIES
+if `"`dina_output_env'"' == "" | trim("`dina_countries_env'") == "" {
+    di as error "Missing country-run output folder or selected countries."
+    exit 198
+}
+global dina_output_root `"`dina_output_env'"'
+global dina_run_countries "`dina_countries_env'"
+
+*Export data to WID database
 
 //general settings
 *ssc install gtools 
@@ -26,10 +42,10 @@ local ly = $export_last_y
 // Capture the settings actually used by this export; publish only after success.
 local date "$S_DATE"
 local date = subinstr("`date'", " ", "", .)
-cap mkdir "output/figures"
-cap mkdir "output/figures/updates"
-cap erase "output/figures/updates/comparison-`date'.json"
-cap erase "output/figures/updates/comparison-`date'.pending.json"
+cap mkdir "${dina_output_root}/output/figures"
+cap mkdir "${dina_output_root}/output/figures/updates"
+cap erase "${dina_output_root}/output/figures/updates/comparison-`date'.json"
+cap erase "${dina_output_root}/output/figures/updates/comparison-`date'.pending.json"
 tempfile comparison_request
 tempname comparison_handle
 file open `comparison_handle' using "`comparison_request'", write text replace
@@ -37,7 +53,7 @@ file write `comparison_handle' `"$previous_update"' _n `"$export_unit"' _n `"$ex
 file write `comparison_handle' "$export_last_y" _n `"$all_countries"' _n "$first_y" _n "$last_y" _n
 file close `comparison_handle'
 shell Rscript code/R/export-comparison-metadata.R begin `date' "`comparison_request'"
-confirm file "output/figures/updates/comparison-`date'.pending.json"
+confirm file "${dina_output_root}/output/figures/updates/comparison-`date'.pending.json"
 
 //compare with previous update? 
 qui use $previous_update, clear 
@@ -49,7 +65,7 @@ qui save `tf_prev'
 
 
 //create folders if necessary 
-local dirpath "output/figures/updates"
+local dirpath "${dina_output_root}/output/figures/updates"
 mata: st_numscalar("exists", direxists(st_local("dirpath")))
 if (scalar(exists) == 0) {
 	mkdir "`dirpath'"
@@ -238,16 +254,48 @@ foreach s in `steps' {
 		preserve
 			qui keep if step == "`s'" 
 			if "`x'" == "CUB" drop if !inlist(country, "ECU", "URY", "ARG")
+            local dina_expected ""
+            if "`x'" == "CUB" local dina_expected "ECU URY ARG"
+            else {
+                foreach donor in $all_countries {
+                    if "`donor'" != "CRI" local dina_expected "`dina_expected' `donor'"
+                }
+            }
+            levelsof country if !missing(bracketavg_norm), local(dina_present) clean
+            local dina_missing : list dina_expected - dina_present
+            local dina_availability ""
+            foreach donor in `dina_expected' {
+                tempvar dina_available_`donor'
+                quietly gen byte `dina_available_`donor'' = country == "`donor'" & !missing(bracketavg_norm)
+                local dina_availability "`dina_availability' `dina_available_`donor''"
+            }
 			*collapse normalized bracket averages 
 			tempvar check2 fy2 sum_fy2 sum_pop2 aux2 avg2  
 			qui collapse (mean) bracketavg = bracketavg_norm ///
 				thr bracketavg_norm ///
 				(count) `check2' = bracketavg_norm ///
+                (sum) `dina_availability' ///
 				(firstnm) bracketpop step, by(year p)
 			tab `check2'
 			qui gen check2 = `check2'
-			if "`x'" == "all" assert `check2' == 10
-			if "`x'" == "CUB" assert `check2' == 3
+            local dina_expected_count = cond("`x'" == "all", 10, 3)
+            capture assert `check2' == `dina_expected_count'
+            if _rc {
+                di as error "Incomplete `x' donor pool for `s': expected `dina_expected_count' countries."
+                di as error "Expected donors: `dina_expected'"
+                di as error "Present donors: `dina_present'"
+                di as error "Entirely missing donors: `dina_missing'"
+                keep if `check2' != `dina_expected_count'
+                generate str244 missing_countries = ""
+                foreach donor in `dina_expected' {
+                    quietly replace missing_countries = trim(missing_countries + " `donor'") if `dina_available_`donor'' == 0
+                }
+                di as error "First affected year/fractile rows (check2 is donor count):"
+                local dina_show = min(_N, 20)
+                list year p check2 missing_countries in 1/`dina_show', noobs
+                exit 9
+            }
+            quietly drop `dina_availability'
 
 			*compute top averages
 			qui gsort year -p	
@@ -495,7 +543,7 @@ foreach var in "bracketavg" "thr" "topavg" {
 }
 
 //create main folders 
-local dirpath "output/latest_wid_series"
+local dirpath "${dina_output_root}/output/latest_wid_series"
 mata: st_numscalar("exists", direxists(st_local("dirpath")))
 if (scalar(exists) == 0) {
 	mkdir "`dirpath'"
@@ -506,7 +554,7 @@ if (scalar(exists) == 0) {
 qui drop if missing(p)
 qui replace p = p / 1000
 qui save `main', replace 
-qui save "output/latest_wid_series/dina_latam_wide_`date'.dta", replace
+qui save "${dina_output_root}/output/latest_wid_series/dina_latam_wide_`date'.dta", replace
 
 //check if there are missing p at this step 
 qui keep step year country p bracketavg s thr ///
@@ -622,12 +670,12 @@ qui drop if country == "DOM" & year < 2012
 *save 
 preserve 
 	qui keep if strpos(widcode, "ptinc")
-	qui save "output/latest_wid_series/dina_latam_`date'.dta" , replace
+	qui save "${dina_output_root}/output/latest_wid_series/dina_latam_`date'.dta" , replace
 restore 
 
 preserve 
 	qui keep if strpos(widcode, "diinc")
-	qui save "output/latest_wid_series/dina_latam_`date'_amory.dta", replace
+	qui save "${dina_output_root}/output/latest_wid_series/dina_latam_`date'_amory.dta", replace
 restore 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -650,7 +698,7 @@ graph twoway ///
 	, by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Top 10% share") ///
 	$graph_scheme legend(label(1 "Post-tax") label(2 "Pretax")) ///
 	xlab(2000(5)2025)
-qui graph export "output/figures/updates/update-`date'-posvspre_t10.pdf", replace	
+qui graph export "${dina_output_root}/output/figures/updates/update-`date'-posvspre_t10.pdf", replace
 
 graph twoway ///
 	(line value year if widcode == "sdiinc992j", lcolor(blue)) ///
@@ -660,7 +708,7 @@ graph twoway ///
 	, by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Top 1% share") ///
 	$graph_scheme legend(label(1 "Post-tax") label(2 "Pretax")) ///
 	xlab(2000(5)2025)
-qui graph export "output/figures/updates/update-`date'-posvspre_t1.pdf", replace	
+qui graph export "${dina_output_root}/output/figures/updates/update-`date'-posvspre_t1.pdf", replace
 
 graph twoway ///
 	(line value year if widcode == "sdiinc992j", lcolor(blue)) ///
@@ -670,7 +718,7 @@ graph twoway ///
 	, by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Bottom 50% share") ///
 	$graph_scheme legend(label(1 "Post-tax") label(2 "Pretax")) ///
 	xlab(2000(5)2025)
-qui graph export "output/figures/updates/update-`date'-posvspre_b50.pdf", replace	
+qui graph export "${dina_output_root}/output/figures/updates/update-`date'-posvspre_b50.pdf", replace
 */
 
 *exclude some obs 
@@ -702,7 +750,7 @@ foreach xxx in "sptinc992j" /*"sdiinc992j"*/ {
 		& (data_quality != 0 /*| inlist(country, "BOL", "CUB")*/) , ///
 		by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Top 0.01% share") ///
 		$graph_scheme legend(label(1 "Updated") label(2 "Old"))
-	qui graph export "output/figures/updates/update-`date'-`xxx'-t001.pdf", replace 
+	qui graph export "${dina_output_root}/output/figures/updates/update-`date'-`xxx'-t001.pdf", replace
 	
 	graph twoway (line new_value year if inrange(year, $first_y, `ly'), lcolor(red)) ///
 		(line old_value year if inrange(year, $first_y, `ly'), lcolor(black*.5)) ///
@@ -710,7 +758,7 @@ foreach xxx in "sptinc992j" /*"sdiinc992j"*/ {
 		& (data_quality != 0 /*| inlist(country, "BOL", "CUB")*/) , ///
 		by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Top 0.1% share") ///
 		$graph_scheme legend(label(1 "Updated") label(2 "Old"))
-	qui graph export "output/figures/updates/update-`date'-`xxx'-t01.pdf", replace 
+	qui graph export "${dina_output_root}/output/figures/updates/update-`date'-`xxx'-t01.pdf", replace
 	
 	graph twoway (line new_value year if inrange(year, $first_y, `ly'), lcolor(red)) ///
 		(line old_value year if inrange(year, $first_y, `ly'), lcolor(black*.5)) ///
@@ -718,7 +766,7 @@ foreach xxx in "sptinc992j" /*"sdiinc992j"*/ {
 		& (data_quality != 0 /*| inlist(country, "BOL", "CUB")*/) , ///
 		by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Top 1% share") ///
 		$graph_scheme legend(label(1 "Updated") label(2 "Old"))
-	qui graph export "output/figures/updates/update-`date'-`xxx'-t1.pdf", replace 
+	qui graph export "${dina_output_root}/output/figures/updates/update-`date'-`xxx'-t1.pdf", replace
 
 	graph twoway (line new_value year if inrange(year, $first_y, `ly'), lcolor(red)) ///
 		(line old_value year if inrange(year, $first_y, `ly'), lcolor(black*.5)) ///
@@ -726,7 +774,7 @@ foreach xxx in "sptinc992j" /*"sdiinc992j"*/ {
 		& (data_quality != 0 /*| inlist(country, "BOL", "CUB")*/) , ///
 		by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Top 10% share") ///
 		$graph_scheme legend(label(1 "Updated") label(2 "Old"))
-	qui graph export "output/figures/updates/update-`date'-`xxx'-t10.pdf", replace 
+	qui graph export "${dina_output_root}/output/figures/updates/update-`date'-`xxx'-t10.pdf", replace
 
 	graph twoway (line new_value year if inrange(year, $first_y, `ly'), lcolor(red)) ///
 		(line old_value year if inrange(year, $first_y, `ly'), lcolor(black*.5)) ///
@@ -734,7 +782,7 @@ foreach xxx in "sptinc992j" /*"sdiinc992j"*/ {
 		& (data_quality != 0 /*| inlist(country, "BOL", "CUB")*/) , ///
 		by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Middle 40% share") ///
 		$graph_scheme legend(label(1 "Updated") label(2 "Old"))
-	qui graph export "output/figures/updates/update-`date'-`xxx'-m40.pdf", replace 
+	qui graph export "${dina_output_root}/output/figures/updates/update-`date'-`xxx'-m40.pdf", replace
 
 	graph twoway (line new_value year if inrange(year, $first_y, `ly'), lcolor(red)) ///
 		(line old_value year if inrange(year, $first_y, `ly'), lcolor(black*.5)) ///
@@ -743,7 +791,7 @@ foreach xxx in "sptinc992j" /*"sdiinc992j"*/ {
 		by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Bottom 50% share") ///
 		ylabel(0(.1).3) ///
 		$graph_scheme legend(label(1 "Updated") label(2 "Old"))
-	qui graph export "output/figures/updates/update-`date'-`xxx'-b50.pdf", replace
+	qui graph export "${dina_output_root}/output/figures/updates/update-`date'-`xxx'-b50.pdf", replace
 	
 }
 preserve
@@ -762,8 +810,8 @@ graph twoway (line new_value year if inrange(year, $first_y, `ly'), lcolor(red))
 		by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Bottom 20% share") ///
 		ylabel(0(.01).03) ///
 		$graph_scheme legend(label(1 "Updated") label(2 "Old"))
-	qui graph export "output/figures/updates/update-`date'-sptinc992j-b20.pdf", replace
+	qui graph export "${dina_output_root}/output/figures/updates/update-`date'-sptinc992j-b20.pdf", replace
 
 // A failed or interrupted export never reaches publication of this metadata.
 shell Rscript code/R/export-comparison-metadata.R complete `date' "`comparison_request'"
-confirm file "output/figures/updates/comparison-`date'.json"
+confirm file "${dina_output_root}/output/figures/updates/comparison-`date'.json"

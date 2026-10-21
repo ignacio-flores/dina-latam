@@ -1,3 +1,11 @@
+// Direct and runner execution share country selection and staged publication.
+args dina_requested_countries
+local dina_country_worker : environment DINA_COUNTRY_WORKER
+if "`dina_country_worker'" != "03a-run-bfm" {
+    do "code/Stata/auxiliar/dina_country_task.do" "03a-run-bfm" "`dina_requested_countries'"
+    exit
+}
+
 /*=============================================================================*
 Goal: correct CEPAL surveys with bfmcorr command (Blanchet, Flores, Morgan, 2019)
 and save theta coefficients for analysis and further extrapolations
@@ -22,8 +30,20 @@ if "${bfm_replace}" == "no" {
 
 // -----------------------------------------------------------------------------
 
+// Create the shared result folders before saving BFM results.
+foreach path in "intermediary_data/microdata" "output/figures" "output/figures/MP" "output/bfm_summary" {
+    capture mkdir "${dina_output_root}/`path'"
+}
+foreach pf in pre pos {
+    capture mkdir "${dina_output_root}/intermediary_data/microdata/bfm_norep_`pf'"
+    capture mkdir "${dina_output_root}/output/bfm_summary/bfm_norep_`pf'"
+}
+
 //Loop over countries
 foreach c in $countries_bfm_02a {
+	local selected_countries "${dina_run_countries}"
+	local selected : list c in selected_countries
+	if !`selected' continue
 
 	//manage pre/post tax incomes
 	local pf "pos"
@@ -46,17 +66,19 @@ foreach c in $countries_bfm_02a {
 			cap confirm file `svyfile'
 			if !_rc {
 
+				local dina_has_cases_`c' 1
+				dina_coverage, country("`c'") year(`t') step("observed_bfm") status("expected")
 				//report existence of files
 				di as result "`c' `t': Both survey and tax data " _continue
 				di as result "exist, combining datasets (03a)... " _continue
 				di as text "at $S_TIME"
 
 				//Get trust region
-				qui import delimited using "${admin_trust_regions}", clear varnames(1)
+				qui import delimited using "${admin_trust_regions}", clear varnames(1) asdouble
 				qui sum trust if country == "`c'" & year == `t'
 
 				//Run code if trust exists
-				if ("`r(mean)'" != "") {
+				if !missing(r(mean)) {
 					local trust_`c'_`t' = `r(mean)'
 
 					// 2. TREAT RAW SURVEYS ------------------------------------
@@ -128,7 +150,7 @@ foreach c in $countries_bfm_02a {
 						if ("`type'" == "norep") local ext "_norep"
 
 						//create main folders
-						local dirpath "intermediary_data/microdata/bfm`ext'_`pf'"
+						local dirpath "${dina_output_root}/intermediary_data/microdata/bfm`ext'_`pf'"
 						mata: st_numscalar("exists", direxists(st_local("dirpath")))
 						if (scalar(exists) == 0) {
 							mkdir "`dirpath'"
@@ -136,7 +158,7 @@ foreach c in $countries_bfm_02a {
 						}
 
 						//create main folders
-						local dirpath "output/figures/MP"
+						local dirpath "${dina_output_root}/output/figures/MP"
 						mata: st_numscalar("exists", direxists(st_local("dirpath")))
 						if (scalar(exists) == 0) {
 							mkdir "`dirpath'"
@@ -144,7 +166,7 @@ foreach c in $countries_bfm_02a {
 						}
 
 						//create main folders
-						local dirpath "output/bfm_summary"
+						local dirpath "${dina_output_root}/output/bfm_summary"
 						mata: st_numscalar("exists", direxists(st_local("dirpath")))
 						if (scalar(exists) == 0) {
 							mkdir "`dirpath'"
@@ -152,7 +174,7 @@ foreach c in $countries_bfm_02a {
 						}
 
 						//create main folders
-						local dirpath "output/bfm_summary/bfm`ext'_`pf'"
+						local dirpath "${dina_output_root}/output/bfm_summary/bfm`ext'_`pf'"
 						mata: st_numscalar("exists", direxists(st_local("dirpath")))
 						if (scalar(exists) == 0) {
 							mkdir "`dirpath'"
@@ -161,10 +183,10 @@ foreach c in $countries_bfm_02a {
 
 						//path to files
 						local corrfile ///
-							"intermediary_data/microdata/bfm`ext'_`pf'/`c'_`t'_bfm`ext'_`pf'.dta"
-						local MPgraph "output/figures/MP/`c'_`t'_MP.pdf"
-						local export_results "output/bfm_summary/bfm`ext'_`pf'/bfm_summary.xlsx"
-						local mpfile "output/bfm_summary/bfm`ext'_`pf'/merging_points.xlsx"
+							"${dina_output_root}/intermediary_data/microdata/bfm`ext'_`pf'/`c'_`t'_bfm`ext'_`pf'.dta"
+						local MPgraph "${dina_output_root}/output/figures/MP/`c'_`t'_MP.pdf"
+						local export_results "${dina_output_root}/output/bfm_summary/bfm`ext'_`pf'/bfm_summary_`c'.xlsx"
+						local mpfile "${dina_output_root}/output/bfm_summary/bfm`ext'_`pf'/merging_points.xlsx"
 
 						//find program
 						qui sysdir set PERSONAL "code/Stata/ado/bfm_stata_ado/."
@@ -224,6 +246,7 @@ foreach c in $countries_bfm_02a {
 							postbfm	summarize, export(`export_results') ///
 								year(`t') replace
 
+							dina_coverage, country("`c'") year(`t') step("observed_bfm") status("success")
 							//save list of country-years
 							local ctry_yr_list`ext'_`pf' ///
 								"`ctry_yr_list`ext'_`pf'' `c'_`t'"
@@ -237,7 +260,8 @@ foreach c in $countries_bfm_02a {
 				//Report if trust is missing
 				else {
 					di as error "Trust region is not defined for " _continue
-					di as error "`c' - `t', skipping ... "
+					di as error "`c' - `t'. Review the trust-region handoff before rerunning."
+					exit 459
 				}
 			}
 			else {
@@ -257,6 +281,13 @@ foreach c in $countries_bfm_02a {
 	}
 }
 
+foreach c in $dina_run_countries {
+    if "`dina_has_cases_`c''" == "" {
+        di as text "`c': no eligible observed BFM cases in the configured years."
+        dina_coverage, country("`c'") step("observed_bfm") status("not_applicable")
+    }
+}
+
 //record list of countries and years corrected
 foreach type in $types {
 
@@ -270,7 +301,7 @@ foreach type in $types {
 
 		//start from scratch
 		local obs_mp = wordcount("`ctry_yr_list`ext'_`pf''")
-		local mpfile "output/bfm_summary/bfm`ext'_`pf'/merging_points.xlsx"
+		local mpfile "${dina_output_root}/output/bfm_summary/bfm`ext'_`pf'/merging_points.xlsx"
 		if `obs_mp' > 0 {
 			clear
 			set obs `obs_mp'

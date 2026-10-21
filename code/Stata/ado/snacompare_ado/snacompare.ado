@@ -39,7 +39,7 @@ program snacompare , eclass
 	local orig_weight "`weight'"
 	
 	//Paths to export graphs
-	global figs_path "output/figures/snacompare"
+	global figs_path "${dina_output_root}/output/figures/snacompare"
 	
 	*---------------------------------------------------------------------------
 	*PART 1: Bring SNA totals
@@ -513,7 +513,7 @@ program snacompare , eclass
 	*save info on extrapolated values 
 	preserve
 		keep country year extrap_sca
-		qui save "output/snacompare_summary/extrap_sna_age`edlab'.dta", replace
+		qui save "${dina_output_root}/output/snacompare_summary/extrap_sna_age`edlab'.dta", replace
 	restore
 
 	*get rid of extrapolated data 

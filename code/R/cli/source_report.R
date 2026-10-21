@@ -1156,7 +1156,8 @@ dina_review_print_survey_value_changes <- function(record, values, scope = list(
   invisible(NULL)
 }
 
-dina_review_show_rows <- function(rows, columns = names(rows), country = NULL, limit = 12L) {
+dina_review_show_rows <- function(rows, columns = names(rows), country = NULL, limit = 12L,
+                                  dim_headers = TRUE, dim_columns = character()) {
   if (!is.null(country) && any(c("country", "review_country", "iso") %in% names(rows))) rows <- rows[toupper(dina_review_country(rows)) %in% toupper(country), , drop = FALSE]
   rows <- rows[intersect(columns, names(rows))]
   if (!nrow(rows) || !ncol(rows)) { dina_cli_cat("None reported."); return(invisible(rows)) }
@@ -1187,16 +1188,21 @@ dina_review_show_rows <- function(rows, columns = names(rows), country = NULL, l
   labels <- c(old_years = "Accepted years", new_years = "Incoming years", extension_years = "Added years",
     coverage = "Accepted coverage", change = "Incoming change",
     overlap_years = "Years compared", missing_in_new_years = "Years missing from incoming data", old_value = "Accepted", new_value = "Incoming", percent = "Change %")
+  dim_columns <- ifelse(dim_columns %in% names(labels), labels[dim_columns], gsub("_", " ", dim_columns))
   names(rows) <- ifelse(names(rows) %in% names(labels), labels[names(rows)], gsub("_", " ", names(rows)))
   rows[] <- lapply(rows, function(x) { x <- as.character(x); x[is.na(x) | !nzchar(x)] <- "Unavailable"; x })
   widths <- vapply(seq_along(rows), function(i) max(nchar(c(names(rows)[i], rows[[i]])), na.rm = TRUE), integer(1))
   limit <- max(1L, as.integer(limit))
   visible <- head(rows, limit)
   if (sum(widths) + 2L * (length(widths) - 1L) <= min(100L, getOption("width", 80L))) {
-    dina_print_data_frame_compact(visible, limit)
+    dina_print_data_frame_compact(visible, limit, dim_headers = dim_headers, dim_columns = dim_columns)
   } else {
     for (i in seq_len(nrow(visible))) {
-      for (j in seq_along(visible)) cat(paste(strwrap(paste0(names(visible)[j], ": ", visible[[j]][i]), width = min(80L, getOption("width", 80L)), exdent = 2L), collapse = "\n"), "\n", sep = "")
+      for (j in seq_along(visible)) {
+        text <- paste(strwrap(paste0(names(visible)[j], ": ", visible[[j]][i]),
+          width = min(80L, getOption("width", 80L)), exdent = 2L), collapse = "\n")
+        dina_cli_cat(if (names(visible)[j] %in% dim_columns) dina_cli_dim(text) else text)
+      }
       dina_cli_cat("")
     }
   }
@@ -1205,6 +1211,7 @@ dina_review_show_rows <- function(rows, columns = names(rows), country = NULL, l
 }
 
 dina_review_print <- function(record, country = NULL, limit = 12L, root = dina_repo_root()) {
+  if (identical(record$family, "dina")) return(dina_finished_print(record, country, limit, root))
   stale <- if (identical(record$status, "included")) {
     dina_review_included_watch_changed(record)
   } else {

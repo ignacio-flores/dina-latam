@@ -4,7 +4,23 @@
 # Run from the repository root. --output-dir can stage a comparison outside
 # the canonical directory; the pipeline uses that directory by default.
 
-args <- commandArgs(trailingOnly = TRUE)
+source("code/R/country_run.R")
+args <- country_run_r_entry("04a5-generate-arg-rates", commandArgs(trailingOnly = TRUE))
+execution_countries <- strsplit(Sys.getenv("DINA_RUN_COUNTRIES"), "[,[:space:]]+")[[1L]]
+execution_countries <- execution_countries[nzchar(execution_countries)]
+if (length(execution_countries) && !"ARG" %in% execution_countries) {
+  cat("04a5-generate-arg-rates: no applicable selected countries.\n")
+  quit(status = 0L)
+}
+output_root <- Sys.getenv("DINA_OUTPUT_ROOT")
+record_coverage <- function(years, status) {
+  if (!nzchar(output_root)) return(invisible(NULL))
+  rows <- data.frame(country = "ARG", year = years, step = "effective_rates",
+                     unit = "all", status = status)
+  path <- file.path(output_root, "_coverage.csv")
+  utils::write.table(rows, path, sep = ",", row.names = FALSE,
+                     col.names = !file.exists(path), append = file.exists(path))
+}
 if (length(args) %% 2L || (length(args) &&
     any(!args[seq(1L, length(args), by = 2L)] %in% c("--output-dir", "--compare-ref")))) {
   stop("Usage: Rscript code/R/04a_generate_arg_rates.R [--output-dir DIR] [--compare-ref GIT_REF]", call. = FALSE)
@@ -190,10 +206,11 @@ arg_compare <- function(year, result, ref) {
 }
 
 output_dir <- options[["--output-dir"]] %||%
-  file.path("input_data", "admin_data", "ARG", "eff-tax-rate")
+  file.path(output_root, "input_data", "admin_data", "ARG", "eff-tax-rate")
 grid <- dina_admin_gpinter_grid()
 results <- vector("list", 18L)
 summaries <- vector("list", 18L)
+record_coverage(2002:2019, "expected")
 for (year in 2002:2019) {
   result <- arg_year_rates(year, grid)
   results[[year - 2001L]] <- result
@@ -228,3 +245,5 @@ if (!is.null(options[["--compare-ref"]])) {
   cat(sprintf("Comparison: %s\nMax absolute rate difference: %.9g\n",
               path, max(comparison$max_abs_rate_difference)))
 }
+
+record_coverage(2002:2019, "success")

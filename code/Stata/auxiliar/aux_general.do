@@ -1,4 +1,5 @@
 //PRELIMINARY SETTINGS
+adopath ++ "code/Stata/auxiliar"
 do "code/Stata/auxiliar/dina_runtime_config.do"
 
 if $aux_part == "preliminary" {
@@ -558,6 +559,11 @@ if ($aux_part == "graph_basics") {
 
 //GET LIST OF CASES WITH SURVEY-TAX DATA OVERLAP
 if ($aux_part == "tax_svy_overlap") {
+	// Reset derived lists before reading the current index sheets.
+	global overlap_countries ""
+	foreach c in $all_countries {
+		global `c'_overlap_years ""
+	}
     
 	if "${bfm_replace}" == "yes" {
 	    local ext ""
@@ -575,8 +581,12 @@ if ($aux_part == "tax_svy_overlap") {
 					sheet("country_years`x'") firstrow clear		
 				if !_rc {
 					//save if it exists 
-					quietly ds 
-					quietly split `r(varlist)', parse(_) gen(v)	
+					capture confirm string variable country_year
+					if _rc quietly tostring country_year, replace
+					quietly drop if inlist(country_year, "", ".")
+					quietly assert regexm(country_year, "^[A-Z][A-Z][A-Z]_[0-9][0-9][0-9][0-9]$")
+					quietly gen str3 v1 = substr(country_year, 1, 3)
+					quietly gen str4 v2 = substr(country_year, 5, 4)
 					
 					//exceptions 
 					quietly drop if v1 == "CHL" & inlist(v2, "2000", "2003")
@@ -589,6 +599,7 @@ if ($aux_part == "tax_svy_overlap") {
 					
 						quietly levelsof v2 if v1 == "`c'", local(`c'_years) clean
 						if ("``c'_first_list'" != "") local `c'_years "``c'_years' ``c'_first_list'"
+						local `c'_years : list uniq `c'_years
 						global `c'_overlap_years ``c'_years'
 						di as result "`c': ${`c'_overlap_years}"
 					}
@@ -599,8 +610,9 @@ if ($aux_part == "tax_svy_overlap") {
 	
 	foreach c in `countries_pos' `countries_pre' `countries_2stage_pos' `countries_2stage_pre' {
 		display as text "`c': ${`c'_years}"	
-		local all_overlaps "`all_overlaps' "`c'" "
+		local all_overlaps "`all_overlaps' `c'"
 	}
+	local all_overlaps : list uniq all_overlaps
 	global overlap_countries " `all_overlaps' "
 }
 
@@ -644,12 +656,23 @@ if ($aux_part == "old_currencies") {
 //GET LIST OF CASES TO EXTRAPOLATE BFM CORRECTION 
 
 if ($aux_part == "list_bfm_extrap") {
+	global extrap_countries ""
+	foreach c in $all_countries {
+		global `c'_extrap_years ""
+	}
 
 	//Get list of countries and years to adjust
 	preserve 
 		quietly import excel "intermediary_data/weight_adjusters/index.xlsx", ///
 			sheet("country_years_03e") firstrow clear
-		quietly split country_year, parse(_) gen(v)	
+		capture confirm variable fail
+		if !_rc quietly keep if fail != 1
+		capture confirm string variable country_year
+		if _rc quietly tostring country_year, replace
+		quietly drop if inlist(country_year, "", ".")
+		quietly assert regexm(country_year, "^[A-Z][A-Z][A-Z]_[0-9][0-9][0-9][0-9]$")
+		quietly gen str3 v1 = substr(country_year, 1, 3)
+		quietly gen str4 v2 = substr(country_year, 5, 4)
 		quietly levelsof v1, local(countries) clean
 		global extrap_countries `countries'
 		foreach c in $extrap_countries {

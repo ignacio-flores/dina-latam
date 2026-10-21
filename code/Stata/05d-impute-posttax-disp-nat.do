@@ -1,3 +1,11 @@
+// Direct and runner execution share country selection and staged publication.
+args dina_requested_countries
+local dina_country_worker : environment DINA_COUNTRY_WORKER
+if "`dina_country_worker'" != "05d-impute-posttax" {
+    do "code/Stata/auxiliar/dina_country_task.do" "05d-impute-posttax" "`dina_requested_countries'"
+    exit
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -17,6 +25,7 @@ global aux_part " "graph_basics" "
 qui do "code/Stata/auxiliar/aux_general.do"
 local ext "_norep"
 
+local donor_snapshot : environment DINA_DONOR_SNAPSHOT
 local lang $lang 
 local interpolation "spline" //for data from ceq
 local ds "oecd_gni" //select database gni gdp 
@@ -44,6 +53,8 @@ qui drop year
 
 //harmonise names (we should probably change indg name to avoid confusion)
 qui rename (sh_indirectta* sh_allcontrib*) (sh_indg* sh_ssc*)
+quietly ds country ftile, not
+local dina_ceq_fields `r(varlist)'
 qui save `tf_ceq' 
 
 //import SNA sheets
@@ -62,7 +73,12 @@ foreach tv in `taxlist_full' {
 }	
 global imput_vars `taxlist_full' 
 qui do "code/Stata/auxiliar/aux_fill_aver.do"
+quietly ds country year, not
+local dina_tax_fields `r(varlist)'
 qui save `tf_sna_tax', replace
+if "`donor_snapshot'" == "1" {
+    dina_donor_snapshot `taxlist_full' uprofits_hh_ni gdp_wid TOT_B5g_wid using "${dina_output_root}/_donors_taxes.csv"
+}
 
 //import in-kind aggregate data from SNA-WID-OECD data
 local spenvars /*oex_gni hea_gni edu_gni*/ oex_gdp_wid hea_gdp_wid edu_gdp_wid
@@ -93,7 +109,13 @@ qui drop extrap_*
 
 *save for later 
 tempfile tf_sna_spending
+quietly ds country year, not
+local dina_spending_fields `r(varlist)'
 qui save `tf_sna_spending', replace
+if "`donor_snapshot'" == "1" {
+    dina_donor_snapshot hea_gni edu_gni oex_gni gdp_wid TOT_B5g_wid gdp_to_gni using "${dina_output_root}/_donors_spending.csv"
+    exit 0
+}
 
 *interpolate missing fractiles 
 tempfile tf109
@@ -116,7 +138,7 @@ qui save `tf109', replace
 
 //loop over countries and years 
 local a = 1 
-global area " ${all_countries} "
+global area " ${dina_run_countries} "
 foreach c in $area {	
 	forvalues y = $first_y/$last_y { 
 
@@ -162,6 +184,7 @@ foreach c in $area {
 			di as text "`c' `y': " 
 			
 			//open it
+			dina_coverage, country("`c'") year(`y') step("posttax") status("expected")
 			qui use "`survey'", clear
 				qui cap drop __*
 			// 2.1 	Rank individuals by income
@@ -194,6 +217,10 @@ foreach c in $area {
 			qui gen country = "`c'"
 			qui cap drop year
 			qui gen year = `y'
+			// Existing enriched surveys must use the newly prepared CEQ shares.
+			foreach v of local dina_ceq_fields {
+				capture drop `v'
+			}
 			qui merge m:1 country ftile using `tf_ceq', nogen keep(2 3)
 			qui keep if country == "`c'" & ftile != 100000
 				
@@ -214,7 +241,15 @@ foreach c in $area {
 			}
 			
 			//merge with totals from OECD/UN
+			foreach v of local dina_tax_fields {
+				capture drop `v'
+			}
 			qui merge m:1 country year using `tf_sna_tax', nogen keep(3) 
+			// Preserve the original precedence: fresh tax-table overlaps win.
+			local dina_spending_refresh_fields : list dina_spending_fields - dina_tax_fields
+			foreach v of local dina_spending_refresh_fields {
+				capture drop `v'
+			}
 			qui merge m:1 country year using `tf_sna_spending', nogen keep(3) 
 			
 			//count ppl in each fractile 
@@ -514,7 +549,7 @@ foreach c in $area {
 			}	
 			
 			// save database			
-			qui save "`survey'", replace 
+			qui save "${dina_output_root}/`survey'", replace
 
 			*3. Draw effective rates 
 			
@@ -595,7 +630,7 @@ foreach c in $area {
 						qui drop _merge 
 						
 						//create main folders 
-						local dirpath "output/efftax"
+						local dirpath "${dina_output_root}/output/efftax"
 						mata: st_numscalar("exists", direxists(st_local("dirpath")))
 						if (scalar(exists) == 0) {
 							mkdir "`dirpath'"
@@ -605,13 +640,13 @@ foreach c in $area {
 						*print one sheet by unit 
 						qui keep ftile_sca `u'_* n
 						quietly export excel using ///
-							"output/efftax/efftax_summary_`u'.xlsx", ///
+							"${dina_output_root}/output/efftax/efftax_summary_`u'.xlsx", ///
 							firstrow(variables) sheet("`c'`y'") ///
 							sheetreplace keepcellfmt	
 							
 							
 						//create main folders 
-						local dirpath "output/figures/eff_tax_rates_sca"
+						local dirpath "${dina_output_root}/output/figures/eff_tax_rates_sca"
 						mata: st_numscalar("exists", direxists(st_local("dirpath")))
 						if (scalar(exists) == 0) {
 							mkdir "`dirpath'"
@@ -625,7 +660,7 @@ foreach c in $area {
 						}
 						cap drop fp_*
 						qui genstack `sckvs_`u'_`c'_`y'', gen(fp_)
-						cap graph twoway  `gphas_`u'_`c'_`y'' ///
+						graph twoway  `gphas_`u'_`c'_`y'' ///
 							(line `u'_etr_tot /*ftile_sca*/ n, lcolor(black)) ///
 							(line `u'_mbr_tot /*ftile_sca*/ n, lcolor(black) ///
 							lpattern(dash)) if ftile_sca >= .2 /*& `u'_etr_tot < 1*/ , ///
@@ -634,8 +669,8 @@ foreach c in $area {
 							xlabel(/*0.2(0.2)1*/ ${xlab}, ${xlab_opts_white}) ///
 							ytit("Effective tax rate on pretax inc.") xtit("") ///
 							legend(off)	
-						cap qui graph export ///
-								"output/figures/eff_tax_rates_sca/`u'_efftax_`c'_`y'.pdf", replace	
+						qui graph export ///
+								"${dina_output_root}/output/figures/eff_tax_rates_sca/`u'_efftax_`c'_`y'.pdf", replace
 							
 						if "`c'`y'" == "COL2002" {
 							graph twoway  `gphas_`u'_`c'_`y'' ///
@@ -648,12 +683,13 @@ foreach c in $area {
 							legend(order(`lgd_`u'_`c'_`y'' `iter' "Effective tax rate" ///
 							`iter2' "Monetary benefits")) 
 							qui graph export ///
-								"output/figures/eff_tax_rates_sca/legend_efftax.pdf", replace	
+								"${dina_output_root}/output/figures/eff_tax_rates_sca/legend_efftax.pdf", replace
 								
 						}
 					restore
 				}
-			}		
+			}
+			dina_coverage, country("`c'") year(`y') step("posttax") status("success")
 		}
 	}
 }

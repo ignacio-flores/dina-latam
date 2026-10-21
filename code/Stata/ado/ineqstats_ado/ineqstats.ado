@@ -6,7 +6,7 @@ program ineqstats
 	version 11 
 	syntax name [, EDAD(numlist max=2) ///
 		EXTension(string) SVYPath(string) SMOOTHtop ///
-		TYPe(string) BFM BCKTavgs ///
+		TYPe(string) BFM BCKTavgs COVerage(string) STEPlabel(string) EXCLUdecases(string) ///
 		MRATes(numlist) MTHResholds(numlist) UNIt(string)] ///
 		DEComposition(string) TIme(numlist max=2) weight(string) ///
 		EXPort(string) AReas(string)
@@ -183,6 +183,18 @@ program ineqstats
 	
 	if ("`namelist'" == "summarize") {
 	
+		// Optional country-run coverage is recorded during the existing read.
+		local coverage_success = 0
+		local coverage_failed = 0
+		if "`steplabel'" == "" local steplabel "`type'"
+		if "`coverage'" != "" {
+			tempname coverage_handle
+			capture confirm file "`coverage'"
+			local coverage_new = (_rc != 0)
+			file open `coverage_handle' using "`coverage'", write append text
+			if `coverage_new' file write `coverage_handle' "country,year,step,unit,status,reason" _n
+		}
+
 		// Loopy loops
 		foreach c in `areas' {
 			
@@ -198,15 +210,29 @@ program ineqstats
 			forvalues period = `first_period'/`last_period' {
 				
 				local ++iqz
+				local case_key "`c'`period'"
+				local case_excluded : list case_key in excludecases
+				if `case_excluded' {
+					if "`coverage'" != "" {
+						file write `coverage_handle' "`c',`period',`steplabel',`unit',excluded,Existing upstream income-step exclusion" _n
+					}
+					continue
+				}
 				
 				//Argentinian exception
 				*if "`step''" == "raw" local weight "_fep"
 				if "`step''" == "raw" & "`c'" == "ARG" local weight "n_fep"
 			
-				// Open data
+				// Missing years are expected; an unreadable existing file is an error.
+				local cell_status "excluded"
+				local cell_reason "No corrected survey"
 				clear
-				qui cap use ///
-					"`svypath'/`c'_`period'_bfm${ext}_pre.dta"
+				capture confirm file "`svypath'/`c'_`period'_bfm${ext}_pre.dta"
+				if !_rc {
+					quietly use "`svypath'/`c'_`period'_bfm${ext}_pre.dta", clear
+					local cell_status "failed"
+					local cell_reason "Statistics did not complete"
+				}
 	
 				//drop any temporary variable that was saved mistakently
 				cap drop __* 	
@@ -233,7 +259,13 @@ program ineqstats
 			
 					//check variables
 					cap confirm variable `decomp_suffix', exact
-					if (_rc == 0 & "`misvar_`c'_`period''" == "") {
+					local components_available = (_rc == 0)
+					if !`components_available' local cell_reason "Missing income component"
+					if `components_available' & "`misvar_`c'_`period''" != "" {
+						local cell_status "excluded"
+						local cell_reason "Existing zero-component exclusion"
+					}
+					if (`components_available' & "`misvar_`c'_`period''" == "") {
 					
 						tempvar ftile ftile_clean freq F fy cumfy L d_eq ///
 							p1 p2 bckt_size cum_weight wy freq_t10 F_t10 ///
@@ -894,6 +926,11 @@ program ineqstats
 									bckt_avg s topavg topshare b ///
 									sh_* `addvars' 
 								
+								if "`coverage'" != "" {
+									isid p
+									assert _N == 127
+									assert !missing(average[1]) & !missing(gini[1])
+								}
 								// Export to Excel
 								if ("`export'" != "") {
 									qui rename bckt_avg avg 
@@ -923,6 +960,9 @@ program ineqstats
 									sheetreplace keepcellfmt  	
 								}
 								
+								local cell_status "success"
+								local cell_reason ""
+								local ++coverage_success
 								di as text "ineqstats (06a): " _continue
 								di as text "`c' `period' saved at $S_TIME."
 								
@@ -951,10 +991,22 @@ program ineqstats
 						"Missing or empty variables in `c' `period' " ///
 						"(`misvar_`c'_`period'') skipped"
 					}
-				}	
+				}
+				if "`coverage'" != "" {
+					file write `coverage_handle' "`c',`period',`steplabel',`unit',`cell_status',`cell_reason'" _n
+					if "`cell_status'" == "failed" local ++coverage_failed
+				}
 			}
 		}
-		
+		if "`coverage'" != "" {
+			file close `coverage_handle'
+			if `coverage_failed' > 0 {
+				di as error "ineqstats is incomplete: `coverage_failed' existing survey cases failed. See `coverage'."
+				exit 459
+			}
+			if `coverage_success' == 0 exit 0
+		}
+
 		//Summarize main info for all countries
 		clear 
 		local nobs = ///

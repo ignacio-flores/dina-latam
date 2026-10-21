@@ -2,36 +2,29 @@
 
 clear all
 global data "input_data/admin_data/CRI"
-global results 	"output/figures/eff_tax_rates"
+global results 	"${dina_output_root}/output/figures/eff_tax_rates"
 
 // Calculate effective tax rates for diverse income
 *bracketavg
 
 qui forvalues year = 2010/2016 {
+	dina_coverage, country("CRI") year(`year') step("effective_rates") status("expected")
 	tempfile tax_`year'
 
 	// (1) taxes paid (from microdata) 
 	global excel "$data/eff-tax-rate/BFM_CR_`year'_mix_tax.xlsx"
-	qui cap erase "$data/eff-tax-rate/BFM_CR_`year'_mix_tax_1.dta" 
-	qui xls2dta, sheet("Sheet1") save($data/eff-tax-rate) : /// //  allsheets
-	import excel $excel ,  firstrow cellrange(A1)
-	qui u "$data/eff-tax-rate/BFM_CR_`year'_mix_tax_1.dta", clear
+	qui import excel "$excel", sheet("Sheet1") firstrow cellrange(A1) clear
 	
 	qui rename bckt_avg tax_bckt_avg
 	qui rename thr 		tax_thr
 	qui replace tax_bckt_avg 	= tax_bckt_avg 	// /13
 	qui replace tax_thr 		= tax_thr 		// /13	
 	qui save `tax_`year''
-	qui cap erase "$data/eff-tax-rate/BFM_CR_`year'_mix_tax_1.dta" 
 
 	// (2) gpinter (from microdata)
 	
 	global excel "$data/diverse-mixinc/diverse_CRI_`year'_mix_income.xlsx"
-	qui cap erase "$data/diverse_CRI_`year'_mix_income_1.dta" 
-	qui xls2dta, sheet("Sheet1") save($data) : /// //  allsheets
-		import excel $excel ,  firstrow cellrange(A1)
-		qui u "$data/diverse_CRI_`year'_mix_income_1.dta", clear
-		qui cap erase "$data/diverse_CRI_`year'_mix_income_1.dta"
+	qui import excel "$excel", sheet("Sheet1") firstrow cellrange(A1) clear
 	
 	
 	// (3) merge both and check all g-tiles merge
@@ -83,12 +76,13 @@ qui forvalues year = 2010/2016 {
 			ylabel(0(0.05)0.3, $ylab_opts) ///
 			xlabel(0.99(0.001)1, $xlab_opts) ///
 			$graph_scheme 
-			graph export "$results/CRI_`x'_top1.pdf", replace
+			graph export "$results/CRI_`year'_top1.pdf", replace
 
 	qui replace p_merge = p_merge * 10000
 	qui duplicates drop p_merge, force
 	qui drop if p_merge > 9999
 	qui format p_merge %9.0g
-	save "$data/eff-tax-rate/CRI_effrates_`year'", replace
+	save "${dina_output_root}/$data/eff-tax-rate/CRI_effrates_`year'", replace
+	dina_coverage, country("CRI") year(`year') step("effective_rates") status("success")
 }
 

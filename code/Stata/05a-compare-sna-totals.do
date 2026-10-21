@@ -1,3 +1,11 @@
+// Direct and runner execution share country selection and staged publication.
+args dina_requested_countries
+local dina_country_worker : environment DINA_COUNTRY_WORKER
+if "`dina_country_worker'" != "05a-compare-sna-totals" {
+    do "code/Stata/auxiliar/dina_country_task.do" "05a-compare-sna-totals" "`dina_requested_countries'"
+    exit
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 // 							Title: SCALING FACTORS 
@@ -28,14 +36,14 @@ if "${bfm_replace}" == "no" local ext "_norep"
 sysdir set PERSONAL "code/Stata/ado/snacompare_ado/." 
 
 // Create directory if it doesnt exist 
-local dirpath "output/snacompare_summary"
+local dirpath "${dina_output_root}/output/snacompare_summary"
 mata: st_numscalar("exists", direxists(st_local("dirpath")))
 if (scalar(exists) == 0) {
 	mkdir "`dirpath'"
 	display "Created directory: `dirpath'"
 }
 
-local dirpath "output/figures/snacompare"
+local dirpath "${dina_output_root}/output/figures/snacompare"
 mata: st_numscalar("exists", direxists(st_local("dirpath")))
 if (scalar(exists) == 0) {
 	mkdir "`dirpath'"
@@ -64,12 +72,32 @@ foreach step in "raw" "bfm`ext'_pre" {
 		if "`pop'" == "totpop" local age 0
 		if "`pop'" == "active" local age 20 65
 		
+
+        foreach c in $all_countries {
+            forvalues y = $first_y/$last_y {
+                local source "intermediary_data/microdata/`step'/`c'_`y'_`step'.dta"
+                if "`step'" == "raw" local source "intermediary_data/microdata/raw/`c'/`c'_`y'_raw.dta"
+                capture confirm file "`source'"
+                if !_rc dina_coverage, country("`c'") year(`y') step("`step'") unit("`pop'") status("expected")
+            }
+        }
+
 		//call program	
 		snacompare using "intermediary_data/national_accounts/UNDATA-WID-Merged.dta", ///
 			svypath("intermediary_data/microdata/") weight(`weight') ///
 			time(${first_y} ${last_y}) edad(`age') ext(`ext') ///
 			area(${area}) type(`step') /*show esp GRAPHEXTRAP*/ ///
-			exportexcel("output/snacompare_summary/snacompare_`step'_`pop'.xlsx") ///
-			auxiliary("code/Stata/auxiliar/aux_snacompare.do") 	
+			exportexcel("${dina_output_root}/output/snacompare_summary/snacompare_`step'_`pop'.xlsx") ///
+			auxiliary("code/Stata/auxiliar/aux_snacompare.do")
+
+        foreach c in $all_countries {
+            forvalues y = $first_y/$last_y {
+                local source "intermediary_data/microdata/`step'/`c'_`y'_`step'.dta"
+                if "`step'" == "raw" local source "intermediary_data/microdata/raw/`c'/`c'_`y'_raw.dta"
+                capture confirm file "`source'"
+                if !_rc dina_coverage, country("`c'") year(`y') step("`step'") unit("`pop'") status("success")
+            }
+        }
+
 	}
 }

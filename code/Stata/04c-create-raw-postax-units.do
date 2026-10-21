@@ -1,3 +1,11 @@
+// Direct and runner execution share country selection and staged publication.
+args dina_requested_countries
+local dina_country_worker : environment DINA_COUNTRY_WORKER
+if "`dina_country_worker'" != "04c-create-raw-postax-units" {
+    do "code/Stata/auxiliar/dina_country_task.do" "04c-create-raw-postax-units" "`dina_requested_countries'"
+    exit
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 // 							Title:  
@@ -16,7 +24,7 @@ qui do "code/Stata/auxiliar/aux_general.do"
 local ext "_norep"
 local lang $lang 
 
-global area " ${all_countries} "
+global area " ${dina_run_countries} "
 local z = 1 
 foreach c in $area {
 	forvalues y = ${first_y}/${last_y} {
@@ -39,6 +47,7 @@ foreach c in $area {
 		
 		//open it
 		if _rc==0 {
+			dina_coverage, country("`c'") year(`y') step("posttax_units") status("expected")
 			qui use ///
 				"intermediary_data/microdata/bfm`ext'_pre/`c'_`y'_bfm`ext'_pre.dta", clear
 			
@@ -73,9 +82,10 @@ foreach c in $area {
 			
 			*save 
 			qui save ///
-				"intermediary_data/microdata/bfm`ext'_pre/`c'_`y'_bfm`ext'_pre.dta" ///
+				"${dina_output_root}/intermediary_data/microdata/bfm`ext'_pre/`c'_`y'_bfm`ext'_pre.dta" ///
 				, replace
 			
+			dina_coverage, country("`c'") year(`y') step("posttax_units") status("success")
 			*report activity	
 			di as result "done"	
 		}

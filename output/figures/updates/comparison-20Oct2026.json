@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "status": "complete",
+  "date": "20Oct2026",
+  "started_at": "2026-10-20T14:23:43+0200",
+  "baseline": "input_data/_new/previous_series/dina_latam_7Nov2025.dta",
+  "baseline_hash": "8e823b0c7408aa4ba5383eb53fa163b355c0c89a4e3b012905a050206687c647",
+  "settings": {
+    "countries": [
+      "COL",
+      "ARG",
+      "PER",
+      "URY",
+      "CRI",
+      "ECU",
+      "CHL",
+      "BRA",
+      "SLV",
+      "MEX",
+      "DOM"
+    ],
+    "years": {
+      "first": 2000,
+      "last": 2024
+    },
+    "export_validation": {
+      "unit": "esn",
+      "steps": "nat",
+      "last_year": 2025,
+      "previous_update_date": "7Nov2025",
+      "previous_update_file": "input_data/_new/previous_series/dina_latam_7Nov2025.dta"
+    }
+  },
+  "generated_at": "2026-10-20T14:25:02+0200",
+  "graphs": ["output/figures/updates/update-20Oct2026-sptinc992j-t10.pdf", "output/figures/updates/update-20Oct2026-sptinc992j-t1.pdf", "output/figures/updates/update-20Oct2026-sptinc992j-t01.pdf", "output/figures/updates/update-20Oct2026-sptinc992j-t001.pdf", "output/figures/updates/update-20Oct2026-sptinc992j-m40.pdf", "output/figures/updates/update-20Oct2026-sptinc992j-b50.pdf"],
+  "series": ["output/latest_wid_series/dina_latam_wide_20Oct2026.dta", "output/latest_wid_series/dina_latam_20Oct2026.dta", "output/latest_wid_series/dina_latam_20Oct2026_amory.dta"],
+  "artifacts": {
+    "output/figures/updates/update-20Oct2026-sptinc992j-t10.pdf": "41c2f56497ce1bfaee2b955f2c96a923e2eeeb9d4aa2897f571305693148dbd1",
+    "output/figures/updates/update-20Oct2026-sptinc992j-t1.pdf": "a8a8500b1907458ce55fa59ebc699e5667e1b9b6f621f971589d023a0252a0ac",
+    "output/figures/updates/update-20Oct2026-sptinc992j-t01.pdf": "b34aa89d2d21861eb45b1d136ebf8c3bed911d86dbf8d233609bfa4867778231",
+    "output/figures/updates/update-20Oct2026-sptinc992j-t001.pdf": "5e3aa3371299238cd9e5fd21a4ad2a3828e1a7e5c91f0a9b05c3b830a6517599",
+    "output/figures/updates/update-20Oct2026-sptinc992j-m40.pdf": "cdbf2ce351b17f3ce5f44c1ebd8dbc6901f93169ec352997736ee4c722a29318",
+    "output/figures/updates/update-20Oct2026-sptinc992j-b50.pdf": "780fc2ae9e73ce64d43e3c491c5c18afa340eb92f511f89956e254c259ecf808",
+    "output/latest_wid_series/dina_latam_wide_20Oct2026.dta": "0a192ad5122d1e5694f20cf4f05b3414de75479b255d2462d580776ee2129da8",
+    "output/latest_wid_series/dina_latam_20Oct2026.dta": "6d8c72045a2fca21d431cd801912b7a5a201cdae397116ce9aa1655176256b37",
+    "output/latest_wid_series/dina_latam_20Oct2026_amory.dta": "ff650ae87e231b2f8b2fef70a33db161db1782b2603c0bd9c6348d520148064b"
+  }
+}

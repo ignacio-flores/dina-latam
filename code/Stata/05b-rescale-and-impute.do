@@ -1,3 +1,11 @@
+// Direct and runner execution share country selection and staged publication.
+args dina_requested_countries
+local dina_country_worker : environment DINA_COUNTRY_WORKER
+if "`dina_country_worker'" != "05b-rescale-and-impute" {
+    do "code/Stata/auxiliar/dina_country_task.do" "05b-rescale-and-impute" "`dina_requested_countries'"
+    exit
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 // 							Title: RESCALE AND IMPUTE 
@@ -14,6 +22,7 @@ local ext "_norep"
 //get list of paths 
 global aux_part " "preliminary" " 
 qui do "code/Stata/auxiliar/aux_general.do"
+local donor_snapshot : environment DINA_DONOR_SNAPSHOT
 local lang $lang 
 
 //define macros 
@@ -235,13 +244,14 @@ foreach v in "sh_bpi_corp_hh" "sh_bpi_corp_for" ///
 }
 
 //create main folders 
-local dirpath "output/figures/uprofits"
+local dirpath "${dina_output_root}/output/figures/uprofits"
 mata: st_numscalar("exists", direxists(st_local("dirpath")))
 if (scalar(exists) == 0) {
 	mkdir "`dirpath'"
 	display "Created directory: `dirpath'"
 }
 
+if "`donor_snapshot'" != "1" {
 //Graph all countries except ARG
 graph twoway (line sh_bpi_corp_hh2 year, lcolor(black) lwidth(medthick)) ///
 	(line sh_cfc_corp2 year, lcolor(${c_col}) lwidth(medium)) ///
@@ -253,7 +263,7 @@ graph twoway (line sh_bpi_corp_hh2 year, lcolor(black) lwidth(medthick)) ///
 	legend(label(1 "Households (net)") label(2 "Depreciation") ///
 	label(3 "Foreigners") label(4 "Gral. Gorvernment")) $graph_scheme 
 qui graph export ///
-	"output/figures/uprofits/Composition.pdf", replace 
+	"${dina_output_root}/output/figures/uprofits/Composition.pdf", replace
 		
 //call basic graph settings 
 global aux_part " "graph_basics" " 
@@ -300,7 +310,7 @@ foreach var in "uprofits_hh_ni_pct" "uprofits_hh_svy_pct" {
 			xlabel(${first_y}(5)2020, $xlab_opts) ///
 			xtitle("") ytitle("") $graph_scheme ///
 			legend(off)
-		qui graph export "output/figures/uprofits/`var'.pdf", replace
+		qui graph export "${dina_output_root}/output/figures/uprofits/`var'.pdf", replace
 		
 		//graph and save w/legend
 		graph twoway `addgraphlines_`iv'' ///
@@ -309,12 +319,14 @@ foreach var in "uprofits_hh_ni_pct" "uprofits_hh_svy_pct" {
 			xlabel(${first_y}(5)2020, $xlab_opts) ///
 			xtitle("") ytitle("") $graph_scheme ///
 			legend(`legend_`iv'')
-		qui graph export "output/figures/uprofits/`var'_legend.pdf", replace
+		qui graph export "${dina_output_root}/output/figures/uprofits/`var'_legend.pdf", replace
 
 		//details 
 		qui drop `var'
 		local iv = `iv' + 1
 	}
+}
+
 }
 
 //dont take CHL cfc data into account 
@@ -375,10 +387,35 @@ foreach c in `ctries' {
 	}
 }	
 
+// Snapshot exactly the prepared macros used by country calculations. The
+// country universe stays complete, including donors outside the requested run.
+if "`donor_snapshot'" == "1" {
+    tempname donor_rows
+    tempfile donor_values
+    postfile `donor_rows' str3 country int year str64 variable str64 value using `donor_values', replace
+    local donor_variables ni_wid tnac lef1 uprof_pct sh_cfc_hh_surplus sh_cfc_hh_mix sh_cfc_hh TOT_B5g_wid uprofits_hh_ni
+    foreach var in $scal_list {
+        local donor_variables `donor_variables' scaling_`var' nac_`var'
+    }
+    foreach donor_country in $all_countries {
+        forvalues donor_year = $first_y/$last_y {
+            foreach variable in `donor_variables' {
+                local key "`variable'_`donor_country'_`donor_year'"
+                post `donor_rows' ("`donor_country'") (`donor_year') ("`variable'") ("``key''")
+            }
+        }
+    }
+    postclose `donor_rows'
+    use `donor_values', clear
+    sort country year variable
+    export delimited using "${dina_output_root}/_donors.csv", replace
+    exit 0
+}
+
 // 3. Rescale and impute corrected surveys -------------------------------------
 //loop over countries and years 
 local z = 1 
-global area " ${all_countries} "
+global area " ${dina_run_countries} "
 foreach c in $area {
 	forvalues y = ${first_y}/${last_y} {
 		clear 
@@ -399,6 +436,7 @@ foreach c in $area {
 		
 		//open it
 		if _rc==0 /*& !inlist("`c'", "ARG")*/ {
+			dina_coverage, country("`c'") year(`y') step("rescale") status("expected")
 			qui use "`survey'", clear
 			capture drop *_sca
 			capture drop __*
@@ -427,16 +465,22 @@ foreach c in $area {
 			
 			
 			*check existence of ind variables (others not created yet)
+			local missing_components ""
 			foreach v in `dec_ind_`c'_`y'' {
 				cap confirm variable `v', exact
 				if _rc == 0 {
 					sum `v', meanonly
-					local m_`c'_`y'_`v' = r(mean) 
-					if `m_`c'_`y'_`v'' == 0 {
-						local misvar_`c'_`y' "`misvar_`c'_`y''`v'"
-					} 
+					if r(N) == 0 local missing_components "`missing_components' `v'"
+					else if r(mean) == 0 {
+						local misvar_`c'_`y' "`misvar_`c'_`y'' `v'"
+					}
 				}
-				else di as text "  `v' not found"
+				else local missing_components "`missing_components' `v'"
+			}
+			if "`missing_components'" != "" {
+				di as error "required income components missing or entirely missing: `missing_components'"
+				dina_coverage, country("`c'") year(`y') step("rescale") status("failed")
+				exit 459
 			}
 						
 			//chose variables 
@@ -450,7 +494,7 @@ foreach c in $area {
 			
 			*work only if all variables exist
 			if ("`misvar_`c'_`y''" == "" & ///
-				!inlist("`TOT_B5g_wid_`c'_`y''", ".")) {	
+				!missing(real("`TOT_B5g_wid_`c'_`y''"))) {
 				
 				//rescale them
 				foreach var in $scal_list {
@@ -709,7 +753,7 @@ foreach c in $area {
 						qui do "code/Stata/auxiliar/aux_general.do"
 						
 						//create main folders 
-						local dirpath "output/figures/uprofits/incidence"
+						local dirpath "${dina_output_root}/output/figures/uprofits/incidence"
 						mata: st_numscalar("exists", direxists(st_local("dirpath")))
 						if (scalar(exists) == 0) {
 							mkdir "`dirpath'"
@@ -717,7 +761,7 @@ foreach c in $area {
 						}
 						
 						//create main folders 
-						local dirpath "output/figures/uprofits/incidence-scal"
+						local dirpath "${dina_output_root}/output/figures/uprofits/incidence-scal"
 						mata: st_numscalar("exists", direxists(st_local("dirpath")))
 						if (scalar(exists) == 0) {
 							mkdir "`dirpath'"
@@ -735,7 +779,7 @@ foreach c in $area {
 							ylabel(0(20)100, $ylab_opts) ///
 							$graph_scheme 
 						qui graph export ///
-							"output/figures/uprofits/incidence/`c'`y'.pdf", replace  
+							"${dina_output_root}/output/figures/uprofits/incidence/`c'`y'.pdf", replace
 			
 					restore 
 				}
@@ -931,12 +975,13 @@ foreach c in $area {
 							legend(off) ysize(5.5) xsize(5.5) ///
 							aspectratio(1) 
 						qui graph export ///
-							"output/figures/uprofits/incidence-scal/`c'`y'_`u'.pdf", replace
+							"${dina_output_root}/output/figures/uprofits/incidence-scal/`c'`y'_`u'.pdf", replace
 					restore 
 				}
 			
 				*save 
-				qui save "`survey'", replace
+				qui save "${dina_output_root}/`survey'", replace
+			dina_coverage, country("`c'") year(`y') step("rescale") status("success")
 				
 				//report scaled variables 
 				*display as text "`c' `y' scaled variables: " _continue
@@ -947,10 +992,17 @@ foreach c in $area {
 				*display as result "`scal_list_`c'_`y''"
 				
 			}
-			else {
+			else if "`misvar_`c'_`y''" != "" {
+				// Preserve the original zero-mean component eligibility rule.
 				di as text "skipped, " _continue 
 				di as error "`misvar_`c'_`y'' " _continue
-				di as text "empty or missing"
+				di as text "zero mean (existing rescaling exclusion)"
+				dina_coverage, country("`c'") year(`y') step("rescale") status("excluded")
+			}
+			else {
+				di as error "required national-income total is missing"
+				dina_coverage, country("`c'") year(`y') step("rescale") status("failed")
+				exit 459
 			}	
  		}
 		*report if not found

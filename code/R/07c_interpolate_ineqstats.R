@@ -1,3 +1,13 @@
+# Direct and runner entry share the same temporary-output publisher.
+source("code/R/country_run.R")
+country_run_r_entry("07c-interpolate-ineqstats", commandArgs(trailingOnly = TRUE))
+output_root <- Sys.getenv("DINA_OUTPUT_ROOT")
+selected_countries <- strsplit(trimws(Sys.getenv("DINA_RUN_COUNTRIES")), "[[:space:],]+")[[1L]]
+selected_countries <- unique(selected_countries[nzchar(selected_countries)])
+if (!nzchar(output_root) || !length(selected_countries)) {
+  stop("Missing country-run output folder or selected countries.", call. = FALSE)
+}
+output_path <- function(...) file.path(output_root, ...)
 # devtools::install_github("world-inequality-database/gpinter")
 library(dplyr)
 library(tidyr)
@@ -298,6 +308,12 @@ fit_and_tab <- function(d) {
     topshare     = TRUE
   )
   
+  if (length(tab$fractile) != length(p_grid) ||
+      anyDuplicated(tab$fractile) || any(abs(tab$fractile - p_grid) > 1e-10) ||
+      !all(vapply(tab[c("fractile", "threshold", "bracket_average", "bracket_share", "top_average", "top_share")],
+                  function(value) all(is.finite(value)), logical(1)))) {
+    stop("GPinter produced incomplete or non-finite fractile statistics.")
+  }
   tibble(
     p       = tab$fractile,
     thr     = tab$threshold,
@@ -313,19 +329,27 @@ fit_and_tab <- function(d) {
 # =======================
 safe_fit_and_tab <- purrr::safely(fit_and_tab, otherwise = NULL)
 
+# Keep full preprocessing and expected group coverage; fit selected countries only.
+full_groups <- df_clean %>% distinct(country, year, step, unit) %>% arrange(country, year, step, unit)
+readr::write_csv(full_groups, output_path("_groups.csv"))
+selected_groups <- full_groups %>% filter(country %in% selected_countries)
 grouped <- df_clean %>%
+  filter(country %in% selected_countries) %>%
   group_by(country, year, step, unit) %>%
   group_split(.keep = TRUE)
 
 keys_list <- map(grouped, ~ dplyr::distinct(.x, country, year, step, unit))
 res_list  <- map(grouped, safe_fit_and_tab)
 
-result_tabs <- map2_dfr(keys_list, res_list, function(keys, res) {
-  if (is.null(res$result)) return(tibble())
-  tab <- res$result
-  dplyr::bind_cols(keys[rep(1, nrow(tab)), ], tab)
-}) %>%
-  arrange(country, year, step, unit, p)
+result_tabs <- if (length(keys_list)) {
+  map2_dfr(keys_list, res_list, function(keys, res) {
+    if (is.null(res$result)) return(tibble())
+    tab <- res$result
+    dplyr::bind_cols(keys[rep(1, nrow(tab)), ], tab)
+  })
+} else tibble(country = character(), year = integer(), step = character(), unit = character(),
+              p = double(), thr = double(), avg = double(), bckt_sh = double(), topavg = double(), topsh = double())
+if (nrow(result_tabs)) result_tabs <- arrange(result_tabs, country, year, step, unit, p)
 
 errors_log <- map2_chr(keys_list, res_list, function(keys, res) {
   if (!is.null(res$error)) {
@@ -337,6 +361,32 @@ errors_log <- map2_chr(keys_list, res_list, function(keys, res) {
 }) %>%
   discard(is.na)
 
-readr::write_csv(result_tabs, "output/ineqstats/_gpinter_all_topcorrected.csv")
-if (length(errors_log)) readr::write_lines(errors_log, "output/data_reports/gpinter_errors.log")
-
+coverage <- selected_groups %>% mutate(status = "success", reason = "")
+if (length(res_list)) {
+  coverage$status <- vapply(res_list, function(x) if (is.null(x$error)) "success" else "failed", "")
+  coverage$reason <- vapply(res_list, function(x) if (is.null(x$error)) "" else conditionMessage(x$error), "")
+}
+absent_countries <- setdiff(selected_countries, selected_groups$country)
+if (length(absent_countries)) coverage <- bind_rows(coverage,
+  tibble(country = absent_countries, year = 0L, step = "gpinter", unit = "all",
+         status = "excluded", reason = "No eligible groups after the existing preprocessing rules"))
+readr::write_csv(coverage, output_path("_coverage.csv"))
+readr::write_lines(errors_log, output_path("output/data_reports/gpinter_errors.log"))
+if (length(errors_log)) {
+  stop(sprintf("GPinter failed for %d group(s): %s. The published CSV has not changed.",
+               length(errors_log), errors_log[[1L]]), call. = FALSE)
+}
+if (nrow(result_tabs)) {
+  keys <- c("country", "year", "step", "unit")
+  if (anyDuplicated(as.data.frame(result_tabs[c(keys, "p")]))) stop("GPinter produced duplicate fractile keys.")
+  produced <- result_tabs %>% count(country, year, step, unit, name = "rows")
+  if (nrow(anti_join(selected_groups, produced, by = keys)) ||
+      nrow(anti_join(produced, selected_groups, by = keys)) || any(produced$rows != length(p_grid))) {
+    stop("GPinter selected group coverage is incomplete.", call. = FALSE)
+  }
+  numerical <- c("p", "thr", "avg", "bckt_sh", "topavg", "topsh")
+  if (!all(vapply(result_tabs[numerical], function(x) all(is.finite(x)), logical(1)))) {
+    stop("GPinter produced non-finite statistics.", call. = FALSE)
+  }
+} else if (nrow(selected_groups)) stop("GPinter produced no selected groups.", call. = FALSE)
+readr::write_csv(result_tabs, output_path("output/ineqstats/_gpinter_all_topcorrected.csv"))

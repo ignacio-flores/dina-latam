@@ -4,11 +4,12 @@ clear all
 do "code/Stata/auxiliar/dina_runtime_config.do"
 
 global data "input_data/admin_data/BRA"
-global results 	"output/figures/eff_tax_rates/test"
+global results 	"${dina_output_root}/output/figures/eff_tax_rates/test"
 capture mkdir "$results"
 
 local x = 4
 forvalues year = 2007/$last_y {
+	dina_coverage, country("BRA") year(`year') step("effective_rates") status("expected")
 
 	* import effective tax rates for known points
 		import excel "intermediary_data/tax_rates/BRA/eff-tax-rates-BRA.xlsx", ///
@@ -21,10 +22,7 @@ forvalues year = 2007/$last_y {
 
 		local x = `x' + 1
 		global excel "$data/gpinter_output/total-pre-BRA.xlsx"
-		qui cap erase "$data/gpinter_output/total-pre-BRA_`x'.dta"
-		qui xls2dta, sheet("pretax, BRA, `year'") save($data/gpinter_output) : /// 
-			import excel $excel ,  firstrow cellrange(A1)
-			qui u "$data/gpinter_output/total-pre-BRA_`x'", clear
+		qui import excel "$excel", sheet("pretax, BRA, `year'") firstrow cellrange(A1) clear
 
 		forvalues i = 1/11 {
 			
@@ -83,7 +81,6 @@ forvalues year = 2007/$last_y {
 			graph export "$results/BRA_`year'_top1.pdf", replace
 
 
-	qui cap erase "$data/gpinter_output/total-pre-BRA_`x'.dta" 
 
 	qui replace p_merge = p_merge*10000
 	qui duplicates drop p_merge, force
@@ -91,14 +88,15 @@ forvalues year = 2007/$last_y {
 	qui format p_merge %9.0g
 	
 	// Create directory if it doesnt exist 
-	local dirpath "$data/eff-tax-rate/"
+	local dirpath "${dina_output_root}/$data/eff-tax-rate/"
 	mata: st_numscalar("exists", direxists(st_local("dirpath")))
 	if (scalar(exists) == 0) {
 		mkdir "`dirpath'"
 		display "Created directory: `dirpath'"
 	}
 	
-	qui save "$data/eff-tax-rate/BRA_effrates_`year'", replace
+	qui save "${dina_output_root}/$data/eff-tax-rate/BRA_effrates_`year'", replace
+	dina_coverage, country("BRA") year(`year') step("effective_rates") status("success")
 
 }
 

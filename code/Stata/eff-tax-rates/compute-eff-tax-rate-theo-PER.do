@@ -4,9 +4,10 @@ clear all
 
 global data_tax "input_data/admin_data/PER"
 global data_sur "intermediary_data/microdata/raw/PER"
-global results 	"output/figures/eff_tax_rates"
+global results 	"${dina_output_root}/output/figures/eff_tax_rates"
 
 forvalues x = 2016/2017 {
+	dina_coverage, country("PER") year(`x') step("effective_rates") status("expected")
 	
 	
 	*import gpinter data
@@ -94,14 +95,15 @@ forvalues x = 2016/2017 {
 	qui format p_merge %9.0g
 	
 	// Create directory if it doesnt exist 
-	local dirpath "$data_tax/eff-tax-rate/"
+	local dirpath "${dina_output_root}/$data_tax/eff-tax-rate/"
 	mata: st_numscalar("exists", direxists(st_local("dirpath")))
 	if (scalar(exists) == 0) {
 		mkdir "`dirpath'"
 		display "Created directory: `dirpath'"
 	} 
 	
-	qui save "$data_tax/eff-tax-rate/PER_effrates_`x'", replace
+	qui save "${dina_output_root}/$data_tax/eff-tax-rate/PER_effrates_`x'", replace
+	dina_coverage, country("PER") year(`x') step("effective_rates") status("success")
 }
 /*
 	global c_bra "midgreen"

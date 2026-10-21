@@ -2,10 +2,10 @@
 # inclusion guards remain owned by each family.
 
 dina_review_families <- function() {
-  c(sna = "National accounts", admin = "Administrative tax data", surveys = "Household surveys", wid = "WID")
+  c(sna = "National accounts", admin = "Administrative tax data", surveys = "Household surveys", wid = "WID", dina = "Finished DINA series")
 }
 
-dina_review_source_family_order <- function() c("wid", "surveys", "admin", "sna")
+dina_review_source_family_order <- function() c("wid", "surveys", "admin", "sna", "dina")
 
 dina_review_source_prerequisites <- function(family) {
   switch(family,
@@ -116,7 +116,8 @@ dina_review_save <- function(record, root) {
 
 dina_review_engine <- function(root, family) {
   modules <- switch(family, sna = c("country_sna_explorer.R", "country_sna_include.R"),
-    admin = c("admin_pit_explorer.R", "admin_pit_include.R"), surveys = "survey_sources_include.R", wid = "wid_include.R")
+    admin = c("admin_pit_explorer.R", "admin_pit_include.R"), surveys = "survey_sources_include.R", wid = "wid_include.R",
+    dina = "finished_dina_explorer.R")
   env <- new.env(parent = environment(dina_main))
   for (module in modules) source(file.path(root, "code", "R", "source-diagnostics", module), local = env)
   env
@@ -697,6 +698,7 @@ dina_review_reset_before_explore <- function(root, family, engine, progress = fu
 }
 
 dina_review_explore <- function(root, family, flags = list(), input = "stdin", is_terminal = isatty(stdin())) {
+  if (identical(family, "dina")) return(dina_finished_explore(root, flags))
   operation <- dina_cli_operation(paste(dina_review_families()[[family]], "source exploration"))
   completed <- FALSE
   on.exit(if (!completed) operation$finish("Failed"), add = TRUE)
@@ -914,7 +916,7 @@ dina_review_table <- function(record, table) {
   if (record$family == "sna" && table == "review_coverage" && !"old_years" %in% names(rows)) {
     rows <- dina_review_coverage(NULL, dina_review_table(record, "review_values"), "sna")
   }
-  if (table == "review_problems") {
+  if (table == "review_problems" && !identical(record$family, "dina")) {
     outputs <- lapply(dina_review_problem_tables(), function(name) { path <- file.path(record$run, "tables", paste0(name, ".csv")); if (file.exists(path)) dina_read_csv_table_or_empty(path) else data.frame() })
     names(outputs) <- dina_review_problem_tables()
     rows <- dina_review_problems(list(outputs = outputs))
@@ -1054,6 +1056,7 @@ dina_admin_trust_restore_from_confirmation <- function(root = dina_repo_root(), 
 }
 
 dina_review_include <- function(root, family, flags = list(), input = "stdin", is_terminal = isatty(stdin()), record = dina_review_read(root, family)) {
+  if (identical(family, "dina")) return(dina_finished_include(root, flags, input, is_terminal, record))
   if (is.null(record) || identical(record$status, "incomplete")) stop("Explore this family first: dina sources explore ", family, call. = FALSE)
   if (identical(record$status, "included")) {
     if (dina_review_included_watch_changed(record)) stop("Accepted source evidence changed since inclusion. Explore this family again: dina sources explore ", family, call. = FALSE)
@@ -1184,7 +1187,7 @@ dina_review_include <- function(root, family, flags = list(), input = "stdin", i
 
 dina_review_choose_family <- function(input = "stdin", is_terminal = isatty(stdin()), root = dina_repo_root()) {
   families <- dina_review_families()
-  if (!isTRUE(is_terminal)) stop("Choose a family: sna, admin, surveys, or wid. Example: dina sources explore surveys", call. = FALSE)
+  if (!isTRUE(is_terminal)) stop("Choose a family: sna, admin, surveys, wid, or dina. Example: dina sources explore surveys", call. = FALSE)
   dina_menu_select("Source families", lapply(dina_review_source_family_order(), function(family) {
     state <- dina_review_family_status(root, family)
     dina_menu_action(family, paste(families[[family]], "—", dina_review_state_label(state)), description = state$reason,
@@ -1360,8 +1363,14 @@ dina_sources_configure_admin <- function(root = dina_repo_root(), flags = list()
   invisible(proposal_path)
 }
 
-dina_review_details <- function(record, input = "stdin", is_terminal = isatty(stdin())) {
+dina_review_details <- function(record, input = "stdin", is_terminal = isatty(stdin()), filters = list()) {
   choices <- c(coverage = "Coverage", revisions = "Numerical revisions", `added-values` = "Newly available values", `missing-values` = "Missing values", problems = "Extraction problems", files = "Files to include")
+  if (identical(record$family, "dina")) choices <- c(checks = "Check summary and IDs", small = "Small discrepancies", larger = "Larger discrepancies",
+    decisions = "Definitions, format and blockers", coverage = "Coverage", problems = "All affected cases", files = "Source and attribution")
+  if (identical(record$family, "dina") && !is.null(record$include_candidate)) {
+    choices <- c(preparation = "Prepared candidate summary", changes = "Documented changes",
+      impact = "Distribution comparisons", `prepared-checks` = "Prepared candidate checks", choices)
+  }
   details <- switch(record$family, surveys = c(pipeline_input_summary = "Direct pipeline-input summary", pipeline_input_audit = "Direct pipeline-input audit", survey_source_comparison = "Survey files and schema"),
     sna = c(direct_input_changes_audit = "Direct-input change audit", unresolved_new_values = "Unresolved new-year values",
       direct_input_checks = "Direct-input extraction checks", direct_input_problems = "Direct-input problems"), wid = c(include_detail = "Artifact checks"),
@@ -1373,7 +1382,8 @@ dina_review_details <- function(record, input = "stdin", is_terminal = isatty(st
     selected <- dina_menu_select("Review details", lapply(names(choices), function(table) dina_menu_action(table, choices[[table]],
       command = sprintf("dina sources table %s %s", record$family, table))), default = "quit", input = input, is_terminal = is_terminal)
     if (is.null(selected) || identical(selected, "quit")) return(invisible(NULL))
-    dina_review_show_rows(dina_review_table(record, selected), dina_review_detail_columns(selected, dina_review_table(record, selected)), limit = 20L)
+    if (identical(record$family, "dina")) dina_finished_show_table(record, selected, limit = 20L, filters = filters)
+    else dina_review_show_rows(dina_review_table(record, selected), dina_review_detail_columns(selected, dina_review_table(record, selected)), limit = 20L)
     dina_cli_hold_result("Press Enter to return to review details: ", input, is_terminal)
   }
 }
@@ -1381,7 +1391,9 @@ dina_review_details <- function(record, input = "stdin", is_terminal = isatty(st
 dina_review_family_menu <- function(root, family, input = "stdin", is_terminal = isatty(stdin())) {
   repeat {
     state <- dina_review_family_status(root, family)
-    actions <- if (identical(family, "wid")) {
+    actions <- if (identical(family, "dina")) {
+      c(list = "Find sources", explore = "Explore", table = "Review details", include = "Include", back = "Choose another family")
+    } else if (identical(family, "wid")) {
       c(refresh = "Refresh/download WID data", explore = "Explore", table = "Review details", include = "Include", back = "Choose another family")
     } else if (identical(family, "admin")) {
       c(list = "Find sources", explore = "Explore", configure = "Configure trust regions", table = "Review details", include = "Include", back = "Choose another family")
@@ -1458,6 +1470,15 @@ dina_cmd_sources <- function(root, args, input = "stdin", is_terminal = isatty(s
     args <- c(sub, family, args[-1])
     flags <- dina_parse_flags(args[-1])
   }
+  # Finished series use their own candidate and recoverable acceptance adapter.
+  if (sub %in% c("explore", "include", "table") && length(flags$positional) &&
+      identical(dina_source_workflow_family(flags$positional[[1]], command = sub), "dina")) {
+    if (sub == "include") return(dina_review_include(root, "dina", flags, input, is_terminal))
+    if (sub == "explore") return(dina_finished_explore(root, flags))
+    if (any(c("dry-run", "include-run", "exploration-run", "restore") %in% names(flags))) {
+      stop("Use dina sources table dina [TABLE] [--run PATH] to inspect saved evidence.", call. = FALSE)
+    }
+  }
   if (identical(sub, "include") && isTRUE(flags$confirm) && !is.null(flags$restore)) stop("Choose acceptance or restore, not both.", call. = FALSE)
   if (identical(sub, "include") && isTRUE(flags[["dry-run"]]) && (isTRUE(flags$confirm) || !is.null(flags$restore))) stop("An assessment cannot be combined with acceptance or restore.", call. = FALSE)
   if (identical(sub, "include") && isTRUE(flags$apply)) stop("--apply is retired. Use dina sources explore FAMILY, then dina sources include FAMILY.", call. = FALSE)
@@ -1502,20 +1523,29 @@ dina_cmd_sources <- function(root, args, input = "stdin", is_terminal = isatty(s
   if (!is.null(flags$run)) {
     run <- flags$run
     if (!grepl("^/", run)) run <- file.path(root, run)
-    if (!file.exists(file.path(run, "review.json"))) return(dina_cmd_sources_legacy(root, args))
-    record <- dina_read_json(file.path(run, "review.json"))
+    if (identical(family, "dina") && file.exists(file.path(run, "candidate.json"))) {
+      candidate <- dina_read_json(file.path(run, "candidate.json"))
+      record <- dina_read_json(file.path(candidate$reviewed_run, "review.json"))
+      record$include_candidate <- candidate$run
+    } else {
+      if (!file.exists(file.path(run, "review.json"))) return(dina_cmd_sources_legacy(root, args))
+      record <- dina_read_json(file.path(run, "review.json"))
+    }
   }
   if (is.null(record$run)) {
+    if (identical(family, "dina")) stop("Explore this family first: dina sources explore dina", call. = FALSE)
     if (!is.null(record)) stop("The latest exploration did not complete. Explore this family again: dina sources explore ", family, call. = FALSE)
     return(dina_cmd_sources_legacy(root, args))
   }
   if (!identical(record$family, family)) stop("The selected review belongs to another family.", call. = FALSE)
   if (is.null(table)) {
-    dina_review_print(record, flags$country %||% NULL, flags$limit %||% 20L, root = root)
-    if (is_terminal) dina_review_details(record, input, is_terminal)
+    if (identical(family, "dina")) dina_finished_print(record, flags$country %||% NULL, flags$limit %||% 20L, root = root, filters = flags)
+    else dina_review_print(record, flags$country %||% NULL, flags$limit %||% 20L, root = root)
+    if (is_terminal) dina_review_details(record, input, is_terminal, filters = flags)
   } else {
     dina_cli_header(paste(dina_review_families()[[family]], "Table:", table))
-    dina_review_show_rows(dina_review_table(record, table), dina_review_detail_columns(table, dina_review_table(record, table)), country = flags$country %||% NULL, limit = flags$limit %||% 20L)
+    if (identical(family, "dina")) dina_finished_show_table(record, table, country = flags$country %||% NULL, limit = flags$limit %||% 20L, filters = flags)
+    else dina_review_show_rows(dina_review_table(record, table), dina_review_detail_columns(table, dina_review_table(record, table)), country = flags$country %||% NULL, limit = flags$limit %||% 20L)
   }
   invisible(record)
 }

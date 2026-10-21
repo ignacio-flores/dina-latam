@@ -15,10 +15,11 @@ dina_results_publish_metadata <- function(metadata, path) {
   if (!file.rename(temp, path)) stop("Could not publish comparison metadata.", call. = FALSE)
 }
 
-dina_results_begin <- function(root, date, config) {
+dina_results_begin <- function(root, date, config, output_root = Sys.getenv("DINA_OUTPUT_ROOT", unset = root)) {
+  if (!nzchar(output_root)) output_root <- root
   stopifnot(length(date) == 1L, grepl("^[A-Za-z0-9]+$", date))
-  path <- dina_results_metadata_path(root, date)
-  pending <- dina_results_metadata_path(root, date, TRUE)
+  path <- dina_results_metadata_path(output_root, date)
+  pending <- dina_results_metadata_path(output_root, date, TRUE)
   unlink(c(path, pending))
   baseline <- config$export_validation$previous_update_file
   problems <- dina_baseline_check(baseline, root)
@@ -30,8 +31,9 @@ dina_results_begin <- function(root, date, config) {
   invisible(metadata)
 }
 
-dina_results_complete <- function(root, date, config) {
-  pending <- dina_results_metadata_path(root, date, TRUE)
+dina_results_complete <- function(root, date, config, output_root = Sys.getenv("DINA_OUTPUT_ROOT", unset = root)) {
+  if (!nzchar(output_root)) output_root <- root
+  pending <- dina_results_metadata_path(output_root, date, TRUE)
   metadata <- dina_read_json(pending, default = NULL)
   if (is.null(metadata)) stop("Comparison generation metadata was not prepared.", call. = FALSE)
   baseline <- metadata$baseline
@@ -41,13 +43,13 @@ dina_results_complete <- function(root, date, config) {
   graphs <- file.path("output", "figures", "updates", paste0("update-", date, "-sptinc992j-", names(dina_results_graph_names()), ".pdf"))
   series <- file.path("output", "latest_wid_series", paste0("dina_latam", c("_wide", "", ""), "_", date, c("", "", "_amory"), ".dta"))
   paths <- c(graphs, series)
-  if (any(!file.exists(file.path(root, paths)))) stop("Comparison export is incomplete: expected graphs or final series are missing.", call. = FALSE)
+  if (any(!file.exists(file.path(output_root, paths)))) stop("Comparison export is incomplete: expected graphs or final series are missing.", call. = FALSE)
   metadata$status <- "complete"
   metadata$generated_at <- dina_now()
   metadata$graphs <- graphs
   metadata$series <- series
-  metadata$artifacts <- setNames(lapply(paths, function(path) dina_hash_file(file.path(root, path))), paths)
-  dina_results_publish_metadata(metadata, dina_results_metadata_path(root, date))
+  metadata$artifacts <- setNames(lapply(paths, function(path) dina_hash_file(file.path(output_root, path))), paths)
+  dina_results_publish_metadata(metadata, dina_results_metadata_path(output_root, date))
   unlink(pending)
   invisible(metadata)
 }

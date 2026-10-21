@@ -1,3 +1,19 @@
+* DINA country-run entry; the worker writes only to its temporary output folder.
+args dina_requested_countries
+local dina_worker : environment DINA_COUNTRY_WORKER
+if "`dina_worker'" != "07b-report-data-availability" {
+    do "code/Stata/auxiliar/dina_country_task.do" "07b-report-data-availability" "`dina_requested_countries'"
+    exit
+}
+local dina_output_env : environment DINA_OUTPUT_ROOT
+local dina_countries_env : environment DINA_RUN_COUNTRIES
+if `"`dina_output_env'"' == "" | trim("`dina_countries_env'") == "" {
+    di as error "Missing country-run output folder or selected countries."
+    exit 198
+}
+global dina_output_root `"`dina_output_env'"'
+global dina_run_countries "`dina_countries_env'"
+
 //Check what we have 
 //N or something else? Agregar opción N1
 
@@ -8,8 +24,9 @@ global aux_part  ""preliminary""
 do "code/Stata/auxiliar/aux_general.do"
 
 *define first year 
-local start_y = 2000
-local end = 2024
+// Report the complete configured year range.
+local start_y = $first_y
+local end = $last_y
 
 local iter = 1
 foreach c in $all_countries {
@@ -136,7 +153,5 @@ qui drop _obs next* prev*
 decode grade, gen(grade_label)
 order country year survey has_tax grade grade_label
 
-quietly export excel  "output/data_reports/latam_availability.xlsx", ///
+quietly export excel  "${dina_output_root}/output/data_reports/latam_availability.xlsx", ///
 	replace keepcellfmt firstrow(variables) nolab
-
-	

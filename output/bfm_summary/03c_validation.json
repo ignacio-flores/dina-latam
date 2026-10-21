@@ -1,0 +1,1329 @@
+{
+  "version": 2,
+  "generated_at": "2026-10-19T14:04:42+0200",
+  "panel_sha256": "0f346aa7a1accc9a43f99822c477bbff9ccb1e6f9d99fca927466d96493fbab0",
+  "countries_updated": ["ARG", "BRA", "CHL", "COL", "CRI", "DOM", "ECU", "MEX", "PER", "SLV", "URY"],
+  "input_sha256": {
+    "pos": "8200d2f254d9294c9decb58ce64a16f17fb5472f8decf08e873cfc2dd8fcde1e",
+    "pre": "fbe4ed2c7f5c4f29feb10cb31e943b72373d94026ba381534a39576c24331bf4",
+    "trust": "9b1bb685f624b162c29a2eccb7e4da273809db869134685537222a3d0f0b739e"
+  },
+  "cases": [
+    {
+      "country": "ARG",
+      "year": 2000,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "ARG",
+      "year": 2001,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "ARG",
+      "year": 2002,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "ARG",
+      "year": 2003,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "ARG",
+      "year": 2004,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "ARG",
+      "year": 2005,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "ARG",
+      "year": 2006,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "ARG",
+      "year": 2007,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "ARG",
+      "year": 2008,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "ARG",
+      "year": 2009,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "ARG",
+      "year": 2010,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "ARG",
+      "year": 2011,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "ARG",
+      "year": 2012,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "ARG",
+      "year": 2013,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "ARG",
+      "year": 2014,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "BRA",
+      "year": 2002,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pre/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "BRA",
+      "year": 2006,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pre/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "BRA",
+      "year": 2007,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pre/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "BRA",
+      "year": 2008,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pre/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "BRA",
+      "year": 2009,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pre/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "BRA",
+      "year": 2011,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pre/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "BRA",
+      "year": 2012,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pre/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "BRA",
+      "year": 2013,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pre/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "BRA",
+      "year": 2014,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pre/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "BRA",
+      "year": 2015,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pre/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "BRA",
+      "year": 2016,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pre/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "BRA",
+      "year": 2017,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pre/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "BRA",
+      "year": 2018,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pre/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "BRA",
+      "year": 2019,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pre/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "BRA",
+      "year": 2020,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pre/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "BRA",
+      "year": 2021,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pre/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "BRA",
+      "year": 2022,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pre/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "BRA",
+      "year": 2023,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pre/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "BRA",
+      "year": 2024,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pre/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "CHL",
+      "year": 2006,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "CHL",
+      "year": 2009,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "CHL",
+      "year": 2011,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "CHL",
+      "year": 2013,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "CHL",
+      "year": 2015,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "CHL",
+      "year": 2017,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "CHL",
+      "year": 2020,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "CHL",
+      "year": 2022,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "CHL",
+      "year": 2024,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "COL",
+      "year": 2014,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "COL",
+      "year": 2015,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "COL",
+      "year": 2016,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "COL",
+      "year": 2017,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "COL",
+      "year": 2018,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "COL",
+      "year": 2019,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "COL",
+      "year": 2020,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "COL",
+      "year": 2021,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "COL",
+      "year": 2022,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "COL",
+      "year": 2023,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "CRI",
+      "year": 2010,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pre/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "CRI",
+      "year": 2011,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pre/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "CRI",
+      "year": 2012,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pre/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "CRI",
+      "year": 2013,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pre/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "CRI",
+      "year": 2014,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pre/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "CRI",
+      "year": 2015,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pre/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "CRI",
+      "year": 2016,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pre/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "DOM",
+      "year": 2012,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "DOM",
+      "year": 2013,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "DOM",
+      "year": 2014,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "DOM",
+      "year": 2015,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "DOM",
+      "year": 2016,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "DOM",
+      "year": 2017,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "DOM",
+      "year": 2018,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "DOM",
+      "year": 2019,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "ECU",
+      "year": 2008,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "ECU",
+      "year": 2009,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "ECU",
+      "year": 2010,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "ECU",
+      "year": 2011,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "MEX",
+      "year": 2010,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "MEX",
+      "year": 2012,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "MEX",
+      "year": 2014,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "PER",
+      "year": 2016,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "PER",
+      "year": 2017,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "PER",
+      "year": 2018,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "SLV",
+      "year": 2001,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "SLV",
+      "year": 2002,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "SLV",
+      "year": 2003,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "SLV",
+      "year": 2004,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "SLV",
+      "year": 2005,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "SLV",
+      "year": 2006,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "SLV",
+      "year": 2007,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "SLV",
+      "year": 2009,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "SLV",
+      "year": 2010,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "SLV",
+      "year": 2012,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "SLV",
+      "year": 2013,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "SLV",
+      "year": 2014,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "SLV",
+      "year": 2015,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "SLV",
+      "year": 2016,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "SLV",
+      "year": 2017,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "URY",
+      "year": 2009,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "URY",
+      "year": 2010,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "URY",
+      "year": 2011,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "URY",
+      "year": 2012,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "URY",
+      "year": 2013,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "URY",
+      "year": 2014,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "URY",
+      "year": 2015,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "URY",
+      "year": 2016,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    }
+  ],
+  "excluded_historical": [],
+  "differences_from_prior": [
+    {
+      "case": "ARG_2000",
+      "status": "unchanged",
+      "old_rows": 29,
+      "new_rows": 29,
+      "changed_fields": []
+    },
+    {
+      "case": "ARG_2001",
+      "status": "unchanged",
+      "old_rows": 30,
+      "new_rows": 30,
+      "changed_fields": []
+    },
+    {
+      "case": "ARG_2002",
+      "status": "unchanged",
+      "old_rows": 29,
+      "new_rows": 29,
+      "changed_fields": []
+    },
+    {
+      "case": "ARG_2003",
+      "status": "unchanged",
+      "old_rows": 26,
+      "new_rows": 26,
+      "changed_fields": []
+    },
+    {
+      "case": "ARG_2004",
+      "status": "unchanged",
+      "old_rows": 30,
+      "new_rows": 30,
+      "changed_fields": []
+    },
+    {
+      "case": "ARG_2005",
+      "status": "unchanged",
+      "old_rows": 29,
+      "new_rows": 29,
+      "changed_fields": []
+    },
+    {
+      "case": "ARG_2006",
+      "status": "unchanged",
+      "old_rows": 30,
+      "new_rows": 30,
+      "changed_fields": []
+    },
+    {
+      "case": "ARG_2007",
+      "status": "unchanged",
+      "old_rows": 30,
+      "new_rows": 30,
+      "changed_fields": []
+    },
+    {
+      "case": "ARG_2008",
+      "status": "unchanged",
+      "old_rows": 34,
+      "new_rows": 34,
+      "changed_fields": []
+    },
+    {
+      "case": "ARG_2009",
+      "status": "unchanged",
+      "old_rows": 31,
+      "new_rows": 31,
+      "changed_fields": []
+    },
+    {
+      "case": "ARG_2010",
+      "status": "unchanged",
+      "old_rows": 30,
+      "new_rows": 30,
+      "changed_fields": []
+    },
+    {
+      "case": "ARG_2011",
+      "status": "unchanged",
+      "old_rows": 34,
+      "new_rows": 34,
+      "changed_fields": []
+    },
+    {
+      "case": "ARG_2012",
+      "status": "unchanged",
+      "old_rows": 35,
+      "new_rows": 35,
+      "changed_fields": []
+    },
+    {
+      "case": "ARG_2013",
+      "status": "unchanged",
+      "old_rows": 32,
+      "new_rows": 32,
+      "changed_fields": []
+    },
+    {
+      "case": "ARG_2014",
+      "status": "unchanged",
+      "old_rows": 34,
+      "new_rows": 34,
+      "changed_fields": []
+    },
+    {
+      "case": "BRA_2002",
+      "status": "unchanged",
+      "old_rows": 30,
+      "new_rows": 30,
+      "changed_fields": []
+    },
+    {
+      "case": "BRA_2006",
+      "status": "unchanged",
+      "old_rows": 40,
+      "new_rows": 40,
+      "changed_fields": []
+    },
+    {
+      "case": "BRA_2007",
+      "status": "unchanged",
+      "old_rows": 40,
+      "new_rows": 40,
+      "changed_fields": []
+    },
+    {
+      "case": "BRA_2008",
+      "status": "unchanged",
+      "old_rows": 40,
+      "new_rows": 40,
+      "changed_fields": []
+    },
+    {
+      "case": "BRA_2009",
+      "status": "unchanged",
+      "old_rows": 39,
+      "new_rows": 39,
+      "changed_fields": []
+    },
+    {
+      "case": "BRA_2011",
+      "status": "unchanged",
+      "old_rows": 39,
+      "new_rows": 39,
+      "changed_fields": []
+    },
+    {
+      "case": "BRA_2012",
+      "status": "unchanged",
+      "old_rows": 39,
+      "new_rows": 39,
+      "changed_fields": []
+    },
+    {
+      "case": "BRA_2013",
+      "status": "unchanged",
+      "old_rows": 40,
+      "new_rows": 40,
+      "changed_fields": []
+    },
+    {
+      "case": "BRA_2014",
+      "status": "unchanged",
+      "old_rows": 40,
+      "new_rows": 40,
+      "changed_fields": []
+    },
+    {
+      "case": "BRA_2015",
+      "status": "unchanged",
+      "old_rows": 40,
+      "new_rows": 40,
+      "changed_fields": []
+    },
+    {
+      "case": "BRA_2016",
+      "status": "unchanged",
+      "old_rows": 40,
+      "new_rows": 40,
+      "changed_fields": []
+    },
+    {
+      "case": "BRA_2017",
+      "status": "unchanged",
+      "old_rows": 41,
+      "new_rows": 41,
+      "changed_fields": []
+    },
+    {
+      "case": "BRA_2018",
+      "status": "unchanged",
+      "old_rows": 41,
+      "new_rows": 41,
+      "changed_fields": []
+    },
+    {
+      "case": "BRA_2019",
+      "status": "unchanged",
+      "old_rows": 41,
+      "new_rows": 41,
+      "changed_fields": []
+    },
+    {
+      "case": "BRA_2020",
+      "status": "unchanged",
+      "old_rows": 41,
+      "new_rows": 41,
+      "changed_fields": []
+    },
+    {
+      "case": "BRA_2021",
+      "status": "unchanged",
+      "old_rows": 41,
+      "new_rows": 41,
+      "changed_fields": []
+    },
+    {
+      "case": "BRA_2022",
+      "status": "unchanged",
+      "old_rows": 41,
+      "new_rows": 41,
+      "changed_fields": []
+    },
+    {
+      "case": "BRA_2023",
+      "status": "unchanged",
+      "old_rows": 41,
+      "new_rows": 41,
+      "changed_fields": []
+    },
+    {
+      "case": "BRA_2024",
+      "status": "unchanged",
+      "old_rows": 41,
+      "new_rows": 41,
+      "changed_fields": []
+    },
+    {
+      "case": "CHL_2006",
+      "status": "unchanged",
+      "old_rows": 37,
+      "new_rows": 37,
+      "changed_fields": []
+    },
+    {
+      "case": "CHL_2009",
+      "status": "unchanged",
+      "old_rows": 39,
+      "new_rows": 39,
+      "changed_fields": []
+    },
+    {
+      "case": "CHL_2011",
+      "status": "unchanged",
+      "old_rows": 93,
+      "new_rows": 93,
+      "changed_fields": []
+    },
+    {
+      "case": "CHL_2013",
+      "status": "unchanged",
+      "old_rows": 43,
+      "new_rows": 43,
+      "changed_fields": []
+    },
+    {
+      "case": "CHL_2015",
+      "status": "unchanged",
+      "old_rows": 44,
+      "new_rows": 44,
+      "changed_fields": []
+    },
+    {
+      "case": "CHL_2017",
+      "status": "unchanged",
+      "old_rows": 45,
+      "new_rows": 45,
+      "changed_fields": []
+    },
+    {
+      "case": "CHL_2020",
+      "status": "unchanged",
+      "old_rows": 46,
+      "new_rows": 46,
+      "changed_fields": []
+    },
+    {
+      "case": "CHL_2022",
+      "status": "unchanged",
+      "old_rows": 46,
+      "new_rows": 46,
+      "changed_fields": []
+    },
+    {
+      "case": "CHL_2024",
+      "status": "unchanged",
+      "old_rows": 46,
+      "new_rows": 46,
+      "changed_fields": []
+    },
+    {
+      "case": "COL_2014",
+      "status": "unchanged",
+      "old_rows": 37,
+      "new_rows": 37,
+      "changed_fields": []
+    },
+    {
+      "case": "COL_2015",
+      "status": "unchanged",
+      "old_rows": 37,
+      "new_rows": 37,
+      "changed_fields": []
+    },
+    {
+      "case": "COL_2016",
+      "status": "unchanged",
+      "old_rows": 37,
+      "new_rows": 37,
+      "changed_fields": []
+    },
+    {
+      "case": "COL_2017",
+      "status": "unchanged",
+      "old_rows": 37,
+      "new_rows": 37,
+      "changed_fields": []
+    },
+    {
+      "case": "COL_2018",
+      "status": "unchanged",
+      "old_rows": 37,
+      "new_rows": 37,
+      "changed_fields": []
+    },
+    {
+      "case": "COL_2019",
+      "status": "unchanged",
+      "old_rows": 37,
+      "new_rows": 37,
+      "changed_fields": []
+    },
+    {
+      "case": "COL_2020",
+      "status": "unchanged",
+      "old_rows": 37,
+      "new_rows": 37,
+      "changed_fields": []
+    },
+    {
+      "case": "COL_2021",
+      "status": "unchanged",
+      "old_rows": 37,
+      "new_rows": 37,
+      "changed_fields": []
+    },
+    {
+      "case": "COL_2022",
+      "status": "unchanged",
+      "old_rows": 37,
+      "new_rows": 37,
+      "changed_fields": []
+    },
+    {
+      "case": "COL_2023",
+      "status": "unchanged",
+      "old_rows": 37,
+      "new_rows": 37,
+      "changed_fields": []
+    },
+    {
+      "case": "CRI_2010",
+      "status": "unchanged",
+      "old_rows": 21,
+      "new_rows": 21,
+      "changed_fields": []
+    },
+    {
+      "case": "CRI_2011",
+      "status": "unchanged",
+      "old_rows": 23,
+      "new_rows": 23,
+      "changed_fields": []
+    },
+    {
+      "case": "CRI_2012",
+      "status": "unchanged",
+      "old_rows": 24,
+      "new_rows": 24,
+      "changed_fields": []
+    },
+    {
+      "case": "CRI_2013",
+      "status": "unchanged",
+      "old_rows": 31,
+      "new_rows": 31,
+      "changed_fields": []
+    },
+    {
+      "case": "CRI_2014",
+      "status": "unchanged",
+      "old_rows": 24,
+      "new_rows": 24,
+      "changed_fields": []
+    },
+    {
+      "case": "CRI_2015",
+      "status": "unchanged",
+      "old_rows": 24,
+      "new_rows": 24,
+      "changed_fields": []
+    },
+    {
+      "case": "CRI_2016",
+      "status": "unchanged",
+      "old_rows": 24,
+      "new_rows": 24,
+      "changed_fields": []
+    },
+    {
+      "case": "DOM_2012",
+      "status": "unchanged",
+      "old_rows": 41,
+      "new_rows": 41,
+      "changed_fields": []
+    },
+    {
+      "case": "DOM_2013",
+      "status": "unchanged",
+      "old_rows": 41,
+      "new_rows": 41,
+      "changed_fields": []
+    },
+    {
+      "case": "DOM_2014",
+      "status": "unchanged",
+      "old_rows": 41,
+      "new_rows": 41,
+      "changed_fields": []
+    },
+    {
+      "case": "DOM_2015",
+      "status": "unchanged",
+      "old_rows": 41,
+      "new_rows": 41,
+      "changed_fields": []
+    },
+    {
+      "case": "DOM_2016",
+      "status": "unchanged",
+      "old_rows": 41,
+      "new_rows": 41,
+      "changed_fields": []
+    },
+    {
+      "case": "DOM_2017",
+      "status": "unchanged",
+      "old_rows": 41,
+      "new_rows": 41,
+      "changed_fields": []
+    },
+    {
+      "case": "DOM_2018",
+      "status": "unchanged",
+      "old_rows": 41,
+      "new_rows": 41,
+      "changed_fields": []
+    },
+    {
+      "case": "DOM_2019",
+      "status": "unchanged",
+      "old_rows": 41,
+      "new_rows": 41,
+      "changed_fields": []
+    },
+    {
+      "case": "ECU_2008",
+      "status": "changed",
+      "old_rows": 32,
+      "new_rows": 32,
+      "changed_fields": "avg_t"
+    },
+    {
+      "case": "ECU_2009",
+      "status": "changed",
+      "old_rows": 32,
+      "new_rows": 32,
+      "changed_fields": "avg_t"
+    },
+    {
+      "case": "ECU_2010",
+      "status": "changed",
+      "old_rows": 32,
+      "new_rows": 32,
+      "changed_fields": "avg_t"
+    },
+    {
+      "case": "ECU_2011",
+      "status": "added",
+      "old_rows": 0,
+      "new_rows": 76,
+      "changed_fields": ["p", "small_t", "antitonic", "mpoint", "big_t", "extrap", "thr", "avg_t"]
+    },
+    {
+      "case": "MEX_2010",
+      "status": "changed",
+      "old_rows": 83,
+      "new_rows": 83,
+      "changed_fields": ["small_t", "big_t", "thr"]
+    },
+    {
+      "case": "MEX_2012",
+      "status": "changed",
+      "old_rows": 79,
+      "new_rows": 79,
+      "changed_fields": ["small_t", "big_t", "thr", "avg_t"]
+    },
+    {
+      "case": "MEX_2014",
+      "status": "changed",
+      "old_rows": 83,
+      "new_rows": 83,
+      "changed_fields": ["small_t", "antitonic", "big_t", "avg_t"]
+    },
+    {
+      "case": "PER_2016",
+      "status": "unchanged",
+      "old_rows": 50,
+      "new_rows": 50,
+      "changed_fields": []
+    },
+    {
+      "case": "PER_2017",
+      "status": "unchanged",
+      "old_rows": 50,
+      "new_rows": 50,
+      "changed_fields": []
+    },
+    {
+      "case": "PER_2018",
+      "status": "unchanged",
+      "old_rows": 50,
+      "new_rows": 50,
+      "changed_fields": []
+    },
+    {
+      "case": "SLV_2001",
+      "status": "unchanged",
+      "old_rows": 27,
+      "new_rows": 27,
+      "changed_fields": []
+    },
+    {
+      "case": "SLV_2002",
+      "status": "unchanged",
+      "old_rows": 27,
+      "new_rows": 27,
+      "changed_fields": []
+    },
+    {
+      "case": "SLV_2003",
+      "status": "unchanged",
+      "old_rows": 27,
+      "new_rows": 27,
+      "changed_fields": []
+    },
+    {
+      "case": "SLV_2004",
+      "status": "unchanged",
+      "old_rows": 27,
+      "new_rows": 27,
+      "changed_fields": []
+    },
+    {
+      "case": "SLV_2005",
+      "status": "unchanged",
+      "old_rows": 28,
+      "new_rows": 28,
+      "changed_fields": []
+    },
+    {
+      "case": "SLV_2006",
+      "status": "unchanged",
+      "old_rows": 28,
+      "new_rows": 28,
+      "changed_fields": []
+    },
+    {
+      "case": "SLV_2007",
+      "status": "unchanged",
+      "old_rows": 29,
+      "new_rows": 29,
+      "changed_fields": []
+    },
+    {
+      "case": "SLV_2009",
+      "status": "unchanged",
+      "old_rows": 29,
+      "new_rows": 29,
+      "changed_fields": []
+    },
+    {
+      "case": "SLV_2010",
+      "status": "unchanged",
+      "old_rows": 29,
+      "new_rows": 29,
+      "changed_fields": []
+    },
+    {
+      "case": "SLV_2012",
+      "status": "unchanged",
+      "old_rows": 29,
+      "new_rows": 29,
+      "changed_fields": []
+    },
+    {
+      "case": "SLV_2013",
+      "status": "unchanged",
+      "old_rows": 29,
+      "new_rows": 29,
+      "changed_fields": []
+    },
+    {
+      "case": "SLV_2014",
+      "status": "unchanged",
+      "old_rows": 29,
+      "new_rows": 29,
+      "changed_fields": []
+    },
+    {
+      "case": "SLV_2015",
+      "status": "unchanged",
+      "old_rows": 29,
+      "new_rows": 29,
+      "changed_fields": []
+    },
+    {
+      "case": "SLV_2016",
+      "status": "unchanged",
+      "old_rows": 29,
+      "new_rows": 29,
+      "changed_fields": []
+    },
+    {
+      "case": "SLV_2017",
+      "status": "unchanged",
+      "old_rows": 29,
+      "new_rows": 29,
+      "changed_fields": []
+    },
+    {
+      "case": "URY_2009",
+      "status": "unchanged",
+      "old_rows": 77,
+      "new_rows": 77,
+      "changed_fields": []
+    },
+    {
+      "case": "URY_2010",
+      "status": "unchanged",
+      "old_rows": 77,
+      "new_rows": 77,
+      "changed_fields": []
+    },
+    {
+      "case": "URY_2011",
+      "status": "unchanged",
+      "old_rows": 77,
+      "new_rows": 77,
+      "changed_fields": []
+    },
+    {
+      "case": "URY_2012",
+      "status": "unchanged",
+      "old_rows": 77,
+      "new_rows": 77,
+      "changed_fields": []
+    },
+    {
+      "case": "URY_2013",
+      "status": "unchanged",
+      "old_rows": 77,
+      "new_rows": 77,
+      "changed_fields": []
+    },
+    {
+      "case": "URY_2014",
+      "status": "unchanged",
+      "old_rows": 77,
+      "new_rows": 77,
+      "changed_fields": []
+    },
+    {
+      "case": "URY_2015",
+      "status": "unchanged",
+      "old_rows": 77,
+      "new_rows": 77,
+      "changed_fields": []
+    },
+    {
+      "case": "URY_2016",
+      "status": "unchanged",
+      "old_rows": 77,
+      "new_rows": 77,
+      "changed_fields": []
+    }
+  ]
+}

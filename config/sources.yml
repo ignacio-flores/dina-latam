@@ -722,6 +722,39 @@ sources:
     integration: survey_population
     notes: Manual survey inputs downloaded from a private/server location. Use `dina sources explore surveys` and `dina sources include surveys --dry-run` to review/promote survey inputs and regenerate SurveyPop.dta. Credentials and machine-specific paths are not stored in the source registry.
 
+  - id: ecu-nabernegg-2026
+    aliases:
+      - ecu-finished-dina
+    family: dina
+    country: ECU
+    method: manual
+    urls:
+      - label: publication DOI
+        url: https://doi.org/10.1016/j.jeem.2026.103353
+    canonical:
+      - input_data/dina/WIL_ECU_1990-2022_v2.dta
+    prepared: input_data/dina/WIL_ECU_1990-2022_v2_prepared.dta
+    inbox:
+      - input_data/_new/dina/WIL_ECU_1990-2022_v2.dta
+    inbox_examples:
+      - WIL_ECU_1990-2022_v2.dta
+    destination: input_data/dina/{basename}
+    integration: prepared_external
+    finished_series:
+      version: v2
+      first_year: 1990
+      last_year: 2022
+      steps: [nat, pon]
+      units: [esn, ind]
+      publication_step: nat
+      publication_unit: esn
+      citation: "Nabernegg, Markus, Stefan Nabernegg, and Thomas Kopp. 2026. Amplified challenges for the joint reduction of emissions and inequality, considering the missing-rich. Journal of Environmental Economics and Management. 139: 103353."
+      doi: https://doi.org/10.1016/j.jeem.2026.103353
+      currency: unconfirmed
+      price_basis: unconfirmed
+      population: unconfirmed
+    notes: Researcher-supplied finished Ecuador distributions. Explore validates all supplied concepts and units independently of pipeline outputs; nat/esn is the publication series. Include preserves the byte-identical original and separately prepares the standard distribution with documented corrections. Accepted inputs are not yet consumed by the pipeline; continuation, WID scaling and publication activation remain deferred.
+
   - id: previous-series
     family: validation
     country: MULTI
@@ -734,3 +767,566 @@ sources:
     inbox_examples:
       - dina_latam_7Nov2025.dta
     notes: Prior WID-format series used directly for final validation and export comparison. Keep alternatives in input_data/_new/previous_series and select one explicitly in the update settings.
+
+# Exact historical inputs approved in this session. Synthetic rate outputs remain generated.
+external_artifacts:
+  - id: ecu-eff-tax-rates-ecu
+    path: input_data/admin_data/ECU/eff-tax-rate/eff-tax-rates-ECU.xlsx
+    country: ECU
+    year: [2008, 2009, 2010, 2011]
+    product: effective_tax_rate_source
+    sha256: 69eed04b5357c4d9967c9c7988e8587eddef34b3e9541cf92501a96d9fb599c5
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: 6ed0a73fdbb7262212b37b092fb7645b58da9f6e
+      path: input_data/admin_data/ECU/eff-tax-rate/eff-tax-rates-ECU.xlsx
+    approval:
+      authority: user
+      reference: conversation-approved-mex-ecu-historical-reuse
+      decision: Reuse historical Ecuador inputs pending the separately supplied replacement Admin data.
+
+  - id: ecu-gpinter-ecu-2008
+    path: input_data/admin_data/ECU/gpinter_ECU_2008.xlsx
+    country: ECU
+    year: [2008]
+    product: admin_bfm_distribution
+    sha256: e76531ba51cf917159bbdfd7b0d6501d61d172ec29eaeb3d91cf1efd66f6851f
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: 3d84dbe9990183757e1aa5f158b17e41684c56a6
+      path: input_data/admin_data/ECU/gpinter_ECU_2008.xlsx
+    approval:
+      authority: user
+      reference: conversation-approved-mex-ecu-historical-reuse
+      decision: Reuse historical Ecuador inputs pending the separately supplied replacement Admin data.
+
+  - id: ecu-gpinter-ecu-2009
+    path: input_data/admin_data/ECU/gpinter_ECU_2009.xlsx
+    country: ECU
+    year: [2009]
+    product: admin_bfm_distribution
+    sha256: 093958a785fac05c12a296bae983fb7370684a330511f925d574323998857636
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: ac9cb8c9318ae286d672fcd8e2722c1a200c533b
+      path: input_data/admin_data/ECU/gpinter_ECU_2009.xlsx
+    approval:
+      authority: user
+      reference: conversation-approved-mex-ecu-historical-reuse
+      decision: Reuse historical Ecuador inputs pending the separately supplied replacement Admin data.
+
+  - id: ecu-gpinter-ecu-2010
+    path: input_data/admin_data/ECU/gpinter_ECU_2010.xlsx
+    country: ECU
+    year: [2010]
+    product: admin_bfm_distribution
+    sha256: 8504346ddd9d21db2c896e4313e2fcd159a623e231e48f09cb68fc4bd9e0c5b5
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: ba823c37d9e290587744aea860163094ccac1fc2
+      path: input_data/admin_data/ECU/gpinter_ECU_2010.xlsx
+    approval:
+      authority: user
+      reference: conversation-approved-mex-ecu-historical-reuse
+      decision: Reuse historical Ecuador inputs pending the separately supplied replacement Admin data.
+
+  - id: ecu-gpinter-ecu-2011
+    path: input_data/admin_data/ECU/gpinter_ECU_2011.xlsx
+    country: ECU
+    year: [2011]
+    product: admin_bfm_distribution
+    sha256: 8553d0c8458ca18c0f15bd890c2a6715ea4bf8dc7990f3382fa95ad9ff2ca244
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: c4f496f625ba78a131a85dc9b9470c28734d972e
+      path: input_data/admin_data/ECU/gpinter_ECU_2011.xlsx
+    approval:
+      authority: user
+      reference: conversation-approved-mex-ecu-historical-reuse
+      decision: Reuse historical Ecuador inputs pending the separately supplied replacement Admin data.
+
+  - id: mex-gpinter-mex-2009
+    path: input_data/admin_data/MEX/gpinter_MEX_2009.xlsx
+    country: MEX
+    year: [2009]
+    product: admin_bfm_distribution
+    sha256: 401b5d0485fbec3378f2feafe5e77014dcee74dbee6d55c7220c2f1ab04c98bb
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: 3a903619e42e750999f94ce248fbd579154c3571
+      path: input_data/admin_data/MEX/gpinter_MEX_2009.xlsx
+    approval:
+      authority: user
+      reference: conversation-approved-mex-ecu-historical-reuse
+      decision: Reuse the approved historical prepared input; do not regenerate heavy Admin microdata.
+
+  - id: mex-gpinter-mex-2010
+    path: input_data/admin_data/MEX/gpinter_MEX_2010.xlsx
+    country: MEX
+    year: [2010]
+    product: admin_bfm_distribution
+    sha256: 51d57343b2d07a8b97143b1a09cd37f0a44bd1cd7538646d5e252e93e15d69e0
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: e7bebc9809121fa4e736fc0617bc864464ba7401
+      path: input_data/admin_data/MEX/gpinter_MEX_2010.xlsx
+    approval:
+      authority: user
+      reference: conversation-approved-mex-ecu-historical-reuse
+      decision: Reuse the approved historical prepared input; do not regenerate heavy Admin microdata.
+
+  - id: mex-gpinter-mex-2011
+    path: input_data/admin_data/MEX/gpinter_MEX_2011.xlsx
+    country: MEX
+    year: [2011]
+    product: admin_bfm_distribution
+    sha256: 80699c27e845eeacf672e39f46d658213f8c5af1cb83286693beb14d3bdcc3c5
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: aa96f2aed1be5fb18d5bd5848777386d370e8d6c
+      path: input_data/admin_data/MEX/gpinter_MEX_2011.xlsx
+    approval:
+      authority: user
+      reference: conversation-approved-mex-ecu-historical-reuse
+      decision: Reuse the approved historical prepared input; do not regenerate heavy Admin microdata.
+
+  - id: mex-gpinter-mex-2012
+    path: input_data/admin_data/MEX/gpinter_MEX_2012.xlsx
+    country: MEX
+    year: [2012]
+    product: admin_bfm_distribution
+    sha256: dba844656cf97224e903311a6289029f8dbab14b65021f0f4381c57758bd3b69
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: 27b92f7ef94ed9eef5be1ad31ccef39fc6f1362e
+      path: input_data/admin_data/MEX/gpinter_MEX_2012.xlsx
+    approval:
+      authority: user
+      reference: conversation-approved-mex-ecu-historical-reuse
+      decision: Reuse the approved historical prepared input; do not regenerate heavy Admin microdata.
+
+  - id: mex-gpinter-mex-2013
+    path: input_data/admin_data/MEX/gpinter_MEX_2013.xlsx
+    country: MEX
+    year: [2013]
+    product: admin_bfm_distribution
+    sha256: 0eed01c94165de2db1e05ba1cd0de69c11cf47a3d3ec41ee8ad55eee1dd1fb45
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: 7469ef1ececa8bb01b27c38539252179de84ace5
+      path: input_data/admin_data/MEX/gpinter_MEX_2013.xlsx
+    approval:
+      authority: user
+      reference: conversation-approved-mex-ecu-historical-reuse
+      decision: Reuse the approved historical prepared input; do not regenerate heavy Admin microdata.
+
+  - id: mex-gpinter-mex-2014
+    path: input_data/admin_data/MEX/gpinter_MEX_2014.xlsx
+    country: MEX
+    year: [2014]
+    product: admin_bfm_distribution
+    sha256: e9f82bbd87481a0338438b16e6981f3497add096d0ca5844352a89eef2e6e40b
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: f04870b17f9903034a48c345fdfa9613d19ae003
+      path: input_data/admin_data/MEX/gpinter_MEX_2014.xlsx
+    approval:
+      authority: user
+      reference: conversation-approved-mex-ecu-historical-reuse
+      decision: Reuse the approved historical prepared input; do not regenerate heavy Admin microdata.
+
+  - id: mex-wage-mex-2009
+    path: input_data/admin_data/MEX/wage_MEX_2009.xlsx
+    country: MEX
+    year: [2009]
+    product: admin_wage_distribution
+    sha256: f51d9a04d2e6432669825758ff74c11e3bf38bbc56fcf6da86baa96ee53e0c58
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: 72949f7556be276ba4036db8f1be4ea1419c0548
+      path: input_data/admin_data/MEX/wage_MEX_2009.xlsx
+    approval:
+      authority: user
+      reference: conversation-approved-mex-ecu-historical-reuse
+      decision: Reuse the approved historical prepared input; do not regenerate heavy Admin microdata.
+
+  - id: mex-wage-mex-2010
+    path: input_data/admin_data/MEX/wage_MEX_2010.xlsx
+    country: MEX
+    year: [2010]
+    product: admin_wage_distribution
+    sha256: cc2a02c561f1de5e6658409775305239bdf60f8c4347d19d6f9d4c6d592c00b5
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: 5dac472cefab4a595f04fb01b126750892812445
+      path: input_data/admin_data/MEX/wage_MEX_2010.xlsx
+    approval:
+      authority: user
+      reference: conversation-approved-mex-ecu-historical-reuse
+      decision: Reuse the approved historical prepared input; do not regenerate heavy Admin microdata.
+
+  - id: mex-wage-mex-2011
+    path: input_data/admin_data/MEX/wage_MEX_2011.xlsx
+    country: MEX
+    year: [2011]
+    product: admin_wage_distribution
+    sha256: 90a769bc2f8ce4b91c7722aa115768ecc16b7cda4dd8098e8657c6acb1faca94
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: 14fb86d7a85f56c30fac15dc1d138fec8031b5fd
+      path: input_data/admin_data/MEX/wage_MEX_2011.xlsx
+    approval:
+      authority: user
+      reference: conversation-approved-mex-ecu-historical-reuse
+      decision: Reuse the approved historical prepared input; do not regenerate heavy Admin microdata.
+
+  - id: mex-wage-mex-2012
+    path: input_data/admin_data/MEX/wage_MEX_2012.xlsx
+    country: MEX
+    year: [2012]
+    product: admin_wage_distribution
+    sha256: 92f4affd3daabbd94c148ae55839ecae4aad2cd9a79de0f522d96b9eba6d31af
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: dd84c4b141d28c0ea4063e137eb3cc16de8dab15
+      path: input_data/admin_data/MEX/wage_MEX_2012.xlsx
+    approval:
+      authority: user
+      reference: conversation-approved-mex-ecu-historical-reuse
+      decision: Reuse the approved historical prepared input; do not regenerate heavy Admin microdata.
+
+  - id: mex-wage-mex-2013
+    path: input_data/admin_data/MEX/wage_MEX_2013.xlsx
+    country: MEX
+    year: [2013]
+    product: admin_wage_distribution
+    sha256: 95eceeb684c225657902522fda02b4c8cae8f5055e066925d636278152b4911f
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: 05e5ea002b1c8511b017abbd0b2540b74111edfa
+      path: input_data/admin_data/MEX/wage_MEX_2013.xlsx
+    approval:
+      authority: user
+      reference: conversation-approved-mex-ecu-historical-reuse
+      decision: Reuse the approved historical prepared input; do not regenerate heavy Admin microdata.
+
+  - id: mex-wage-mex-2014
+    path: input_data/admin_data/MEX/wage_MEX_2014.xlsx
+    country: MEX
+    year: [2014]
+    product: admin_wage_distribution
+    sha256: 1a8174aaaa807df03e8243db1703ef447f68a93608d2bb646932ce44caf0655e
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: 9c28a30491f4849c00680e0a16ecee83374d48c4
+      path: input_data/admin_data/MEX/wage_MEX_2014.xlsx
+    approval:
+      authority: user
+      reference: conversation-approved-mex-ecu-historical-reuse
+      decision: Reuse the approved historical prepared input; do not regenerate heavy Admin microdata.
+
+  - id: ury-ury-effrates-2009
+    path: input_data/admin_data/URY/eff-tax-rate/URY_effrates_2009.dta
+    country: URY
+    year: [2009]
+    product: effective_tax_rates
+    sha256: 91d36ff74c127a2dec3c9b55c8c024739c96f9a2ff22103acc06295d1f9eed8b
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: aa096643ef3e359066ae81c93c65f88c915579b2
+      path: input_data/admin_data/URY/eff-tax-rate/URY_effrates_2009.dta
+    approval:
+      authority: user
+      reference: conversation-approved-ury-historical-reuse
+      decision: Reuse the approved historical prepared input; do not regenerate heavy Admin microdata.
+
+  - id: ury-ury-effrates-2010
+    path: input_data/admin_data/URY/eff-tax-rate/URY_effrates_2010.dta
+    country: URY
+    year: [2010]
+    product: effective_tax_rates
+    sha256: e5428ab536a3c58ebc4322fd09e00dd20b576b9a96b27dddb251a77244eb4f11
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: 5cfdfc4da8f299e7f8af61ed1a03b9209a13ad80
+      path: input_data/admin_data/URY/eff-tax-rate/URY_effrates_2010.dta
+    approval:
+      authority: user
+      reference: conversation-approved-ury-historical-reuse
+      decision: Reuse the approved historical prepared input; do not regenerate heavy Admin microdata.
+
+  - id: ury-ury-effrates-2011
+    path: input_data/admin_data/URY/eff-tax-rate/URY_effrates_2011.dta
+    country: URY
+    year: [2011]
+    product: effective_tax_rates
+    sha256: 02bf02fe9e7dae2ff76e8d28fc92e2caa009acda23f59adac553805b36c00dc1
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: 8e5b26af4ea84f39c7ba6718b5f1d3ac16ad585a
+      path: input_data/admin_data/URY/eff-tax-rate/URY_effrates_2011.dta
+    approval:
+      authority: user
+      reference: conversation-approved-ury-historical-reuse
+      decision: Reuse the approved historical prepared input; do not regenerate heavy Admin microdata.
+
+  - id: ury-ury-effrates-2012
+    path: input_data/admin_data/URY/eff-tax-rate/URY_effrates_2012.dta
+    country: URY
+    year: [2012]
+    product: effective_tax_rates
+    sha256: 5d72867404c764e0bd5ca59444c7b71cdf28bc7de3012955ecad1bb5193b6226
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: aae153dc12833a524395daa80ac96fe43230674e
+      path: input_data/admin_data/URY/eff-tax-rate/URY_effrates_2012.dta
+    approval:
+      authority: user
+      reference: conversation-approved-ury-historical-reuse
+      decision: Reuse the approved historical prepared input; do not regenerate heavy Admin microdata.
+
+  - id: ury-ury-effrates-2013
+    path: input_data/admin_data/URY/eff-tax-rate/URY_effrates_2013.dta
+    country: URY
+    year: [2013]
+    product: effective_tax_rates
+    sha256: eafbc7188096157d352b40a1265902943dbae787ff768b2285ad477cbb21b00d
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: ef2e0c3e72939b9c4af6287f2d1cf7aa80645c6a
+      path: input_data/admin_data/URY/eff-tax-rate/URY_effrates_2013.dta
+    approval:
+      authority: user
+      reference: conversation-approved-ury-historical-reuse
+      decision: Reuse the approved historical prepared input; do not regenerate heavy Admin microdata.
+
+  - id: ury-ury-effrates-2014
+    path: input_data/admin_data/URY/eff-tax-rate/URY_effrates_2014.dta
+    country: URY
+    year: [2014]
+    product: effective_tax_rates
+    sha256: 38a30f43c4ebcc51a9f17ebdae3858c81646b6bb5d546f0169c7c16bd6ffaeb0
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: 3c80e40996491a6bafa6de79bb3a4edcd53c3fd9
+      path: input_data/admin_data/URY/eff-tax-rate/URY_effrates_2014.dta
+    approval:
+      authority: user
+      reference: conversation-approved-ury-historical-reuse
+      decision: Reuse the approved historical prepared input; do not regenerate heavy Admin microdata.
+
+  - id: ury-ury-effrates-2015
+    path: input_data/admin_data/URY/eff-tax-rate/URY_effrates_2015.dta
+    country: URY
+    year: [2015]
+    product: effective_tax_rates
+    sha256: 1d7274069b9bef6fd8c85227c11860d4f205dfe8f4710e23d94216ff3c5b0426
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: 03b149153c13e5a428953a8fd301286cafd4582e
+      path: input_data/admin_data/URY/eff-tax-rate/URY_effrates_2015.dta
+    approval:
+      authority: user
+      reference: conversation-approved-ury-historical-reuse
+      decision: Reuse the approved historical prepared input; do not regenerate heavy Admin microdata.
+
+  - id: ury-ury-effrates-2016
+    path: input_data/admin_data/URY/eff-tax-rate/URY_effrates_2016.dta
+    country: URY
+    year: [2016]
+    product: effective_tax_rates
+    sha256: 88c6d30b08dac914eb9209b3bb49578e62b6735d111c1a371f94a2c77dba2d83
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: b0926c6c9bb339d2af9ee3b12b654e2e9c368d33
+      path: input_data/admin_data/URY/eff-tax-rate/URY_effrates_2016.dta
+    approval:
+      authority: user
+      reference: conversation-approved-ury-historical-reuse
+      decision: Reuse the approved historical prepared input; do not regenerate heavy Admin microdata.
+
+  - id: ury-gpinter-ury-2009
+    path: input_data/admin_data/URY/gpinter_URY_2009.xlsx
+    country: URY
+    year: [2009]
+    product: admin_bfm_distribution
+    sha256: d81d90cca6d7e533693d2c73445b0f84450f14da3df4be9629acca1490982fec
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: 1bb4ee09e0da8080d90e23448327d03569fef994
+      path: input_data/admin_data/URY/gpinter_URY_2009.xlsx
+    approval:
+      authority: user
+      reference: conversation-approved-ury-historical-reuse
+      decision: Reuse the approved historical prepared input; do not regenerate heavy Admin microdata.
+
+  - id: ury-gpinter-ury-2010
+    path: input_data/admin_data/URY/gpinter_URY_2010.xlsx
+    country: URY
+    year: [2010]
+    product: admin_bfm_distribution
+    sha256: 6f1197cb982edb4bbb75a368a5497cc8ac5e340233c431b9cc5fa96a3f353307
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: 7953740147a4e0c2cc22288ced7d62a9081e7a74
+      path: input_data/admin_data/URY/gpinter_URY_2010.xlsx
+    approval:
+      authority: user
+      reference: conversation-approved-ury-historical-reuse
+      decision: Reuse the approved historical prepared input; do not regenerate heavy Admin microdata.
+
+  - id: ury-gpinter-ury-2011
+    path: input_data/admin_data/URY/gpinter_URY_2011.xlsx
+    country: URY
+    year: [2011]
+    product: admin_bfm_distribution
+    sha256: 4da7b1fc02d55f4fcc04cb82925d0e2f258a6b664810a0836987d5ded33a59c9
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: 3c38758fbee421b67f8683af29ef2780691ce7e7
+      path: input_data/admin_data/URY/gpinter_URY_2011.xlsx
+    approval:
+      authority: user
+      reference: conversation-approved-ury-historical-reuse
+      decision: Reuse the approved historical prepared input; do not regenerate heavy Admin microdata.
+
+  - id: ury-gpinter-ury-2012
+    path: input_data/admin_data/URY/gpinter_URY_2012.xlsx
+    country: URY
+    year: [2012]
+    product: admin_bfm_distribution
+    sha256: 03f8c290a7969f2ab6d14e672714f43ea506cfa67d6294b74271f6c0d2247780
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: 2193f2dbe0ddd4f2db6881529436a33a26b6bcc4
+      path: input_data/admin_data/URY/gpinter_URY_2012.xlsx
+    approval:
+      authority: user
+      reference: conversation-approved-ury-historical-reuse
+      decision: Reuse the approved historical prepared input; do not regenerate heavy Admin microdata.
+
+  - id: ury-gpinter-ury-2013
+    path: input_data/admin_data/URY/gpinter_URY_2013.xlsx
+    country: URY
+    year: [2013]
+    product: admin_bfm_distribution
+    sha256: c56024dc3cc4fa65143dc051480f581c1ff3e78ade3643ec113f6fc35766c14d
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: 9112795017b50f1f95bc556d2c426af5e0096875
+      path: input_data/admin_data/URY/gpinter_URY_2013.xlsx
+    approval:
+      authority: user
+      reference: conversation-approved-ury-historical-reuse
+      decision: Reuse the approved historical prepared input; do not regenerate heavy Admin microdata.
+
+  - id: ury-gpinter-ury-2014
+    path: input_data/admin_data/URY/gpinter_URY_2014.xlsx
+    country: URY
+    year: [2014]
+    product: admin_bfm_distribution
+    sha256: f6ebadb17d0d3a65fcb1012de88fa64d616d44b67bee9bad86b0885461d793a9
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: 6cae68bfff74c898fb20e52dd65f01d96706e2ed
+      path: input_data/admin_data/URY/gpinter_URY_2014.xlsx
+    approval:
+      authority: user
+      reference: conversation-approved-ury-historical-reuse
+      decision: Reuse the approved historical prepared input; do not regenerate heavy Admin microdata.
+
+  - id: ury-gpinter-ury-2015
+    path: input_data/admin_data/URY/gpinter_URY_2015.xlsx
+    country: URY
+    year: [2015]
+    product: admin_bfm_distribution
+    sha256: cc6a43964a6a2d6f1bd42fdccbff92ef35cc46e1fa646b5900677ebcc3596772
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: e476dbd1cf1d9fcae4703547753c5ba705b481c9
+      path: input_data/admin_data/URY/gpinter_URY_2015.xlsx
+    approval:
+      authority: user
+      reference: conversation-approved-ury-historical-reuse
+      decision: Reuse the approved historical prepared input; do not regenerate heavy Admin microdata.
+
+  - id: ury-gpinter-ury-2016
+    path: input_data/admin_data/URY/gpinter_URY_2016.xlsx
+    country: URY
+    year: [2016]
+    product: admin_bfm_distribution
+    sha256: 046533b4ada2c70c71c51e85f6aae88e230173ee5236c037931d3a674160d1f2
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: e4ef4006636e02cba0b0ccd841d420a7b8cf26cb
+      path: input_data/admin_data/URY/gpinter_URY_2016.xlsx
+    approval:
+      authority: user
+      reference: conversation-approved-ury-historical-reuse
+      decision: Reuse the approved historical prepared input; do not regenerate heavy Admin microdata.

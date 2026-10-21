@@ -1,3 +1,19 @@
+* DINA country-run entry; the worker writes only to its temporary output folder.
+args dina_requested_countries
+local dina_worker : environment DINA_COUNTRY_WORKER
+if "`dina_worker'" != "07a-export-synthetic-microfiles" {
+    do "code/Stata/auxiliar/dina_country_task.do" "07a-export-synthetic-microfiles" "`dina_requested_countries'"
+    exit
+}
+local dina_output_env : environment DINA_OUTPUT_ROOT
+local dina_countries_env : environment DINA_RUN_COUNTRIES
+if `"`dina_output_env'"' == "" | trim("`dina_countries_env'") == "" {
+    di as error "Missing country-run output folder or selected countries."
+    exit 198
+}
+global dina_output_root `"`dina_output_env'"'
+global dina_run_countries "`dina_countries_env'"
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 // 					Title: EXPORT SYNTHETIC MICRO-FILES 
@@ -13,7 +29,13 @@ clear all
 //get list of paths 
 global aux_part " "preliminary" " 
 qui do "code/Stata/auxiliar/aux_general.do"
-local lang $lang 
+local lang $lang
+
+tempname dina_coverage dina_empty
+file open `dina_coverage' using "${dina_output_root}/_coverage.csv", write text replace
+file write `dina_coverage' "country,year,step,unit,status,reason" _n
+file open `dina_empty' using "${dina_output_root}/_empty_workbooks.csv", write text replace
+file write `dina_empty' "path,sheet" _n
 
 *get list of countries and years 
 global steps " ${all_steps} "
@@ -25,7 +47,7 @@ local date = subinstr("`date'", " ", "", .)
 
 *make room 
 foreach u in $units {
-	global efftax_`u' output/efftax/efftax_`u'_`date'.xlsx
+	global efftax_`u' ${dina_output_root}/output/efftax/efftax_`u'_`date'.xlsx
 	qui cap erase "${efftax_`u'}"
 }
 
@@ -46,7 +68,7 @@ local iter_lformat_detail = 1
 local iter_lformat_grouped = 1 
 
 //create folders if necessary 
-local dirpath "output/synthetic_microfiles"
+local dirpath "${dina_output_root}/output/synthetic_microfiles"
 mata: st_numscalar("exists", direxists(st_local("dirpath")))
 if (scalar(exists) == 0) {
 	mkdir "`dirpath'"
@@ -63,9 +85,12 @@ foreach unit in $units {
 		di as text "step: `s1'"
 		
 		*erase microfiles if they already exist 
-		global mfile_`s1' output/synthetic_microfiles/smicrofile_`unit'_`s1'_`date'.xlsx
+		global mfile_`s1' ${dina_output_root}/output/synthetic_microfiles/smicrofile_`unit'_`s1'_`date'.xlsx
 		qui cap erase "${mfile_`s1'}"
 		
+		local ctries ""
+		local have_summary = 0
+		tempfile summary_cases
 		local iter_1st_`sheet' = 1
 		
 		*loop over results-sheets 
@@ -84,7 +109,8 @@ foreach unit in $units {
 			*save step and unit 
 			qui gen step = "`s1'" 
 			qui gen unit = "`unit'"
-			qui order step unit country year 
+			qui order step unit country year
+			qui keep if strpos(" $dina_run_countries ", " " + country + " ")
 				
 			*Exclude some cases and missings
 			qui do "code/Stata/auxiliar/aux_exclude_ctries.do"	
@@ -95,11 +121,34 @@ foreach unit in $units {
 			***********ACTIVATE SUPERLIGHT VERSION FOR DEBUGGING
 			qui drop if exclude == 1
 			qui drop exclude 
+			if _N == 0 {
+                local empty_sheet "Summary-estimates"
+                if "`sheet'" == "Composition" local empty_sheet "Summary-composition"
+                file write `dina_empty' "output/synthetic_microfiles/smicrofile_`unit'_`s1'_`date'.xlsx,`empty_sheet'" _n
+                if "`s1'" == "nat" file write `dina_empty' "output/efftax/efftax_`unit'_`date'.xlsx,`empty_sheet'" _n
+                continue
+            }
+			if "`sheet'" == "Composition" & !`have_summary' {
+                file write `dina_empty' "output/synthetic_microfiles/smicrofile_`unit'_`s1'_`date'.xlsx,Summary-composition" _n
+                if "`s1'" == "nat" file write `dina_empty' "output/efftax/efftax_`unit'_`date'.xlsx,Summary-composition" _n
+                continue
+            }
 			
 			*Deal with estimate summary   
 			if "`sheet'" == "Summary" {
 				*list countries and corresponding years 
-				qui drop if missing(average) 
+				qui drop if missing(average)
+                if _N == 0 {
+                    file write `dina_empty' "output/synthetic_microfiles/smicrofile_`unit'_`s1'_`date'.xlsx,Summary-estimates" _n
+                    if "`s1'" == "nat" file write `dina_empty' "output/efftax/efftax_`unit'_`date'.xlsx,Summary-estimates" _n
+                    continue
+                }
+				preserve
+					qui keep country year
+					qui duplicates drop
+					qui save `summary_cases', replace
+				restore
+				local have_summary = 1
 				qui levelsof country, clean local(ctries) 
 				foreach c in `ctries' {
 					qui levelsof year if country == "`c'", ///
@@ -140,8 +189,8 @@ foreach unit in $units {
 			}
 			
 			*Deal with composition
-			if "`sheet'" == "Composition" { 
-				
+			if "`sheet'" == "Composition" {
+				qui merge m:1 country year using `summary_cases', keep(3) nogen
 				local namesheet "Summary-composition"
 				*check sum is 100%
 				foreach x in tot t1 t10 m40 b50 {
@@ -162,7 +211,12 @@ foreach unit in $units {
 				*keep only years with data 
 				qui egen auxi1 = rowtotal(tot_*)
 				qui drop if auxi1 == 0 
-				qui drop auxi1 
+				qui drop auxi1
+                if _N == 0 {
+                    file write `dina_empty' "output/synthetic_microfiles/smicrofile_`unit'_`s1'_`date'.xlsx,Summary-composition" _n
+                    if "`s1'" == "nat" file write `dina_empty' "output/efftax/efftax_`unit'_`date'.xlsx,Summary-composition" _n
+                    continue
+                }
 				
 				*rename composition variables
 				cap rename (*_sh_`unit'_*) (*_*)
@@ -211,6 +265,13 @@ foreach unit in $units {
 			}
 		}
 		
+        if !`have_summary' {
+            foreach c in $dina_run_countries {
+                file write `dina_coverage' "`c',0,`s1',`unit',excluded,No eligible Summary cases" _n
+            }
+            continue
+        }
+
 		//save cpi and xrates 
 		//save for input in other dofiles 
 		preserve 
@@ -225,10 +286,18 @@ foreach unit in $units {
 		//loop over countries 
 		foreach c in `ctries' {
 			foreach t in ``c'_years' {
+                file write `dina_coverage' "`c',`t',`s1',`unit',expected,Summary detail" _n
 				qui cap import excel ///
 					"output/ineqstats/ineqstats_`step'_`unit'.xlsx", ///
 					sheet("`c'`t'") firstrow clear
-				if _rc == 0 {
+                local dina_detail_rc = _rc
+                if `dina_detail_rc' {
+                    di as error "Summary lists `c'/`t' but its `step'/`unit' detail sheet is unreadable."
+                    exit `dina_detail_rc'
+                }
+                isid p
+                assert _N == 127
+				if `dina_detail_rc' == 0 {
 	
 					qui rename (s) (bckt_sh)
 					cap drop topavg_* topsh_* topshbckt_*
@@ -257,21 +326,32 @@ foreach unit in $units {
 					}
 					
 					qui export excel "${mfile_`s1'}", ///
-						sheet("`c'`t'") firstrow(var) keepcellfmt 
+						sheet("`c'`t'", replace) firstrow(var) keepcellfmt
 						
 					*save in long format too 
 					if `iter_lformat_detail' == 0 {
 						qui append using `tf_lformat_detail'
 					} 
 					local iter_lformat_detail = 0 
-					qui save `tf_lformat_detail', replace 
+					qui save `tf_lformat_detail', replace
+                    file write `dina_coverage' "`c',`t',`s1',`unit',success,127 detail rows exported" _n
 				}		
 			}
 		}			
 	}
 }
 
-qui use `tf_lformat_detail', clear 
+capture confirm file `tf_lformat_detail'
+if !_rc quietly use `tf_lformat_detail', clear
+else {
+	clear
+	foreach v in country step unit {
+		qui gen str3 `v' = ""
+	}
+	foreach v in year p thr avg bckt_sh b mbe wmbe hea edu oex {
+		qui gen double `v' = .
+	}
+}
 foreach v in thr avg bckt_sh b {
 	qui replace `v' = 0 if `v' < 0
 }
@@ -280,46 +360,79 @@ foreach v in mbe wmbe hea edu oex  {
 	qui replace `v' = 0 if mbe < 0 | wmbe < 0 |  hea < 0 | edu < 0 | oex < 0 
 }
 
-qui export delimited "output/synthetic_microfiles/_smicrofile_long_detailed.csv", replace 
+qui export delimited "${dina_output_root}/output/synthetic_microfiles/_smicrofile_long_detailed.csv", replace
 
-qui use `tf_lformat_grouped', clear 
+capture confirm file `tf_lformat_grouped'
+if !_rc quietly use `tf_lformat_grouped', clear
+else {
+	clear
+	foreach v in country step unit group variable {
+		qui gen str12 `v' = ""
+	}
+	qui gen year = .
+	qui gen value = .
+}
 drop if missing(value)
-qui export delimited "output/synthetic_microfiles/_smicrofile_long_grouped.csv", replace 
+qui export delimited "${dina_output_root}/output/synthetic_microfiles/_smicrofile_long_grouped.csv", replace
 
-*Effective tax rates
-local iter = 1 
+*Effective tax rates: derive cases from each unit's actual input workbook.
+*The detail export above must not leave behind a last-step country/year list.
+clear
+qui set obs 1
+qui gen str3 country = ""
+qui gen year = .
+qui do "code/Stata/auxiliar/aux_exclude_ctries.do"
+local excluded_cases : subinstr global excl_ccyy "," " " , all
+local excluded_cases : subinstr local excluded_cases `"""' "" , all
+local iter = 1
 foreach unit in $units {
 	di as text "saving: effective tax rates (`unit')..."
-	foreach c in `ctries' {
-		foreach t in ``c'_years' {
-			*import database 
-			cap quietly import excel using ///
-				"output/efftax/efftax_summary_`unit'.xlsx", ///
-				firstrow sheet("`c'`t'") clear 
-			if _rc == 0 & !inlist("`c'`y'", "${excl_ccyy}") & ///
-				!inlist("`c'", "DOM") {
-				cap drop n 
-				qui rename ftile_sca p 
-				qui rename `unit'_* *
-				qui replace p = round(p * 10^5)
-				qui replace p = p / 10^5
-				qui export excel "${efftax_`unit'}", ///
-					sheet("`c'`t'", replace) firstrow(var) keepcellfmt
-				*also save in long format
-				qui gen country = "`c'"
-				qui gen unit = "`unit'"
-				qui gen year = `t'
-				qui order unit country year p 
-				if `iter' != 1 qui append using `tf_lformat_efftax' 
-				qui save `tf_lformat_efftax', replace 
-				local iter = 0 
-			}	
+	local source "output/efftax/efftax_summary_`unit'.xlsx"
+	capture confirm file "`source'"
+	if _rc continue
+	quietly import excel using "`source'", describe
+	local sheets ""
+	forvalues i = 1/`r(N_worksheet)' {
+		local sheets "`sheets' `r(worksheet_`i')'"
+	}
+	foreach c in $dina_run_countries {
+		if "`c'" == "DOM" continue
+		forvalues t = $first_y/$last_y {
+			local case "`c'`t'"
+			local present : list case in sheets
+			local excluded : list case in excluded_cases
+			if !`present' | `excluded' continue
+            file write `dina_coverage' "`c',`t',efftax,`unit',expected,Effective tax detail" _n
+			quietly import excel using "`source'", firstrow sheet("`case'") clear
+			isid ftile_sca
+			assert _N == 109
+			cap drop n
+			qui rename ftile_sca p
+			qui rename `unit'_* *
+			qui replace p = round(p * 10^5) / 10^5
+			qui export excel "${efftax_`unit'}", ///
+				sheet("`case'", replace) firstrow(var) keepcellfmt
+			qui gen country = "`c'"
+			qui gen unit = "`unit'"
+			qui gen year = `t'
+			qui order unit country year p
+			if `iter' != 1 qui append using `tf_lformat_efftax'
+			qui save `tf_lformat_efftax', replace
+			local iter = 0
+            file write `dina_coverage' "`c',`t',efftax,`unit',success,109 tax rows exported" _n
 		}
-	}	
+	}
 }
- 
-*save efftax in long format  
-qui use `tf_lformat_efftax', clear 
-qui export delimited "output/synthetic_microfiles/_smicrofile_long_efftax.csv", replace 
 
- 
+if `iter' == 0 quietly use `tf_lformat_efftax', clear
+else {
+	clear
+	qui gen str3 country = ""
+	qui gen str3 unit = ""
+	qui gen year = .
+	qui gen double p = .
+}
+qui export delimited "${dina_output_root}/output/synthetic_microfiles/_smicrofile_long_efftax.csv", replace
+
+file close `dina_coverage'
+file close `dina_empty'

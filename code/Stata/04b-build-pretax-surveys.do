@@ -1,3 +1,11 @@
+// Direct and runner execution share country selection and staged publication.
+args dina_requested_countries
+local dina_country_worker : environment DINA_COUNTRY_WORKER
+if "`dina_country_worker'" != "04b-build-pretax-surveys" {
+    do "code/Stata/auxiliar/dina_country_task.do" "04b-build-pretax-surveys" "`dina_requested_countries'"
+    exit
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // 	Calculates effective tax rates for country-years for which we have 
 //		no data. After that, it computes pre-tax incomes for corrected surveys
@@ -25,7 +33,8 @@ global data_tax 	"input_data/admin_data"
 * to fill the gap when it does not exist.
 *-------------------------------------------------------------------------------
 
-foreach c in $all_countries {
+foreach c in $dina_run_countries {
+	dina_coverage, country("`c'") step("synthetic_rates") status("expected")
 	clear
 	local found 0
 	if "`c'" == "ARG" {
@@ -45,7 +54,7 @@ foreach c in $all_countries {
 		local eff_tax_file ///
 			"$data_tax/`c'/eff-tax-rate/`c'_effrates_`year'.dta" 
 		local syneff_tax_file 	///
-			"$data_tax/`c'/eff-tax-rate/`c'_effrates_syn.dta" 
+			"${dina_output_root}/$data_tax/`c'/eff-tax-rate/`c'_effrates_syn.dta"
 		
 		*Take the first eff_tax_rate file, and merge with all the following
 		local year_p = `year' + 1
@@ -54,7 +63,7 @@ foreach c in $all_countries {
 		if `rate_found' == 1 {
 			local found 1
 			di as result  "`eff_tax_file' found"
-			qui cap use `eff_tax_file', clear
+			qui use `eff_tax_file', clear
 			
 			qui cap gen eff_tax_rate_ipol_`year' = eff_tax_rate_ipol
 			qui cap gen eff_ss_rate_ipol_`year'  = eff_ss_rate_ipol
@@ -105,13 +114,14 @@ foreach c in $all_countries {
 	//save 
 	*qui cap duplicates drop p_merge
 	qui save `syneff_tax_file', replace
+	dina_coverage, country("`c'") step("synthetic_rates") status("success")
 }
 
 *-------------------------------------------------------------------------------
 * II. We merge corrected surveys and effective tax rates
 *-------------------------------------------------------------------------------
 
-foreach c in $all_countries   {  
+foreach c in $dina_run_countries   {
 	forvalues  year = $first_y / $last_y {
 	
 		//locate relevant files 
@@ -120,20 +130,40 @@ foreach c in $all_countries   {
 				"${data_svy}bfm`ext'_`x'/`c'_`year'_bfm`ext'_`x'.dta"
 		}
 		local eff_tax_file "$data_tax/`c'/eff-tax-rate/`c'_effrates_`year'.dta" 
-		local syneff_tax_file "$data_tax/`c'/eff-tax-rate/`c'_effrates_syn.dta" 
+		local syneff_tax_file "${dina_output_root}/$data_tax/`c'/eff-tax-rate/`c'_effrates_syn.dta"
 	
 		* Brazil already has pre-tax survey, we compute post-tax incomes
 		if ("`c'" == "BRA" | "`c'" == "CRI") {
 			clear
-			cap use `svy_pre', clear
+			capture confirm file `svy_pre'
+			if !_rc quietly use `svy_pre', clear
+			// A published 04b file already has the accepted survey ranking.
+			// Re-ranking its truncated sample would remove more top observations.
+			local dina_reuse_fractiles 0
+			capture confirm numeric variable p_merge fractiles eff_tax_rate_ipol
+			if !_rc local dina_reuse_fractiles 1
+			// Recompute derived rates when a previous 04b result is reused.
+			// Keep the original pretax income fields as the calculation inputs.
+			capture drop eff_tax_rate_ipol*
+			capture drop eff_ss_rate_ipol*
 	
 			qui cap assert _N == 0
 				if _rc != 0 {
+				dina_coverage, country("`c'") year(`year') step("pretax_survey") status("expected")
 						
 					//create fractiles in survey to prepare merge
 					global prefix "pre"
 					global section ""fractiles""
-					qui do "$codes/auxiliar/aux_pretax.do"
+					if `dina_reuse_fractiles' {
+						capture assert !missing(p_merge, fractiles) & inrange(p_merge, 0, 9999) & p_merge == floor(p_merge) & inrange(fractiles, 0, 1)
+						if _rc {
+							di as error "`c' `year': existing 04b fractiles are invalid; regenerate the BFM input."
+							exit 459
+						}
+					}
+					else {
+						qui do "$codes/auxiliar/aux_pretax.do"
+					}
 				
 					cap confirm file `eff_tax_file'
 					if _rc==0 {
@@ -172,8 +202,9 @@ foreach c in $all_countries   {
 						qui gen ind_pos_`var' = ///
 							ind_pre_`var' * (1 - eff_tax_rate_ipol) 	
 					}	
-				qui save `svy_pos', replace
-				qui save `svy_pre', replace
+				qui save "${dina_output_root}/`svy_pos'", replace
+				qui save "${dina_output_root}/`svy_pre'", replace
+				dina_coverage, country("`c'") year(`year') step("pretax_survey") status("success")
 
 			}
 		}
@@ -182,11 +213,13 @@ foreach c in $all_countries   {
 		*(= proportion as total income for each source)
 		else {		
 			clear
-			cap use `svy_pos', clear
+			capture confirm file `svy_pos'
+			if !_rc quietly use `svy_pos', clear
 			cap drop __*
 			
 			qui cap assert _N == 0
 			if _rc != 0 {
+				dina_coverage, country("`c'") year(`year') step("pretax_survey") status("expected")
 				
 				//create fractiles in survey to prepare merge
 				global prefix "pos"
@@ -226,7 +259,8 @@ foreach c in $all_countries   {
 					qui cap gen ind_pre_`var' = ///
 						ind_pos_`var' / (1 - eff_tax_rate_ipol)	
 				}	
-				qui save `svy_pre', replace
+				qui save "${dina_output_root}/`svy_pre'", replace
+				dina_coverage, country("`c'") year(`year') step("pretax_survey") status("success")
 				
 			}
 			else {

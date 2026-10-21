@@ -3,9 +3,10 @@
 clear all
 
 global data "input_data/admin_data/ECU"
-global results 	"output/figures/eff_tax_rates"
+global results 	"${dina_output_root}/output/figures/eff_tax_rates"
 
 forvalues x = 2008/2011 {
+	dina_coverage, country("ECU") year(`x') step("effective_rates") status("expected")
 	import excel "$data/eff-tax-rate/eff-tax-rates-ECU.xlsx", ///
 		sheet("`x'") cellrange(G6:I131) clear
 		rename G p
@@ -53,6 +54,7 @@ forvalues x = 2008/2011 {
 	qui duplicates drop p_merge, force
 	qui drop if p_merge > 9999
 	qui format p_merge %9.0g
-	save "$data/eff-tax-rate/ECU_effrates_`x'", replace
+	save "${dina_output_root}/$data/eff-tax-rate/ECU_effrates_`x'", replace
+	dina_coverage, country("ECU") year(`x') step("effective_rates") status("success")
 			
 }

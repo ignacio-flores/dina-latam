@@ -2,7 +2,7 @@
 
 clear all
 global data 	"input_data/admin_data/URY"
-global results 	"output/figures/eff_tax_rates"
+global results 	"${dina_output_root}/output/figures/eff_tax_rates"
 
 global years " "09" "10" "11" "12" "13" "14" "15" "16" " // 
 
@@ -11,6 +11,7 @@ global aux_part  ""graph_basics""
 do "code/Stata/auxiliar/aux_general.do"
 
 qui foreach x in $years { // 
+	dina_coverage, country("URY") year(20`x') step("effective_rate_figures") status("expected")
 	use "$data/eff-tax-rate/URY_effrates_20`x'", clear
 
 	replace eff_tax_rate_ipol 	= 0 if ftile < .6
@@ -36,4 +37,5 @@ qui foreach x in $years { //
 			xlabel(0.99(0.001)1, $xlab_opts) ///
 			$graph_scheme 
 			graph export "$results/URY_20`x'_top1.pdf", replace		
+	dina_coverage, country("URY") year(20`x') step("effective_rate_figures") status("success")
 }

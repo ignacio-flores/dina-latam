@@ -1,3 +1,11 @@
+// Direct and runner execution share country selection and staged publication.
+args dina_requested_countries
+local dina_country_worker : environment DINA_COUNTRY_WORKER
+if "`dina_country_worker'" != "03d-prepare-theta-extrapolation" {
+    do "code/Stata/auxiliar/dina_country_task.do" "03d-prepare-theta-extrapolation" "`dina_requested_countries'"
+    exit
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //Apply bfm correction based on theta coefficients observed for other years
@@ -16,12 +24,45 @@ qui do "code/Stata/auxiliar/aux_general.do"
 tempfile tf 
 tempvar w_change
 
-//Get list of country-years corrected in 03a-b
-global aux_part  ""tax_svy_overlap"" 
-qui do "code/Stata/auxiliar/aux_general.do"	
+// Use the accepted observed panel, including approved historical cases that
+// the current BFM index sheets omit. Donor exclusions do not redefine which
+// years are observed when selecting extrapolation targets.
+local configured_countries : subinstr global dina_run_countries `"""' "" , all
+global overlap_countries ""
+foreach c in $all_countries {
+	global `c'_overlap_years ""
+	local observed_`c' ""
+}
+preserve
+	qui import excel "output/bfm_summary/all_thetas.xlsx", sheet("panel") firstrow clear
+	capture confirm numeric variable year
+	if _rc quietly destring year, replace
+	qui assert !missing(country) & !missing(year)
+	qui keep if strpos(" `configured_countries' ", " " + country + " ")
+	qui keep if inrange(year, $first_y, $last_y)
+	qui keep country year
+	qui duplicates drop
+	foreach c in $all_countries {
+		qui levelsof year if country == "`c'", local(observed_`c') clean
+	}
+	// Retain the established donor exclusions.
+	qui drop if country == "CHL" & inlist(year, 2000, 2003)
+	qui drop if country == "ECU" & year == 2011
+	qui levelsof country, local(observed_countries) clean
+	global overlap_countries "`observed_countries'"
+	foreach c in $overlap_countries {
+		qui levelsof year if country == "`c'", local(donor_years) clean
+		global `c'_overlap_years "`donor_years'"
+	}
+restore
+
+if trim("$overlap_countries") == "" {
+	di as error "03d: the accepted panel has no eligible observed donors in the configured countries and years."
+	exit 459
+}
 
 //Get trust regions
-qui import delimited using "${admin_trust_regions}", clear varnames(1)
+qui import delimited using "${admin_trust_regions}", clear varnames(1) asdouble
 local itov = 1 
 foreach c in $overlap_countries {
 	if `itov' == 1 di as result "Tax-Survey overlaping years"
@@ -80,6 +121,7 @@ foreach c in $overlap_countries {
 		//set temporary variables 
 		tempvar ftile freq F fy cumfy L
 
+		dina_coverage, country("`c'") year(`t') step("pseudo_theta") status("expected")
 		//bring corrected survey
 		use `corfile', clear
 		cap drop __*
@@ -183,7 +225,7 @@ foreach c in $overlap_countries {
 //save data 
 qui gen inter = 1 if missing(`raw_weight', `cor_weight')
 qui drop `raw_weight' `cor_weight'
-qui export excel "output/bfm_summary/pseudo_thetas.xlsx", firstrow(variables) ///
+qui export excel "${dina_output_root}/output/bfm_summary/pseudo_thetas.xlsx", firstrow(variables) ///
 	sheet("panel_pthetas") sheetreplace 
 	
 // 2. Graph Pseudo-thetas-------------------------------------------
@@ -248,7 +290,7 @@ foreach c in $overlap_countries {
 		qui do "code/Stata/auxiliar/aux_general.do"	
 		
 		//create main folders 
-		local dirpath "output/figures/pthetas"
+		local dirpath "${dina_output_root}/output/figures/pthetas"
 		mata: st_numscalar("exists", direxists(st_local("dirpath")))
 		if (scalar(exists) == 0) {
 			mkdir "`dirpath'"
@@ -275,7 +317,8 @@ foreach c in $overlap_countries {
 				`leg_aux' "Median")  ring(0) bplace(neast) symx(3pt) ///
 				rows(2)*/ region(lcolor(bluishgray))) $graph_scheme 
 			//save
-			qui graph export "output/figures/pthetas/`c'`t'.pdf", replace  	
+			qui graph export "${dina_output_root}/output/figures/pthetas/`c'`t'.pdf", replace
+			dina_coverage, country("`c'") year(`t') step("pseudo_theta") status("success")
 		restore	
 	}
 }
@@ -374,41 +417,28 @@ foreach c in $overlap_countries {
 		local svyfile "intermediary_data/microdata/raw/`c'/`c'_`t'_raw.dta"
 		local wagefile "input_data/admin_data/`c'/wage_`c'_`t'.xlsx"
 		
-		//check existence of register data
+		// Extrapolate survey years without an accepted observed BFM case.
+		// Preserve the existing explicit exceptions even when a case is observed.
+		local target_year "`t'"
+		local observed_years "`observed_`c''"
+		local is_observed : list target_year in observed_years
 		local register_`c'_`t' "no"
-		di as result "register: `register_`c'_`t''"
-		foreach prefix in "tax" "wag" {
-			cap confirm file ``prefix'file'
-			di as result "``prefix'file'"
-			
-			if !_rc local register_`c'_`t' "yes"
-		}
-		di as result "register: `register_`c'_`t''"
-		
-		//force exceptional extrapolations
-		if ("`c'" == "CRI" & inrange(`t', 2000, 2009)) {
-			local register_`c'_`t' "no"
-		} 
-		if ("`c'" == "CRI" & `t' == 2017) {
-			local register_`c'_`t' "no"
-		} 
-		if ("`c'" == "CHL" & inrange(`t', 2000, 2004)) {
-			local register_`c'_`t' "no"
-		}	
-		if inlist("`c'", "BRA", "COL") & `t' == 2002 {
-			local register_`c'_`t' "no"
-		} 
+		if `is_observed' local register_`c'_`t' "yes"
+		if ("`c'" == "CRI" & inrange(`t', 2000, 2009)) local register_`c'_`t' "no"
+		if ("`c'" == "CRI" & `t' == 2017) local register_`c'_`t' "no"
+		if ("`c'" == "CHL" & inrange(`t', 2000, 2004)) local register_`c'_`t' "no"
+		if inlist("`c'", "BRA", "COL") & `t' == 2002 local register_`c'_`t' "no"
 
 		//report existence of files in log 
 		if ("`register_`c'_`t''" == "yes") {
 		
 			cap confirm file `svyfile'
 			if !_rc {
-				di as text "`c' `t': Both survey and tax data " _continue
+				di as text "`c' `t': Survey and observed BFM data " _continue
 				di as text "exist"
 			}		
 			else {
-				di as text "`c' `t': tax data exists but survey does not"
+				di as text "`c' `t': observed BFM case exists but survey does not"
 			}		
 		}	
 				
@@ -417,7 +447,8 @@ foreach c in $overlap_countries {
 			//Confirm this is what we want 
 			cap confirm file `svyfile'		
 			if !_rc {
-				di as result "`c' `t': Survey exists, but tax data doesn't'"
+				dina_coverage, country("`c'") year(`t') step("weight_adjuster") status("expected")
+				di as result "`c' `t': Survey exists and requires theta extrapolation"
 				local `c'_yrs_to_adjust "``c'_yrs_to_adjust' `t'"
 				
 				//define macros
@@ -616,7 +647,7 @@ foreach c in $overlap_countries {
 					cap drop __*
 					
 					//create main folders 
-					local dirpath "intermediary_data/weight_adjusters"
+					local dirpath "${dina_output_root}/intermediary_data/weight_adjusters"
 					mata: st_numscalar("exists", direxists(st_local("dirpath")))
 					if (scalar(exists) == 0) {
 						mkdir "`dirpath'"
@@ -624,9 +655,10 @@ foreach c in $overlap_countries {
 					}
 					
 					//export
-					qui export excel "intermediary_data/weight_adjusters/`c'`t'.xlsx", ///
+					qui export excel "${dina_output_root}/intermediary_data/weight_adjusters/`c'`t'.xlsx", ///
 						firstrow(variables) sheet("brackets", replace)  	
 					
+					dina_coverage, country("`c'") year(`t') step("weight_adjuster") status("success")
 					//save list of country-years
 					local ctry_yr_list "`ctry_yr_list' `c'_`t'"				
 				}
@@ -638,7 +670,7 @@ foreach c in $overlap_countries {
 				
 			//report existence of files 
 			else {
-				di as text "`c' `t': Both survey and tax data" _continue
+				di as text "`c' `t': Survey and observed BFM data" _continue
 				di as text " do not exist for this year"
 			}
 		}
@@ -649,17 +681,20 @@ foreach c in $overlap_countries {
 }
 
 //list all coutry-years to adjust 
+
 clear
 local obs_mp = wordcount("`ctry_yr_list'")
-qui set obs `obs_mp'
+local index_rows = max(1, `obs_mp')
+qui set obs `index_rows'
 qui gen country_year = ""
-forvalues n = 1 / `obs_mp' {
-	local wd_`n': word `n' of `ctry_yr_list'
-	qui replace country_year = "`wd_`n''" in `n'
+if `obs_mp' > 0 {
+	forvalues n = 1 / `obs_mp' {
+		local wd_`n': word `n' of `ctry_yr_list'
+		qui replace country_year = "`wd_`n''" in `n'
+	}
 }	
 
 //export index 
-qui export excel "intermediary_data/weight_adjusters/index.xlsx", ///
+qui export excel "${dina_output_root}/intermediary_data/weight_adjusters/index.xlsx", ///
 	firstrow(variables) sheet("country_years_03d") sheetreplace 
 	
-

@@ -2,9 +2,9 @@
 
 clear all
 global data "input_data/admin_data/DOM"
-global results 	"output/figures/eff_tax_rates/"
+global results 	"${dina_output_root}/output/figures/eff_tax_rates/"
 
-capture mkdir "$data/eff-tax-rate"
+capture mkdir "${dina_output_root}/$data/eff-tax-rate"
 	
 //call graph parameters 
 global aux_part  ""graph_basics"" 
@@ -13,6 +13,7 @@ do "code/Stata/auxiliar/aux_general.do"
 local lang $lang 
 
 forvalues year = 2012/2020 {
+	dina_coverage, country("DOM") year(`year') step("effective_rates") status("expected")
 
 	qui import excel ///
 		"input_data/admin_data/DOM/IR-1 consolidado (2012-2020).xlsx", /// 
@@ -149,6 +150,7 @@ forvalues year = 2012/2020 {
 	qui duplicates drop p_merge, force
 	qui drop if p_merge > 9999
 	qui format p_merge %9.0g
-	save "$data/eff-tax-rate/DOM_effrates_`year'", replace
+	save "${dina_output_root}/$data/eff-tax-rate/DOM_effrates_`year'", replace
+	dina_coverage, country("DOM") year(`year') step("effective_rates") status("success")
 	
 }	

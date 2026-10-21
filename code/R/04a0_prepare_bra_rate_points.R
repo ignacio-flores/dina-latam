@@ -4,7 +4,23 @@
 # The publisher changes the layout and monetary units of the Tab9/Tab8 tables,
 # so keep the source column choices explicit for each release period.
 
-args <- commandArgs(trailingOnly = TRUE)
+source("code/R/country_run.R")
+args <- country_run_r_entry("04a0-prepare-bra-rate-points", commandArgs(trailingOnly = TRUE))
+execution_countries <- strsplit(Sys.getenv("DINA_RUN_COUNTRIES"), "[,[:space:]]+")[[1L]]
+execution_countries <- execution_countries[nzchar(execution_countries)]
+if (length(execution_countries) && !"BRA" %in% execution_countries) {
+  cat("04a0-prepare-bra-rate-points: no applicable selected countries.\n")
+  quit(status = 0L)
+}
+output_root <- Sys.getenv("DINA_OUTPUT_ROOT")
+record_coverage <- function(years, status) {
+  if (!nzchar(output_root)) return(invisible(NULL))
+  rows <- data.frame(country = "BRA", year = years, step = "effective_rates",
+                     unit = "all", status = status)
+  path <- file.path(output_root, "_coverage.csv")
+  utils::write.table(rows, path, sep = ",", row.names = FALSE,
+                     col.names = !file.exists(path), append = file.exists(path))
+}
 if (length(args) && (length(args) != 2L || args[[1L]] != "--output" || !nzchar(args[[2L]]))) {
   stop("Usage: Rscript code/R/04a0_prepare_bra_rate_points.R [--output PATH]", call. = FALSE)
 }
@@ -20,7 +36,7 @@ if (!is.finite(last_year) || last_year < 2007L || last_year > 2024L) {
   stop("BRA rate preparation supports run end years from 2007 through 2024.", call. = FALSE)
 }
 output <- if (length(args)) args[[2L]] else
-  "intermediary_data/tax_rates/BRA/eff-tax-rates-BRA.xlsx"
+  file.path(output_root, "intermediary_data/tax_rates/BRA/eff-tax-rates-BRA.xlsx")
 
 bra_rate_layout <- function(year) {
   if (year <= 2013L) {
@@ -114,6 +130,7 @@ bra_rate_points <- function(year) {
 }
 
 years <- seq.int(2007L, last_year)
+record_coverage(years, "expected")
 points <- lapply(years, bra_rate_points)
 workbook <- openxlsx::createWorkbook()
 for (i in seq_along(years)) {
@@ -132,5 +149,6 @@ if (!identical(readxl::excel_sheets(staged), as.character(years))) {
 if (!file.copy(staged, output, overwrite = TRUE)) stop("Could not write ", output, call. = FALSE)
 manifest <- do.call(rbind, points)
 utils::write.csv(manifest, sub("\\.xlsx$", "_manifest.csv", output), row.names = FALSE)
+record_coverage(years, "success")
 cat(sprintf("Prepared BRA rate inputs for %d–%d from publisher workbooks.\n",
             years[[1L]], tail(years, 1L)))

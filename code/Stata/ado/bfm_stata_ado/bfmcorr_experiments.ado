@@ -462,6 +462,7 @@ program bfmcorr_experiments, eclass
 	quietly count
 	if (r(N) <= 5) {
 		display as error "not enough survey observations matching tax data trust region"
+		display as error "matched observations: " r(N) "; required: > 5; trust-region start: `truststart'"
 		exit 459
 	} 
 	// Calculate population in each bracket
@@ -1634,7 +1635,8 @@ real vector isotonic_pava(real vector w, real vector a, real scalar reverse) {
 	
 	j = 1
 	
-	S = J(n, 1, .)
+	// n surviving blocks need n+1 boundary offsets, including the final endpoint.
+	S = J(n + 1, 1, .)
 	S[1] = 0
 	S[2] = 1
 	

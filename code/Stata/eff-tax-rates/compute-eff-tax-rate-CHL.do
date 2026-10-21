@@ -2,9 +2,10 @@
 
 clear all
 global data "input_data/admin_data/CHL"
-global results 	"output/figures/eff_tax_rates"
+global results 	"${dina_output_root}/output/figures/eff_tax_rates"
 
 forvalues x = 2005/2020 {
+	dina_coverage, country("CHL") year(`x') step("effective_rates") status("expected")
 	
 	* import effective tax rates for known points
 	import excel "$data/eff-tax-rate/eff_tax_rate_CHL.xlsx", ///
@@ -83,7 +84,8 @@ forvalues x = 2005/2020 {
 	qui duplicates drop p_merge, force
 	qui drop if p_merge > 9999
 	qui format p_merge %9.0g
-	qui	save "$data/eff-tax-rate/CHL_effrates_`x'", replace
+	qui	save "${dina_output_root}/$data/eff-tax-rate/CHL_effrates_`x'", replace
+	dina_coverage, country("CHL") year(`x') step("effective_rates") status("success")
 
 }	
 		

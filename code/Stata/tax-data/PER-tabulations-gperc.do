@@ -90,7 +90,7 @@ forvalues year = 2016/2018 {
 		display "Created directory: `dirpath'"
 	}
 	
-	cap export excel ///
+	export excel ///
 	"input_data/admin_data/PER/_clean/total-PER.xlsx", ///
 		sheet("`year'", replace) firstrow(variables) keepcellfmt 
 	

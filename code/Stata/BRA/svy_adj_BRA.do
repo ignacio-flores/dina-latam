@@ -191,7 +191,7 @@ forvalues y = $first_y / $last_y {
 
 	}
 	
-	qui cap save "intermediary_data/microdata/raw/BRA/BRA_`y'_raw.dta", replace
+	qui save "intermediary_data/microdata/raw/BRA/BRA_`y'_raw.dta", replace
 
 }
 	

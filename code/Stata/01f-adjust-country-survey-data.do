@@ -33,7 +33,8 @@ foreach c in "ARG" "BRA" "CRI" /*"DOM"*/ {
 		
 		forvalues year = $first_y / $last_y {
 			clear 	
-			qui cap use ///
+			capture confirm file "intermediary_data/microdata/raw/ARG/ARG_`year'_raw.dta"
+			if !_rc quietly use ///
 				"intermediary_data/microdata/raw/ARG/ARG_`year'_raw.dta", clear	
 			
 			qui cap assert _N == 0
@@ -84,10 +85,13 @@ foreach c in "ARG" "BRA" "CRI" /*"DOM"*/ {
 	// (only for years overlapping with the tax data)
 	if ("`c'"=="CRI") {	
 		forvalues year = 2010/2018 { 
+			if !inrange(`year', $first_y, $last_y) continue
 			
 			di as result "`year'"
 
-			qui cap use "intermediary_data/microdata/raw/CRI/CRI_`year'_raw.dta", clear	
+			capture confirm file "intermediary_data/microdata/raw/CRI/CRI_`year'_raw.dta"
+			if _rc continue
+			quietly use "intermediary_data/microdata/raw/CRI/CRI_`year'_raw.dta", clear
 			
 				qui merge 1:1 id_hogar id_pers using ///
 					"input_data/surveys_CEPAL/CRI/BYN/CRI_`year'_byn.dta", nogen
