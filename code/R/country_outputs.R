@@ -272,7 +272,9 @@ country_output_publish <- function(stage, root, task, countries, universe, journ
       if (!is.null(country_output_country(new))) {
         old <- if (file.exists(baseline)) read.csv(baseline, stringsAsFactors = FALSE, check.names = FALSE) else new[FALSE, , drop = FALSE]
         merged <- country_output_rows(old, new, countries)
-        if (startsWith(task$id, "07c")) country_output_gpinter_validate(stage, merged)
+        if (startsWith(task$id, "07c") && identical(relative[i], "output/ineqstats/_gpinter_all_topcorrected.csv")) {
+          country_output_gpinter_validate(stage, merged)
+        }
         write.csv(merged, candidates[i], row.names = FALSE, na = "")
       } else if (!file.copy(files[i], candidates[i], overwrite = TRUE)) stop("Could not stage CSV")
     } else {
@@ -348,5 +350,22 @@ country_output_gpinter_assemble <- function(stages, destination, baseline, count
   # against the latest canonical contribution and validates again.
   write.csv(new, output, row.names = FALSE, na = "")
   write.csv(do.call(rbind, coverage), file.path(destination, "_coverage.csv"), row.names = FALSE, na = "")
+  reports <- file.path("output/data_reports", c("gpinter_precision_adjustments.csv",
+    "gpinter_threshold_reconstruction.csv", "gpinter_fitting_methods.csv",
+    "gpinter_tail_adjustments.csv", "gpinter_atoms.csv"))
+  for (report in reports) {
+    paths <- file.path(stages, report)
+    paths <- paths[file.exists(paths)]
+    if (!length(paths)) next
+    parts <- lapply(paths, read.csv, stringsAsFactors = FALSE, check.names = FALSE)
+    data <- do.call(rbind, parts)
+    ids <- country_output_country(data)
+    if (is.null(ids) || any(!ids %in% countries)) stop("Unexpected country or schema in saved GPinter report: ", report)
+    target <- file.path(destination, report)
+    dir.create(dirname(target), recursive = TRUE, showWarnings = FALSE)
+    # Even an empty report must retain its columns: publication removes the
+    # selected countries' previous repairs while preserving other countries.
+    write.csv(data, target, row.names = FALSE, na = "")
+  }
   invisible(list(stage = destination, path = output, countries = countries))
 }

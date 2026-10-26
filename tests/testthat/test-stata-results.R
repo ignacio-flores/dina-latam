@@ -5,6 +5,9 @@ test_that("Stata comparison graphs use available baseline years and publish prov
   skip_if_not_installed("processx"); skip_if_not_installed("haven")
   source_cli_for_tests(); root <- mini_repo()
   cfg <- dina_config(root, expand_env = FALSE)
+  cfg$years$last <- 2024L
+  cfg$export_validation$last_year <- 2025L
+  dina_write_yaml(cfg, file.path(root, "config", "dina.yml"))
   haven::write_dta(data.frame(year = 2020:2024, iso = "CO", p = "p90p100", widcode = "sptinc992j", value = .5), file.path(root, cfg$export_validation$previous_update_file))
   file.copy(file.path(repo_root_for_tests, "code", "R", "cli"), file.path(root, "code", "R"), recursive = TRUE)
   file.copy(file.path(repo_root_for_tests, "code", "R", "export-comparison-metadata.R"), file.path(root, "code", "R"))
@@ -19,11 +22,15 @@ test_that("Stata comparison graphs use available baseline years and publish prov
   predicate <- sub("^.*line old_value year if (.*), lcolor.*$", "\\1", predicate_line)
   expect_false(any(grepl("local ly = 2022", production, fixed = TRUE)))
   setup <- c("clear all", "set more off", dina_render_config_do(cfg), 'global graph_scheme ""',
-    production[begin:(begin_end - 1L)], "set obs 30", "gen year = 2020 + mod(_n-1,5)",
+    sprintf('global dina_output_root "%s"', root),
+    production[begin:(begin_end - 1L)], "set obs 36", "gen year = 2020 + mod(_n-1,6)",
     'gen str3 country = "COL"', 'gen str12 widcode = "sptinc992j"', 'gen str12 p = ""',
     "local i = 0", "foreach group in p99.99p100 p99.9p100 p99p100 p90p100 p50p90 p0p50 {",
-    "local i = `i' + 1", 'replace p = "`group\'" if ceil(_n/5) == `i\'', "}",
-    "gen new_value = .1 + (year-2020)*.01", "gen old_value = new_value-.005", "gen data_quality = 1", "local ly = $export_last_y",
+    "local i = `i' + 1", 'replace p = "`group\'" if ceil(_n/6) == `i\'', "}",
+    "gen new_value = .1 + (min(year,2024)-2020)*.01", "gen old_value = new_value-.005",
+    "gen data_quality = cond(year==2025,1,4)", "local ly = $export_last_y",
+    "quietly summarize year if !missing(new_value) & data_quality != 0 & inrange(year,$first_y,`ly')",
+    "assert r(max) == 2025",
     "foreach stop_year in 2023 2024 {", "replace old_value = new_value-.005", "replace old_value = . if year > `stop_year'",
     paste("quietly summarize year if !missing(old_value) &", predicate), "assert r(max) == `stop_year'", graph_block, "}")
   final <- c('save "output/latest_wid_series/dina_latam_`date\'.dta", replace',

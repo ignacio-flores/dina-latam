@@ -3,7 +3,7 @@
 
 dina_finished_include_engine <- function(root) {
   engine <- new.env(parent = environment(dina_finished_include_engine))
-  for (file in c("finished_dina_explorer.R", "finished_dina_preparer.R")) {
+  for (file in c("finished_dina_explorer.R", "finished_dina_preparer.R", "finished_dina_grouped.R")) {
     source(file.path(root, "code", "R", "source-diagnostics", file), local = engine)
   }
   engine
@@ -41,12 +41,14 @@ dina_finished_include_sources <- function(root) {
       "input_data/_new/dina")
     source$original <- dina_finished_include_path(root, unlist(source$canonical),
       "input_data/dina")
-    if (!grepl("\\.dta$", source$original, ignore.case = TRUE)) {
-      stop("Finished DINA canonical files must have a .dta extension.", call. = FALSE)
+    grouped <- identical(source$finished_series$format, "wid_grouped_xlsx")
+    if (!grepl(if (grouped) "\\.xlsx$" else "\\.dta$", source$original, ignore.case = TRUE)) {
+      stop("Finished DINA canonical files must have a ", if (grouped) ".xlsx" else ".dta", " extension.", call. = FALSE)
     }
     source$prepared <- dina_finished_include_path(root,
       source$prepared %||% sub("\\.dta$", "_prepared.dta", source$original,
         ignore.case = TRUE), "input_data/dina")
+    if (!grepl("\\.dta$", source$prepared, ignore.case = TRUE)) stop("Prepared DINA artifacts must have a .dta extension.", call. = FALSE)
     if (!file.exists(source$input) || dir.exists(source$input)) {
       stop("Supplied finished DINA file is missing: ", source$input, call. = FALSE)
     }
@@ -74,7 +76,7 @@ dina_finished_include_identity <- function(root, sources, engine = NULL) {
       input = source$input, sha256 = dina_hash_file(source$input),
       specification = digest::digest(source, algo = "sha256"))),
     code = dina_review_hashes(file.path(root, "code", "R", "source-diagnostics",
-      c("finished_dina_explorer.R", "finished_dina_preparer.R"))),
+      c("finished_dina_explorer.R", "finished_dina_preparer.R", "finished_dina_grouped.R"))),
     gpinter_version = as.character(gpinter_version)
   )
 }
@@ -88,6 +90,9 @@ dina_finished_include_verify_review <- function(root, record, sources) {
   # is deliberately excluded: changes to colours cannot alter scientific data.
   required <- c(file.path(root, "input_data", "_new", "dina"),
     file.path(root, "config", "sources.yml"))
+  # Scientific reader/validator changes invalidate reviews that recorded them.
+  scientific <- file.path(root, "code", "R", "source-diagnostics", c("finished_dina_explorer.R", "finished_dina_grouped.R"))
+  required <- c(required, intersect(scientific, names(record$inputs)))
   stored <- record$inputs
   if (!all(required %in% names(stored)) ||
       !identical(dina_review_hashes(required), stored[sort(required)])) {
@@ -165,7 +170,7 @@ dina_finished_include_prepare <- function(root, record, flags = list(),
   dir.create(file.path(run, "artifacts"), recursive = TRUE, showWarnings = FALSE)
   candidate <- list(family = "dina", status = "preparing", run = run,
     reviewed_run = record$run, prepared_at = dina_now(), identity = identity,
-    scope = "all supplied concepts, units and years", sources = list(),
+    scope = "registered source coverage and declared preparation-year selection", sources = list(),
     artifacts = list(), tables = list(), failures = list())
   tables <- setNames(rep(list(data.frame()), 6L),
     c("summary", "changes", "impact", "checks", "problems", "coverage"))
@@ -176,21 +181,23 @@ dina_finished_include_prepare <- function(root, record, flags = list(),
   }
   for (i in seq_along(sources)) {
     source <- sources[[i]]
-    dina_cli_cat("Preparing ", source$id, " (all years, concepts and units).")
+    grouped_source <- identical(source$finished_series$format, "wid_grouped_xlsx")
+    dina_cli_cat("Preparing ", source$id, if (grouped_source) " (full-population observed years only)." else " (all years, concepts and units).")
     result <- tryCatch({
       dina_need("haven")
-      original <- as.data.frame(haven::read_dta(source$input))
+      grouped <- identical(source$finished_series$format, "wid_grouped_xlsx")
+      original <- if (grouped) engine$finished_dina_grouped_read(source$input, source) else as.data.frame(haven::read_dta(source$input))
       prepare_args <- list(data = original, specification = dina_finished_specification(source))
       if ("progress" %in% names(formals(engine$finished_dina_prepare))) {
         prepare_args$progress <- function(index, total, case) {
           dina_cli_cat(sprintf("  [%s/%s] %s", index, total, case))
         }
       }
-      prepared <- do.call(engine$finished_dina_prepare, prepare_args)
+      prepared <- if (grouped) engine$finished_dina_grouped_prepare(original, source, progress = prepare_args$progress) else do.call(engine$finished_dina_prepare, prepare_args)
       validation <- prepared$validation %||% engine$finished_dina_validate(
         prepared$data, dina_finished_specification(source))
       for (name in c("summary", "changes", "impact")) add(name, prepared[[name]], source$id)
-      add("coverage", validation$coverage, source$id)
+      add("coverage", if (grouped) prepared$coverage else validation$coverage, source$id)
       add("checks", validation$checks, source$id)
       add("problems", validation$issues, source$id)
       if (any(validation$checks$status %in% c("fail", "review"))) {
@@ -198,7 +205,7 @@ dina_finished_include_prepare <- function(root, record, flags = list(),
       }
       # A pure engine result is validated again after serialization to ensure
       # the exact file being accepted has complete coverage and valid values.
-      staged_raw <- file.path(run, "artifacts", paste0(i, "-original.dta"))
+      staged_raw <- file.path(run, "artifacts", paste0(i, "-original.", if (grouped) "xlsx" else "dta"))
       staged_prepared <- file.path(run, "artifacts", paste0(i, "-prepared.dta"))
       if (!file.copy(source$input, staged_raw, overwrite = FALSE)) {
         stop("Could not stage the byte-identical original.", call. = FALSE)
@@ -207,8 +214,9 @@ dina_finished_include_prepare <- function(root, record, flags = list(),
         stop("The supplied original changed while it was being staged.", call. = FALSE)
       }
       haven::write_dta(prepared$data, staged_prepared, version = 14)
-      checked <- engine$finished_dina_validate(
-        as.data.frame(haven::read_dta(staged_prepared)), dina_finished_specification(source))
+      serialized <- as.data.frame(haven::read_dta(staged_prepared))
+      checked <- if (grouped) engine$finished_dina_grouped_validate_prepared(serialized, source, original) else engine$finished_dina_validate(serialized, dina_finished_specification(source))
+      if (grouped && !isTRUE(all.equal(serialized, prepared$data, check.attributes = FALSE, tolerance = 1e-12))) stop("Serialized grouped distribution differs from the prepared observations.")
       if (any(checked$checks$status %in% c("fail", "review"))) {
         stop("Serialized prepared distribution failed validation.", call. = FALSE)
       }
@@ -221,10 +229,12 @@ dina_finished_include_prepare <- function(root, record, flags = list(),
       meta <- source$finished_series
       candidate$sources[[length(candidate$sources) + 1L]] <- list(
         id = source$id, version = meta$version, citation = meta$citation, doi = meta$doi,
-        publication = paste(meta$publication_step, meta$publication_unit, sep = "/"),
+        publication = if (grouped) "requires publication policy review" else paste(meta$publication_step, meta$publication_unit, sep = "/"),
+        representation = "distribution",
+        requires_harmonization = FALSE,
         coverage = list(country = source$country, first_year = meta$first_year,
           last_year = meta$last_year, steps = meta$steps, units = meta$units),
-        processing = "DINA project preparation and local GPinter interpolation",
+        processing = if (grouped) "Full-population years only; proportional share normalization and GPinter; mean-one scale; no year interpolation/extrapolation" else "DINA project preparation and local GPinter interpolation",
         recipe = prepared$recipe)
       NULL
     }, error = function(e) e)

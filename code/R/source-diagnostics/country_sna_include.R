@@ -59,7 +59,10 @@ country_sna_include_read_yaml <- function(path) {
   if (!file.exists(path)) {
     stop("Missing country-SNA extractor contract: ", path, call. = FALSE)
   }
-  yaml::read_yaml(path)
+  # Stata launches R in the C locale. Reading through yaml's file connection
+  # can truncate UTF-8 comments/text at the first non-ASCII character.
+  text <- readLines(path, encoding = "UTF-8")
+  yaml::yaml.load(paste(text, collapse = "\n"), error.label = path)
 }
 
 country_sna_include_read_contract <- function(

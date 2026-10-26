@@ -83,7 +83,7 @@ wid_include_stage_from_exploration_one <- function(root, contract, paths, artifa
   validation <- wid_include_bind(validation_rows)
   comparison <- list(artifact = data.frame(stringsAsFactors = FALSE), numeric = data.frame(stringsAsFactors = FALSE))
   if (!nrow(validation) && isTRUE(candidate_read$ok)) {
-    candidate_validation <- wid_include_validate_candidate(source_id, artifact, candidate_read$data, required_years)
+    candidate_validation <- wid_include_validate_candidate(source_id, artifact, candidate_read$data, required_years, root, contract)
     validation <- wid_include_bind(validation, candidate_validation)
     baseline <- wid_include_comparison_baseline(root, artifact)
     comparison <- wid_include_compare_artifact(source_id, artifact, stage_paths$canonical, baseline$path, candidate_read$data, baseline$rel, baseline$kind)
@@ -198,9 +198,15 @@ run_wid_include <- function(
   exploration_run = NULL,
   output_dir = NULL,
   write_outputs = TRUE,
-  run_id = NULL
+  run_id = NULL,
+  source_ids = NULL
 ) {
   contract <- wid_include_read_contract(root, contract_path)
+  if (!is.null(source_ids)) {
+    unknown <- setdiff(source_ids, wid_include_supported_ids(contract))
+    if (!length(source_ids) || anyNA(source_ids) || length(unknown)) stop("Unknown or empty WID source selection.", call. = FALSE)
+    contract$source_ids <- unique(as.character(source_ids))
+  }
   run_id <- run_id %||% wid_include_run_id()
   paths <- wid_include_output_paths_for_run(root, contract, output_dir, run_id)
   dir.create(paths$tables, recursive = TRUE, showWarnings = FALSE)

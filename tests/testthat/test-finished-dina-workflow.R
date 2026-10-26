@@ -30,7 +30,7 @@ finished_dina_workflow_root <- function(root, countries = "AAA") {
   dir.create(file.path(root, "input_data", "_new", "dina"), recursive = TRUE)
   dir.create(file.path(root, "input_data", "dina"), recursive = TRUE)
   dir.create(file.path(root, "output", "latest_wid_series"), recursive = TRUE)
-  for (module in c("finished_dina_explorer.R", "finished_dina_preparer.R")) {
+  for (module in c("finished_dina_explorer.R", "finished_dina_preparer.R", "finished_dina_grouped.R")) {
     copied <- file.copy(
       file.path(repo_root_for_tests, "code", "R", "source-diagnostics", module),
       file.path(root, "code", "R", "source-diagnostics", module)

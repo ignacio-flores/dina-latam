@@ -245,6 +245,8 @@ foreach c in $countries_bfm_02a {
 							qui graph export `MPgraph', replace
 							postbfm	summarize, export(`export_results') ///
 								year(`t') replace
+							quietly do "code/Stata/auxiliar/dina_observed_donor.do"
+							dina_observed_donor, country("`c'") year(`t') mpfile("`mpfile'") corfile("`corrfile'") stage("03a")
 
 							dina_coverage, country("`c'") year(`t') step("observed_bfm") status("success")
 							//save list of country-years

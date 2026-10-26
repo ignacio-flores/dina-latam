@@ -11,6 +11,11 @@ country_run_load_cli <- function(root) {
       source(file.path(root, "code", "R", "cli", file), local = target)
     }
   }
+  if (!exists("dina_finished_publication_state", envir = target, inherits = TRUE)) {
+    for (file in c("finished_dina_review.R", "finished_dina_include.R", "finished_dina_publication.R")) {
+      source(file.path(root, "code", "R", "cli", file), local = target)
+    }
+  }
 }
 
 country_run_session <- function(root) {
@@ -162,6 +167,13 @@ country_run_preview <- function(task, root, session, countries, force = FALSE, r
   chunks <- Filter(function(x) !x$key %in% completed, chunks)
   compute <- vapply(chunks, function(x) paste(paste(x$country, collapse = ","), if (x$step != "all") paste(x$step, x$unit, sep = "/") else ""), "")
   issues <- messages <- character()
+  if (startsWith(task$id, "07d")) {
+    tryCatch({
+      publication <- dina_finished_publication_readiness(root, config,
+        internal_pending = any(startsWith(planned_tasks %||% character(), "07c")))
+      messages <- c(messages, publication$message)
+    }, error = function(e) issues <<- c(issues, conditionMessage(e)))
+  }
   shared <- if (identical(task$country_scope, "shared")) "Rebuild complete shared products from existing combined inputs." else "Merge selected contributions; retain other countries' published rows, sheets and files."
   if (!length(scope)) return(list(task = task$id, status = "not_applicable", compute = character(), reuse = reuse, shared = character(), issues = character(), messages = "No applicable selected countries."))
   all_tasks <- dina_task_map(root)
@@ -179,11 +191,11 @@ country_run_preview <- function(task, root, session, countries, force = FALSE, r
   if (!identical(task$country_scope, "shared")) for (country in scope) {
     raw <- country_run_cases(root, config, country)
     corrected <- country_run_cases(root, config, country, "bfm_norep_pre")
-    if (grepl("^(03d|04b)", task$id)) corrected <- union(corrected, country_run_cases(root, config, country, "bfm_norep_pos"))
+    if (startsWith(task$id, "04b")) corrected <- union(corrected, country_run_cases(root, config, country, "bfm_norep_pos"))
     if (startsWith(task$id, "03a") || startsWith(task$id, "03b")) {
       messages <- c(messages, sprintf("%s: %d survey years; compute eligible survey/Admin overlaps using current trust rules.", country, length(raw)))
       if (!length(raw)) issues <- c(issues, paste(country, "has no configured raw survey cases; run 01e/01f first."))
-    } else if (grepl("^(03d|04[bc]|05[bcd]|06a)", task$id) && !length(corrected)) {
+    } else if (grepl("^(04[bc]|05[bcd]|06a)", task$id) && !length(corrected)) {
       if (any(grepl("^03[abe]", planned_tasks))) messages <- c(messages, paste(country, "corrected microdata will be produced earlier in the range."))
       else issues <- c(issues, paste(country, "has no corrected surveys. Required: dina run --from 03a --to 04c --countries", country))
     }
@@ -528,10 +540,50 @@ country_run_index_cases <- function(root) {
   result
 }
 
+country_run_observed_donor_prerequisites <- function(root, config, scope, planned_tasks = character()) {
+  panel <- file.path(root, "output/bfm_summary/all_thetas.xlsx")
+  if (!file.exists(panel)) return(list(issues = character(), messages = character()))
+  data <- openxlsx::read.xlsx(panel, sheet = "panel")
+  if (!all(c("country", "year") %in% names(data))) {
+    return(list(issues = "03d needs a valid observed panel; run 03c first.", messages = character()))
+  }
+  data$year <- suppressWarnings(as.integer(data$year))
+  data <- unique(data[data$country %in% scope & !is.na(data$year) &
+    data$year >= config$years$first & data$year <= config$years$last, c("country", "year")])
+  # These are the existing 03d donor exclusions, not publication target rules.
+  data <- data[!(data$country == "CHL" & data$year %in% c(2000L, 2003L)) &
+                 !(data$country == "ECU" & data$year == 2011L), , drop = FALSE]
+  metadata <- if (file.exists(file.path(root, "config/pipeline.yml")))
+    yaml::read_yaml(file.path(root, "config/pipeline.yml"))$tasks else list()
+  producers <- Filter(function(x) grepl("^03[ab]-", x$id), metadata)
+  issues <- messages <- character()
+  for (country in unique(data$country)) {
+    years <- data$year[data$country == country]
+    paths <- file.path(root, "output/bfm_summary/observed_donors", paste0(country, years, ".dta"))
+    missing <- years[!file.exists(paths)]
+    if (!length(missing)) {
+      messages <- c(messages, sprintf("%s: %d stable observed-donor tables; 03d does not read overwritten corrected microdata.", country, length(years)))
+      next
+    }
+    producer <- Filter(function(x) country %in% unlist(x$country_applicability), producers)
+    id <- if (length(producer)) producer[[1L]]$id else "03a/03b"
+    cases <- paste0(country, "_", sort(missing), collapse = ", ")
+    if (id %in% planned_tasks) {
+      messages <- c(messages, sprintf("Stable observed donors for %s are produced by %s earlier in this range; checked again before 03d.", cases, id))
+    } else {
+      issues <- c(issues, sprintf("03d is missing independent observed donors for %s. Required: dina run %s --countries %s. Corrected microdata cannot substitute for these tables.", cases, id, country))
+    }
+  }
+  list(issues = issues, messages = messages)
+}
+
 country_run_case_prerequisites <- function(task, root, config, scope, planned_tasks = character()) {
   issues <- messages <- character()
   scope <- intersect(as.character(unlist(scope)), as.character(unlist(config$countries)))
   planned_tasks <- as.character(unlist(planned_tasks))
+  if (startsWith(task$id, "03d")) {
+    return(country_run_observed_donor_prerequisites(root, config, scope, planned_tasks))
+  }
   # Preview current overlap candidates without changing trust/eligibility rules.
   if (grepl("^03[ab]", task$id)) {
     prefix <- if (startsWith(task$id, "03a")) "gpinter" else "wage"

@@ -24,6 +24,7 @@ source(file.path(script_dir, "finished_dina_review.R"), local = environment())
 source(file.path(script_dir, "finished_dina_summary.R"), local = environment())
 source(file.path(script_dir, "finished_dina_include.R"), local = environment())
 source(file.path(script_dir, "finished_dina_include_report.R"), local = environment())
+source(file.path(script_dir, "finished_dina_publication.R"), local = environment())
 source(file.path(script_dir, "workspace.R"), local = environment())
 source(file.path(script_dir, "results.R"), local = environment())
 dina_cli_root <- normalizePath(file.path(script_dir, "..", "..", ".."), mustWork = TRUE)
@@ -423,8 +424,12 @@ Explore
   Existing family-specific validation rules still control inclusion readiness.
   Finished DINA series: validate supplied distributions and attribution.
   Include prepares documented corrections and the standard export grid.
-  No internal pipeline results are needed. Continuation is reviewed later,
-  after 07c and before publication through 07d.
+  BRA Include keeps full-population observed years, normalizes their shares and
+  runs GPinter on the standard grid. Monetary scaling and publication are separate.
+  Inspect supplied cells with dina sources table dina values,
+  filtered by --country BRA, --year YYYY, --wid-code CODE or --percentile LABEL.
+  No internal pipeline results are needed for inclusion. 07d automatically prepares
+  and validates continuation from included sources after 07c.
   Details: dina sources table dina [coverage|checks|problems|files].
   Finished-series review also has small, larger and decisions tables.
   Narrow with --check ID, --year YYYY, --step nat, --unit esn or
@@ -432,7 +437,12 @@ Explore
   Size categories guide review; they do not authorize corrections.
   Preview preparation: dina sources include dina --dry-run
   Review preparation: dina sources table dina [changes|impact|preparation|prepared-checks]
-  Include accepts the original and prepared copies; it does not activate replacement.
+  Include accepts original/prepared copies; the next 07d integrates them automatically.
+  Optional preview after 07c: dina sources include dina --publication --dry-run
+  Review: dina sources table dina continuation[-groups|-changes|-impact|-checks|-problems|-scaling]
+  Cache validated integration: dina sources include dina --publication
+  Publication supports --source ID, --adjustment none|group_join, --include-run PATH,
+  and --restore CONFIRMATION. Legacy --confirm is optional; no extra approval is needed.
 
 Review details
   dina sources table FAMILY revisits the saved review.
@@ -3829,7 +3839,7 @@ dina_print_sources_guide <- function(root, flags) {
     if (identical(source$family, "dina")) {
       dina_cli_cat("  Review: dina sources explore dina; details: dina sources table dina")
       dina_cli_cat("  Prepare: dina sources include dina --dry-run; accept: dina sources include dina")
-      dina_cli_cat(dina_cli_dim("  Continuation and publication activation remain deferred."))
+      dina_cli_cat(dina_cli_dim("  After inclusion, 07d prepares and validates integration automatically."))
     }
   }
   invisible(registry)
@@ -4396,6 +4406,7 @@ dina_country_sna_explore_label <- function(x) {
     include_dry_run = "include dry-run",
     include_dry_run_no_overlap = "include dry-run",
     keep_current = "keep current",
+    source_unavailable = "source absent",
     gsub("_", " ", x %||% "", fixed = TRUE)
   )
 }
@@ -4410,6 +4421,9 @@ dina_country_sna_explore_status_notes <- function(structure, actions) {
   }
   if (nrow(actions) && any(actions$action == "keep_current", na.rm = TRUE)) {
     notes <- c(notes, "no new: no incoming years found; existing canonical source is kept.")
+  }
+  if (nrow(actions) && any(actions$action == "source_unavailable", na.rm = TRUE)) {
+    notes <- c(notes, "source absent: neither an accepted nor an incoming source file was found; check the source inventory.")
   }
   unique(notes)
 }

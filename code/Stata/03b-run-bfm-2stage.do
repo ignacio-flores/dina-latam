@@ -265,6 +265,10 @@ foreach c in $countries_2stage {
 							graph export `MPgraph_wages', replace
 							postbfm	summarize, export(`export_results_wages') ///
 								year(`t') replace
+								if inlist("`c'", "MEX", "ARG") {
+									quietly do "code/Stata/auxiliar/dina_observed_donor.do"
+									dina_observed_donor, country("`c'") year(`t') mpfile("`mpfile'") corfile("`corrfile'") stage("03b")
+								}
 
 							if inlist("`c'", "MEX", "ARG") dina_coverage, country("`c'") year(`t') step("observed_bfm") status("success")
 
@@ -344,6 +348,8 @@ foreach c in $countries_2stage {
 								graph export `MPgraph', replace
 								postbfm	summarize, export(`export_results') ///
 									year(`t') replace
+									quietly do "code/Stata/auxiliar/dina_observed_donor.do"
+									dina_observed_donor, country("`c'") year(`t') mpfile("`mpfile'") corfile("`corrfile'") stage("03b")
 								dina_coverage, country("`c'") year(`t') step("observed_bfm") status("success")
 
 							}

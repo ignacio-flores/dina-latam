@@ -117,7 +117,7 @@ dina_review_save <- function(record, root) {
 dina_review_engine <- function(root, family) {
   modules <- switch(family, sna = c("country_sna_explorer.R", "country_sna_include.R"),
     admin = c("admin_pit_explorer.R", "admin_pit_include.R"), surveys = "survey_sources_include.R", wid = "wid_include.R",
-    dina = "finished_dina_explorer.R")
+    dina = c("finished_dina_explorer.R", "finished_dina_grouped.R"))
   env <- new.env(parent = environment(dina_main))
   for (module in modules) source(file.path(root, "code", "R", "source-diagnostics", module), local = env)
   env
@@ -671,6 +671,9 @@ dina_review_family_confirmation_to_reset <- function(root, family) {
 }
 
 dina_review_reset_before_explore <- function(root, family, engine, progress = function(...) invisible(NULL)) {
+  # WID refreshes compare with the accepted snapshot. Exploring a new API
+  # response must never remove or roll back accepted pipeline inputs.
+  if (identical(family, "wid")) return(invisible(NULL))
   if (identical(family, "sna")) return(dina_review_sna_reset_before_explore(root, engine, progress))
   confirm_root <- dina_review_family_confirmation_to_reset(root, family)
   if (is.null(confirm_root)) return(invisible(NULL))
@@ -777,6 +780,7 @@ dina_review_explore <- function(root, family, flags = list(), input = "stdin", i
   if (any(values$rows$result == "nonfinite value", na.rm = TRUE)) comparison_error <- "Value comparison found nonfinite values; inspect missing-values before exploring again."
   if (nzchar(comparison_error)) status <- "blocked"
   plan <- if (identical(family, "sna")) dina_review_freeze_sna(prepared, root) else prepared$outputs$promotion_plan
+  if (identical(family, "sna")) prepared$outputs$review_actions <- explored$outputs$review_actions
   if (!nrow(plan) && identical(status, "all_good")) status <- "nothing_to_include"
   coverage <- dina_review_coverage(explored, values$rows, family, prepared)
   tables <- list(review_coverage = coverage, review_values = values$rows,
@@ -1366,7 +1370,7 @@ dina_sources_configure_admin <- function(root = dina_repo_root(), flags = list()
 dina_review_details <- function(record, input = "stdin", is_terminal = isatty(stdin()), filters = list()) {
   choices <- c(coverage = "Coverage", revisions = "Numerical revisions", `added-values` = "Newly available values", `missing-values` = "Missing values", problems = "Extraction problems", files = "Files to include")
   if (identical(record$family, "dina")) choices <- c(checks = "Check summary and IDs", small = "Small discrepancies", larger = "Larger discrepancies",
-    decisions = "Definitions, format and blockers", coverage = "Coverage", problems = "All affected cases", files = "Source and attribution")
+    decisions = "Definitions, format and blockers", coverage = "Coverage", values = "Supplied grouped observations", harmonization = "Harmonization limits by year", problems = "All affected cases", files = "Source and attribution")
   if (identical(record$family, "dina") && !is.null(record$include_candidate)) {
     choices <- c(preparation = "Prepared candidate summary", changes = "Documented changes",
       impact = "Distribution comparisons", `prepared-checks` = "Prepared candidate checks", choices)
@@ -1473,6 +1477,14 @@ dina_cmd_sources <- function(root, args, input = "stdin", is_terminal = isatty(s
   # Finished series use their own candidate and recoverable acceptance adapter.
   if (sub %in% c("explore", "include", "table") && length(flags$positional) &&
       identical(dina_source_workflow_family(flags$positional[[1]], command = sub), "dina")) {
+    if (sub == "include" && isTRUE(flags$publication)) {
+      return(dina_finished_publication_include(root, flags, input, is_terminal))
+    }
+    if (sub == "table" && (isTRUE(flags$publication) ||
+        startsWith(dina_arg(flags$positional, 2L, ""), "continuation"))) {
+      return(dina_finished_publication_show(root,
+        dina_arg(flags$positional, 2L, "continuation"), flags))
+    }
     if (sub == "include") return(dina_review_include(root, "dina", flags, input, is_terminal))
     if (sub == "explore") return(dina_finished_explore(root, flags))
     if (any(c("dry-run", "include-run", "exploration-run", "restore") %in% names(flags))) {

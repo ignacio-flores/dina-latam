@@ -591,3 +591,54 @@ test_that("explore printer shows current years and no-new keep-current action", 
   expect_match(output, "adapter needed")
   expect_match(output, "Status notes")
 })
+
+test_that("no incoming SNA source is retained only when a current source exists", {
+  extension <- data.frame(
+    country = c("AAA", "BBB", "CCC"),
+    status = c("no_new_years_detected", "no_new_years_detected", "no_overlap")
+  )
+  structure <- data.frame(
+    country = extension$country,
+    structure_status = c("no_new_years", "no_new_years", "structure_evidence_available"),
+    matched_new_files = c(0L, 0L, 1L), likely_new_sheets = c(0L, 0L, 1L)
+  )
+  inventory <- data.frame(
+    country = rep(extension$country, each = 2L), source_set = rep(c("old", "new"), 3L),
+    status = c("no_file", "no_file", "matched", "no_file", "no_file", "matched")
+  )
+  actions <- country_sna_explorer_review_actions(extension, structure, inventory)
+  expect_identical(actions$action, c("source_unavailable", "keep_current", "include_dry_run_no_overlap"))
+  expect_match(actions$note[[1L]], "no current source to retain")
+})
+
+test_that("missing accepted and incoming SNA sources remain visible as a warning", {
+  country_sna_explorer_quiet_locale()
+  source_cli_for_tests()
+  skip_if_not_installed("yaml")
+  root <- tempfile("country-sna-absent-")
+  dir.create(root)
+  contract_path <- file.path(root, "contract.yml")
+  yaml::write_yaml(country_sna_explorer_fixture_contract(root), contract_path)
+  result <- run_country_sna_explorer(root = root, contract_path = contract_path,
+    years = 2024L, countries = "AAA", write_outputs = FALSE)
+  expect_true(all(result$outputs$source_inventory$status == "no_file"))
+  expect_identical(result$outputs$review_actions$action, "source_unavailable")
+  expect_false(dir.exists(file.path(root, "output")))
+
+  problems <- dina_review_problems(list(outputs = list(review_actions = result$outputs$review_actions)))
+  expect_equal(nrow(problems), 1L)
+  expect_identical(problems$country, "AAA")
+  expect_identical(problems$status, "source_unavailable")
+  expect_identical(problems$severity, "Warning")
+  focus <- list(entries = data.frame(measure = "D4_cei"))
+  expect_equal(dina_review_sna_focus_problems(problems, focus), problems)
+  expect_identical(dina_review_sna_focus_status(data.frame(), problems), "all_good")
+  expect_identical(dina_review_problem_triage(problems)$issue, "Accepted and incoming source files unavailable")
+
+  output <- paste(capture.output(dina_print_country_sna_explore(result, dry_run = TRUE,
+    is_terminal = FALSE)), collapse = "\n")
+  expect_match(output, "source absent")
+  notes <- dina_country_sna_explore_status_notes(result$outputs$structure_summary, result$outputs$review_actions)
+  expect_match(paste(notes, collapse = " "), "neither an accepted nor an incoming source file")
+  expect_false(grepl("keep current", output, fixed = TRUE))
+})

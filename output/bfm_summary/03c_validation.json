@@ -1,11 +1,11 @@
 {
   "version": 2,
-  "generated_at": "2026-10-19T14:04:42+0200",
-  "panel_sha256": "0f346aa7a1accc9a43f99822c477bbff9ccb1e6f9d99fca927466d96493fbab0",
+  "generated_at": "2026-10-22T23:57:04+0200",
+  "panel_sha256": "c01d252a461d20dfbcfdf83ed62a0858bb05db1f10bee61ee024218e0906142d",
   "countries_updated": ["ARG", "BRA", "CHL", "COL", "CRI", "DOM", "ECU", "MEX", "PER", "SLV", "URY"],
   "input_sha256": {
-    "pos": "8200d2f254d9294c9decb58ce64a16f17fb5472f8decf08e873cfc2dd8fcde1e",
-    "pre": "fbe4ed2c7f5c4f29feb10cb31e943b72373d94026ba381534a39576c24331bf4",
+    "pos": "5dcc3a5eb48feed151555a6225ead95d85d96632f8951726a8017595503b1f05",
+    "pre": "3b6dcc9d9687a9b50d467ba1aa600d168d518600f3f5fc715413e87cb6d8f476",
     "trust": "9b1bb685f624b162c29a2eccb7e4da273809db869134685537222a3d0f0b739e"
   },
   "cases": [
@@ -478,6 +478,18 @@
       "provenance": "current_index"
     },
     {
+      "country": "PER",
+      "year": 2019,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
+      "country": "PER",
+      "year": 2020,
+      "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
+      "provenance": "current_index"
+    },
+    {
       "country": "SLV",
       "year": 2001,
       "source_file": "/Users/iflores/Documents/GitHub/dina-latam/output/bfm_summary/bfm_norep_pos/merging_points.xlsx",
@@ -621,106 +633,106 @@
     {
       "case": "ARG_2000",
       "status": "unchanged",
-      "old_rows": 29,
-      "new_rows": 29,
+      "old_rows": 40,
+      "new_rows": 40,
       "changed_fields": []
     },
     {
       "case": "ARG_2001",
       "status": "unchanged",
-      "old_rows": 30,
-      "new_rows": 30,
+      "old_rows": 39,
+      "new_rows": 39,
       "changed_fields": []
     },
     {
       "case": "ARG_2002",
       "status": "unchanged",
-      "old_rows": 29,
-      "new_rows": 29,
+      "old_rows": 38,
+      "new_rows": 38,
       "changed_fields": []
     },
     {
       "case": "ARG_2003",
       "status": "unchanged",
-      "old_rows": 26,
-      "new_rows": 26,
+      "old_rows": 38,
+      "new_rows": 38,
       "changed_fields": []
     },
     {
       "case": "ARG_2004",
       "status": "unchanged",
-      "old_rows": 30,
-      "new_rows": 30,
+      "old_rows": 40,
+      "new_rows": 40,
       "changed_fields": []
     },
     {
       "case": "ARG_2005",
       "status": "unchanged",
-      "old_rows": 29,
-      "new_rows": 29,
+      "old_rows": 41,
+      "new_rows": 41,
       "changed_fields": []
     },
     {
       "case": "ARG_2006",
       "status": "unchanged",
-      "old_rows": 30,
-      "new_rows": 30,
+      "old_rows": 42,
+      "new_rows": 42,
       "changed_fields": []
     },
     {
       "case": "ARG_2007",
       "status": "unchanged",
-      "old_rows": 30,
-      "new_rows": 30,
+      "old_rows": 44,
+      "new_rows": 44,
       "changed_fields": []
     },
     {
       "case": "ARG_2008",
       "status": "unchanged",
-      "old_rows": 34,
-      "new_rows": 34,
+      "old_rows": 44,
+      "new_rows": 44,
       "changed_fields": []
     },
     {
       "case": "ARG_2009",
       "status": "unchanged",
-      "old_rows": 31,
-      "new_rows": 31,
+      "old_rows": 44,
+      "new_rows": 44,
       "changed_fields": []
     },
     {
       "case": "ARG_2010",
       "status": "unchanged",
-      "old_rows": 30,
-      "new_rows": 30,
+      "old_rows": 44,
+      "new_rows": 44,
       "changed_fields": []
     },
     {
       "case": "ARG_2011",
       "status": "unchanged",
-      "old_rows": 34,
-      "new_rows": 34,
+      "old_rows": 44,
+      "new_rows": 44,
       "changed_fields": []
     },
     {
       "case": "ARG_2012",
       "status": "unchanged",
-      "old_rows": 35,
-      "new_rows": 35,
+      "old_rows": 44,
+      "new_rows": 44,
       "changed_fields": []
     },
     {
       "case": "ARG_2013",
       "status": "unchanged",
-      "old_rows": 32,
-      "new_rows": 32,
+      "old_rows": 44,
+      "new_rows": 44,
       "changed_fields": []
     },
     {
       "case": "ARG_2014",
       "status": "unchanged",
-      "old_rows": 34,
-      "new_rows": 34,
+      "old_rows": 44,
+      "new_rows": 44,
       "changed_fields": []
     },
     {
@@ -992,50 +1004,50 @@
     {
       "case": "CRI_2010",
       "status": "unchanged",
-      "old_rows": 21,
-      "new_rows": 21,
+      "old_rows": 30,
+      "new_rows": 30,
       "changed_fields": []
     },
     {
       "case": "CRI_2011",
       "status": "unchanged",
-      "old_rows": 23,
-      "new_rows": 23,
+      "old_rows": 30,
+      "new_rows": 30,
       "changed_fields": []
     },
     {
       "case": "CRI_2012",
       "status": "unchanged",
-      "old_rows": 24,
-      "new_rows": 24,
+      "old_rows": 30,
+      "new_rows": 30,
       "changed_fields": []
     },
     {
       "case": "CRI_2013",
+      "status": "unchanged",
+      "old_rows": 30,
+      "new_rows": 30,
+      "changed_fields": []
+    },
+    {
+      "case": "CRI_2014",
       "status": "unchanged",
       "old_rows": 31,
       "new_rows": 31,
       "changed_fields": []
     },
     {
-      "case": "CRI_2014",
-      "status": "unchanged",
-      "old_rows": 24,
-      "new_rows": 24,
-      "changed_fields": []
-    },
-    {
       "case": "CRI_2015",
       "status": "unchanged",
-      "old_rows": 24,
-      "new_rows": 24,
+      "old_rows": 31,
+      "new_rows": 31,
       "changed_fields": []
     },
     {
       "case": "CRI_2016",
       "status": "unchanged",
-      "old_rows": 24,
-      "new_rows": 24,
+      "old_rows": 31,
+      "new_rows": 31,
       "changed_fields": []
     },
     {
@@ -1096,73 +1108,87 @@
     },
     {
       "case": "ECU_2008",
-      "status": "changed",
+      "status": "unchanged",
       "old_rows": 32,
       "new_rows": 32,
-      "changed_fields": "avg_t"
+      "changed_fields": []
     },
     {
       "case": "ECU_2009",
-      "status": "changed",
+      "status": "unchanged",
       "old_rows": 32,
       "new_rows": 32,
-      "changed_fields": "avg_t"
+      "changed_fields": []
     },
     {
       "case": "ECU_2010",
-      "status": "changed",
+      "status": "unchanged",
       "old_rows": 32,
       "new_rows": 32,
-      "changed_fields": "avg_t"
+      "changed_fields": []
     },
     {
       "case": "ECU_2011",
-      "status": "added",
-      "old_rows": 0,
+      "status": "unchanged",
+      "old_rows": 76,
       "new_rows": 76,
-      "changed_fields": ["p", "small_t", "antitonic", "mpoint", "big_t", "extrap", "thr", "avg_t"]
+      "changed_fields": []
     },
     {
       "case": "MEX_2010",
-      "status": "changed",
+      "status": "unchanged",
       "old_rows": 83,
       "new_rows": 83,
-      "changed_fields": ["small_t", "big_t", "thr"]
+      "changed_fields": []
     },
     {
       "case": "MEX_2012",
-      "status": "changed",
+      "status": "unchanged",
       "old_rows": 79,
       "new_rows": 79,
-      "changed_fields": ["small_t", "big_t", "thr", "avg_t"]
+      "changed_fields": []
     },
     {
       "case": "MEX_2014",
-      "status": "changed",
+      "status": "unchanged",
       "old_rows": 83,
       "new_rows": 83,
-      "changed_fields": ["small_t", "antitonic", "big_t", "avg_t"]
+      "changed_fields": []
     },
     {
       "case": "PER_2016",
-      "status": "unchanged",
+      "status": "changed",
       "old_rows": 50,
       "new_rows": 50,
-      "changed_fields": []
+      "changed_fields": "avg_t"
     },
     {
       "case": "PER_2017",
-      "status": "unchanged",
+      "status": "changed",
       "old_rows": 50,
       "new_rows": 50,
-      "changed_fields": []
+      "changed_fields": "avg_t"
     },
     {
       "case": "PER_2018",
-      "status": "unchanged",
+      "status": "changed",
       "old_rows": 50,
       "new_rows": 50,
-      "changed_fields": []
+      "changed_fields": "avg_t"
+    },
+    {
+      "case": "PER_2019",
+      "status": "added",
+      "old_rows": 0,
+      "new_rows": 50,
+      "changed_fields": ["p", "small_t", "antitonic", "mpoint", "big_t", "extrap", "thr", "avg_t"]
+    },
+    {
+      "case": "PER_2020",
+      "status": "added",
+      "old_rows": 0,
+      "new_rows": 50,
+      "changed_fields": ["p", "small_t", "antitonic", "mpoint", "big_t", "extrap", "thr", "avg_t"]
     },
     {
       "case": "SLV_2001",

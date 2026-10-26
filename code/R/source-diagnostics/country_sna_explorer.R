@@ -1721,14 +1721,20 @@ country_sna_explorer_overlap_revision_summary <- function(revision_detail) {
   country_sna_explorer_bind(rows)
 }
 
-country_sna_explorer_review_actions <- function(extension_summary, structure_summary) {
+country_sna_explorer_review_actions <- function(extension_summary, structure_summary, source_inventory = data.frame()) {
   countries <- sort(unique(c(extension_summary$country, structure_summary$country)))
   if (!length(countries)) return(data.frame(stringsAsFactors = FALSE))
   rows <- lapply(countries, function(country) {
     ext <- extension_summary[extension_summary$country == country, , drop = FALSE]
     structure <- structure_summary[structure_summary$country == country, , drop = FALSE]
+    sources <- source_inventory[source_inventory$country %in% country, , drop = FALSE]
+    unavailable <- nrow(sources) > 0L &&
+      all(sources$status %in% "no_file") &&
+      all(c("old", "new") %in% sources$source_set)
     structure_status <- if (nrow(structure)) structure$structure_status[[1L]] else "structure_review_needed"
-    action <- if (!nrow(ext) || identical(ext$status[[1L]], "no_new_years_detected")) {
+    action <- if (unavailable) {
+      "source_unavailable"
+    } else if (!nrow(ext) || identical(ext$status[[1L]], "no_new_years_detected")) {
       "keep_current"
     } else if (identical(structure_status, "layout_adapter_required")) {
       "layout_adapter_required"
@@ -1753,6 +1759,7 @@ country_sna_explorer_review_actions <- function(extension_summary, structure_sum
       },
       note = switch(
         action,
+        source_unavailable = "Neither an accepted nor an incoming source file was found; there is no current source to retain. Check the source inventory.",
         keep_current = "No new source years were detected; keep the current canonical source.",
         layout_adapter_required = "Detected layout evidence needs a dedicated adapter before include can extract values.",
         include_dry_run_no_overlap = "New source years exist without old/new overlap; include should check expected extension values.",
@@ -1828,7 +1835,7 @@ country_sna_explorer_audit <- function(contract, root, years = country_sna_explo
   confirmed_missing_years <- country_sna_explorer_confirmed_missing_years(source_inventory)
   overlap_revision_detail <- country_sna_explorer_overlap_revision_detail(value_candidates, contract)
   overlap_revision_summary <- country_sna_explorer_overlap_revision_summary(overlap_revision_detail)
-  review_actions <- country_sna_explorer_review_actions(extension_summary, structure_summary)
+  review_actions <- country_sna_explorer_review_actions(extension_summary, structure_summary, source_inventory)
   list(
     source_inventory = source_inventory,
     sheet_inventory = sheet_inventory,

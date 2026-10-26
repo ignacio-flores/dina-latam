@@ -18,6 +18,15 @@ clear all
 global aux_part  ""preliminary"" 
 qui do "code/Stata/auxiliar/aux_general.do"
 local ext "_norep"
+// Bounded reviews may supply only generated products in a separate root.
+// Survey/Admin inputs remain in place; this does not copy or change the project.
+local review_root : environment DINA_REVIEW_ROOT
+local theta_panel "output/bfm_summary/all_thetas.xlsx"
+local adjuster_index "intermediary_data/weight_adjusters/index.xlsx"
+if "`review_root'" != "" {
+    local theta_panel "`review_root'/`theta_panel'"
+    local adjuster_index "`review_root'/`adjuster_index'"
+}
 global extrap_countries ""
 foreach c in $all_countries {
 	global `c'_extrap_years ""
@@ -27,7 +36,7 @@ foreach c in $all_countries {
 
 //Get list of countries and years to adjust
 preserve 
-	qui import excel "intermediary_data/weight_adjusters/index.xlsx", ///
+	qui import excel "`adjuster_index'", ///
 		sheet("country_years_03d") firstrow clear		
 	capture confirm string variable country_year
 	if _rc quietly tostring country_year, replace
@@ -65,7 +74,7 @@ if trim("$extrap_countries") == "" {
 //memorize merging point from closest year 
 foreach c in $extrap_countries {
 	foreach y in $`c'_extrap_years {
-		qui import excel "output/bfm_summary/all_thetas.xlsx", ///
+		qui import excel "`theta_panel'", ///
 			sheet("panel") clear firstrow
 		qui keep if country == "`c'"
 		if _N == 0 {
@@ -102,6 +111,9 @@ foreach c in $extrap_countries {
 		dina_coverage, country("`c'") year(`t') step("extrapolated_bfm") status("expected")
 		//Define file paths
 		local adjfile "intermediary_data/weight_adjusters/`c'`t'.xlsx"
+        if "`review_root'" != "" {
+            local adjfile "`review_root'/`adjfile'"
+        }
 		local svyfile "intermediary_data/microdata/raw/`c'/`c'_`t'_raw.dta"
 		// 1. TREAT RAW SURVEYS ------------------------------------------------
 	

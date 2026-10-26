@@ -178,6 +178,53 @@ test_that("GPinter chunks wait for complete publication and remain reusable", {
   expect_error(country_output_gpinter_validate(assembly, broken), "duplicated, or invalid fractiles")
 })
 
+test_that("GPinter assembly publishes selected repair reports and preserves other countries", {
+  root <- country_output_fixture()
+  groups <- data.frame(country = c("ARG", "COL", "MEX"), year = 2020L, step = "nat", unit = "esn")
+  stages <- file.path(root, c("ARG", "COL")); assembly <- file.path(root, "assembled")
+  country_output_gpinter_fixture(stages[1], "ARG", groups)
+  country_output_gpinter_fixture(stages[2], "COL", groups)
+  mex <- country_output_gpinter_fixture(file.path(root, "mex-fixture"), "MEX", groups)
+  baseline <- file.path(root, "output/ineqstats/_gpinter_all_topcorrected.csv")
+  dir.create(dirname(baseline), recursive = TRUE)
+  write.csv(mex, baseline, row.names = FALSE)
+  reports <- c("gpinter_precision_adjustments.csv", "gpinter_threshold_reconstruction.csv",
+    "gpinter_fitting_methods.csv", "gpinter_tail_adjustments.csv", "gpinter_atoms.csv")
+  previous <- data.frame(country = c("ARG", "COL", "MEX"), year = 2020L,
+    detail = c("old ARG", "old COL", "retained MEX"))
+  incoming <- previous[1:2, ]; incoming$detail <- c("new ARG", "new COL")
+  for (report in reports) {
+    relative <- file.path("output/data_reports", report)
+    dir.create(dirname(file.path(root, relative)), recursive = TRUE, showWarnings = FALSE)
+    write.csv(previous, file.path(root, relative), row.names = FALSE)
+    for (i in seq_along(stages)) {
+      data <- incoming[i, , drop = FALSE]
+      if (report == "gpinter_atoms.csv" || (report == "gpinter_precision_adjustments.csv" && i == 2L)) {
+        data <- data[FALSE, , drop = FALSE]
+      }
+      dir.create(dirname(file.path(stages[i], relative)), recursive = TRUE, showWarnings = FALSE)
+      write.csv(data, file.path(stages[i], relative), row.names = FALSE)
+    }
+  }
+  country_output_gpinter_assemble(stages, assembly, baseline, c("ARG", "COL"))
+  for (report in reports) {
+    staged <- read.csv(file.path(assembly, "output/data_reports", report))
+    expect_identical(names(staged), names(previous))
+    expected <- if (report == "gpinter_atoms.csv") 0L else if (report == "gpinter_precision_adjustments.csv") 1L else 2L
+    expect_equal(nrow(staged), expected)
+  }
+  # Reports intentionally lack the fractile schema; only the distribution CSV
+  # must pass the 127-fractile GPinter validator during publication.
+  country_output_publish_fixture(root, assembly, "07c-test", c("ARG", "COL"))
+  for (report in reports) {
+    published <- read.csv(file.path(root, "output/data_reports", report))
+    expected <- if (report == "gpinter_atoms.csv") incoming[FALSE, ] else if (report == "gpinter_precision_adjustments.csv") incoming[1, , drop = FALSE] else incoming
+    expected <- rbind(previous[3, , drop = FALSE], expected)
+    rownames(expected) <- NULL
+    expect_equal(published, expected)
+  }
+})
+
 test_that("zero-success statistics retire selected prior contributions", {
   root <- country_output_fixture(); stage <- file.path(root, "stage")
   relative <- "output/ineqstats/ineqstats_natinc_esn.xlsx"

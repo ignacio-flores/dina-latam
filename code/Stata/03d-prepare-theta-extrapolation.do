@@ -23,6 +23,11 @@ qui do "code/Stata/auxiliar/aux_general.do"
 //temporary names 
 tempfile tf 
 tempvar w_change
+local review_root : environment DINA_REVIEW_ROOT
+local theta_panel "output/bfm_summary/all_thetas.xlsx"
+if "`review_root'" != "" {
+    local theta_panel "`review_root'/`theta_panel'"
+}
 
 // Use the accepted observed panel, including approved historical cases that
 // the current BFM index sheets omit. Donor exclusions do not redefine which
@@ -34,12 +39,22 @@ foreach c in $all_countries {
 	local observed_`c' ""
 }
 preserve
-	qui import excel "output/bfm_summary/all_thetas.xlsx", sheet("panel") firstrow clear
+	qui import excel "`theta_panel'", sheet("panel") firstrow clear
 	capture confirm numeric variable year
 	if _rc quietly destring year, replace
 	qui assert !missing(country) & !missing(year)
 	qui keep if strpos(" `configured_countries' ", " " + country + " ")
 	qui keep if inrange(year, $first_y, $last_y)
+	// The accepted panel and stable summaries must describe the same observed
+	// merging points. Permit only storage precision below the grid spacing.
+	foreach c in $all_countries {
+		qui levelsof year if country == "`c'", local(panel_years) clean
+		foreach y in `panel_years' {
+			qui summarize mpoint if country == "`c'" & year == `y', meanonly
+			local panel_mp_`c'_`y' = r(mean) / 100
+			assert !missing(r(mean)) & r(min) == r(max)
+		}
+	}
 	qui keep country year
 	qui duplicates drop
 	foreach c in $all_countries {
@@ -84,150 +99,52 @@ if "${bfm_replace}" == "no" {
 	local ext "_norep"
 }
 
-//loop over overlaping countries and years 
-local iter = 1 
-foreach c in $overlap_countries {	
-
-	local iter_n = 1
-	foreach t in ${`c'_overlap_years} {
-		
-		di as result "preparing theta extrapolation for `c'-`t':"
-				
-		if "${bfm_replace}" == "yes" {
-			local raw_weight "_expanded_weight"	
-		}
-		if "${bfm_replace}" == "no" {
-			local raw_weight "_fep"	
-			if ("`c'" == "ARG") local raw_weight "n_fep"
-		}
-	
-		//locals
-		local cor_weight "_weight"
-		local id "id_hogar"
-		local age "edad"
-		local y " ${y_postax_tot} "
-		local yrtrust = `trust_`c'_`t''
-		if ("`c'" == "BRA") local y " ${y_pretax_tot_bra} "
-		if ("`c'" == "CRI") local y " ${y_pretax_tot} "
-		if ("`c'" == "PER") local y " ${y_postax_tot_per} "
-		if ("`c'" == "MEX") local y " ${y_postax_formal_wage} "
-		if ("`c'" == "ARG") local y " ${y_postax_private_wage} "			
-	
-		//define paths
-		local type "bfm`ext'_pos"
-		if inlist("`c'", "BRA", "CRI") local type "bfm`ext'_pre"
-		local corfile "intermediary_data/microdata/`type'/`c'_`t'_`type'.dta"
-		
-		//set temporary variables 
-		tempvar ftile freq F fy cumfy L
-
-		dina_coverage, country("`c'") year(`t') step("pseudo_theta") status("expected")
-		//bring corrected survey
-		use `corfile', clear
-		cap drop __*
-		
-		//check consistency of raw / corrected weights
-		foreach type2 in "raw" "cor" {
-			qui sum ``type2'_weight', meanonly 
-			local poptot_`type2' = r(sum)
-		}
-		local ratio = round(`poptot_cor' / `poptot_raw' * 100)
-		cap assert `ratio' == 100
-		if (_rc != 0) {
-			*qui use "intermediary_data/microdata/raw/`c'/`c'_`t'_raw.dta", clear 
-			*qui sum _fep, meanonly 
-			*local actual_original_pop = r(sum)
-			di as error "Corrected population from BFM is `ratio'% the original"
-			di as error "original: `poptot_raw', corrected: `poptot_cor'"
-			di as error "if you are using BFM with replace option on, only use the original survey-weight variable from the raw version"
-			exit 1
-		}
-		
-		//compute cumulative distribution 
-		sort `y' _pid 
-		quietly	gen `freq' = `raw_weight'/`poptot_raw'
-		quietly	gen `F' = sum(`freq')	
-			
-		//classify obs in 127 g-percentiles
-		cap drop ftile 
-		qui egen ftile = cut(`F'), ///
-			at(0(0.01)0.99 0.991(0.001)0.999 0.9991(0.0001)0.9999 ///
-			0.99991(0.00001)0.99999 1)
-		qui replace ftile = 0.99999 if missing(ftile)	
-			
-		//aggregate to fractile level	
-		qui collapse (sum) `raw_weight' `cor_weight' ///
-			[weight = `raw_weight'], by(ftile)	
-		qui gen country = "`c'"
-		qui gen year = `t'
-		
-		//define pseudo-theta 
-		qui gen pseudo_theta = `raw_weight' / _weight
-		qui label var pseudo_theta "ratio: raw over corrected weight" 
-		
-		//check all fractiles are present in pseudo thetas 	
-		cap assert _N == 127
-		if _rc != 0 {
-			tempfile tf_`c'_`t'
-			qui save `tf_`c'_`t'', replace 
-			clear 
-			qui set obs 127
-			qui gen ftile = (_n - 1)/100 in 1/100
-			qui replace ftile = (99 + (_n - 100)/10)/100 in 101/109
-			qui replace ftile = (99.9 + (_n - 109)/100)/100 in 110/118
-			qui replace ftile = (99.99 + (_n - 118)/1000)/100 in 119/127
-			qui merge 1:1 ftile using `tf_`c'_`t'', nogen
-		
-			//interpolate using model  
-			qui nl (pseudo_theta = {a = 1} * (1 - ftile)^-{b = 1})  
-			local coeff_`c'_`theta' = _b[b:]
-			local coeff_rd_`c'_`theta' = round(`coeff_`c'_`theta'', 0.01)
-			local coeff_txt_`c'_`theta' "`coeff_rd_`c'_`theta'' (`theta')"
-			qui predict predicted //if e(sample)
-			
-			*qui ipolate pseudo_theta ftile, gen(ipo) epolate
-			qui replace pseudo_theta = predicted if ///
-				missing(pseudo_theta)
-			qui drop predicted
-			qui replace country = country[1] if missing(country)
-			qui replace year = year[1] if missing(year)
-			assert _N == 127
-		}
-	
-		//get information from actual bfms 
-		preserve
-			//save info on merging point 
-			qui import excel "output/bfm_summary/`type'/merging_points.xlsx" ///
-				, sheet(`c'`t') firstrow clear 
-			qui levelsof mpoint, local(`c'_`t'_mp)	
-			//save info on `unobserved' population 
-			qui sum p if antitonic <= 0.1, meanonly
-			local `c'_`t'_un = r(min)
-		restore 
-		
-		//cosmetics 
-		qui gen mpoint = ``c'_`t'_mp'
-		qui keep if ftile >= `yrtrust' - 0.05 
-		
-		//append data if necessary
-		if `iter' == 0 qui append using `tf'
-		
-		//save
-		qui save `tf', replace 	
-		
-		//count iterations 
-		local iter = 0
-		local iter_n = `iter_n' + 1
-		
-	}
+// Load immutable observed summaries captured by 03a/03b. Reading published
+// corrected microdata here would feed a preceding 03e result back into itself.
+local iter = 1
+foreach c in $overlap_countries {
+    foreach t in ${`c'_overlap_years} {
+        di as result "preparing theta extrapolation for `c'-`t' from observed donor summary:"
+        dina_coverage, country("`c'") year(`t') step("pseudo_theta") status("expected")
+        local donorfile "output/bfm_summary/observed_donors/`c'`t'.dta"
+        if "`review_root'" != "" {
+            local donorfile "`review_root'/`donorfile'"
+        }
+        capture confirm file "`donorfile'"
+        if _rc {
+            di as error "03d: missing stable observed donor for `c' `t': `donorfile'"
+            di as error "Reconstruct its original observed correction in 03a/03b and capture the donor summary; existing extrapolated microdata cannot substitute."
+            exit 601
+        }
+        quietly use "`donorfile'", clear
+        assert _N == 127
+        isid country year ftile
+        assert country == "`c'" & year == `t'
+        assert recipe_version == 1 & source_method == "observed_bfm_noreplace"
+        assert inlist(capture_stage, "03a", "03b")
+        assert !missing(ftile, pseudo_theta, mpoint) & pseudo_theta > 0
+        assert mpoint > 0 & mpoint < 1
+        assert mpoint == mpoint[1] & unobs_cutoff == unobs_cutoff[1]
+        local expected_mp = `panel_mp_`c'_`t''
+        if missing(`expected_mp') | abs(mpoint[1] - `expected_mp') > 0.0000001 {
+            di as error "03d: observed donor `c' `t' disagrees with the accepted panel merging point. Rebuild/review the matching observed products together."
+            exit 459
+        }
+        local `c'_`t'_mp = mpoint[1]
+        local `c'_`t'_un = unobs_cutoff[1]
+        local yrtrust = `trust_`c'_`t''
+        assert !missing(`yrtrust')
+        quietly keep if ftile >= `yrtrust' - 0.05
+        quietly keep ftile country year pseudo_theta mpoint inter
+        if `iter' == 0 quietly append using `tf'
+        quietly save `tf', replace
+        local iter = 0
+    }
 }
 
-//save data 
-qui gen inter = 1 if missing(`raw_weight', `cor_weight')
-qui drop `raw_weight' `cor_weight'
-qui export excel "${dina_output_root}/output/bfm_summary/pseudo_thetas.xlsx", firstrow(variables) ///
-	sheet("panel_pthetas") sheetreplace 
-	
+quietly export excel "${dina_output_root}/output/bfm_summary/pseudo_thetas.xlsx", ///
+    firstrow(variables) sheet("panel_pthetas") sheetreplace
+
 // 2. Graph Pseudo-thetas-------------------------------------------
 tempvar aux_1 
 
@@ -406,6 +323,18 @@ qui drop predict_t_*
 tempfile weight_adjusters
 qui save `weight_adjusters'
 
+// Explicit scientific choices are independent of Admin-file existence.
+// These rows supplement ordinary unobserved targets; they do not change donors.
+preserve
+    quietly import delimited "config/theta_extrapolation_policy.csv", clear varnames(1)
+    isid country year
+    assert regexm(country, "^[A-Z][A-Z][A-Z]$") & year == floor(year)
+    assert method == "extrapolated"
+    foreach c in $all_countries {
+        quietly levelsof year if country == "`c'", local(forced_`c') clean
+    }
+restore
+
 // 3. Generate weight-adjusters (years w/ survey but w/o tax data) -------------
 
 //Loop over countries and years 
@@ -424,6 +353,9 @@ foreach c in $overlap_countries {
 		local is_observed : list target_year in observed_years
 		local register_`c'_`t' "no"
 		if `is_observed' local register_`c'_`t' "yes"
+		local forced_years "`forced_`c''"
+		local force_extrap : list target_year in forced_years
+		if `force_extrap' local register_`c'_`t' "no"
 		if ("`c'" == "CRI" & inrange(`t', 2000, 2009)) local register_`c'_`t' "no"
 		if ("`c'" == "CRI" & `t' == 2017) local register_`c'_`t' "no"
 		if ("`c'" == "CHL" & inrange(`t', 2000, 2004)) local register_`c'_`t' "no"

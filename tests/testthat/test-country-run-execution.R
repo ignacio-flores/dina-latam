@@ -6,6 +6,9 @@ country_execution_fixture <- function(config = list(countries=c("ARG","COL"),yea
   old <- getwd(); setwd(repo_root_for_tests); on.exit(setwd(old))
   sys.source(file.path(repo_root_for_tests,"code/R/country_run.R"),envir=env)
   env$dina_session_config <- function(...) config
+  # These mocked workers do not exercise finished-series publication.
+  env$dina_finished_publication_state <- function(...) list(active = list())
+  env$dina_finished_publication_readiness <- function(...) list(status = "inactive", message = "No active replacement")
   env$dina_load_session <- function(...) list()
   env$dina_relative <- function(path,root) substring(path,nchar(root)+2L)
   env$dina_progress <- function(...) invisible(NULL)

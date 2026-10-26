@@ -19,8 +19,16 @@ tasks:
       - 01a-clean-macro-data
     inputs:
       - input_data/sna_country_data
+      - input_data/sna_country_data/DOM/cei.xlsx
+      - intermediary_data/national_accounts/UNDATA-WID-Merged.dta
+      - code/R/01b_prepare_annual_sna.R
+      - code/R/source-diagnostics/country_sna_include.R
+      - config/country_sna_include.yml
     outputs:
-      - output/snacompare_summary
+      - intermediary_data/national_accounts/UNDATA-WID-Merged.dta
+      - intermediary_data/national_accounts/sna_country_data/URY/cei.xlsx
+      - intermediary_data/national_accounts/sna_country_data/PER/cei.xlsx
+      - output/figures/cei
 
   - id: 01c-import-tax-composition
     stage: macro
@@ -200,6 +208,7 @@ tasks:
     outputs:
       - intermediary_data/microdata/bfm_norep_pre
       - output/bfm_summary
+      - output/bfm_summary/observed_donors
     notes:
       - Uses historical BFM-ready ECU workbooks until the replacement Admin data is included.
 
@@ -218,6 +227,7 @@ tasks:
       - input_data/admin_data/MEX/wage_MEX_2014.xlsx
     outputs:
       - intermediary_data/microdata/bfm_norep_pos
+      - output/bfm_summary/observed_donors
     notes:
       - Uses historical MEX wage tabulations instead of rebuilding heavy tax microdata.
 
@@ -252,12 +262,8 @@ tasks:
       - "output/bfm_summary/all_thetas.xlsx"
       - "output/bfm_summary/03c_validation.json"
       - "intermediary_data/microdata/raw"
-      - "intermediary_data/microdata/bfm_norep_pre"
-      - "intermediary_data/microdata/bfm_norep_pos"
-      - "output/bfm_summary/bfm_norep_pos/merging_points.xlsx"
-      - "output/bfm_summary/bfm_norep_pre/merging_points.xlsx"
-      - "input_data/admin_data/*/gpinter_*.xlsx"
-      - "input_data/admin_data/*/wage_*.xlsx"
+      - "output/bfm_summary/observed_donors"
+      - "config/theta_extrapolation_policy.csv"
     outputs:
       - "output/bfm_summary/pseudo_thetas.xlsx"
       - "intermediary_data/weight_adjusters/index.xlsx"
@@ -483,6 +489,11 @@ tasks:
     inputs:
       - output/synthetic_microfiles
       - code/R/07c_interpolate_ineqstats.R
+      - code/R/07c_run_interpolation.R
+      - code/R/gpinter_precision.R
+      - code/R/gpinter_thresholds.R
+      - code/R/gpinter_tail_repair.R
+      - code/R/gpinter_atoms.R
     outputs:
       - output/ineqstats/_gpinter_all_topcorrected.csv
 
@@ -499,6 +510,13 @@ tasks:
       - 07c-interpolate-ineqstats
     inputs:
       - output/synthetic_microfiles
+      - output/ineqstats/_gpinter_all_topcorrected.csv
+      - output/data_reports/latam_availability.xlsx
+      - code/R/07d_prepare_finished_dina.R
+      - code/R/source-diagnostics/finished_dina_publication.R
+      - code/R/cli/finished_dina_publication.R
+      - code/Stata/auxiliar/dina_finished_overlay.do
+      - code/Stata/auxiliar/dina_export_comparison_aggregates.do
       - input_data/_new/previous_series
       - input_data/wid/population_total_adult_npopul.dta
       - input_data/wid/export_scaling_anninc_xrates.dta

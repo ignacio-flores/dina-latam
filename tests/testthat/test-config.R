@@ -98,6 +98,7 @@ test_that("Stata runs receive a temporary runtime config", {
   fake_stata <- file.path(root, "fake-stata")
   writeLines(c(
     "#!/bin/sh",
+    "cd \"$(dirname \"$0\")\" || exit 14",
     "echo \"$DINA_CONFIG_DO\" > output/runtime-config-path.txt",
     "test -f \"$DINA_CONFIG_DO\" || exit 13",
     "cat \"$DINA_CONFIG_DO\" > output/runtime-config-copy.do",
@@ -151,6 +152,8 @@ test_that("Stata r() errors fail the task even when its command exits zero", {
   writeLines(c(
     "#!/bin/sh",
     "for arg in \"$@\"; do wrapper=\"$arg\"; done",
+    "printf '%s\\n' \"$PWD\" > launch-directory.txt",
+    "printf 'automatic batch log\\n' > stata-error.log",
     "log=$(echo \"$wrapper\" | sed 's/\\.wrapper\\.do$/.stata.log/')",
     "printf 'r(198);\\n' > \"$log\"",
     "exit 0"
@@ -166,6 +169,12 @@ test_that("Stata r() errors fail the task even when its command exits zero", {
   })
   expect_equal(result$status, "failed")
   expect_true(file.exists(file.path(root, result$stata_log)))
+  run_dir <- file.path(root, result$log_dir)
+  expect_equal(readLines(file.path(run_dir, "launch-directory.txt")), normalizePath(run_dir))
+  expect_true(file.exists(file.path(run_dir, "stata-error.log")))
+  expect_false(file.exists(file.path(root, "stata-error.log")))
+  wrapper <- readLines(file.path(run_dir, "stata-error.wrapper.do"))
+  expect_true(any(wrapper == sprintf('cd "%s"', normalizePath(root))))
   expect_equal(dina_load_session(root = root)$task_runs[["stata-error"]]$status, "failed")
 })
 

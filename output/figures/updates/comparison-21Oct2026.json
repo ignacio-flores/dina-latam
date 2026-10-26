@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "status": "complete",
+  "date": "21Oct2026",
+  "started_at": "2026-10-21T14:58:34+0200",
+  "baseline": "input_data/_new/previous_series/dina_latam_7Nov2025.dta",
+  "baseline_hash": "8e823b0c7408aa4ba5383eb53fa163b355c0c89a4e3b012905a050206687c647",
+  "settings": {
+    "countries": [
+      "COL",
+      "ARG",
+      "PER",
+      "URY",
+      "CRI",
+      "ECU",
+      "CHL",
+      "BRA",
+      "SLV",
+      "MEX",
+      "DOM"
+    ],
+    "years": {
+      "first": 2000,
+      "last": 2024
+    },
+    "export_validation": {
+      "unit": "esn",
+      "steps": "nat",
+      "last_year": 2025,
+      "previous_update_date": "7Nov2025",
+      "previous_update_file": "input_data/_new/previous_series/dina_latam_7Nov2025.dta"
+    }
+  },
+  "finished_publications": {
+    "ecu-nabernegg-2026": {
+      "candidate": "/Users/iflores/Documents/GitHub/dina-latam/output/experiments/finished_dina_publication/runs/publication-20261021-145653-file13f592a66a8f8",
+      "source_id": "ecu-nabernegg-2026"
+    }
+  },
+  "generated_at": "2026-10-21T15:00:28+0200",
+  "graphs": ["output/figures/updates/update-21Oct2026-sptinc992j-t10.pdf", "output/figures/updates/update-21Oct2026-sptinc992j-t1.pdf", "output/figures/updates/update-21Oct2026-sptinc992j-t01.pdf", "output/figures/updates/update-21Oct2026-sptinc992j-t001.pdf", "output/figures/updates/update-21Oct2026-sptinc992j-m40.pdf", "output/figures/updates/update-21Oct2026-sptinc992j-b50.pdf"],
+  "series": ["output/latest_wid_series/dina_latam_wide_21Oct2026.dta", "output/latest_wid_series/dina_latam_21Oct2026.dta", "output/latest_wid_series/dina_latam_21Oct2026_amory.dta"],
+  "artifacts": {
+    "output/figures/updates/update-21Oct2026-sptinc992j-t10.pdf": "4117b06f2e531249cd4c0214109b469ca8167f49641d24b3c70746f70fb4ac3a",
+    "output/figures/updates/update-21Oct2026-sptinc992j-t1.pdf": "7d5740a5df1091927f957ad7aad0c8592f9cd5487997657f4eac258609932dc2",
+    "output/figures/updates/update-21Oct2026-sptinc992j-t01.pdf": "d7094c7959fbdcf59a9ad51d4643a80b1954bf79c2ac2b5a2c55a9b69da8fcb3",
+    "output/figures/updates/update-21Oct2026-sptinc992j-t001.pdf": "ac7179464f1bfac9fdf7add74d7392e87db1e3307644d129e49e2544d2a98bfc",
+    "output/figures/updates/update-21Oct2026-sptinc992j-m40.pdf": "8a551c63ba073e2c46755804136eea27f8d1637a4fe1808149c3e3ad0e25015e",
+    "output/figures/updates/update-21Oct2026-sptinc992j-b50.pdf": "3b346d2f2ce986d2a2a72590b5793cd31e22901b9ba4a44163cb8e384f61f9a8",
+    "output/latest_wid_series/dina_latam_wide_21Oct2026.dta": "179d28964b69329b9f95e961a92c871347e009826cf65c6d45b41eceec810343",
+    "output/latest_wid_series/dina_latam_21Oct2026.dta": "33642ddadf8a602790f380e5c7b3c21d34380cb62fefaeca366320349dc65e23",
+    "output/latest_wid_series/dina_latam_21Oct2026_amory.dta": "02d09e5936520441334592e611f4df0888645fd34274db7742c11211c7c4ec4b"
+  }
+}

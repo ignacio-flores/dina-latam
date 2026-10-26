@@ -20,7 +20,7 @@ dina_finished_candidate_table <- function(candidate, table) {
 }
 
 dina_finished_prepared_filter <- function(rows, filters) {
-  dina_finished_filter(rows, filters[intersect(names(filters), c("country", "year", "step", "unit"))])
+  dina_finished_filter(rows, filters[intersect(names(filters), c("country", "year", "step", "unit", "wid-code", "percentile"))])
 }
 
 dina_finished_boundary <- function(value) {
@@ -38,7 +38,33 @@ dina_finished_include_print <- function(record, candidate, root = dina_repo_root
     dina_finished_note("  Source: ", source$citation, " ", source$doi)
     dina_finished_note("  Processing: ", source$processing)
   }
+  coverage <- dina_finished_prepared_filter(dina_finished_candidate_table(candidate, "coverage"), filters)
+  if ("included" %in% names(coverage)) {
+    selected <- coverage[!is.na(coverage$included), , drop = FALSE]
+    for (iso in unique(selected$country)) {
+      part <- selected[selected$country == iso, , drop = FALSE]
+      kept <- part$year[part$included == 1]
+      dina_cli_section(paste("Observed-year selection —", iso))
+      dina_cli_cat(length(kept), " complete observed years retained; ", sum(part$included == 0), " source years excluded.")
+      dina_finished_note("Partial-population years stay in the original workbook only. Missing-year interpolation and temporal extrapolation are disabled.")
+      dina_finished_note("Review selection: dina sources table dina prepared-coverage --country ", iso)
+    }
+  }
   summary <- dina_finished_prepared_filter(dina_finished_candidate_table(candidate, "summary"), filters)
+  if ("representation" %in% names(summary)) {
+    coarse <- !is.na(summary$representation) & summary$representation == "coarse"
+    if (any(coarse)) {
+      dina_cli_section("Coarse shares awaiting harmonization")
+      part <- summary[coarse, , drop = FALSE]
+      columns <- intersect(c("country", "year", "prepared_brackets", "population_covered", "share_total", "uncovered_ranges", "population_scope", "eligible_for_gpinter"), names(part))
+      dina_finished_table(part[columns], limit = 12L)
+      dina_finished_note("Shares are retained without normalization. avg_norm uses mean one; supplied monetary averages remain separate.")
+      dina_finished_note("Missing population ranges and scientific discrepancies remain for later GPinter harmonization.")
+      dina_finished_note("GPinter review requires observed full-population coverage; tail-only years cannot fill the rest of the distribution.")
+      dina_finished_note("Missing-year interpolation and temporal extrapolation are disabled.")
+    }
+    summary <- summary[!coarse, , drop = FALSE]
+  }
   if (nrow(summary)) {
     keys <- unique(summary[c("country", "step", "unit")])
     display <- lapply(seq_len(nrow(keys)), function(i) {
@@ -56,14 +82,14 @@ dina_finished_include_print <- function(record, candidate, root = dina_repo_root
     dina_finished_note("Boundaries = population cut points changed from nominal labels; these are not income corrections.")
     if ("max_mean_preservation_relative_error" %in% names(summary)) {
       dina_cli_cat("Maximum original-bin mean preservation error: ",
-        dina_finished_number(max(summary$max_mean_preservation_relative_error) * 100, "%"))
+        dina_finished_number(max(summary$max_mean_preservation_relative_error, na.rm = TRUE) * 100, "%"))
     }
   }
   checks <- dina_finished_prepared_filter(dina_finished_candidate_table(candidate, "checks"), filters)
   if (nrow(checks)) {
-    bad <- checks$status %in% c("fail", "review")
+    bad <- checks$status == "fail"
     dina_cli_cat("Prepared checks: ", sum(checks$status == "pass"), " passed; ",
-      sum(bad), " failed; ", sum(checks$status == "warning"), " warning categories.")
+      sum(bad), " failed; ", sum(checks$status == "review"), " require review; ", sum(checks$status == "warning"), " warning categories.")
   }
   problems <- dina_finished_prepared_filter(dina_finished_candidate_table(candidate, "problems"), filters)
   if (nrow(problems) && "detail" %in% names(problems)) {
@@ -79,7 +105,7 @@ dina_finished_include_print <- function(record, candidate, root = dina_repo_root
   dina_finished_note("Impact:  dina sources table dina impact [--year YYYY --step nat --unit esn]")
   dina_finished_note("Checks:  dina sources table dina prepared-checks")
   dina_finished_note("Original exploration remains available through checks, problems and coverage.")
-  dina_finished_note("Prepared source only; continuation, WID scaling and publication activation remain deferred.")
+  dina_finished_note("Prepared source only; after inclusion, 07d performs continuation, validation and WID scaling automatically.")
   dina_cli_cat("Candidate: ", candidate$run)
   invisible(candidate)
 }
@@ -144,9 +170,10 @@ dina_finished_include_show_table <- function(record, table, limit = 20L, filters
         before[share] <- dina_finished_number(100 * part$before[share], "%")
         after[share] <- dina_finished_number(100 * part$after[share], "%")
         difference[share] <- dina_finished_number(100 * part$difference[share], " pp")
+        boundary <- function(name) dina_finished_boundary(if (name %in% names(part)) part[[name]] else rep(NA_real_, nrow(part)))
         view <- data.frame(Statistic = part$statistic, Before = before, After = after, Difference = difference,
-          `Source p` = dina_finished_boundary(part$original_population_boundary),
-          `Target p` = dina_finished_boundary(part$target_population_boundary), check.names = FALSE)
+          `Source p` = boundary("original_population_boundary"),
+          `Target p` = boundary("target_population_boundary"), check.names = FALSE)
       }
       dina_finished_table(view)
       for (reason in unique(part$reason)) dina_finished_note("  ", reason)

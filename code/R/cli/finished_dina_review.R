@@ -55,12 +55,13 @@ dina_finished_explore <- function(root, flags = list()) {
   inbox <- file.path(root, "input_data", "_new", "dina")
   inputs <- c(inbox, file.path(root, "config", "sources.yml"),
     file.path(root, "code", "R", "source-diagnostics", "finished_dina_explorer.R"),
+    file.path(root, "code", "R", "source-diagnostics", "finished_dina_grouped.R"),
     file.path(script_dir, c("finished_dina_review.R", "finished_dina_summary.R")))
   before <- dina_review_hashes(inputs)
   dina_review_save(list(family = "dina", status = "incomplete", reviewed_at = dina_now()), root)
 
   tables <- list(review_coverage = data.frame(), checks = data.frame(),
-    review_problems = data.frame(), review_files = data.frame())
+    review_problems = data.frame(), review_files = data.frame(), values = data.frame(), harmonization = data.frame())
   add <- function(name, rows, id, file) {
     if (!nrow(rows)) return(invisible(NULL))
     rows$source_id <- id
@@ -80,12 +81,14 @@ dina_finished_explore <- function(root, flags = list()) {
     paths <- dina_expand_paths(source$inbox, root)
     paths <- paths[file.exists(paths) & !dir.exists(paths)]
     spec <- source$finished_series %||% list()
+    grouped <- engine$finished_dina_is_grouped(source)
     id <- source$id
     country <- paste(unlist(source$country), collapse = ",")
     file <- if (length(paths)) paste(vapply(paths, dina_relative, character(1), root = root), collapse = ", ") else paste(unlist(source$inbox), collapse = ", ")
     matched <- c(matched, paths)
     file_row <- data.frame(country = country, version = spec$version %||% "",
-      publication = paste(spec$publication_step %||% "", spec$publication_unit %||% "", sep = "/"),
+      publication = if (grouped) "requires publication policy review" else paste(spec$publication_step %||% "", spec$publication_unit %||% "", sep = "/"),
+      representation = if (grouped) "coarse" else "distribution",
       citation = spec$citation %||% "", doi = spec$doi %||% "",
       currency = spec$currency %||% "unconfirmed", price_basis = spec$price_basis %||% "unconfirmed",
       population = spec$population %||% "unconfirmed", status = "reviewed",
@@ -96,7 +99,8 @@ dina_finished_explore <- function(root, flags = list()) {
         "Registered source file is missing; place the supplied file at the registered inbox path."
         else "Multiple files match this source; register the intended version separately before review.")
     } else {
-      metadata <- c("version", "first_year", "last_year", "steps", "units", "publication_step", "publication_unit", "citation", "doi")
+      metadata <- c("version", "first_year", "last_year", "steps", "units", "publication_step", "publication_unit", "citation")
+      if (grouped) metadata <- c("version", "first_year", "last_year", "series", "percentiles")
       missing <- metadata[vapply(metadata, function(name) {
         value <- unlist(spec[[name]], use.names = FALSE)
         !length(value) || anyNA(value) || any(!nzchar(trimws(as.character(value))))
@@ -111,8 +115,8 @@ dina_finished_explore <- function(root, flags = list()) {
         problem(id, file, country, "source_metadata", "first_year and last_year must be finite integer years in ascending order.")
         file_row$status <- "fail"
       }
-      if (length(spec$publication_step) != 1L || length(spec$publication_unit) != 1L ||
-          !(spec$publication_step %in% unlist(spec$steps)) || !(spec$publication_unit %in% unlist(spec$units))) {
+      if (!grouped && (length(spec$publication_step) != 1L || length(spec$publication_unit) != 1L ||
+          !(spec$publication_step %in% unlist(spec$steps)) || !(spec$publication_unit %in% unlist(spec$units)))) {
         problem(id, file, country, "source_metadata", "publication_step and publication_unit must identify a declared concept/unit combination.")
         file_row$status <- "fail"
       }
@@ -121,9 +125,14 @@ dina_finished_explore <- function(root, flags = list()) {
         file_row$status <- "fail"
       }
       result <- tryCatch({
-        dina_need("haven")
-        data <- as.data.frame(haven::read_dta(paths[[1]]))
-        engine$finished_dina_validate(data, dina_finished_specification(source))
+        if (grouped) {
+          data <- engine$finished_dina_grouped_read(paths[[1]], source)
+          engine$finished_dina_grouped_validate(data, source)
+        } else {
+          dina_need("haven")
+          data <- as.data.frame(haven::read_dta(paths[[1]]))
+          engine$finished_dina_validate(data, dina_finished_specification(source))
+        }
       }, error = function(e) e)
       if (inherits(result, "error")) {
         file_row$status <- "fail"
@@ -132,6 +141,10 @@ dina_finished_explore <- function(root, flags = list()) {
         add("review_coverage", result$coverage, id, file)
         add("checks", result$checks, id, file)
         add("review_problems", result$issues, id, file)
+        if (grouped) {
+          add("values", result$values, id, file)
+          if (!any(result$checks$status == "fail")) add("harmonization", engine$finished_dina_grouped_years(data, source), id, file)
+        }
         if (any(result$checks$status == "fail")) file_row$status <- "fail"
         else if (file_row$status != "fail" && any(result$checks$status %in% c("review", "warning"))) file_row$status <- "needs_review"
       }
@@ -140,6 +153,7 @@ dina_finished_explore <- function(root, flags = list()) {
   }
   supplied <- list.files(inbox, recursive = TRUE, full.names = TRUE)
   supplied <- supplied[!dir.exists(supplied)]
+  supplied <- normalizePath(supplied, mustWork = TRUE)
   unregistered <- setdiff(supplied, matched)
   for (path in unregistered) problem("", dina_relative(path, root), "", "unregistered_file",
     "This incoming file has no registered source/version. Register its coverage and attribution before review.")
@@ -169,7 +183,8 @@ dina_finished_explore <- function(root, flags = list()) {
 
 dina_finished_filter <- function(rows, filters = list(), country = NULL) {
   filters$country <- country %||% filters$country
-  for (field in c("country", "year", "step", "unit")) {
+  for (field in c("country", "year", "step", "unit", "wid_code", "percentile")) {
+    if (field == "wid_code") filters[[field]] <- filters[["wid-code"]] %||% filters[[field]]
     value <- filters[[field]]
     if (is.null(value)) next
     if (isTRUE(value) || length(value) != 1L) stop("Supply a value for --", field, ".", call. = FALSE)
@@ -245,6 +260,34 @@ dina_finished_checks_table <- function(checks, issues, show_ids = FALSE) {
   invisible(summary)
 }
 
+dina_finished_country_checks <- function(checks, issues, files, show_ids = FALSE) {
+  country_list <- function(value) {
+    if (is.na(value) || !nzchar(value)) return(character())
+    trimws(strsplit(value, ",", fixed = TRUE)[[1L]])
+  }
+  file_countries <- lapply(as.character(files$country), country_list)
+  countries <- sort(unique(c(unlist(file_countries), issues$country[!is.na(issues$country) & nzchar(issues$country)])))
+  shown <- rep(FALSE, nrow(issues))
+  for (iso in countries) {
+    ids <- files$source_id[vapply(file_countries, function(x) iso %in% x, logical(1))]
+    # Definition notes with no case country belong to their registered source.
+    selected <- (!is.na(issues$country) & issues$country == iso) |
+      ((is.na(issues$country) | issues$country == "") & issues$source_id %in% ids)
+    part <- issues[selected, , drop = FALSE]
+    country_checks <- checks[checks$source_id %in% unique(c(ids, part$source_id)), , drop = FALSE]
+    dina_cli_section(paste("Consistency review —", iso))
+    dina_finished_checks_table(country_checks, part, show_ids = show_ids)
+    shown <- shown | selected
+  }
+  unassigned <- !shown & (is.na(issues$source_id) | issues$source_id == "")
+  if (any(unassigned)) {
+    dina_cli_section("Consistency review — unassigned inputs")
+    part <- issues[unassigned, , drop = FALSE]
+    dina_finished_checks_table(checks[checks$source_id %in% part$source_id, , drop = FALSE], part, show_ids = show_ids)
+  }
+  invisible(NULL)
+}
+
 dina_finished_show_table <- function(record, table, country = NULL, limit = 12L, filters = list()) {
   if (table %in% c("changes", "impact", "preparation", "prepared-checks", "prepared-problems", "prepared-coverage")) {
     filters$country <- country %||% filters$country
@@ -254,7 +297,8 @@ dina_finished_show_table <- function(record, table, country = NULL, limit = 12L,
     checks <- dina_review_table(record, "checks")
     issues <- dina_finished_filter(finished_dina_issue_sizes(dina_review_table(record, "problems")), filters, country)
     checks <- dina_finished_filter(checks, filters)
-    return(dina_finished_checks_table(checks, issues, show_ids = TRUE))
+    files <- dina_finished_filter(dina_review_table(record, "files"), filters, country)
+    return(dina_finished_country_checks(checks, issues, files, show_ids = TRUE))
   }
   problem_view <- table %in% c("problems", "review_problems", "small", "larger", "decisions")
   rows <- dina_review_table(record, if (problem_view) "problems" else table)
@@ -353,7 +397,8 @@ dina_finished_print <- function(record, country = NULL, limit = 12L, root = dina
   for (i in seq_len(nrow(files))) {
     dina_cli_cat(files$file[[i]], " (", files$version[[i]], "; publication ", files$publication[[i]], ")")
     dina_finished_note("  Source: ", files$citation[[i]])
-    dina_finished_note("  DOI: ", files$doi[[i]])
+    doi <- files$doi[[i]]
+    dina_finished_note("  DOI: ", if (is.na(doi) || !nzchar(doi)) "not registered" else doi)
   }
   dina_cli_section("Coverage")
   if (nrow(coverage)) {
@@ -362,17 +407,40 @@ dina_finished_print <- function(record, country = NULL, limit = 12L, root = dina
       groups = coverage$n_groups, rows = coverage$rows,
       brackets = ifelse(coverage$min_brackets == coverage$max_brackets, coverage$min_brackets,
         paste(coverage$min_brackets, coverage$max_brackets, sep = "–")))
+    if ("wid_code" %in% names(coverage)) {
+      grouped <- !is.na(coverage$wid_code) & nzchar(coverage$wid_code)
+      view$series[grouped] <- paste(coverage$wid_code[grouped], coverage$percentile[grouped])
+      view$brackets[grouped] <- "coarse"
+    }
     dina_review_show_rows(view, limit = limit, dim_headers = FALSE)
   } else dina_cli_cat("No readable series.")
-  dina_cli_section("Consistency review")
-  dina_finished_checks_table(checks, issues)
+  dina_finished_country_checks(checks, issues, files)
+  harmonization_path <- file.path(record$run, "tables", "harmonization.csv")
+  if (file.exists(harmonization_path)) {
+    years <- select(dina_review_table(record, "harmonization"))
+    for (id in unique(years$source_id)) {
+      part <- years[years$source_id == id, , drop = FALSE]
+      eligible <- part$year[part$eligible_for_gpinter == 1]
+      dina_cli_section(paste("Harmonization limits —", part$country[1L]))
+      dina_cli_cat("Full-population observations retained for GPinter in Include: ",
+        if (length(eligible)) paste0(length(eligible), " years, ", min(eligible), "–", max(eligible)) else "none", ".")
+      dina_finished_note("Top-tail-only observations remain historical evidence; they cannot fill missing lower-population ranges.")
+      dina_finished_note("Include normalizes disjoint shares proportionally and runs GPinter on these years only, using a mean-one scale.")
+      dina_finished_note("Missing-year interpolation and temporal extrapolation are disabled. No years or population ranges are filled by Include.")
+      dina_finished_note("Review year eligibility: dina sources table dina harmonization --country ", part$country[1L])
+    }
+  }
   dina_finished_note("\nSmall findings:  dina sources table dina small")
   dina_finished_note("Larger findings: dina sources table dina larger")
   dina_finished_note("Other decisions: dina sources table dina decisions")
   dina_finished_note("Publication view: dina sources table dina --step nat --unit esn")
+  if ("representation" %in% names(files) && any(files$representation == "coarse")) {
+    dina_finished_note("Grouped observations: dina sources table dina values --country BRA --year 2015")
+    dina_finished_note("Include retains full-population years only and uses GPinter to prepare the standard 127 brackets.")
+  }
   dina_finished_note("Details: dina sources table dina problems --check bracket_bounds --year 1992")
-  dina_finished_note("Continuation: deferred until internal estimates are ready (after 07c, before 07d publication).")
-  dina_finished_note("No continuation preview, replacement activation or published-result changes.")
+  dina_finished_note("After inclusion, 07d automatically integrates the source using internal estimates from 07c.")
+  dina_finished_note("This source review leaves final exports unchanged; continuation previews are optional after 07c.")
   dina_finished_note("Prepare corrections: dina sources include dina --dry-run")
   invisible(record)
 }

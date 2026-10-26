@@ -251,3 +251,103 @@ test_that("export metadata stages artifacts while reading the canonical baseline
   writeLines("changed baseline", baseline)
   expect_error(dina_results_complete(root, date, config, output_root = stage), "baseline or settings changed")
 })
+
+test_that("comparison metadata detects integration changes but ignores a new preview", {
+  source_cli_for_tests()
+  root <- mini_repo()
+  config <- dina_session_config(NULL, root, expand_env = FALSE)
+  writeLines("baseline", file.path(root, config$export_validation$previous_update_file))
+  country_cli_bind(environment(dina_results_begin), list(dina_baseline_check = function(...) character()))
+  date <- "21Oct2026"
+  graphs <- file.path(root, "output", "figures", "updates",
+    paste0("update-", date, "-sptinc992j-", names(dina_results_graph_names()), ".pdf"))
+  series <- file.path(root, "output", "latest_wid_series",
+    paste0("dina_latam", c("_wide", "", ""), "_", date, c("", "", "_amory"), ".dta"))
+  for (path in c(graphs, series)) {
+    dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+    writeLines("fixture artifact", path)
+  }
+  dina_results_begin(root, date, config)
+  state <- list(active = list(`generic-source` = list(candidate = "validated-candidate", source_id = "generic-source")))
+  pointer <- dina_finished_publication_pointer(root)
+  dir.create(dirname(pointer), recursive = TRUE, showWarnings = FALSE)
+  dina_write_json(state, pointer)
+  expect_error(dina_results_complete(root, date, config), "integration changed during export")
+  expect_false(file.exists(dina_results_metadata_path(root, date)))
+
+  dina_results_begin(root, date, config)
+  metadata <- dina_results_complete(root, date, config)
+  expect_identical(metadata$finished_publications, state$active)
+  expect_true(all(dina_results_inventory(root)$graphs$status == "Matches recorded baseline and settings"))
+  state$latest_candidate <- "new-preview-candidate"
+  dina_write_json(state, pointer)
+  expect_true(all(dina_results_inventory(root)$graphs$status == "Matches recorded baseline and settings"))
+  state$active[[1L]]$candidate <- "new-validated-candidate"
+  dina_write_json(state, pointer)
+  expect_true(all(dina_results_inventory(root)$graphs$status == "Finished-series integration changed; regenerate export"))
+
+  # Existing comparison receipts predate the new field and remain valid when
+  # there is no activated replacement.
+  metadata$finished_publications <- NULL
+  dina_results_publish_metadata(metadata, dina_results_metadata_path(root, date))
+  dina_write_json(list(active = list()), pointer)
+  expect_true(all(dina_results_inventory(root)$graphs$status == "Matches recorded baseline and settings"))
+})
+
+test_that("a fresh standalone country loader exposes publication validation without the main CLI", {
+  root <- mini_repo()
+  script <- tempfile("standalone-publication-loader-", fileext = ".R")
+  withr::defer(unlink(script))
+  writeLines(c(
+    "args <- commandArgs(TRUE)",
+    "setwd(args[[1L]])",
+    "source('code/R/country_run.R')",
+    "stopifnot(!exists('dina_finished_publication_state', mode = 'function'))",
+    "country_run_load_cli(args[[1L]])",
+    "required <- c('dina_finished_publication_state', 'dina_finished_publication_active', 'dina_finished_publication_verify', 'dina_finished_include_path', 'dina_review_hashes', 'dina_source_registry')",
+    "stopifnot(all(vapply(required, exists, logical(1), mode = 'function')))",
+    "stopifnot(length(dina_finished_publication_state(args[[2L]])$active) == 0L)",
+    "stopifnot(nrow(dina_finished_publication_active(args[[2L]])$data) == 0L)",
+    "country_run_load_cli(args[[1L]])",
+    "cat('standalone publication loader passed\\n')"
+  ), script)
+  output <- suppressWarnings(system2(file.path(R.home("bin"), "Rscript"),
+    c("--vanilla", shQuote(script), shQuote(repo_root_for_tests), shQuote(root)), stdout = TRUE, stderr = TRUE))
+  expect_equal(attr(output, "status") %||% 0L, 0L, info = paste(output, collapse = "\n"))
+  expect_true(any(grepl("standalone publication loader passed", output, fixed = TRUE)))
+})
+
+test_that("export previews report automatic refresh and still block changed source approvals", {
+  source_cli_for_tests()
+  dina_country_run_load()
+  root <- mini_repo()
+  country_cli_fixture(root)
+  task <- dina_task_map(root)[["07d-export-results-to-wid"]]
+  active <- list()
+  invalid_source <- FALSE
+  country_cli_bind(environment(country_run_preview), list(
+    dina_finished_publication_readiness = function(root, config, internal_pending = FALSE) {
+      if (invalid_source) stop("Accepted source changed; explicit review required.")
+      list(status = if (length(active)) "refresh_pending" else "inactive",
+        message = if (!length(active)) "no active replacement" else if (internal_pending)
+          "automatic continuation refresh after the planned 07c" else "automatic continuation refresh pending")
+    },
+    dina_task_missing_inputs = function(...) character(),
+    country_run_case_prerequisites = function(...) list(issues = character(), messages = character())
+  ))
+  absent <- country_run_preview(task, root, NULL, "ARG")
+  expect_identical(absent$status, "planned")
+  expect_true(any(grepl("no active replacement", absent$messages, fixed = TRUE)))
+  active <- list(`generic-source` = list(candidate = "approved-candidate"))
+  pending <- country_run_preview(task, root, NULL, "ARG")
+  expect_identical(pending$status, "planned")
+  expect_true(any(grepl("refresh pending", pending$messages, fixed = TRUE)))
+  deferred <- country_run_preview(task, root, NULL, "ARG", planned_tasks = "07c-interpolate-ineqstats")
+  expect_identical(deferred$status, "planned")
+  expect_true(any(grepl("after the planned 07c", deferred$messages, fixed = TRUE)))
+  expect_equal(deferred$compute, "COL,ARG ")
+  invalid_source <- TRUE
+  blocked <- country_run_preview(task, root, NULL, "ARG", planned_tasks = "07c-interpolate-ineqstats")
+  expect_identical(blocked$status, "blocked")
+  expect_match(blocked$issues, "Accepted source changed")
+})

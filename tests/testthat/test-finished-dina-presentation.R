@@ -73,6 +73,34 @@ test_that("finished-series checks use a readable comparison table", {
   expect_false(grepl("check[ _]id\\s*:", output, ignore.case = TRUE))
 })
 
+test_that("consistency sections keep country findings and definition notes separate", {
+  source_cli_for_tests()
+  root <- mini_repo(); record <- finished_presentation_record(root)
+  for (table in c("checks", "review_problems", "review_files", "review_coverage")) {
+    path <- file.path(record$run, "tables", paste0(table, ".csv"))
+    a <- read.csv(path, stringsAsFactors = FALSE)
+    b <- a; b$source_id <- "bbb-finished"; b$file <- "BBB.dta"
+    if ("country" %in% names(b)) b$country <- "BBB"
+    if (table == "review_problems") {
+      b$check_id <- "metadata"; b$status <- "warning"
+      b$observed <- ""; b$expected <- ""; b$difference <- NA_real_
+      b$country <- ""; b$year <- NA_real_
+      b$detail <- "BBB definition only"
+    }
+    if (table == "checks") {b$check_id <- "metadata"; b$status <- "warning"}
+    write.csv(rbind(a, b), path, row.names = FALSE, na = "")
+  }
+  output <- paste(capture.output(dina_finished_print(record, root = root)), collapse = "\n")
+  expect_match(output, "Consistency review — AAA", fixed = TRUE)
+  expect_match(output, "Consistency review — BBB", fixed = TRUE)
+  sections <- strsplit(output, "Consistency review — BBB", fixed = TRUE)[[1L]]
+  expect_match(sections[1L], "Bracket share identity", fixed = TRUE)
+  expect_false(grepl("Bracket share identity", sections[2L], fixed = TRUE))
+  filtered <- paste(capture.output(dina_finished_show_table(record, "checks", country = "AAA")), collapse = "\n")
+  expect_match(filtered, "Consistency review — AAA", fixed = TRUE)
+  expect_false(grepl("Consistency review — BBB|unassigned inputs", filtered))
+})
+
 test_that("finished-series findings separate small larger and decisions", {
   source_cli_for_tests()
   root <- mini_repo()
@@ -145,7 +173,7 @@ test_that("summary and detail navigation leave saved review tables unchanged", {
     record, root = root, filters = list(step = "nat", unit = "esn")
   )), collapse = "\n")
   expect_match(output, "Small\\s+Larger\\s+Typical\\s+Largest")
-  expect_match(output, "Continuation: deferred", fixed = TRUE)
+  expect_match(output, "07d automatically integrates the source", fixed = TRUE)
   expect_match(output, "Researcher. 2026. Finished series.", fixed = TRUE)
   expect_false(grepl("nat/ind", output, fixed = TRUE))
   for (table in c("checks", "small", "larger", "decisions", "problems")) {

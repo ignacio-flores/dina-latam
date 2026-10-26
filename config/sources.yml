@@ -365,7 +365,7 @@ sources:
       - input_data/_new/sna/DOM/*.xlsx
     destination: input_data/sna_country_data/DOM/{basename}
     transformer: code/Stata/01b-add-country-sna.do
-    notes: Dominican Republic SNA landing page used for manual country-SNA refreshes.
+    notes: Dominican Republic SNA landing page used for manual country-SNA refreshes. The active cei.xlsx covers 2007–2016; restored on 2026-10-21 from the byte-identical old/cei.xlsx after user approval to reconnect the previously consumed historical source. The separate cei_2007_2017.xlsx has not been adopted by this repair.
 
   - id: country-sna-ecu
     family: country_sna
@@ -728,9 +728,7 @@ sources:
     family: dina
     country: ECU
     method: manual
-    urls:
-      - label: publication DOI
-        url: https://doi.org/10.1016/j.jeem.2026.103353
+    urls: []
     canonical:
       - input_data/dina/WIL_ECU_1990-2022_v2.dta
     prepared: input_data/dina/WIL_ECU_1990-2022_v2_prepared.dta
@@ -748,12 +746,75 @@ sources:
       units: [esn, ind]
       publication_step: nat
       publication_unit: esn
-      citation: "Nabernegg, Markus, Stefan Nabernegg, and Thomas Kopp. 2026. Amplified challenges for the joint reduction of emissions and inequality, considering the missing-rich. Journal of Environmental Economics and Management. 139: 103353."
-      doi: https://doi.org/10.1016/j.jeem.2026.103353
+      publication_policy:
+        continuation: four_group_relative_changes
+        carry_forward: true
+        include_history: true
+        require_wid_scaling: true
+      citation: "Nabernegg, M. (2026). Extreme Income Inequality in Ecuador-Dollarization, Commodity Price Boom, and Citizen Revolution."
+      doi: ""
       currency: unconfirmed
       price_basis: unconfirmed
       population: unconfirmed
-    notes: Researcher-supplied finished Ecuador distributions. Explore validates all supplied concepts and units independently of pipeline outputs; nat/esn is the publication series. Include preserves the byte-identical original and separately prepares the standard distribution with documented corrections. Accepted inputs are not yet consumed by the pipeline; continuation, WID scaling and publication activation remain deferred.
+    notes: Researcher-supplied finished Ecuador distributions. Explore validates all supplied concepts and units independently of pipeline outputs; nat/esn is the publication series. Include preserves the byte-identical original and separately prepares the standard distribution with documented corrections. Publication approval is separate from source inclusion. Regular 07d exports consume approved prepared distributions and their reviewed continuation, apply the common WID income benchmark, and use the same approved distribution in regional donor calculations.
+
+  - id: bra-morgan-souza-2026
+    aliases:
+      - bra-grouped-dina
+    family: dina
+    country: BRA
+    method: manual
+    urls: []
+    canonical:
+      - input_data/dina/MorganSouza2026-BR-wid.xlsx
+    prepared: input_data/dina/MorganSouza2026-BR-wid_prepared.dta
+    inbox:
+      - input_data/_new/dina/MorganSouza2026-BR-wid.xlsx
+    inbox_examples:
+      - MorganSouza2026-BR-wid.xlsx
+    destination: input_data/dina/{basename}
+    integration: prepared_external
+    finished_series:
+      format: wid_grouped_xlsx
+      version: "2026"
+      first_year: 1926
+      last_year: 2015
+      prepared_step: nat
+      prepared_unit: esn
+      publication_step: nat
+      publication_unit: esn
+      publication_policy:
+        status: hold
+        hold_reason: "User requested scientific review before publication on 2026-10-24. Retain the supplied and prepared data; use the internal Brazil estimates in exports and regional calculations."
+        continuation: four_group_relative_changes
+        carry_forward: true
+        include_history: true
+        observation_years: accepted_prepared
+        gini_kind: gpinter_fitted
+        require_wid_scaling: true
+      harmonization:
+        first_full_year: 1976
+        share_normalization: proportional
+        require_full_population: true
+        complete_partial_population: false
+        interpolate_missing_years: false
+        extrapolate_years: false
+      percentiles: [p0p50, p50p90, p90p100, p99p100, p99.9p100, p99.99p100, p99.999p100]
+      series:
+        - sheet: BR-sptinc992j
+          code: sptinc992j
+          measure: share
+          unit: fraction
+        - sheet: BR-aptinc992j
+          code: aptinc992j
+          measure: average
+          unit: 2016 prices
+      citation: "Morgan and Souza (2026), supplied BRA workbook; full reference unconfirmed."
+      doi: ""
+      currency: unconfirmed
+      price_basis: "2016 prices (as supplied); further monetary harmonization deferred"
+      population: unconfirmed
+    notes: Include preserves the original workbook and prepares only observed full-population years from 1976 onward. Publication retains accepted history, continues the last supplied distribution using internal four-group changes through the calculation year, and carries that shape into later export years. Historical gaps remain unfilled; publication approval and WID monetary scaling are separate from source inclusion.
 
   - id: previous-series
     family: validation
@@ -770,6 +831,40 @@ sources:
 
 # Exact historical inputs approved in this session. Synthetic rate outputs remain generated.
 external_artifacts:
+  - id: per-gpinter-per-2019
+    path: input_data/admin_data/PER/gpinter_PER_2019.xlsx
+    country: PER
+    year: [2019]
+    product: admin_bfm_distribution
+    sha256: 551bab0fb151391c4d059b215ba36abb983a4ff6c0839dfe945e08b6e8d9a8b3
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: 82fa4959f0ab5079ec22076c9c7ba230cc0a7027
+      path: input_data/admin_data/PER/gpinter_PER_2019.xlsx
+    approval:
+      authority: user
+      reference: conversation-approved-per-2019-2020-donor-restoration
+      decision: Restore the validated historical Admin input and retain the November 2025 donor eligibility; rebuild observed corrections before downstream use.
+
+  - id: per-gpinter-per-2020
+    path: input_data/admin_data/PER/gpinter_PER_2020.xlsx
+    country: PER
+    year: [2020]
+    product: admin_bfm_distribution
+    sha256: c56ed5d401808e85d46f81437243363590d1a48d51f00810fb8ed925d6ce8efd
+    read_only: true
+    provenance:
+      kind: git
+      commit: eb2fe44b6b6a0982848ae6875f33807365b8a4c1
+      blob: 816dbac8d52760ec5e339c94633dbb080bbde939
+      path: input_data/admin_data/PER/gpinter_PER_2020.xlsx
+    approval:
+      authority: user
+      reference: conversation-approved-per-2019-2020-donor-restoration
+      decision: Restore the validated historical Admin input and retain the November 2025 donor eligibility; rebuild observed corrections before downstream use.
+
   - id: ecu-eff-tax-rates-ecu
     path: input_data/admin_data/ECU/eff-tax-rate/eff-tax-rates-ECU.xlsx
     country: ECU

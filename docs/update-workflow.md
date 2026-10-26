@@ -98,6 +98,18 @@ WID fetching uses `dina sources explore wid --fetch`. In a terminal, Explore
 also offers to fetch missing or stale WID candidates through the shared
 confirmation control; `--no-fetch` suppresses that offer.
 
+WID Explore compares the incoming snapshot with accepted WID files and never
+automatically restores an earlier inclusion. Explicit restore remains available.
+The export-scaling request ends at `export_validation.last_year`, while other
+WID artifacts retain the calculation window. Accepted publication sources add
+country-specific historical requests where needed: BRA adds 1976–1989 to the
+ordinary export-country request beginning in 1990. Coverage checks require
+positive income means for each consumed country/year and positive exchange
+rates for the export reference year. Historical fields not consumed by export
+do not become spurious blockers. The WID backend also supports
+`run_wid_include(..., source_ids = "wid-export-scaling")` for a recoverable
+scaling-only inclusion, preserving other accepted macro inputs.
+
 Explore combines the existing inventory and inclusion-assessment engines into
 one saved review. It prepares candidates without changing accepted source files
 or running the pipeline. The report shows:
@@ -149,11 +161,11 @@ dina sources table dina
 Place researcher-supplied distributions in `input_data/_new/dina/`. The registry
 records the exact file, version, country/year coverage, concepts, units and
 publication citation. The current Ecuador source is
-`WIL_ECU_1990-2022_v2.dta`, attributed to Nabernegg, Markus, Stefan Nabernegg, and
-Thomas Kopp (2026), *Amplified challenges for the joint reduction of emissions
-and inequality, considering the missing-rich*, *Journal of Environmental
-Economics and Management* 139: 103353,
-https://doi.org/10.1016/j.jeem.2026.103353.
+`WIL_ECU_1990-2022_v2.dta`, attributed to Nabernegg, M. (2026), *Extreme Income
+Inequality in Ecuador-Dollarization, Commodity Price Boom, and Citizen
+Revolution*, for the supplied 1990–2022 observations. Later years are explicitly
+attributed to DINA continuation or carry-forward of that source. No DOI is
+registered for this reference.
 
 Explore reports coverage and precise validation results in the existing concise
 CLI/table format. It checks required fields, keys, finite values, percentile
@@ -163,6 +175,68 @@ failures, scientific discrepancies, format differences and unconfirmed
 definitions, using tolerances for storage precision. For Ecuador, `nat/esn`
 is the publication series. Currency, price basis and population definitions
 remain unconfirmed until documented.
+
+The consistency overview and `checks` table present a separate section for each
+country, keeping its numerical findings and source-definition notes together.
+
+Brazil's `MorganSouza2026-BR-wid.xlsx` follows a coarse-data path in the same
+Explore/Include workflow. Its two sheets supply shares (`sptinc992j`) and group
+averages (`aptinc992j`, labelled 2016 prices), covering 1926–2015 with different
+percentile coverage and missing years. Explore describes these observations,
+preserves blank cells separately from zero, and reports share totals, nested
+top-share ordering and shares/averages consistency. It does not require Gini,
+thresholds or a complete export grid from this source.
+
+```bash
+dina sources explore dina --country BRA
+dina sources table dina coverage --country BRA
+dina sources table dina values --country BRA --year 2015 --wid-code sptinc992j
+dina sources include dina --dry-run
+dina sources table dina changes --country BRA --year 2015
+dina sources table dina prepared-coverage --country BRA
+dina sources table dina harmonization --country BRA
+```
+
+BRA Include preserves the byte-identical workbook and writes
+`input_data/dina/MorganSouza2026-BR-wid_prepared.dta` after acceptance. Like ECU,
+this prepared file contains standard 127-bracket distributions. BRA uses
+GPinter `shares_fit()` because thresholds are not supplied; ECU uses
+`tabulation_fit()` with its reviewed thresholds and bracket averages.
+
+BRA retains only observed full-population years from 1976 onward: 38 years in
+1976–2015, excluding missing 1991 and 1994. Earlier top-1% or top-10%
+observations remain in the original workbook and Explore tables, but never
+enter the prepared distributions. No lower-population range is inferred from
+these historical tails. Missing-year interpolation and temporal extrapolation
+are disabled, including any extension beyond 2015.
+
+Shares govern BRA preparation. Include derives non-overlapping brackets by
+subtracting nested top shares (for example p90–p99 = p90–p100 minus p99–p100),
+then proportionally normalizes all disjoint shares to sum to one. This preserves
+their relative proportions. The changes table records both the subtraction
+and every normalization adjustment; the impact table reports the original
+share total and GPinter preservation error at the source boundaries. Failed
+fits, invalid shares, reversed bracket means or failed consistency checks block
+acceptance. No pooling or replacement of missing years is authorized for BRA.
+
+The output uses an overall mean of one; supplied monetary averages and the
+deflator remain in the preserved workbook and Explore evidence. GPinter
+estimates the thresholds, finer bracket means and Gini. Gini is explicitly a
+fitted statistic, since BRA supplies no Gini. Prepared coverage lists every
+source year with its inclusion/exclusion status, source and normalized share
+totals, population coverage and reason. The prepared file itself contains only
+the retained years. Unconfirmed source definitions remain visible in the reports.
+
+For both ECU and BRA, harmonization runs in Include, including `--dry-run`,
+independently of the numbered pipeline. 07d automatically prepares and validates
+the integration after 07c; a separate preview is optional. BRA uses its registered
+policy: preserve all 38 accepted observed
+years, leave 1991 and 1994 unfilled, continue from the 2015 anchor using internal
+four-group changes, and carry the last calculation-year shape to the export
+year. For the current update that means continuation through 2024 and carry-
+forward into 2025. This publication policy does not change Include's prohibition
+on filling missing source years. Country filters affect display only; source
+Explore and Include cover the entire family.
 
 The overview groups discrepancies in a compact table with affected cases,
 small/larger finding counts, median and maximum gaps. For review navigation,
@@ -200,10 +274,11 @@ The dry run saves a validated candidate and its reports without accepting it.
 Include displays that candidate's summary and asks once before acceptance;
 `--confirm` supplies the same confirmation in scripted use. `--include-run RUN`
 selects the saved candidate explicitly. `--restore CONFIRM_RUN` restores the
-previous accepted files from the inclusion backup. All supplied years, concepts
-and units are included; display filters never narrow inclusion.
+previous accepted files from the inclusion backup. ECU retains all supplied
+years, concepts and units; BRA follows its explicit full-population-year policy.
+Display filters never narrow inclusion.
 
-The R preparation engine applies the agreed rules to a separate copy:
+The ECU preparation engine applies the agreed rules to a separate copy:
 
 | Issue | Preparation rule |
 | --- | --- |
@@ -239,19 +314,124 @@ the complete candidate, backs up prior accepted files and restores them if
 publication fails. Reaccepting the same candidate performs no additional
 transformation; source or recipe changes require a new candidate review.
 Unconfirmed population and currency definitions remain visible. Acceptance does
-not activate Ecuador's replacement or run the pipeline.
+not run the pipeline. The next 07d automatically integrates the included series.
 
-Once internal Ecuador results are ready after 07c, a separate review before
-publication through 07d will build the continuation. The agreed method preserves
-the researcher distribution through 2022, applies proportional changes in our
-normalized bracket incomes relative to 2022 to bracket means and thresholds,
-renormalizes, and derives consistent shares. Amounts will be scaled once to
-current WID national-income means; years beyond the latest internal estimate use
-the existing, explicitly labelled carry-forward rule. Anchor, grid, denominator
-and distribution checks and a compact figure marking the 2022 join belong to
-that later review. Publication and donor use of the replacement require that
-separate review and activation, with attribution for observations, continuation
-and WID scaling.
+#### Automatic export integration and optional continuation review
+
+07d selects included finished sources and prepares their continuation from the
+accepted distributions, registered policies and current internal/WID inputs.
+Source inclusion is sufficient; there is no separate publication approval.
+After 07c, an optional preview exposes the same calculations before running 07d:
+
+```bash
+dina sources include dina --publication --dry-run
+dina sources table dina continuation
+dina sources table dina continuation-groups
+dina sources table dina continuation-changes --year 2024 --variant group_join
+dina sources table dina continuation-impact
+dina sources table dina continuation-problems
+dina sources table dina continuation-scaling
+```
+
+Country, publication concept/unit, coverage, anchor year and citation come from
+each registered source. No country is singled out in the integration code.
+`--source ID` prepares selected registered sources; omission covers accepted
+publication sources. Source exploration and inclusion remain independent of
+these later pipeline inputs.
+
+For grouped sources, publication observation years come from the checksum-
+verified accepted prepared artifact, not the workbook's historical extent.
+BRA's raw 1926–2015 coverage therefore cannot become a full-distribution
+publication request. Its fitted Gini is labelled `gpinter_fitted`, with no
+researcher-supplied Gini invented; ECU retains its supplied/fitted distinction.
+Comparison curves break at missing years rather than drawing interpolated
+observations across historical gaps.
+
+Continuation uses four disjoint population groups: **p0–50, p50–90,
+p90–99 and p99–100**. For each group, divide its current internal share of
+normalized income by its internal share in the supplied anchor year. Apply that
+single growth factor to all supplied anchor bracket means and thresholds in the
+group, then normalize the resulting distribution and derive consistent shares.
+The factor is common within each group; tiny individual-bracket anchor incomes
+therefore cannot produce isolated extreme growth factors.
+
+All supplied years are preserved. Years beyond the last internal estimate carry
+forward that distribution. The review contains the raw four-group continuation
+and a candidate with local repairs where group joins violate ordering. Repairs
+restore ordered means while preserving **each group's target income**, followed
+by feasible thresholds. The group's total is not redistributed to other groups.
+`--adjustment group_join` is the default review candidate; `--adjustment none`
+reviews the raw four-group result and cannot be accepted if checks fail.
+The older `isotonic` option is not an alias: it used a different bracket-level
+method, and a new candidate review is required.
+
+The `continuation-groups` table reports internal anchor/current group shares,
+growth factors, target/achieved shares and preservation checks. Changes distinguish
+intended group proportional changes, local mean/threshold repairs, and remaining
+source-definition warnings. The PDF distinguishes the original supplied file
+(shares at its labelled population boundaries), the prepared source (shares at
+exact population boundaries), internal estimates, and continuation before/after
+join repair. Its second page shows prepared minus original shares in percentage
+points. The continuation alternatives share the same prepared historical years;
+their difference concerns continuation join repairs, not source preparation.
+The latest comparison is also saved beside the regular update figures as
+`output/figures/updates/finished-dina-COUNTRY-CONCEPT-UNIT-candidate.pdf`.
+The immutable original stays with its review; this figure copy does not activate
+the replacement or regenerate the regular export comparisons.
+Supplied Gini is retained separately from the grouped Gini calculated for the
+continuation. WID scaling is reported but applied only once during 07d. Missing
+WID means are reported; they do not imply missing distribution shares, and no
+monetary amounts are invented.
+
+Run the regular export to integrate all included sources:
+
+```bash
+dina run 07d
+```
+
+`dina run 07d`, a pipeline range reaching 07d, and direct invocation of the 07d
+do-file all use the same automatic integration. Newly included sources join
+automatically. Re-inclusion, policy/code changes, internal estimates or WID
+benchmark updates trigger fresh validation and calculations, reusing a matching
+validated preview when available. An altered accepted file without a matching
+inclusion receipt still fails validation.
+
+The small integration record is a derived cache, not an authorization record.
+The optional `dina sources include dina --publication` command prepares and
+caches a validated candidate without another prompt; `--include-run RUN` selects
+a saved candidate. Legacy `--confirm` is accepted but unnecessary.
+`--restore CONFIRMATION` restores a prior cache; 07d then validates it against
+current included sources and rebuilds if needed. Preview and cache operations
+leave accepted sources, the internal 07c CSV and final exports unchanged.
+
+A failed integration preserves the previous cache and exports. The runner's
+dry run reports pending integration without changing either, including when 07c
+is planned earlier in the range. Comparison metadata is recorded after refresh.
+
+Historical publication years use the prepared distribution, while the original
+supplied file stays unchanged for reference and comparison. Legitimate zero-income
+internal brackets are allowed; the overall mean and each of the four continuation
+groups' incomes must remain positive. All distributions stay normalized until
+07d applies the common WID national-income mean once, including supplied series.
+The BRA and ECU publication policies require complete WID income benchmarks.
+If a mean remains absent after the extended import, the candidate is blocked
+with the affected country/year; no benchmark is invented. Refreshing WID scaling
+does not require replacing accepted population, macro, spending or price inputs.
+
+07d inserts validated normalized distributions after its internal rectangularization
+and before regional donor averages, so early supplied observations do not extend
+other countries backwards. Included contributions bypass legacy automatic mean,
+threshold and cumulative-statistic adjustments. Their bottom averages are scaled
+once and their middle-group means use income-weighted differences. The existing
+DOM-before-2012 exclusion applies only to internal contributions. Source origin,
+citation, DOI, adjustment and donor attribution accompany publication; the
+internal survey/admin `data_quality` classification is left unspecified for
+supplied/continued observations and is 1 for carry-forward observations. The
+separate `pub_origin` identifies all three cases without inventing a quality rank.
+`pub_gini_method` and `pub_fitted_gini` preserve the distinction between fitted
+and supplied source statistics. The historical national observations do not
+extend regional calculations before their existing 2000 start or relax the
+complete-donor-pool checks.
 
 ### Include
 
@@ -363,6 +543,13 @@ The runner stages only changed outputs. It keeps canonical inputs in place and
 publishes a successful task-country contribution together with its shared-table
 updates. Failed contributions leave their previous published files intact.
 Successful work is recorded in `output/run_logs/RUN_ID/country-run.json`.
+Worker logs are kept in their dated `output/run_logs` directory: `.stata.log`
+contains Stata output, while `.out.log` and `.err.log` capture process output.
+The automatic Stata batch log is also created there, so runner commands do not
+leave `.log` files in the repository root. Stata still executes task code from
+the repository root, preserving relative input paths. Earlier root logs are
+preserved in `output/run_logs/archive/20261024-root-logs.tar.gz`; the adjacent
+cleanup manifest records their names and the superseded partial stages removed.
 06a checkpoints are country × income step × statistical unit. 07c saves successful
 country fits privately until it can assemble and validate the complete CSV.
 An interrupted publication is rolled back or completed from its small rename journal.
@@ -397,6 +584,122 @@ own source and output checks. 03d uses that accepted panel for observed donors;
 03e writes extrapolated merging points to separate `_extrap` sheets. The agreed
 `noreplace`, PAVA boundary and merging-point precision fixes remain in place.
 Approved historical Admin files and the current scientific outputs are retained.
+
+**Scientific decision clarified on 2026-10-21:** replacing ARG corrections for
+years with Admin data by extrapolated BFM corrections was intentional. Preserve
+that choice and the resulting series; do not restore the earlier 03b outputs
+merely because 03e overwrote their files. Apply the same preservation logic to
+CRI, as requested. The diagnostic traced ARG 2007/2012 and CRI 2010 as examples,
+not an exhaustive list of cases. Their calculation origin should be described
+as an approved extrapolated correction, even where an existing index calls the
+case observed. This decision does not change theta values, donor membership,
+case selection or published results. Future execution changes must preserve the
+chosen method and make its case selection and theta inputs explicit.
+
+**Correction stability review, 2026-10-22:** 03a/03b now capture the original
+observed correction in `output/bfm_summary/observed_donors/ISOYYYY.dta`, a small
+127-fractile table. 03d reads that table, not corrected microdata that 03e or
+later stages can overwrite. Missing tables name the required observed task;
+they are never reconstructed from an extrapolated result. The observed panel
+and donor table must agree on the merging point. Existing calculation formulas,
+donor eligibility and BFM `noreplace` are retained.
+
+`config/theta_extrapolation_policy.csv` explicitly retains the approved ARG
+2000–2014 and CRI 2010–2016 replacements alongside ordinary extrapolation targets.
+This controls which corrections are published, independently of which observed
+years supply donors. Country selection still limits execution. Review runs can
+set `DINA_REVIEW_ROOT` for generated donor/panel/adjuster inputs; these reads are
+strictly isolated and never fall back to canonical products.
+
+The November 7, 2025 code and generated workbooks used PER 2019/2020 as observed
+donors. Their exclusion during the current update followed the absence of their
+matching Admin inputs; it was not last year's eligibility rule. The user has now
+approved restoring both validated historical `gpinter_PER_YEAR.xlsx` inputs from
+`eb2fe44b`; they are registered as approved external inputs in `config/sources.yml`.
+The existing generic eligibility and p77 trust rules apply to both years, with
+no country-specific exclusion to remove. These files are already BFM-ready:
+02e is not a prerequisite for their restoration.
+
+Restoring inputs does not fabricate observed results or change existing exports.
+The next selected PER run must start at 03a to rebuild observed corrections and
+capture independent donor tables, followed by 03c to publish the reconciled panel
+and 03d/03e to recalculate affected extrapolations. Historical corrected microdata
+or old merging-point sheets are not substituted for that reconstruction.
+Backward survey-provider revisions are accepted source updates and must not be
+confused with this donor-selection restoration.
+
+07c retains the narrow threshold repair within the agreed storage-precision
+envelope. For larger threshold conflicts with ordered adjusted bracket means,
+it now uses GPinter `shares_fit()` to reconstruct thresholds from the unchanged
+population boundaries and bracket means. This applies to every country. The
+fit must preserve income and population anchors at every supplied boundary;
+it cannot change the scientific tail multipliers or redistribute income to make
+the fit succeed. Existing conservative precision handling of tied thresholds
+remains available.
+
+Reversed adjusted means that cannot be handled by the existing precision rule
+still fail the affected group and preserve the previous publication. Those
+require a separate decision about the tail-income redistribution. Worker
+reports distinguish `gpinter_precision_adjustments.csv` from
+`gpinter_threshold_reconstruction.csv`; `gpinter_fitting_methods.csv` records
+each group's method, status and failure reason.
+Reports and bounded comparisons are under
+`output/experiments/correction-stability-review/`. No production acceptance is
+implied by generating these candidates.
+
+**CRI delivery clarification, 2026-10-22 (accepted):** the remaining differences
+from the November 2025 publication primarily reflect corrected tail processing,
+not revised Costa Rican country-SNA workbooks. The existing top-0.1% and
+top-0.01% multipliers remain 2.18 and 7.23, with the existing 2016/2021 exceptions.
+Correcting `cRI` to `CRI` makes the top-0.01% rule effective as intended. The
+approved GPinter route reconstructs conflicting thresholds while preserving
+the retained population and income anchors, replacing the old cleaner's
+clipping of bracket incomes. Where the approved tail adjustment requires
+consolidation or a feasible top-0.01% target, the separate adjustment report
+records that change. This acceptance does not change the BFM `noreplace` rule,
+the approved 2010–2016 extrapolated replacements, or the backward carry of the
+2010 distribution to 2000–2009. The WID benchmark has small revisions; the ten
+consumed CRI country-SNA workbooks for 2012–2021 are unchanged from the previous
+delivery. These distinctions should be retained in the delivery change report.
+
+**ARG/PER delivery review, 2026-10-23:** ARG retains the approved common median
+correction for every year from 2000 through 2014. Controlled comparisons identify
+real survey revisions: the 2012 input now combines Q3 and Q4, while the previous
+sample corresponds to Q4; the 2007 sample is unchanged in size but has revised
+wage/mixed-income classifications and other-income values. Updated distributions
+entering final fitting explain most of the top-1 difference in 22 of 23 comparable
+years. Final cleaning/fitting is the larger contribution in 2002. The bounded
+2007/2012 survey tests and remaining historical reconstruction limitations are
+recorded in `output/experiments/arg-change-attribution-20261022/`; these comparisons
+do not imply that all upstream differences can be assigned to raw surveys.
+
+For PER, 01b now assembles the accepted 2007–2024 annual CEI tables through the
+existing source contract, replacing its use of the frozen historical merged
+workbook. Accepted source files remain unchanged. The 2019/2020 Admin donors have
+been restored and recalculated; 2015/2021 are included for comparison before the
+user decides their final treatment. Non-PER observed and pseudo-theta rows were
+verified unchanged. Run `20261023-002017-countries-39425-file9a016479d42e` continues
+the PER-only calculation through 07c. Its separate completion job prepares a
+staged 07d export and full old/current/proposed comparison under
+`output/experiments/per-completion-review/export/`; it does not activate the final
+publication. `completion.json` in that review folder's parent records progress
+or failure. Changed PER donor inputs also affect ARG, CHL, SLV and URY from 05b;
+those additional country runs remain pending user approval.
+
+The DOM macro repair on 2026-10-21 restored
+`input_data/sna_country_data/DOM/cei.xlsx` byte-for-byte from the historical
+`DOM/old/cei.xlsx`. A missing-file guard now stops 01b before it writes outputs;
+source exploration reports absent accepted/incoming files as unavailable.
+01b and 05a completed. The restored 2014–2016 composition reduces DOM's later
+capital multiplier from 42.8155 to 25.5022 (historical: 25.6783). Non-DOM source
+macro values are unchanged, but the existing donor calculations propagate the
+repair into prepared 05b inputs for ARG, CHL, SLV and URY. CRI and 05d's prepared
+tax/spending inputs are unaffected. The user subsequently approved downstream
+processing from 05b for DOM, ARG, CHL, SLV and URY, preserving the accepted
+BFM/theta choices above. That invocation is recorded under
+`output/run_logs/20261021-163028-countries-88446-file1597e8ef13cd/`.
+The completed checkpoint and before/after comparisons are recorded under
+`output/run_logs/20261021-160309-countries-86204-file150bc43f1ff43/`.
 
 For this delivery, the targeted completion begins at 03a for ECU and 03b for MEX:
 their recovered Admin sources exist, while their corrected survey files are missing.
@@ -570,10 +873,63 @@ settings/baselines or altered/missing artifacts are distinguished from a matchin
 recorded comparison. An incomplete export does not publish successful metadata.
 The export uses available observations within the configured comparison period;
 a shorter baseline has a shorter line, without a fixed 2022 cutoff.
+Availability covers the export horizon as well as the calculation years. Years
+beyond the calculation endpoint are classified as carry-forward, so their flat
+extension remains visible in the comparisons. The export stops with a request to
+rerun 07b if the availability report is missing a configured country-year.
 
 Changing the baseline does not regenerate existing graphs. Use the existing
 export task (`dina run 07d`) when ready. Other output comparisons and standalone
-graph regeneration are outside this workflow.
+graph regeneration are outside this workflow, except for the presentation-only
+supplied-series figures described below.
+
+### Delivery reports and supplied-series figures
+
+Keep the important delivery reports beside the comparison graphs in
+`output/figures/updates/`. The completed 24 October 2026 report is
+`dina-update-final-24Oct2026.pdf`; it covers all 26 published countries and the
+accepted changes. Its production checks are summarized in
+`delivery-validation-24Oct2026.json`. The previous report path under `output/pdf/`
+remains available for existing references.
+
+Generate single-page supplied-series comparison figures for a LaTeX document:
+
+```bash
+Rscript --vanilla code/R/plot-finished-dina-for-latex.R
+# Optional: select any countries with an active supplied series.
+Rscript --vanilla code/R/plot-finished-dina-for-latex.R ECU BRA
+```
+
+Omission includes all active supplied-series countries. The command reads the
+accepted source and saved continuation, checks their current inputs, and writes
+`finished-dina-COUNTRY-STEP-UNIT-latex.pdf` in the same updates folder. These
+figures omit overall titles and notes, retain income-group panel labels, and
+use the legend Original, Prepared, Internal estimates, Final series, and
+Unadjusted continuation. Historical gaps and the final carry-forward remain
+visible. This command only regenerates presentation files; it does not fit
+distributions, activate candidates, or rerun the pipeline. The original review
+figures and acceptance records retain their detailed notes.
+
+Experimental cleanup should target superseded staging directories. Keep active
+source candidates, confirmation/restore backups, source receipts, completed run
+records, and the small diagnostic tables and scripts used by delivery reports.
+Record any removed staging paths in the updates folder so an old candidate's
+unavailable staging area is explicit.
+
+### Holding a supplied series for scientific review
+
+An included source can be retained for review while excluded from publication.
+In its `finished_series.publication_policy` entry in `config/sources.yml`, set
+`status: hold` and a brief `hold_reason`. The default status is `active`.
+Exploration, source files and preparation evidence remain available. The next
+07d export uses the country's internal estimates, including in regional
+calculations. Explicit activation of a held source fails with its hold reason;
+re-including its source does not lift the hold.
+
+On 24 October 2026, `bra-morgan-souza-2026` was put on hold at the user's request.
+Its review graphs are in `output/figures/updates/on-hold/BRA/`. Ecuador's supplied
+series remains enabled. A future scientific decision must explicitly restore
+Brazil's publication status before exporting the supplied series again.
 
 ## Maintenance
 
@@ -604,3 +960,10 @@ dina update close
 `dina update close` generates closure notes: changed sources, incoming source
 files, run summary, output freshness, config diff, and repo diff. It
 marks the workspace closed only after the report is generated.
+
+
+**COL/ECU source handoff, 2026-10-23:** the accepted 2024 national-account releases are now selected by 01b, including their revised historical sheets. Ecuador retains its existing pre-2018 source splice; the new release uses CEI_2023 and CEI_2024p. Required sheets are checked before replacing macro output, so missing new-year inputs fail explicitly instead of silently retaining older coverage. The underlying component extraction and treatment of zero placeholder rows are unchanged. Bounded Stata checks matched 64 source components within existing float precision, and legacy/failure tests passed. The user approved downstream refresh for COL, ECU, ARG, CHL, SLV and URY; any additional donor recipients are reported before expanding execution.
+
+**Export aggregate correction, 2026-10-23:** the user approved correcting inherited bottom and middle group aggregates in 07d. The bottom 20%, 50% and 90% now stop at their stated population boundaries; previously the internal-series aggregates included the following one-percent bracket. The middle 40% consequently covers p50-p90. Bottom-group monetary means receive the common WID national-income scaling, and the middle-group mean is calculated from the two groups' income totals and population masses. Detailed distributions, top shares and upstream calculations are unchanged by this export correction. Supplied-series aggregates already followed these definitions.
+
+Historical bottom/middle aggregates are reconstructed from their detailed brackets only in the temporary comparison dataset. Archived publications remain intact, and comparisons require complete reference brackets. The diagnostic and bounded actual-Stata/independent checks are recorded under `output/experiments/final-completion-20261023`; the final production export must pass the same aggregate identities before delivery. This is a correction to exported aggregation and units, separate from changes in source data or distribution estimation.

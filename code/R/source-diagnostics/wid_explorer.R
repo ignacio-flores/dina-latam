@@ -24,6 +24,11 @@ wid_include_current_status <- function(root, contract, artifact) {
   if (isTRUE(status$exists[[1L]]) && !is.na(latest_input) && latest_input > file.info(paths$canonical)$mtime[[1L]]) {
     status$status <- "stale"
   }
+  if (isTRUE(read$ok) && isTRUE(artifact$request$include_publication_history)) {
+    checks <- wid_include_validate_candidate(artifact$source_id, artifact, read$data,
+      wid_include_required_years(root, contract, artifact), root, contract)
+    if (any(checks$severity == "blocked")) status$status <- "stale"
+  }
   status
 }
 
@@ -129,6 +134,8 @@ wid_include_request_plan <- function(root, contract) {
       percentiles = paste(wid_include_source_values(request$perc), collapse = ","),
       population_flag = paste(wid_include_source_values(request$pop), collapse = ","),
       request_years = wid_include_year_range_label(years),
+      request_windows = paste(vapply(wid_include_request_windows(root, contract, artifact), function(w)
+        paste0(paste(w$areas, collapse = ","), ":", wid_include_year_range_label(w$years)), character(1)), collapse = "; "),
       required_years = wid_include_year_range_label(required_years),
       raw_output = paths$raw_rel,
       derived_output = paths$canonical_rel,

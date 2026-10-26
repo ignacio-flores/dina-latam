@@ -1,0 +1,114 @@
+{
+  "status": "completed",
+  "recorded_at": "2026-10-24T14:51:01.603614+02:00",
+  "runs": [
+    {
+      "id": "20261023-112048-countries-50293-filec475506f32e7",
+      "status": "succeeded",
+      "ended_at": "2026-10-24T03:02:24+0200",
+      "record": "output/run_logs/20261023-112048-countries-50293-filec475506f32e7/country-run.json"
+    },
+    {
+      "id": "20261024-144043-countries-82034-file14072463786a0",
+      "status": "succeeded",
+      "ended_at": "2026-10-24T14:43:11+0200",
+      "record": "output/run_logs/20261024-144043-countries-82034-file14072463786a0/country-run.json"
+    }
+  ],
+  "fix": "CHL 2024 GPinter: avoid cancellation when integrating tiny first-positive income bins, retaining unchanged validation tolerances, population and income anchors, and top shares.",
+  "validation": {
+    "gpinter_groups": 1269,
+    "upstream_validation": "Preserved: no new GPinter fits or microdata calculations in this update.",
+    "aggregate_checks": 13588,
+    "aggregate_failures": 0,
+    "evidence": [
+      "output/experiments/final-completion-20261023/gpinter-validation-20261024.log",
+      "output/experiments/publication_holds/20261024-bra/export-validation.log",
+      "output/experiments/publication_holds/20261024-bra/aggregate-validation/aggregate-validation.json",
+      "output/experiments/publication_holds/20261024-bra/hold-validation.json",
+      "output/experiments/publication_holds/20261024-bra/hold-tests.log"
+    ],
+    "approved_supplied_sources": [
+      "ecu-nabernegg-2026"
+    ]
+  },
+  "coverage": {
+    "countries": 26,
+    "wide_distributions": 686,
+    "long_distributions": 674,
+    "wide_detailed_brackets": 87122,
+    "long_detailed_brackets": 85598
+  },
+  "outputs": {
+    "report": "output/figures/updates/dina-update-final-24Oct2026.pdf",
+    "export": "output/latest_wid_series/dina_latam_24Oct2026.dta",
+    "comparison_figures": [
+      "output/figures/updates/update-24Oct2026-sptinc992j-t10.pdf",
+      "output/figures/updates/update-24Oct2026-sptinc992j-t1.pdf",
+      "output/figures/updates/update-24Oct2026-sptinc992j-t01.pdf",
+      "output/figures/updates/update-24Oct2026-sptinc992j-t001.pdf",
+      "output/figures/updates/update-24Oct2026-sptinc992j-m40.pdf",
+      "output/figures/updates/update-24Oct2026-sptinc992j-b50.pdf"
+    ]
+  },
+  "report_visual_qa": {
+    "status": "passed",
+    "pages": 20,
+    "plain_language_rewrite_by_separate_agent": true
+  },
+  "remaining_pipeline_work": [],
+  "presentation": {
+    "status": "passed",
+    "figures": [
+      "output/figures/updates/finished-dina-ECU-nat-esn-latex.pdf"
+    ],
+    "one_page_each": true,
+    "notes": false,
+    "overall_titles": false,
+    "original_plotted_values_preserved": true,
+    "visual_review": "passed",
+    "regenerate": "Rscript --vanilla code/R/plot-finished-dina-for-latex.R",
+    "held_review_figures": [
+      "output/figures/updates/on-hold/BRA/finished-dina-BRA-nat-esn-latex.pdf",
+      "output/figures/updates/on-hold/BRA/finished-dina-BRA-nat-esn-candidate.pdf"
+    ]
+  },
+  "cleanup": {
+    "status": "completed",
+    "removed_files": 345,
+    "removed_duplicate_allocated_bytes": 12005060608,
+    "physical_free_space_increase_observed": false,
+    "protected_records_unchanged": true,
+    "receipt": "output/figures/updates/cleanup-24Oct2026.json"
+  },
+  "publication_hold": {
+    "source_id": "bra-morgan-souza-2026",
+    "status": "hold",
+    "reason": "Scientific review requested by user on 24 October 2026.",
+    "source_inputs_preserved": true,
+    "used_in_current_export": false,
+    "replacement": "Existing internal Brazil estimates",
+    "other_directly_estimated_countries_unchanged": [
+      "ARG",
+      "CHL",
+      "COL",
+      "CRI",
+      "DOM",
+      "ECU",
+      "MEX",
+      "PER",
+      "SLV",
+      "URY"
+    ],
+    "regional_estimates_refreshed": true
+  },
+  "log_cleanup": {
+    "root_logs_remaining": 0,
+    "archived_root_logs": 28,
+    "removed_obsolete_stage_files": 7,
+    "removed_obsolete_stage_bytes": 2700843059,
+    "manifest": "output/run_logs/archive/20261024-cleanup.json",
+    "future_stata_batch_logs": "Inside the task run log directory"
+  },
+  "export_generated_at": "2026-10-24T14:42:59+0200"
+}

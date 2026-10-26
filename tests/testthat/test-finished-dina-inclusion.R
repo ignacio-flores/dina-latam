@@ -3,7 +3,7 @@ finished_include_fixture <- function(root, countries = c("AAA", "BBB")) {
   skip_if_not_installed("digest")
   dir.create(file.path(root, "input_data", "_new", "dina"), recursive = TRUE)
   dir.create(file.path(root, "input_data", "dina"), recursive = TRUE)
-  for (module in c("finished_dina_explorer.R", "finished_dina_preparer.R")) {
+  for (module in c("finished_dina_explorer.R", "finished_dina_preparer.R", "finished_dina_grouped.R")) {
     stopifnot(file.copy(file.path(repo_root_for_tests, "code", "R", "source-diagnostics", module),
       file.path(root, "code", "R", "source-diagnostics", module)))
   }
@@ -21,6 +21,7 @@ finished_include_fixture <- function(root, countries = c("AAA", "BBB")) {
   dina_write_yaml(list(sources = sources), file.path(root, "config", "sources.yml"))
   engine <- new.env(parent = environment())
   sys.source(file.path(root, "code", "R", "source-diagnostics", "finished_dina_explorer.R"), engine)
+  sys.source(file.path(root, "code", "R", "source-diagnostics", "finished_dina_grouped.R"), engine)
   engine$gpinter_version <- "fixture-1"
   engine$calls <- 0L
   engine$finished_dina_prepare <- function(data, specification) {

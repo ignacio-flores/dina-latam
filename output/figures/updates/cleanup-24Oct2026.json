@@ -1,0 +1,51 @@
+{
+  "status": "completed",
+  "new_data_hashes_computed": 0,
+  "summary": {
+    "paths": 1,
+    "allocated_bytes": 12005060608,
+    "allocated_GiB": 11.180583953857422
+  },
+  "allowlist": [
+    {
+      "path": "/Users/iflores/Documents/GitHub/dina-latam/output/experiments/survey_population_include/runs/survey-include-20260729-153406/staged_repo/input_data/surveys_CEPAL",
+      "kind": "directory",
+      "allocated_bytes": 12005060608,
+      "reason": "Blocked unconfirmed July dry run. All 345 stored survey fingerprints and present file sizes match retained September 17 reference. No current source review or confirmation points to July run.",
+      "reference": "/Users/iflores/Documents/GitHub/dina-latam/output/experiments/survey_population_include/runs/review-20260917-103230-file863769c314f/staged_repo/input_data/surveys_CEPAL",
+      "evidence": [
+        "/Users/iflores/Documents/GitHub/dina-latam/output/experiments/survey_population_include/runs/survey-include-20260729-153406/tables/promotion_fingerprints.csv",
+        "/Users/iflores/Documents/GitHub/dina-latam/output/experiments/survey_population_include/runs/review-20260917-103230-file863769c314f/tables/promotion_fingerprints.csv",
+        "/Users/iflores/Documents/GitHub/dina-latam/output/experiments/survey_population_include/runs/survey-include-20260729-153406/logs/include_manifest.csv"
+      ],
+      "preserve_siblings": [
+        "staged_repo/intermediary_data/population/SurveyPop.dta",
+        "tables",
+        "logs"
+      ],
+      "status": "deleted",
+      "files": 345,
+      "logical_bytes": 12004352500
+    }
+  ],
+  "preserved": [
+    "All canonical/input source data",
+    "All survey/Admin confirmation snapshots and active/accepted stages",
+    "All unique Admin diagnostic outputs",
+    "All report evidence"
+  ],
+  "completed_at": "2026-10-24T10:25:19.770380+02:00",
+  "validation": {
+    "stored_fingerprints_match": 345,
+    "current_file_sizes_match": 345,
+    "new_data_hashes_computed": 0,
+    "protected_records_unchanged": true,
+    "unique_population_output_preserved": true,
+    "logs_and_reports_preserved": true
+  },
+  "filesystem": {
+    "free_bytes_before": 40538955776,
+    "free_bytes_after": 40538914816,
+    "immediate_free_bytes_change": -40960
+  }
+}

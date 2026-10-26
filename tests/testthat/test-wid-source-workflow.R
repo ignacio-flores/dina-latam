@@ -207,6 +207,72 @@ wid_fixture_root <- function(current = FALSE, current_offset = 0, incoming_offse
   root
 }
 
+test_that("export scaling extends accepted country history and validates country-indicator coverage", {
+  root <- wid_fixture_root()
+  config <- dina_read_yaml(file.path(root, "config/dina.yml"))
+  config$export_validation <- list(last_year = 2002L)
+  dina_write_yaml(config, file.path(root, "config/dina.yml"))
+  contract <- wid_include_read_contract(root)
+  artifact <- wid_include_artifact(contract, "wid-export-scaling")
+  artifact$request$include_publication_history <- TRUE
+  artifact$request$last_year_from <- "export_validation.last_year"
+  path <- file.path(root, "input_data/dina/ARG_prepared.dta")
+  dir.create(dirname(path), recursive = TRUE)
+  haven::write_dta(data.frame(country = "ARG", year = c(1995, 1997, 2000), step = "nat", unit = "esn"), path)
+  dina_write_yaml(list(sources = list(list(id = "arg-pub", family = "dina", country = "ARG",
+    prepared = "input_data/dina/ARG_prepared.dta", finished_series = list(publication_step = "nat", publication_unit = "esn")))),
+    file.path(root, "config/sources.yml"))
+  receipt <- file.path(root, "output/experiments/finished_dina_include/confirms/fixture/confirmation.json")
+  dir.create(dirname(receipt), recursive = TRUE)
+  dina_write_json(list(family = "dina", status = "confirmed", artifacts = list(list(source_id = "arg-pub",
+    role = "prepared", destination = path, sha256 = dina_hash_file(path)))), receipt)
+  windows <- wid_include_request_windows(root, contract, artifact)
+  expect_equal(windows[[1]]$years, 2000:2002)
+  expect_equal(windows[[1]]$areas, c("AR", "MX"))
+  expect_equal(windows[[2]]$areas, "AR")
+  expect_equal(windows[[2]]$years, 1995:1999)
+  expect_equal(range(wid_include_years(root, contract, artifact)), c(1995L, 2002L))
+  population <- wid_include_artifact(contract, "population")
+  expect_equal(wid_include_years(root, contract, population), 2000:2001)
+  d <- expand.grid(iso = c("AR", "MX"), year = 1995:2002, stringsAsFactors = FALSE)
+  for (field in c("anninc992i", "nninc_lcu_constc", "ppp_eur", "mer_eur")) d[[field]] <- 100
+  d$mer_eur[d$year < 2000] <- NA_real_
+  d <- d[!(d$iso == "AR" & d$year == 1996), ]
+  years <- wid_include_required_years(root, contract, artifact)
+  valid <- wid_include_validate_candidate(artifact$source_id, artifact, d, years, root, contract)
+  expect_false(any(valid$severity == "blocked"))
+  missing <- d[!(d$iso == "AR" & d$year == 1995), ]
+  invalid <- wid_include_validate_candidate(artifact$source_id, artifact, missing, years, root, contract)
+  expect_true(any(grepl("AR/1995", invalid$detail, fixed = TRUE)))
+  d$ppp_eur[d$iso == "MX" & d$year == 2002] <- NA_real_
+  invalid <- wid_include_validate_candidate(artifact$source_id, artifact, d, years, root, contract)
+  expect_true(any(grepl("MX/2002", invalid$detail, fixed = TRUE)))
+  cat("\n", file = path, append = TRUE)
+  expect_error(wid_include_publication_history(root, artifact), "missing or changed")
+  unlink(receipt)
+  expect_equal(nrow(wid_include_publication_history(root, artifact)), 0L)
+  expect_equal(nrow(wid_include_export_requirements(root, contract, artifact)), 6L)
+})
+
+test_that("scoped WID inclusion preserves other accepted artifacts and Explore never resets them", {
+  source_cli_for_tests()
+  root <- wid_fixture_root(current = TRUE, current_offset = 10, incoming_offset = 20)
+  before <- tools::md5sum(list.files(file.path(root, "input_data/wid"), full.names = TRUE))
+  wid_fixture_fetch_explore(root)
+  selected <- run_wid_include(root, source_ids = "wid-export-scaling")
+  expect_equal(unique(selected$outputs$promotion_plan$source_id), "wid-export-scaling")
+  expect_equal(nrow(selected$outputs$promotion_plan), 2L)
+  accepted <- wid_include_confirm_sources(root, include_run = selected$paths$root)
+  expect_equal(dina_manifest_value(accepted$manifest, "status"), "confirmed")
+  other <- names(before)[!grepl("export_scaling|raw_export_anninc", names(before))]
+  expect_equal(tools::md5sum(other), before[other])
+  now <- tools::md5sum(names(before))
+  engine <- dina_review_engine(root, "wid")
+  dina_review_reset_before_explore(root, "wid", engine)
+  expect_equal(tools::md5sum(names(before)), now)
+  expect_error(run_wid_include(root, source_ids = "not-a-source"), "Unknown")
+})
+
 test_that("WID split modules expose stable public functions", {
   explorer_env <- new.env(parent = globalenv())
   source(file.path(repo_root_for_tests, "code", "R", "source-diagnostics", "wid_explorer.R"), local = explorer_env)

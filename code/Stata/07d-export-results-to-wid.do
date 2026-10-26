@@ -44,19 +44,40 @@ local date "$S_DATE"
 local date = subinstr("`date'", " ", "", .)
 cap mkdir "${dina_output_root}/output/figures"
 cap mkdir "${dina_output_root}/output/figures/updates"
-cap erase "${dina_output_root}/output/figures/updates/comparison-`date'.json"
-cap erase "${dina_output_root}/output/figures/updates/comparison-`date'.pending.json"
 tempfile comparison_request
 tempname comparison_handle
 file open `comparison_handle' using "`comparison_request'", write text replace
 file write `comparison_handle' `"$previous_update"' _n `"$export_unit"' _n `"$export_steps"' _n
 file write `comparison_handle' "$export_last_y" _n `"$all_countries"' _n "$first_y" _n "$last_y" _n
 file close `comparison_handle'
+
+// Integrate all included finished sources using the registered continuation
+// policies. Failed validation leaves the previous integration and exports intact.
+local dina_finished_dir "${dina_output_root}/_finished_dina"
+// Stata shell does not reliably propagate R's exit status. Remove only the
+// temporary adapter files so a failed refresh cannot reuse an earlier overlay.
+cap erase "`dina_finished_dir'/overlay.dta"
+cap erase "`dina_finished_dir'/attribution.dta"
+shell Rscript code/R/07d_prepare_finished_dina.R "`comparison_request'" "`dina_finished_dir'"
+confirm file "`dina_finished_dir'/overlay.dta"
+confirm file "`dina_finished_dir'/attribution.dta"
+preserve
+	quietly use "`dina_finished_dir'/overlay.dta", clear
+	local dina_finished_count = _N
+restore
+local dina_finished_fields ""
+
+// Record the validated integration consumed after the automatic refresh.
+cap erase "${dina_output_root}/output/figures/updates/comparison-`date'.json"
+cap erase "${dina_output_root}/output/figures/updates/comparison-`date'.pending.json"
 shell Rscript code/R/export-comparison-metadata.R begin `date' "`comparison_request'"
 confirm file "${dina_output_root}/output/figures/updates/comparison-`date'.pending.json"
 
 //compare with previous update? 
 qui use $previous_update, clear 
+// Correct legacy aggregate labels only in this temporary comparison copy.
+// The archived publication, detailed brackets and top shares stay unchanged.
+do "code/Stata/auxiliar/dina_export_comparison_aggregates.do"
 foreach optional in data_quality comment extrap_points interp_points {
 	cap drop `optional'
 }
@@ -77,6 +98,18 @@ if (scalar(exists) == 0) {
 
 qui import excel ///
 	"output/data_reports/latam_availability.xlsx", clear firstrow
+// Availability must cover the export horizon, including carry-forward years.
+// Otherwise the merge below would silently classify those years as no data.
+isid country year
+foreach c in $all_countries {
+	forvalues y = $first_y/`ly' {
+		quietly count if country == "`c'" & year == `y'
+		if r(N) != 1 {
+			di as error "Availability report is missing `c' `y'. Run dina run 07b,07d."
+			exit 459
+		}
+	}
+}
 qui keep country year grade
 tempfile tf_ava 
 qui save `tf_ava'
@@ -146,6 +179,20 @@ foreach v in bracketavg thr {
 }
 qui drop ip_*
 
+// Overlay after fillin: an early supplied year must not backcast other countries.
+// Remember legacy storage before the double-precision supplied rows are added.
+local dina_legacy_floatvars ""
+local dina_legacy_p_type : type p
+foreach v in bracketavg bracketavg_norm s thr topavg topsh {
+	local dina_storage : type `v'
+	if "`dina_storage'" == "float" local dina_legacy_floatvars "`dina_legacy_floatvars' `v'"
+}
+if `dina_finished_count' > 0 {
+	do "code/Stata/auxiliar/dina_finished_overlay.do" "`dina_finished_dir'/overlay.dta"
+	quietly merge m:1 country year step using "`dina_finished_dir'/attribution.dta", keep(master match) nogen
+	local dina_finished_fields "finished_dina bottomsh bottomavg pub_*"
+}
+
 *get bracket population share
 qui gsort step country year -p
 bysort step country year: gen bracketpop = p[_n-1] - p  
@@ -198,7 +245,7 @@ foreach c in `all_ctries' {
 			local(extrap_points_`c') clean separate(,)		
 		if ("`extrap_points_`c''" != "") {
 			local retrop_`c' ""
-			if ``c'_min_year' != 2000 local retrop_`c' "[2000, ``c'_min_year'] ; "
+			if ``c'_min_year' > $first_y local retrop_`c' "[$first_y, ``c'_min_year'] ; "
 			local extrap_points_`c' "``c'_max_year', `ly'"
 			qui replace extrap_points = ///
 				"`retrop_`c''[`extrap_points_`c'']" if country == "`c'"
@@ -223,7 +270,7 @@ qui rename _ISO2C_ iso
 
 *clean dataset 
 qui keep step country year p bracketavg bracketavg_norm bracketpop s thr ///
-	topsh topavg *_points iso 
+	topsh topavg *_points iso `dina_finished_fields'
 qui order step country year p bracketavg bracketavg_norm bracketpop s thr ///
 	topsh topavg *_points iso
 * save for later 
@@ -254,6 +301,22 @@ foreach s in `steps' {
 		preserve
 			qui keep if step == "`s'" 
 			if "`x'" == "CUB" drop if !inlist(country, "ECU", "URY", "ARG")
+            // Carry the actual donor pool's supplied-source attribution.
+            if `dina_finished_count' > 0 {
+                    tempfile dina_donor_input
+                    quietly save `dina_donor_input'
+                    keep year step pub_source pub_citation pub_doi
+                    drop if pub_source == ""
+                    duplicates drop
+                    sort year step pub_source
+                    by year step: gen strL pub_donor_note = pub_source + ": " + pub_citation + " " + pub_doi
+                    by year step: replace pub_donor_note = pub_donor_note[_n-1] + "; " + pub_donor_note if _n > 1
+                    by year step: keep if _n == _N
+                    keep year step pub_donor_note
+                    tempfile dina_donor_notes
+                    quietly save `dina_donor_notes'
+                    quietly use `dina_donor_input', clear
+            }
             local dina_expected ""
             if "`x'" == "CUB" local dina_expected "ECU URY ARG"
             else {
@@ -296,6 +359,9 @@ foreach s in `steps' {
                 exit 9
             }
             quietly drop `dina_availability'
+            if `dina_finished_count' > 0 {
+                quietly merge m:1 year step using `dina_donor_notes', keep(master match) nogen
+            }
 
 			*compute top averages
 			qui gsort year -p	
@@ -374,6 +440,22 @@ foreach c in `missing_ctries' {
 qui use `main', clear 
 qui append using `imputed_ctries'
 
+// Accepted contributions already passed validation. Keep them out of the
+// legacy +0.1% adjustments and derived-statistics reconstruction below.
+if `dina_finished_count' > 0 {
+	preserve
+		keep if finished_dina == 1
+		tempfile dina_finished_main
+		quietly save `dina_finished_main'
+	restore
+	drop if finished_dina == 1
+	drop finished_dina bottomsh bottomavg
+	// Preserve the original calculation precision for internal and donor rows.
+	foreach v of local dina_legacy_floatvars {
+		quietly recast float `v', force
+	}
+}
+
 //check income variables are non-decreasing 
 local incomevars thr bracketavg_norm topavg 
 foreach v in `incomevars' {
@@ -385,23 +467,23 @@ foreach v in `incomevars' {
 	qui drop `v'_check 
 }
 
-//ensure income variables are strictly increasing 
+// Preserve equal incomes (point masses); repair actual decreases only.
 foreach v in `incomevars' {
 	*make room 
 	sort step country year p
 	foreach nv in `v'_adj lag_`v' check_`v' {
 		cap drop `nv'
 	}
-	*spot monotonicity or worse 
+	*spot an actual decrease
 	qui gen `v'_adj = `v'
 	qui gen lag_`v' = `v'_adj[_n - 1] if p > 0
-	qui gen check_`v' = 1 if (lag_`v' >= `v'_adj & `v'_adj != 0)
+	qui gen check_`v' = 1 if (lag_`v' > `v'_adj & `v'_adj != 0)
 	qui count if check_`v' == 1 
-	*loop over monotonic adding 0.1%, one by one 
+	*retain the existing 0.1% repair for decreases, one by one
 	local iter_`v' = 1 
 	while `r(N)' > 0 & `iter_`v'' <= 50 {
 		if `iter_`v'' == 1 {
-			di as result " Ensuring non-monotonicity in `v' ..." _continue
+			di as result " Repairing decreases in `v' ..." _continue
 			cap drop lag_`v'
 			bysort step country year: gen lag_`v' = `v'_adj[_n - 1] if p > 0
 		} 
@@ -416,7 +498,7 @@ foreach v in `incomevars' {
 			*update lag var and re-estimate 
 			cap drop lag_`v' 
 			bysort step country year: gen lag_`v' = `v'_adj[_n - 1] if p > 0
-			bysort step country year: gen check_`v' = 1 if `v'_adj <= lag_`v' & ///
+			bysort step country year: gen check_`v' = 1 if `v'_adj < lag_`v' & ///
 				`v'_adj != 0 & !missing(`v'_adj, lag_`v')
 			*add one to counter 	
 			local iter_`v' = `iter_`v'' + 1
@@ -449,13 +531,13 @@ foreach v in thr bracketavg topavg {
 	qui drop `v'_check 
 }
 
-//check monotonic (again)
-di as result "final non-monotonicity check: "
+// Check nondecreasing order; equality is valid for a population mass.
+di as result "final nondecreasing-order check: "
 foreach v in `incomevars' {
 	di as result " `v': " _continue
-	*spot monotonicity or worse 
+	*spot an actual decrease
 	qui gen lag_`v' = `v'[_n - 1] if p > 0
-	qui gen check_`v' = 1 if (lag_`v' >= `v' & `v' != 0 & !missing(lag_`v'))
+	qui gen check_`v' = 1 if (lag_`v' > `v' & `v' != 0 & !missing(lag_`v'))
 	assert check_`v' != 1 
 	di as text "done."
 	qui drop lag_`v' 
@@ -499,16 +581,29 @@ qui drop topsh2
 qui replace bracketavg = bracketavg_norm 
 
 *compute bottom shares
-gsort step country year p
-bysort step country year: gen bottomsh = sum(s) 
+// p is the lower boundary: the bottom aggregate excludes the current bin.
+qui sort step country year p
+by step country year: gen double bottomsh = sum(s) - s
 
 *compute bottom averages
 tempvar fy3 sum_fy3 sum_pop3 
-qui sort country year p	
-bysort step country year: gen `fy3' = bracketavg * bracketpop
-bysort step country year: gen `sum_fy3' = sum(`fy3')
-bysort step country year: gen `sum_pop3' = sum(bracketpop)
-bysort step country year: gen bottomavg = `sum_fy3' / `sum_pop3' 
+qui sort step country year p
+by step country year: gen double `fy3' = bracketavg * bracketpop
+by step country year: gen double `sum_fy3' = sum(`fy3') - `fy3'
+by step country year: gen double `sum_pop3' = sum(bracketpop) - bracketpop
+by step country year: gen double bottomavg = `sum_fy3' / `sum_pop3'
+qui replace bottomavg = 0 if p == 0
+
+// Restore exactly the validated normalized distribution before WID scaling.
+local dina_scale_floatvars ""
+foreach v in bracketavg thr topavg {
+	local dina_storage : type `v'
+	if "`dina_storage'" == "float" local dina_scale_floatvars "`dina_scale_floatvars' `v'"
+}
+if `dina_finished_count' > 0 {
+	quietly append using `dina_finished_main'
+	drop finished_dina
+}
 
 *harmonise country names
 qui kountry country, from(iso3c) to(iso2c) 
@@ -538,8 +633,14 @@ restore
 qui merge m:1 iso year using `tf_ni_wid'
 qui drop if year < 2002 & missing(country)
 qui sort step country year p 
-foreach var in "bracketavg" "thr" "topavg" {
+foreach var in "bracketavg" "thr" "topavg" "bottomavg" {
 	qui replace `var' = `var' * anninc992i
+}
+if `dina_finished_count' > 0 {
+	// Appending doubles must not change rounding of previously float columns.
+	foreach v of local dina_scale_floatvars {
+		quietly replace `v' = float(`v') if pub_source == ""
+	}
 }
 
 //create main folders 
@@ -552,7 +653,19 @@ if (scalar(exists) == 0) {
 
 *prepare data 
 qui drop if missing(p)
+if `dina_finished_count' > 0 {
+	preserve
+		keep country year step pub_*
+		duplicates drop
+		isid country year step
+		tempfile dina_final_attribution
+		quietly save `dina_final_attribution'
+	restore
+}
 qui replace p = p / 1000
+if `dina_finished_count' > 0 & "`dina_legacy_p_type'" == "float" {
+	quietly replace p = float(p) if pub_source == ""
+}
 qui save `main', replace 
 qui save "${dina_output_root}/output/latest_wid_series/dina_latam_wide_`date'.dta", replace
 
@@ -595,8 +708,10 @@ restore
 *Bottom
 preserve
 	qui use `main', clear
+	local dina_pub_marker ""
+	if `dina_finished_count' > 0 local dina_pub_marker "pub_source"
 	qui keep ///
-		step year country p bottomsh data_points extrap_points interp_points
+		step year country p bottomsh data_points extrap_points interp_points `dina_pub_marker'
 	qui sort step year country p 	
 	bys step year country (p) : gen p2 = p[_n+1]
 	qui replace p2 = 100 if p2 == .
@@ -608,7 +723,10 @@ preserve
 	qui rename bottomshp50p51 valuep0p50
 	qui rename bottomshp90p91 valuep0p90
 	qui rename bottomshp20p21 valuep0p20
-	qui bys step country year : gen valuep50p90 = valuep0p90 - valuep0p50
+	qui bys step country year : gen double valuep50p90 = valuep0p90 - valuep0p50
+	if `dina_finished_count' > 0 {
+		drop pub_source
+	}
 	qui reshape long value, i(step country year) j(p) string
 	qui gen widcode = "sptinc992j" if step == "nat"
 	qui replace widcode = "sdiinc992j" if step == "pon"
@@ -619,8 +737,10 @@ restore
 *Bottom avg 
 preserve
 	qui use `main', clear
+	local dina_pub_marker ""
+	if `dina_finished_count' > 0 local dina_pub_marker "pub_source"
 	qui keep ///
-		step year country p bottomavg data_points extrap_points interp_points 
+		step year country p bottomavg data_points extrap_points interp_points `dina_pub_marker'
 	qui sort step year country p 	
 	bys step year country (p) : gen p2 = p[_n+1]
 	qui replace p2 = 100 if p2 == .
@@ -631,7 +751,10 @@ preserve
 	qui reshape wide bottomavg, i(step country year) j(p) string
 	qui rename bottomavgp50p51 valuep0p50
 	qui rename bottomavgp90p91 valuep0p90
-	bys step country year : gen valuep50p90 = valuep0p90 - valuep0p50
+	bys step country year : gen double valuep50p90 = (0.9 * valuep0p90 - 0.5 * valuep0p50) / 0.4
+	if `dina_finished_count' > 0 {
+		drop pub_source
+	}
 	qui reshape long value, i(step country year) j(p) string
 	qui gen  widcode = "aptinc992j" if step == "nat"
 	qui replace  widcode = "adiinc992j" if step == "pon"
@@ -661,11 +784,32 @@ tab country data_quality
 qui gen comment = ///
 	"Scaled to Net National inc. from WID.world (Constant LCU)" 
 
+if `dina_finished_count' > 0 {
+	// Bracket reshaping removes step; recover the existing WID concept mapping.
+	replace step = "nat" if strpos(widcode, "ptinc")
+	replace step = "pon" if strpos(widcode, "diinc")
+	quietly merge m:1 country year step using `dina_final_attribution', keep(master match) nogen
+	// Source origin is separate from the internal survey/admin quality scale.
+	replace data_quality = . if pub_source != ""
+	replace data_quality = 1 if pub_origin == "carry_forward"
+	replace comment = pub_citation + cond(pub_doi != "", " DOI: " + pub_doi, "") + ///
+		"; source preparation: DINA consistency corrections and GPinter regridding; WID national-income scaling" if pub_source != ""
+	replace comment = comment + "; prepared supplied observation" if pub_origin == "supplied"
+	replace comment = comment + "; DINA continuation of prepared source (" + pub_adjustment + ")" if pub_origin == "continuation"
+	replace comment = comment + "; carry-forward of last validated distribution (" + pub_adjustment + ")" if pub_origin == "carry_forward"
+	replace comment = comment + "; proportional changes for p0-p50, p50-p90, p90-p99 and p99-p100; boundary correction preserves group incomes" ///
+		if pub_source != "" & pub_adjustment == "group_join"
+	replace comment = comment + "; regional donors include: " + pub_donor_note if pub_donor_note != ""
+}
+
 *clean and save in long format 
 drop if missing(value)
 qui drop step 
 
-qui drop if country == "DOM" & year < 2012
+if `dina_finished_count' > 0 {
+	qui drop if country == "DOM" & year < 2012 & pub_source == ""
+}
+else qui drop if country == "DOM" & year < 2012
 
 *save 
 preserve 

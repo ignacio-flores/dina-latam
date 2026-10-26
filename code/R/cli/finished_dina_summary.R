@@ -28,7 +28,9 @@ finished_dina_check_labels <- function() {
     source_metadata = "Source registration",
     source_read = "Readable source",
     unregistered_file = "Unregistered file",
-    source_changed = "Source changed"
+    source_changed = "Source changed",
+    grouped_coverage = "Supplied coverage gaps", top_share_order = "Nested top shares",
+    grouped_mean_identity = "Shares versus averages"
   )
 }
 
@@ -54,7 +56,7 @@ finished_dina_issue_sizes <- function(issues) {
   zero <- comparable & expected == 0
   relative[zero] <- ifelse(observed[zero] == 0 & difference[zero] == 0, 0, Inf)
   share <- text("check_id") %in% c(
-    "share_identity", "top_share_identity", "share_total", "share_bounds", "gini_bounds"
+    "share_identity", "top_share_identity", "share_total", "share_bounds", "gini_bounds", "top_share_order"
   )
   absolute_pp <- rep(NA_real_, n)
   absolute_pp[share & comparable] <- 100 * abs(difference[share & comparable])
@@ -103,7 +105,9 @@ finished_dina_check_actions <- function() {
     source_metadata = "Complete the source registration.",
     source_read = "Resolve the file/read error.",
     unregistered_file = "Register the source and version.",
-    source_changed = "Explore the changed source again."
+    source_changed = "Explore the changed source again.",
+    grouped_coverage = "Retain gaps for later harmonization.", top_share_order = "Review nested shares before harmonization.",
+    grouped_mean_identity = "Shares govern; monetary scale is deferred."
   )
 }
 

@@ -139,6 +139,9 @@ country_rules:
   PER:
     adapter: workbook_table
     magnitude: 1000000
+    # The accepted annual tables report D.7, without separate D.75/D.752 rows.
+    # Preserve those absences when assembling the derived workbook for 01b.
+    assembly_allow_missing: [D75_cei, D752_cei]
     source:
       # Peru publishes one official CEI workbook per year.  Keep the selector
       # aligned with the explorer so a future release is resolved by its year,

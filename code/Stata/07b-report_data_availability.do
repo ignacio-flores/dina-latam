@@ -24,13 +24,22 @@ global aux_part  ""preliminary""
 do "code/Stata/auxiliar/aux_general.do"
 
 *define first year 
-// Report the complete configured year range.
+// Cover exported carry-forward years as well as calculation years.
 local start_y = $first_y
-local end = $last_y
+local end = max($last_y, $export_last_y)
 
 local iter = 1
 foreach c in $all_countries {
 	forvalues t = `start_y' / `end' {
+		// Future source files are not observations in this calculation.
+		// Empty rows let the grading rules below classify the export extension.
+		if `t' > $last_y {
+			foreach var in admin_total admin_wage admin_other survey {
+				local `var'_`c'_`t' "no"
+			}
+			local iter = `iter' + 1
+			continue
+		}
 		
 		//define path to files 
 		local taxfile "input_data/admin_data/`c'/gpinter_`c'_`t'.xlsx"

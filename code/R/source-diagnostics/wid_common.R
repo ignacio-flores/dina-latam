@@ -189,10 +189,59 @@ wid_include_config <- function(root, contract) {
   effective
 }
 
+# Accepted publication histories can precede the calculation window. Read their
+# durable receipts rather than an inbox or a replaceable source-review pointer.
+wid_include_publication_history <- function(root, artifact) {
+  empty <- data.frame(iso = character(), year = integer(), source_id = character())
+  if (!isTRUE(artifact$request$include_publication_history)) return(empty)
+  registry <- wid_include_read_yaml(file.path(root, "config", "sources.yml"), default = list())$sources
+  sources <- Filter(function(s) identical(s$family, "dina") &&
+    length(s$country) == 1L && !is.null(s$finished_series$publication_step) &&
+    !is.null(s$finished_series$publication_unit), registry)
+  if (!length(sources)) return(empty)
+  wid_include_need("jsonlite"); wid_include_need("digest"); wid_include_need("haven")
+  paths <- list.files(file.path(root, "output/experiments/finished_dina_include/confirms"),
+    pattern = "^confirmation\\.json$", full.names = TRUE, recursive = TRUE)
+  paths <- paths[order(file.info(paths)$mtime, decreasing = TRUE)]
+  receipts <- lapply(paths, function(p) jsonlite::fromJSON(p, simplifyVector = FALSE))
+  receipts <- Filter(function(r) identical(r$status, "confirmed") && identical(r$family, "dina"), receipts)
+  rows <- lapply(sources, function(s) {
+    path <- normalizePath(wid_include_path(s$prepared, root), mustWork = FALSE)
+    accepted <- NULL
+    for (receipt in receipts) {
+      matches <- Filter(function(a) identical(a$source_id, s$id) && identical(a$role, "prepared") &&
+        identical(normalizePath(a$destination, mustWork = FALSE), path), receipt$artifacts)
+      if (length(matches)) {accepted <- matches[[1L]]; break}
+    }
+    if (is.null(accepted)) return(empty)
+    if (!file.exists(path) || !identical(digest::digest(file = path, algo = "sha256"), accepted$sha256)) {
+      stop("Accepted publication source is missing or changed: ", path, call. = FALSE)
+    }
+    d <- as.data.frame(haven::read_dta(path))
+    meta <- s$finished_series
+    if (!all(c("country", "year", "step", "unit") %in% names(d))) stop("Accepted publication source lacks case keys: ", s$id)
+    years <- sort(unique(d$year[d$country == s$country & d$step == meta$publication_step & d$unit == meta$publication_unit]))
+    area <- wid_include_area_map(artifact)$area[match(s$country, wid_include_area_map(artifact)$iso3)]
+    if (length(area) != 1L || is.na(area) || !length(years) || any(!is.finite(years))) stop("Missing publication country mapping or years: ", s$id)
+    data.frame(iso = area, year = as.integer(years), source_id = s$id)
+  })
+  out <- wid_include_bind(c(list(empty), rows))
+  if (nrow(out)) out else empty
+}
+
+wid_include_last_year <- function(cfg, artifact) {
+  field <- (artifact$request %||% list())$last_year_from %||% "years.last"
+  switch(field, years.last = as.integer(cfg$years$last),
+    export_validation.last_year = as.integer(cfg$export_validation$last_year),
+    stop("Unsupported WID last_year_from: ", field, call. = FALSE))
+}
+
 wid_include_years <- function(root, contract, artifact = NULL) {
   cfg <- wid_include_config(root, contract)
-  last <- suppressWarnings(as.integer(cfg$years$last))
+  last <- wid_include_last_year(cfg, artifact)
   first <- suppressWarnings(as.integer(((artifact$request %||% list())$first_year %||% (contract$years %||% list())$first %||% cfg$years$first)))
+  history <- wid_include_publication_history(root, artifact)
+  if (nrow(history)) first <- min(first, history$year)
   if (is.na(first) || is.na(last) || first > last) {
     stop("Invalid WID required year range in contract/config.", call. = FALSE)
   }
@@ -204,7 +253,7 @@ wid_include_required_years <- function(root, contract, artifact) {
   policy <- schema$required_years[[1L]] %||% "none"
   if (identical(policy, "none")) return(integer())
   cfg <- wid_include_config(root, contract)
-  last <- suppressWarnings(as.integer(cfg$years$last))
+  last <- wid_include_last_year(cfg, artifact)
   first <- switch(
     policy,
     configured_window = suppressWarnings(as.integer(cfg$years$first)),
@@ -215,6 +264,31 @@ wid_include_required_years <- function(root, contract, artifact) {
     stop("Invalid WID required year range in contract/config.", call. = FALSE)
   }
   seq.int(first, last)
+}
+
+wid_include_request_windows <- function(root, contract, artifact) {
+  request <- artifact$request %||% list()
+  cfg <- wid_include_config(root, contract)
+  first <- as.integer(request$first_year %||% contract$years$first %||% cfg$years$first)
+  last <- wid_include_last_year(cfg, artifact)
+  windows <- list(list(areas = wid_include_areas(request$area_set %||% request$areas, artifact), years = seq.int(first, last)))
+  history <- wid_include_publication_history(root, artifact)
+  for (area in unique(history$iso)) {
+    earliest <- min(history$year[history$iso == area])
+    if (earliest < first) windows[[length(windows) + 1L]] <- list(areas = area, years = seq.int(earliest, first - 1L))
+  }
+  windows
+}
+
+wid_include_export_requirements <- function(root, contract, artifact) {
+  cfg <- wid_include_config(root, contract)
+  last <- wid_include_last_year(cfg, artifact)
+  areas <- wid_include_areas(artifact$request$area_set %||% artifact$request$areas, artifact)
+  base <- expand.grid(iso = areas, year = seq.int(cfg$years$first, last), stringsAsFactors = FALSE)
+  history <- wid_include_publication_history(root, artifact)
+  required <- unique(rbind(base, history[c("iso", "year")]))
+  required$need_rates <- required$year == last
+  required
 }
 
 wid_include_output_root <- function(root, contract, output_dir = NULL, explore = FALSE) {
@@ -401,8 +475,6 @@ wid_include_fetch_raw <- function(root, contract, artifact, staged_raw) {
   request <- artifact$request %||% list()
   args <- list(
     indicators = wid_include_source_values(request$indicators),
-    areas = wid_include_areas(request$area_set %||% request$areas, artifact),
-    years = wid_include_years(root, contract, artifact),
     metadata = FALSE,
     verbose = FALSE
   )
@@ -410,11 +482,12 @@ wid_include_fetch_raw <- function(root, contract, artifact, staged_raw) {
     value <- wid_include_source_values(request[[name]])
     if (length(value)) args[[name]] <- value
   }
-  raw <- tryCatch(do.call(wid::download_wid, args), error = function(e) e)
-  if (inherits(raw, "error")) {
-    stop("WID download failed for ", artifact$source_id, ": ", conditionMessage(raw), call. = FALSE)
-  }
-  raw <- as.data.frame(raw, stringsAsFactors = FALSE)
+  raw <- lapply(wid_include_request_windows(root, contract, artifact), function(window) {
+    value <- tryCatch(do.call(wid::download_wid, c(args, window)), error = function(e) e)
+    if (inherits(value, "error")) stop("WID download failed for ", artifact$source_id, ": ", conditionMessage(value), call. = FALSE)
+    as.data.frame(value, stringsAsFactors = FALSE)
+  })
+  raw <- wid_include_bind(raw)
   if (!nrow(raw)) stop("WID returned no rows for ", artifact$source_id, call. = FALSE)
   wid_include_write_dta(raw, staged_raw)
   raw
@@ -688,7 +761,7 @@ wid_include_dataset_status <- function(source_id, artifact_type, source_set, pat
   )
 }
 
-wid_include_validate_candidate <- function(source_id, artifact, data, years) {
+wid_include_validate_candidate <- function(source_id, artifact, data, years, root = NULL, contract = NULL) {
   schema <- wid_include_schema(artifact)
   rows <- list()
   add <- function(check, status, severity, detail) {
@@ -707,16 +780,30 @@ wid_include_validate_candidate <- function(source_id, artifact, data, years) {
     dup <- sum(duplicated(key), na.rm = TRUE)
     if (dup > 0L) add("keys", "blocked_duplicate_keys", "blocked", sprintf("%s duplicate key rows.", dup))
     numeric_cols <- intersect(schema$numeric_columns, names(data))
+    extended <- isTRUE(artifact$request$include_publication_history)
+    checked <- if (extended) data[data$year %in% years, , drop = FALSE] else data
     if (length(numeric_cols)) {
-      missing_rows <- sum(!stats::complete.cases(data[numeric_cols]))
-      missing_cells <- sum(is.na(data[numeric_cols]))
-      fully_missing_cols <- numeric_cols[vapply(data[numeric_cols], function(col) all(is.na(col)), logical(1L))]
+      missing_rows <- sum(!stats::complete.cases(checked[numeric_cols]))
+      missing_cells <- sum(is.na(checked[numeric_cols]))
+      fully_missing_cols <- numeric_cols[vapply(checked[numeric_cols], function(col) all(is.na(col)), logical(1L))]
       if (length(fully_missing_cols)) {
         add("values", "blocked_missing_values", "blocked", paste("Required numeric columns are entirely missing:", paste(fully_missing_cols, collapse = ",")))
       } else if (missing_cells > 0L && isTRUE(schema$allow_missing_numeric)) {
         add("values", "warning_missing_values", "warning", sprintf("%s numeric cells across %s rows are missing; treated as WID coverage gaps.", missing_cells, missing_rows))
       } else if (missing_cells > 0L) {
         add("values", "blocked_missing_values", "blocked", sprintf("%s numeric cells across %s rows are missing.", missing_cells, missing_rows))
+      }
+    }
+    if (extended) {
+      if (is.null(root) || is.null(contract)) stop("Export coverage validation requires the repository and WID contract.")
+      required <- wid_include_export_requirements(root, contract, artifact)
+      index <- match(paste(required$iso, required$year), paste(data$iso, data$year))
+      for (field in c("anninc992i", "ppp_eur", "mer_eur")) {
+        values <- data[[field]][index]
+        needed <- if (field == "anninc992i") rep(TRUE, nrow(required)) else required$need_rates
+        bad <- needed & (!is.finite(values) | values <= 0)
+        if (any(bad)) add("country_indicator_coverage", "blocked_missing_export_values", "blocked",
+          paste("Missing positive", field, "for", paste(paste(required$iso[bad], required$year[bad], sep = "/"), collapse = ", ")))
       }
     }
     if ("year" %in% names(data) && length(years)) {
@@ -744,7 +831,7 @@ wid_include_prepare_candidate_one <- function(root, contract, paths, artifact) {
     raw <- wid_include_fetch_raw(root, contract, artifact, stage_paths$raw)
     candidate <- wid_include_derive_artifact(raw, artifact, years)
     wid_include_write_dta(candidate, stage_paths$canonical)
-    validation <- wid_include_validate_candidate(source_id, artifact, candidate, required_years)
+    validation <- wid_include_validate_candidate(source_id, artifact, candidate, required_years, root, contract)
     baseline <- wid_include_comparison_baseline(root, artifact)
     comparison <- wid_include_compare_artifact(source_id, artifact, stage_paths$canonical, baseline$path, candidate, baseline$rel, baseline$kind)
     list(ok = !any(validation$severity == "blocked", na.rm = TRUE), raw = raw, candidate = candidate, validation = validation, comparison = comparison, error = "")
@@ -871,7 +958,7 @@ wid_include_inspect_incoming_one <- function(root, contract, artifact, require_c
   validation <- wid_include_bind(validation_rows)
   comparison <- list(artifact = data.frame(stringsAsFactors = FALSE), numeric = data.frame(stringsAsFactors = FALSE))
   if (isTRUE(candidate_read$ok)) {
-    validation <- wid_include_bind(validation, wid_include_validate_candidate(source_id, artifact, candidate_read$data, required_years))
+    validation <- wid_include_bind(validation, wid_include_validate_candidate(source_id, artifact, candidate_read$data, required_years, root, contract))
     baseline <- wid_include_comparison_baseline(root, artifact)
     comparison <- wid_include_compare_artifact(source_id, artifact, incoming$canonical, baseline$path, candidate_read$data, baseline$rel, baseline$kind)
   }
@@ -996,13 +1083,17 @@ wid_include_manifest <- function(run_id, status, contract, dry_run = FALSE, expl
 }
 
 wid_include_workflow_inputs <- function(root, contract) {
+  sources <- wid_include_read_yaml(file.path(root, "config", "sources.yml"), default = list())$sources
+  prepared <- unlist(lapply(Filter(function(s) identical(s$family, "dina"), sources), function(s) s$prepared), use.names = FALSE)
   unique(c(
     contract$contract_path,
     file.path(root, "config", "dina.yml"),
     file.path(root, "config", "sources.yml"),
     file.path(root, "code", "R", "source-diagnostics", "wid_common.R"),
     file.path(root, "code", "R", "source-diagnostics", "wid_explorer.R"),
-    file.path(root, "code", "R", "source-diagnostics", "wid_include.R")
+    file.path(root, "code", "R", "source-diagnostics", "wid_include.R"),
+    vapply(prepared, wid_include_path, character(1), root = root),
+    file.path(root, "output/experiments/finished_dina_include/confirms")
   ))
 }
 

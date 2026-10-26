@@ -260,6 +260,8 @@ artifacts:
       area_set: export_countries
       perc: [p0p100]
       first_year: 1990
+      last_year_from: export_validation.last_year
+      include_publication_history: true
     schema:
       required_columns: [iso, year, anninc992i, nninc_lcu_constc, ppp_eur, mer_eur]
       key_columns: [iso, year]

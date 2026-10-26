@@ -3,6 +3,15 @@ dina_results_graph_names <- function() c(t10 = "Top 10%", t1 = "Top 1%", t01 = "
 dina_results_settings <- function(config) list(countries = unlist(config$countries), years = config$years,
   export_validation = config$export_validation)
 
+dina_results_finished_publications <- function(root) {
+  if (!exists("dina_finished_publication_state", mode = "function")) return(list())
+  active <- dina_finished_publication_state(root)$active %||% list()
+  sources <- dina_source_registry(root, family = "dina")
+  held <- vapply(Filter(function(s) identical(s$finished_series$publication_policy$status, "hold"),
+    sources), function(s) s$id, character(1))
+  active[setdiff(names(active), held)]
+}
+
 dina_results_metadata_path <- function(root, date, pending = FALSE) {
   file.path(root, "output", "figures", "updates", paste0("comparison-", date, if (pending) ".pending.json" else ".json"))
 }
@@ -26,7 +35,8 @@ dina_results_begin <- function(root, date, config, output_root = Sys.getenv("DIN
   if (length(problems)) stop(paste(problems, collapse = "\n"), call. = FALSE)
   full <- if (grepl("^/", baseline)) baseline else file.path(root, baseline)
   metadata <- list(version = 1L, status = "preparing", date = date, started_at = dina_now(),
-    baseline = baseline, baseline_hash = dina_hash_file(full), settings = dina_results_settings(config))
+    baseline = baseline, baseline_hash = dina_hash_file(full), settings = dina_results_settings(config),
+    finished_publications = dina_results_finished_publications(root))
   dina_results_publish_metadata(metadata, pending)
   invisible(metadata)
 }
@@ -40,6 +50,7 @@ dina_results_complete <- function(root, date, config, output_root = Sys.getenv("
   full <- if (grepl("^/", baseline)) baseline else file.path(root, baseline)
   same <- function(x, y) identical(jsonlite::toJSON(x, auto_unbox = TRUE, null = "null"), jsonlite::toJSON(y, auto_unbox = TRUE, null = "null"))
   if (!file.exists(full) || !identical(dina_hash_file(full), metadata$baseline_hash) || !same(metadata$settings, dina_results_settings(config))) stop("Comparison baseline or settings changed during export.", call. = FALSE)
+  if (!same(metadata$finished_publications %||% list(), dina_results_finished_publications(root))) stop("Finished-series integration changed during export.", call. = FALSE)
   graphs <- file.path("output", "figures", "updates", paste0("update-", date, "-sptinc992j-", names(dina_results_graph_names()), ".pdf"))
   series <- file.path("output", "latest_wid_series", paste0("dina_latam", c("_wide", "", ""), "_", date, c("", "", "_amory"), ".dta"))
   paths <- c(graphs, series)
@@ -69,6 +80,7 @@ dina_results_inventory <- function(root, verify = TRUE) {
     if (!file.exists(baseline) || !identical(dina_hash_file(baseline), meta$baseline_hash)) return("Baseline changed or missing; regenerate export")
     equal <- function(x, y) identical(jsonlite::toJSON(x, auto_unbox = TRUE, null = "null"), jsonlite::toJSON(y, auto_unbox = TRUE, null = "null"))
     if (is.null(cfg) || !equal(meta$settings, dina_results_settings(cfg))) return("Settings changed; regenerate export")
+    if (!equal(meta$finished_publications %||% list(), dina_results_finished_publications(root))) return("Finished-series integration changed; regenerate export")
     if (is.null(meta$artifacts) || any(!vapply(names(meta$artifacts), function(path) {
       full <- file.path(root, path)
       file.exists(full) && identical(dina_hash_file(full), meta$artifacts[[path]])

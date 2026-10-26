@@ -9,6 +9,81 @@ clear all
 global aux_part " "preliminary" " 
 qui do "code/Stata/auxiliar/aux_general.do"
 
+// Use the accepted recent releases for their revised historical years too.
+// A legacy-only checkout remains usable through 2023. Requested years absent
+// from the selected release fail here, before any macro output is replaced.
+local dina_col_source "input_data/sna_country_data/COL/anex-CuentasNalAnuales-CuentasEconomicasIntegradas-2023p.xlsx"
+capture confirm file "input_data/sna_country_data/COL/anex-CuentasNalAnuales-CuentasEconomicasIntegradas-2024p.xlsx"
+if !_rc local dina_col_source "input_data/sna_country_data/COL/anex-CuentasNalAnuales-CuentasEconomicasIntegradas-2024p.xlsx"
+local dina_ecu_source "input_data/sna_country_data/ECU/mcs_cei_2018_2023p.xlsx"
+local dina_ecu_new = 0
+capture confirm file "input_data/sna_country_data/ECU/mcn_cei_2018_2024p.xlsx"
+if !_rc {
+	local dina_ecu_source "input_data/sna_country_data/ECU/mcn_cei_2018_2024p.xlsx"
+	local dina_ecu_new = 1
+}
+foreach dina_country of global ctries_cei {
+	if inlist("`dina_country'", "COL", "ECU") {
+		local dina_check_file "`dina_col_source'"
+		local dina_check_range "F49:T146"
+		local dina_check_first = max(${first_y}, 2014)
+		if "`dina_country'" == "ECU" {
+			local dina_check_file "`dina_ecu_source'"
+			local dina_check_range "A38:BD128"
+			local dina_check_first = max(${first_y}, 2018)
+		}
+		if `dina_check_first' <= ${last_y} {
+			di as text "01b: validating `dina_country' accepted source `dina_check_file'"
+			forvalues dina_y = `dina_check_first' / ${last_y} {
+				local dina_check_sheet "`dina_y'"
+				if "`dina_country'" == "ECU" {
+					local dina_check_sheet "CEI_`dina_y'"
+					if `dina_y' == 2024 | (`dina_y' == 2023 & !`dina_ecu_new') local dina_check_sheet "CEI_`dina_y'p"
+				}
+				capture quietly import excel "`dina_check_file'", clear ///
+					sheet("`dina_check_sheet'") cellrange(`dina_check_range')
+				if _rc {
+					di as error "01b: required `dina_country' CEI table cannot be read: `dina_check_file', sheet `dina_check_sheet'."
+					di as error "Include the accepted source covering the requested years before rerunning; macro data have not been replaced."
+					exit 459
+				}
+			}
+		}
+	}
+}
+
+// Rebuild Peru's derived workbook from the accepted annual CEI release.
+// The old input_data/.../CEI_merged workbook is a frozen historical copy.
+// A completion marker prevents Stata shell errors from reusing an old workbook.
+local dina_per_cei "intermediary_data/national_accounts/sna_country_data/PER/cei.xlsx"
+foreach dina_country of global ctries_cei {
+	if "`dina_country'" == "PER" {
+		tempfile dina_per_cei_ready
+		capture erase "`dina_per_cei_ready'"
+		shell Rscript code/R/01b_prepare_annual_sna.R PER ${first_y} ${last_y} "`dina_per_cei'" "`dina_per_cei_ready'"
+		capture confirm file "`dina_per_cei_ready'"
+		if _rc {
+			di as error "01b: accepted Peru CEI tables could not be prepared; macro data have not been replaced."
+			exit 459
+		}
+	}
+}
+
+// A missing approved workbook must not silently discard historical CEI data.
+// Check before creating figures or preparing other country files. Individual
+// years outside this workbook's coverage retain the existing handling below.
+local dina_dom_source "input_data/sna_country_data/DOM/cei.xlsx"
+foreach dina_country of global all_countries {
+	if "`dina_country'" == "DOM" {
+		capture confirm file "`dina_dom_source'"
+		if _rc {
+			di as error "01b: required Dominican CEI workbook is missing: `dina_dom_source'"
+			di as error "Restore the approved historical workbook before rebuilding national accounts."
+			exit 601
+		}
+	}
+}
+
 // Create directory if it doesnt exist 
 local dirpath "output/figures/cei"
 mata: st_numscalar("exists", direxists(st_local("dirpath")))
@@ -59,10 +134,10 @@ foreach c in $ctries_cei {
 	//define country folder and file 
 	local folder_`c' "input_data/sna_country_data/`c'"
 	if "`c'" == "BRA" local file_`c' "`folder_`c''/contas_economicas_a_precos_correntes_2000a2021.xls"
-	if inlist("`c'", "CHL", "PER") local file_`c' "`folder_`c''/CEI_merged"
-	*if "`c'" == "COL" local file_`c' "`folder_`c''/cuentas-economicas-integradas-2019provisional"
-	if "`c'" == "COL" local file_`c' "`folder_`c''/anex-CuentasNalANuales-CuentasEconomicasIntegradas-2023p"
-	if "`c'" == "DOM" local file_`c' "`folder_`c''/cei"
+	if "`c'" == "CHL" local file_`c' "`folder_`c''/CEI_merged"
+	if "`c'" == "PER" local file_`c' "`dina_per_cei'"
+	if "`c'" == "COL" local file_`c' "`dina_col_source'"
+	if "`c'" == "DOM" local file_`c' "`dina_dom_source'"
 	//Mexico, Costa Rica and Uruguay defined below
 
 	//1. Brazil ----------------------------------------------------------------
@@ -166,14 +241,14 @@ foreach c in $ctries_cei {
 				}
 				if `y' >= 2018 {
 					local y_sheet "CEI_`y'"
-					local file_`c' "`folder_`c''/mcs_cei_2018_2023p"
+					local file_`c' "`dina_ecu_source'"
 					local cellr_ECU "A38:BD128" 
 					global vars_ECU A B AY W AK AT AX BD BB
 				}
 				if `y' >= 2021 {
 					local y_sheet "CEI_`y'"
 				}
-				if `y' == 2023 {
+				if `y' == 2024 | (`y' == 2023 & !`dina_ecu_new') {
 					local y_sheet "CEI_`y'p"
 				}
 			}

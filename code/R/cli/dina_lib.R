@@ -32,7 +32,10 @@ dina_read_yaml <- function(path, default = list()) {
   if (!file.exists(path)) {
     return(default)
   }
-  yaml::read_yaml(path)
+  # A UTF-8 file connection converts to the native locale and can truncate the
+  # registry under Stata's C locale. Mark UTF-8 text without that conversion.
+  text <- readLines(path, encoding = "UTF-8")
+  yaml::yaml.load(paste(text, collapse = "\n"), error.label = path)
 }
 
 dina_write_yaml <- function(x, path) {
@@ -4352,6 +4355,7 @@ dina_run_task <- function(task, root = dina_repo_root(), session = dina_load_ses
     writeLines(c(
       "capture log close _all",
       sprintf('log using "%s", text replace', stata_quote(stata_log)),
+      sprintf('cd "%s"', stata_quote(normalizePath(root, mustWork = TRUE))),
       sprintf('capture noisily do "%s"%s', stata_quote(stata_path), script_suffix),
       "local dina_task_rc = _rc",
       "capture log close _all",
@@ -4378,7 +4382,10 @@ dina_run_task <- function(task, root = dina_repo_root(), session = dina_load_ses
   stdout_path <- file.path(log_dir, paste0(task$id, ".out.log"))
   stderr_path <- file.path(log_dir, paste0(task$id, ".err.log"))
   file.create(stdout_path, stderr_path)
-  process <- processx::process$new(command[[1]], command[-1], wd = root, stdout = "|", stderr = "|", env = env,
+  # Stata creates its automatic batch log before executing the wrapper. Start
+  # in the run directory; the wrapper returns to the repo for relative inputs.
+  process_directory <- if (identical(task$type, "stata")) log_dir else root
+  process <- processx::process$new(command[[1]], command[-1], wd = process_directory, stdout = "|", stderr = "|", env = env,
     cleanup_tree = TRUE)
   on.exit(if (process$is_alive()) process$kill_tree(), add = TRUE)
   append_output <- function(value, path) {

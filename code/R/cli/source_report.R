@@ -34,7 +34,7 @@ dina_review_sna_absences <- function(rows, detail = data.frame(), old = data.fra
   rows
 }
 
-dina_review_problem_tables <- function() c("include_detail", "staged_source_mappings", "static_dependency_report",
+dina_review_problem_tables <- function() c("include_detail", "review_actions", "staged_source_mappings", "static_dependency_report",
   "aux_validation_report", "validation_report", "candidate_source_status", "candidate_country_status", "cleaner_summary")
 
 dina_review_plain_number <- function(value, digits = 2L) {
@@ -332,9 +332,10 @@ dina_review_sna_focus_problems <- function(rows, focus) {
   direct <- if ("variable" %in% names(rows)) rows$variable %in% focus$entries$measure else rep(FALSE, nrow(rows))
   # A blocker without a variable is structural: it prevents extraction for the
   # source as a whole and therefore also for every direct pipeline input.
-  global_blocker <- (!"variable" %in% names(rows) | is.na(rows$variable) | !nzchar(rows$variable)) &
-    "severity" %in% names(rows) & rows$severity == "Blocker"
-  rows[direct | global_blocker, , drop = FALSE]
+  unscoped <- if ("variable" %in% names(rows)) is.na(rows$variable) | !nzchar(rows$variable) else rep(TRUE, nrow(rows))
+  global_blocker <- unscoped & if ("severity" %in% names(rows)) rows$severity == "Blocker" else rep(FALSE, nrow(rows))
+  unavailable_source <- if ("status" %in% names(rows)) rows$status %in% "source_unavailable" else rep(FALSE, nrow(rows))
+  rows[direct | global_blocker | unavailable_source, , drop = FALSE]
 }
 
 dina_review_sna_focused_revision_summary <- function(rows, focus) {
@@ -458,7 +459,8 @@ dina_review_artifact_change_summary <- function(rows, revisions = FALSE) {
   if (one_artifact) out$artifact <- NULL
   if (!any(nzchar(out$component))) out$component <- NULL
   if (nrow(out)) {
-    ord <- if (one_artifact) order(out$country, out$component %||% "", out$measure) else order(out$country, out$artifact, out$component %||% "", out$measure)
+    components <- out$component %||% rep("", nrow(out))
+    ord <- if (one_artifact) order(out$country, components, out$measure) else order(out$country, out$artifact, components, out$measure)
     out[ord, , drop = FALSE]
   } else out
 }
@@ -804,7 +806,7 @@ dina_review_print_sna_value_changes <- function(values, confirmed_missing, inclu
 dina_review_problems <- function(prepared) {
   # Explicit engine conditions: successful statuses containing 'missing' are not problems.
   warnings <- c("warning", "check_following", "warning_structure_review", "warning_ambiguous_match",
-    "warning_missing_expected_value", "revision_detected")
+    "warning_missing_expected_value", "revision_detected", "source_unavailable")
   blockers <- c("blocked", "failed", "ambiguous_destination", "ambiguous_registry", "ambiguous_stem",
     "stage_failed", "blocked_adapter_required", "blocked_dependency", "blocked_destination_missing",
     "blocked_missing_aux", "blocked_missing_incoming_source", "blocked_structure_mismatch",
@@ -845,6 +847,7 @@ dina_review_problems <- function(prepared) {
     labels <- c(ambiguous_destination = "Incoming file matches more than one destination",
       ambiguous_registry = "Incoming file matches more than one registered source",
       stage_failed = "Could not prepare the incoming file", warning_missing_expected_value = "Expected value was not extracted",
+      source_unavailable = "Neither an accepted nor an incoming source file was found; there is no current source to retain. Check the source inventory.",
       warning_ambiguous_match = "Extraction found conflicting matches", blocked_adapter_required = "Source layout needs an extraction adapter")
     labeled <- rows$status %in% names(labels)
     rows$reason[labeled] <- unname(labels[rows$status[labeled]])
@@ -876,6 +879,10 @@ dina_review_problem_triage_kind <- function(severity, status, extract_status = N
       source_checks_blocked = list(section = "Blocks inclusion", issue = "Required checks have not run", next_step = "Resolve the more specific block listed above, then explore this family again."),
       trust_region_confirmation_required = list(section = "Blocks inclusion", issue = "Trust-region configuration needs review", next_step = "Review the proposal, then Include the complete Admin family."),
       list(section = "Blocks inclusion", issue = "Source review could not complete", next_step = "Inspect the full problems audit.")))
+  }
+  if (identical(status, "source_unavailable")) {
+    return(list(section = "Needs investigation", issue = "Accepted and incoming source files unavailable",
+      next_step = "Check the source inventory; restore the accepted file or provide a candidate."))
   }
   switch(extract_status,
     zero_treated_missing = list(section = "Needs a decision", issue = "Published zero policy", next_step = "Confirm the zero-as-missing policy."),
