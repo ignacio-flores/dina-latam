@@ -12,7 +12,7 @@ country_output_path_owned <- function(paths, country) {
   grepl(pattern, paths, perl = TRUE)
 }
 
-country_output_rows <- function(old, new, countries) {
+country_output_rows <- function(old, new, countries, income_scope = NULL) {
   strip_blank <- function(data) {
     ids <- country_output_country(data)
     if (is.null(ids)) return(data)
@@ -32,7 +32,22 @@ country_output_rows <- function(old, new, countries) {
   if (is.null(b)) stop("A shared country table has no country identifier", call. = FALSE)
   if (any(!b %in% countries)) stop("Worker produced an unselected country's rows", call. = FALSE)
   if (nrow(old) && is.null(a)) stop("Existing table has no country identifier", call. = FALSE)
-  old <- old[!a %in% countries, , drop = FALSE]
+  if (is.null(income_scope)) {
+    old <- old[!a %in% countries, , drop = FALSE]
+  } else {
+    dimensions <- c("country", "unit", if ("step" %in% names(new)) "step")
+    if (!all(dimensions %in% names(income_scope)) ||
+        !all(dimensions %in% names(new)) ||
+        (nrow(old) && !all(dimensions %in% names(old)))) {
+      stop("Synthetic income publication needs country, unit and applicable step identifiers")
+    }
+    if (anyNA(income_scope[, dimensions, drop = FALSE]) ||
+        any(!income_scope$country %in% countries)) stop("Invalid synthetic income publication scope")
+    key <- function(data) do.call(paste, c(data[, dimensions, drop = FALSE], sep = "|"))
+    selected <- key(income_scope)
+    if (any(!key(new) %in% selected)) stop("Worker produced an unselected income step or unit")
+    if (nrow(old)) old <- old[!key(old) %in% selected, , drop = FALSE]
+  }
   columns <- union(names(old), names(new))
   for (column in setdiff(columns, names(old))) old[[column]] <- rep(NA, nrow(old))
   for (column in setdiff(columns, names(new))) new[[column]] <- rep(NA, nrow(new))
@@ -260,6 +275,10 @@ country_output_publish <- function(stage, root, task, countries, universe, journ
   saveRDS(list(pid = Sys.getpid(), journal = journal, started_at = format(Sys.time(), "%FT%T%z")), file.path(lock, "owner.rds"))
   candidates <- file.path(dirname(journal), "publish", relative)
   targets <- file.path(root, relative)
+  scope_path <- file.path(stage, "_income_scope.csv")
+  income_scope <- if (startsWith(task$id, "07a") && file.exists(scope_path)) {
+    read.csv(scope_path, stringsAsFactors = FALSE)
+  } else NULL
   for (i in seq_along(files)) {
     dir.create(dirname(candidates[i]), recursive = TRUE, showWarnings = FALSE)
     baseline <- targets[i]
@@ -271,7 +290,12 @@ country_output_publish <- function(stage, root, task, countries, universe, journ
       new <- read.csv(files[i], stringsAsFactors = FALSE, check.names = FALSE)
       if (!is.null(country_output_country(new))) {
         old <- if (file.exists(baseline)) read.csv(baseline, stringsAsFactors = FALSE, check.names = FALSE) else new[FALSE, , drop = FALSE]
-        merged <- country_output_rows(old, new, countries)
+        selected_income <- NULL
+        if (!is.null(income_scope) && grepl("/_smicrofile_long_(detailed|grouped|efftax)\\.csv$", relative[i])) {
+          selected_income <- income_scope
+          if (endsWith(relative[i], "_efftax.csv")) selected_income <- subset(income_scope, step == "nat")
+        }
+        merged <- country_output_rows(old, new, countries, selected_income)
         if (startsWith(task$id, "07c") && identical(relative[i], "output/ineqstats/_gpinter_all_topcorrected.csv")) {
           country_output_gpinter_validate(stage, merged)
         }

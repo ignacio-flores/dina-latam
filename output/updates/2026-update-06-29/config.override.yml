@@ -1,6 +1,9 @@
 years:
   last: 2024
+run:
+  steps: [natinc, pon, pod]
 export_validation:
+  steps: [nat, pod]
   last_year: 2025
   previous_update_file: input_data/_new/previous_series/dina_latam_7Nov2025.dta
   previous_update_date: 7Nov2025

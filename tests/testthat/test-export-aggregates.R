@@ -55,7 +55,7 @@ testthat::test_that("actual Stata export aggregates use exact boundaries and com
   run_stata("aggregate", c('use "input.dta", clear', "preserve",
     "keep if finished_dina == 1", "tempfile supplied", "save `supplied'", "restore",
     "drop if finished_dina == 1", "drop bottomsh bottomavg",
-    block("*compute bottom shares", "// Restore exactly the approved normalized distribution"),
+    block("*compute bottom shares", "// Restore exactly the validated normalized distribution"),
     "append using `supplied'", 'gen str3 iso = country', 'local tf_ni_wid "wid.dta"',
     "local dina_finished_count = 254", 'local dina_scale_floatvars ""',
     block("*scale to national income level", "//create main folders"),

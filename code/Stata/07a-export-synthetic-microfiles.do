@@ -40,15 +40,37 @@ file write `dina_empty' "path,sheet" _n
 *get list of countries and years 
 global steps " ${all_steps} "
 global units " ${all_units} "
+local dina_steps_env : environment DINA_RUN_STEPS
+local dina_units_env : environment DINA_RUN_UNITS
+if trim("`dina_steps_env'") != "" global steps "`dina_steps_env'"
+if trim("`dina_units_env'") != "" global units "`dina_units_env'"
+local dina_selected_steps : copy global steps
+local dina_efftax : list posof "natinc" in dina_selected_steps
+
+* Explicit replacement scope also records selected partitions with no eligible rows.
+tempname dina_income_scope
+file open `dina_income_scope' using "${dina_output_root}/_income_scope.csv", write text replace
+file write `dina_income_scope' "country,step,unit" _n
+foreach c in $dina_run_countries {
+    foreach s in $steps {
+        local shortstep = substr("`s'", 1, 3)
+        foreach u in $units {
+            file write `dina_income_scope' "`c',`shortstep',`u'" _n
+        }
+    }
+}
+file close `dina_income_scope'
 
 *get date 
 local date "$S_DATE"
 local date = subinstr("`date'", " ", "", .)
 
 *make room 
+if `dina_efftax' {
 foreach u in $units {
 	global efftax_`u' ${dina_output_root}/output/efftax/efftax_`u'_`date'.xlsx
 	qui cap erase "${efftax_`u'}"
+}
 }
 
 
@@ -377,6 +399,8 @@ qui export delimited "${dina_output_root}/output/synthetic_microfiles/_smicrofil
 
 *Effective tax rates: derive cases from each unit's actual input workbook.
 *The detail export above must not leave behind a last-step country/year list.
+* A disposable-only refresh preserves the existing pretax effective-tax export.
+if `dina_efftax' {
 clear
 qui set obs 1
 qui gen str3 country = ""
@@ -433,6 +457,7 @@ else {
 	qui gen double p = .
 }
 qui export delimited "${dina_output_root}/output/synthetic_microfiles/_smicrofile_long_efftax.csv", replace
+}
 
 file close `dina_coverage'
 file close `dina_empty'

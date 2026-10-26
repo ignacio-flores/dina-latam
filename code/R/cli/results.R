@@ -53,12 +53,31 @@ dina_results_complete <- function(root, date, config, output_root = Sys.getenv("
   if (!same(metadata$finished_publications %||% list(), dina_results_finished_publications(root))) stop("Finished-series integration changed during export.", call. = FALSE)
   graphs <- file.path("output", "figures", "updates", paste0("update-", date, "-sptinc992j-", names(dina_results_graph_names()), ".pdf"))
   series <- file.path("output", "latest_wid_series", paste0("dina_latam", c("_wide", "", ""), "_", date, c("", "", "_amory"), ".dta"))
-  paths <- c(graphs, series)
+  income_comparisons <- character(); income_report <- character()
+  if ("pod" %in% unlist(config$export_validation$steps)) {
+    series <- c(series, file.path("output", "latest_wid_series", paste0("dina_latam_", date, "_disposable.dta")))
+    income_report <- file.path("output", "figures", "updates", paste0("income-comparisons-", date, ".json"))
+    report <- dina_read_json(file.path(output_root, income_report), default = NULL)
+    if (!identical(report$status, "complete") || !identical(report$date, date) ||
+        !setequal(unlist(report$concepts), c("nat", "pod")) ||
+        !all(unlist(config$countries) %in% names(report$figures)) ||
+        !setequal(names(report$countries), names(report$figures))) {
+      stop("Comparison export is incomplete: disposable-versus-pretax figures are missing.", call. = FALSE)
+    }
+    expected <- file.path("output", "figures", "updates", paste0("update-", date, "-pod-vs-nat-", names(report$figures), ".pdf"))
+    income_comparisons <- unname(unlist(report$figures))
+    if (!identical(income_comparisons, expected)) stop("Invalid disposable comparison figure paths.", call. = FALSE)
+  }
+  paths <- c(graphs, series, income_comparisons, income_report)
   if (any(!file.exists(file.path(output_root, paths)))) stop("Comparison export is incomplete: expected graphs or final series are missing.", call. = FALSE)
   metadata$status <- "complete"
   metadata$generated_at <- dina_now()
   metadata$graphs <- graphs
   metadata$series <- series
+  if (length(income_comparisons)) {
+    metadata$income_comparisons <- income_comparisons
+    metadata$income_comparison_report <- income_report
+  }
   metadata$artifacts <- setNames(lapply(paths, function(path) dina_hash_file(file.path(output_root, path))), paths)
   dina_results_publish_metadata(metadata, dina_results_metadata_path(output_root, date))
   unlink(pending)
@@ -67,7 +86,7 @@ dina_results_complete <- function(root, date, config, output_root = Sys.getenv("
 
 dina_results_inventory <- function(root, verify = TRUE) {
   folder <- file.path(root, "output", "figures", "updates")
-  paths <- list.files(folder, pattern = "^update-.*-sptinc992j-(t10|t1|t01|t001|m40|b50)\\.pdf$", full.names = TRUE)
+  paths <- list.files(folder, pattern = "^update-.*-(sptinc992j-(t10|t1|t01|t001|m40|b50)|pod-vs-nat-[A-Z]{3})\\.pdf$", full.names = TRUE)
   paths <- paths[order(file.info(paths)$mtime, decreasing = TRUE)]
   cfg <- if (isTRUE(verify)) tryCatch(dina_session_config(dina_load_session(root = root), root, expand_env = FALSE), error = function(e) NULL) else NULL
   metadata_files <- list.files(folder, pattern = "^comparison-[A-Za-z0-9]+\\.json$", full.names = TRUE)
@@ -75,7 +94,10 @@ dina_results_inventory <- function(root, verify = TRUE) {
   states <- lapply(metadata, function(meta) {
     if (!isTRUE(verify)) return(if (!is.null(meta) && identical(meta$status, "complete")) "Not inspected" else "Generation incomplete")
     if (is.null(meta) || !identical(meta$status, "complete")) return("Generation incomplete")
-    if (!is.character(meta$baseline) || length(meta$baseline) != 1L || !length(meta$artifacts) || !length(meta$graphs) || !length(meta$series) || !all(unlist(c(meta$graphs, meta$series)) %in% names(meta$artifacts))) return("Generation metadata incomplete")
+    declared <- unlist(c(meta$graphs, meta$series, meta$income_comparisons, meta$income_comparison_report))
+    if (!is.character(meta$baseline) || length(meta$baseline) != 1L || !length(meta$artifacts) || !length(meta$graphs) || !length(meta$series) || !all(declared %in% names(meta$artifacts))) return("Generation metadata incomplete")
+    if ("pod" %in% unlist(meta$settings$export_validation$steps) &&
+        (!length(meta$income_comparisons) || !length(meta$income_comparison_report))) return("Generation metadata incomplete")
     baseline <- if (grepl("^/", meta$baseline)) meta$baseline else file.path(root, meta$baseline)
     if (!file.exists(baseline) || !identical(dina_hash_file(baseline), meta$baseline_hash)) return("Baseline changed or missing; regenerate export")
     equal <- function(x, y) identical(jsonlite::toJSON(x, auto_unbox = TRUE, null = "null"), jsonlite::toJSON(y, auto_unbox = TRUE, null = "null"))
@@ -89,10 +111,13 @@ dina_results_inventory <- function(root, verify = TRUE) {
   })
   graphs <- dina_review_bind(lapply(paths, function(path) {
     rel <- dina_relative(path, root)
+    disposable <- grepl("-pod-vs-nat-[A-Z]{3}[.]pdf$", path)
     group <- sub("^.*-([^-]+)\\.pdf$", "\\1", basename(path))
-    hit <- which(vapply(metadata, function(meta) rel %in% unlist(meta$graphs), logical(1)))
+    title <- if (disposable) paste("Pretax versus disposable income -", group) else dina_results_graph_names()[[group]]
+    if (disposable) group <- paste0("pod-nat-", group)
+    hit <- which(vapply(metadata, function(meta) rel %in% unlist(c(meta$graphs, meta$income_comparisons)), logical(1)))
     meta <- if (length(hit)) metadata[[hit[1]]] else NULL
-    data.frame(graph = group, title = dina_results_graph_names()[[group]], path = rel,
+    data.frame(graph = group, title = title, path = rel,
       baseline = meta$baseline %||% "Generation baseline unknown",
       generated = meta$generated_at %||% "Unknown",
       status = if (length(hit)) states[[hit[1]]] else "Generation baseline unknown", stringsAsFactors = FALSE)

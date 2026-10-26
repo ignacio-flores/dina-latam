@@ -131,7 +131,9 @@ test_that("07a exports only selected partitions and derives effective-tax cases 
   root <- country_export_fixture(); on.exit(unlink(root, recursive = TRUE))
   country_export_copy(root, "code/Stata/07a-export-synthetic-microfiles.do")
   country_export_copy(root, "code/Stata/auxiliar/aux_exclude_ctries.do")
-  writeLines(c('global all_countries "ARG COL"', 'global all_steps "natinc"', 'global all_units "esn"',
+  writeLines(c('global all_countries "ARG COL"',
+    sprintf('global all_steps %s',dina_stata_quote_list("natinc")),
+    sprintf('global all_units %s',dina_stata_quote_list("esn")),
     'global countries_tax "ARG COL"', 'global first_y 2000', 'global last_y 2001'),
     file.path(root, "code/Stata/auxiliar/aux_general.do"))
   haven::write_dta(data.frame(country = c("ARG", "COL"), countrycode = c("AR", "CO"), year = 2000,
@@ -165,6 +167,20 @@ test_that("07a exports only selected partitions and derives effective-tax cases 
   expect_equal(sum(coverage$status=="success"),3L)
   expect_true(all(coverage$country=="ARG"))
 
+  # A new disposable/esn pass needs no other concept or unit workbooks and
+  # does not regenerate the existing effective-tax exports.
+  file.copy(file.path(root,"output/ineqstats/ineqstats_natinc_esn.xlsx"),
+    file.path(root,"output/ineqstats/ineqstats_pod_esn.xlsx"))
+  pod_stage <- country_export_stage(root,"pod-only")
+  expect_equal(country_export_stata(root,"code/Stata/07a-export-synthetic-microfiles.do",
+    "07a-export-synthetic-microfiles","ARG",pod_stage,
+    c(DINA_RUN_STEPS="pod",DINA_RUN_UNITS="esn")),0L)
+  pod <- read.csv(file.path(pod_stage,"output/synthetic_microfiles/_smicrofile_long_detailed.csv"))
+  expect_setequal(pod$step,"pod"); expect_setequal(pod$unit,"esn")
+  expect_false(file.exists(file.path(pod_stage,"output/synthetic_microfiles/_smicrofile_long_efftax.csv")))
+  expect_identical(read.csv(file.path(pod_stage,"_income_scope.csv")),
+    data.frame(country="ARG",step="pod",unit="esn"))
+
   # Absence from Summary is an explicit retirement intent, not a silent no-op.
   openxlsx::write.xlsx(list(Summary=summary[summary$country=="COL",],Composition=comp[comp$country=="COL",],COL2000=detail("COL")),
     file.path(root,"output/ineqstats/ineqstats_natinc_esn.xlsx"),overwrite=TRUE)
@@ -181,6 +197,7 @@ test_that("07c fits selected groups and writes complete group inventory without 
   skip_if_not_installed("gpinter"); skip_if_not_installed("readr")
   root <- country_export_fixture(); on.exit(unlink(root, recursive=TRUE))
   country_export_copy(root,"code/R/07c_interpolate_ineqstats.R")
+  for (helper in c("gpinter_precision.R", "gpinter_thresholds.R", "gpinter_tail_repair.R", "gpinter_atoms.R")) country_export_copy(root,file.path("code/R",helper))
   writeLines('country_run_r_entry <- function(task,args) stopifnot(Sys.getenv("DINA_COUNTRY_WORKER") == task)',file.path(root,"code/R/country_run.R"))
   p <- c(seq(0,.99,.01),seq(.991,.999,.001),seq(.9991,.9999,.0001),seq(.99991,.99999,.00001))
   surv <- 1-p; integral <- surv*(1-log(surv)); nextintegral <- c(integral[-1],0); nextp <- c(p[-1],1)
@@ -235,7 +252,7 @@ test_that("07d donor failure names a country missing only at a particular year a
   start <- grep("^\\*loop over groups$",lines)
   end <- grep("^\\*merge with population data",lines)
   writeLines(c('clear all',paste0('global all_countries "',paste(c(countries,"CRI"),collapse=" "),'"'),
-    'local steps "nat"','use "donors.dta", clear',lines[start:(end-1)]),file.path(root,"donor-check.do"))
+    'local steps "nat"','local dina_finished_count = 0','use "donors.dta", clear',lines[start:(end-1)]),file.path(root,"donor-check.do"))
   stage<-country_export_stage(root,"selected")
   expect_equal(country_export_stata(root,"donor-check.do","fixture-donors","ARG",stage),9L)
   log<-readLines(file.path(root,"worker.log"),warn=FALSE)

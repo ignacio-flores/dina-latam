@@ -504,7 +504,7 @@ Compatibility:
   dina run stale [--benchmark] [--dry-run]
   dina run TASK [OPTIONS]
   dina run --task TASK [OPTIONS]
-  dina run --resume RUN_ID [--dry-run] [--force]
+  dina run --resume RUN_ID [--dry-run] [--notify]
 
 What it does:
   Selects tasks from `config/pipeline.yml`, checks freshness, then executes
@@ -536,7 +536,12 @@ Options:
   --countries ISO3,ISO3            Process selected countries in tasks 03a–07d.
                                   With no task selector, use that whole range.
                                   Shared calculations retain complete inputs.
-  --resume RUN_ID                  Continue the saved tasks/countries, reusing
+  --steps STEP,STEP                Restrict statistics, figures and synthetic
+                                  updates in a 06a–07d range (e.g. pod).
+  --units UNIT,UNIT                Restrict those updates to configured units
+                                  (e.g. esn). Other results are retained;
+                                  07c/07d use complete combined inputs.
+  --resume RUN_ID                  Continue the saved tasks/countries/steps/units, reusing
                                   successful checkpoints in that run.
   --notify                        Send a Pushover message at completion/failure.
 
@@ -567,6 +572,7 @@ Examples:
   dina run --from 03 --to 05
   dina run 07d --notify
   dina run --from 03a --to 07d --countries ARG,COL --dry-run
+  dina run --from 06a --steps pod --units esn --notify
   dina run --resume RUN_ID --notify
 ",
     config = "Usage:
@@ -6277,7 +6283,7 @@ dina_cmd_sources_legacy <- function(root, args) {
 dina_cmd_tasks <- function(root, args) {
   args <- dina_drop_leading_separator(args)
   sub <- dina_arg(args, 1L, "list")
-  if (any(grepl("^--(countries|resume)($|=)", args))) return(dina_cmd_run(root, args))
+  if (any(grepl("^--(countries|resume|steps|units)($|=)", args))) return(dina_cmd_run(root, args))
   flags <- dina_parse_flags(args[-1L])
   session <- if (isTRUE(flags$benchmark)) NULL else dina_load_session(root = root)
   if (identical(sub, "list")) {
@@ -6345,7 +6351,7 @@ dina_country_run_load <- function() {
 }
 
 dina_country_run_flags <- function(flags, config) {
-  for (name in c("countries", "resume")) {
+  for (name in c("countries", "resume", "steps", "units")) {
     value <- flags[[name]]
     if (!is.null(value) && (isTRUE(value) || !length(value) || !nzchar(trimws(value)))) {
       stop("Missing value for --", name, ".", call. = FALSE)
@@ -6394,6 +6400,11 @@ dina_country_preview_print <- function(previews, countries, run_context = NULL) 
   dina_cli_header("Country run")
   dina_cli_cat(paste("Requested countries:", paste(countries, collapse = ", ")))
   if (!is.null(run_context$id)) dina_cli_cat(paste("Run:", run_context$id))
+  if (!is.null(run_context$selection)) {
+    dina_cli_cat(paste("Requested income steps:", paste(run_context$selection$steps, collapse = ", ")))
+    dina_cli_cat(paste("Requested statistical units:", paste(run_context$selection$units, collapse = ", ")))
+    dina_cli_cat("Other income concepts and units are retained; 07c/07d use complete combined results.")
+  }
   dina_cli_cat("Shared calculations retain their complete country inputs.")
   for (preview in previews) {
     dina_cli_cat(paste0(preview$task %||% preview$id %||% "task", ": ", preview$status %||% "planned"))
@@ -6424,7 +6435,8 @@ dina_cmd_run <- function(root, args) {
   sub <- dina_arg(args, 1L, NULL)
   flags <- dina_parse_flags(if (any(sub %in% c("list", "why", "stale"))) args[-1L] else args)
   session <- if (isTRUE(flags$benchmark)) NULL else dina_load_session(root = root)
-  scoped <- !is.null(flags$countries) || !is.null(flags$resume)
+  selection <- if (!is.null(flags$steps) || !is.null(flags$units)) list(steps = flags$steps, units = flags$units) else NULL
+  scoped <- !is.null(flags$countries) || !is.null(flags$resume) || !is.null(selection)
   default_tasks <- NULL
   if (!scoped) {
     selectors <- c(flags$task %||% character(), flags$positional %||% character())
@@ -6455,13 +6467,21 @@ dina_cmd_run <- function(root, args) {
       all_tasks <- dina_task_map(root)
       if (any(!task_ids %in% names(all_tasks))) stop("The saved run refers to tasks that are no longer configured.", call. = FALSE)
       tasks <- unname(all_tasks[task_ids])
-      run_context <- country_run_begin(root = root, tasks = tasks, config = config, countries = countries,
+      begin_args <- list(root = root, tasks = tasks, config = config, countries = countries,
         resume = flags$resume, dry_run = TRUE)
+      if (!is.null(selection)) begin_args$selection <- selection
+      run_context <- do.call(country_run_begin, begin_args)
       countries <- as.character(unlist(run_context$countries, use.names = FALSE))
+      selection <- run_context$selection %||% NULL
     } else {
       tasks <- default_tasks %||% dina_country_run_task_selection(root, flags, sub)
+      if (!is.null(selection)) {
+        selection <- country_run_income_selection(selection, config)
+        country_run_income_tasks(tasks, selection)
+        run_context <- list(selection = selection, record = list(chunks = list()))
+      }
     }
-    if (identical(sub, "stale") && is.null(flags$resume)) {
+    if (identical(sub, "stale") && is.null(flags$resume) && is.null(selection)) {
       statuses <- lapply(tasks, dina_task_status, root = root, session = session)
       tasks <- tasks[vapply(statuses, function(status) !status$status %in% c("current", "inactive"), logical(1))]
       if (!length(tasks)) {
@@ -6560,8 +6580,10 @@ dina_cmd_run <- function(root, args) {
     }
   }
   if (scoped) {
-    run_context <- country_run_begin(root = root, tasks = tasks, config = config, countries = countries,
+    begin_args <- list(root = root, tasks = tasks, config = config, countries = countries,
       resume = flags$resume %||% NULL, dry_run = FALSE)
+    if (!is.null(selection)) begin_args$selection <- selection
+    run_context <- do.call(country_run_begin, begin_args)
     dina_cli_alert(paste("Resume an interrupted run with: dina run --resume", run_context$id))
     on.exit(tryCatch(country_run_finish(run_context,
       if (completed) "succeeded" else if (is.null(notification_failure)) "interrupted" else "failed"),

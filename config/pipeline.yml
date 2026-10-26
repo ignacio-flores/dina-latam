@@ -513,6 +513,8 @@ tasks:
       - output/ineqstats/_gpinter_all_topcorrected.csv
       - output/data_reports/latam_availability.xlsx
       - code/R/07d_prepare_finished_dina.R
+      - code/R/export-income-means.R
+      - code/R/plot-disposable-comparisons.R
       - code/R/source-diagnostics/finished_dina_publication.R
       - code/R/cli/finished_dina_publication.R
       - code/Stata/auxiliar/dina_finished_overlay.do

@@ -104,8 +104,13 @@ qui do "code/Stata/auxiliar/aux_general.do"
 local iter_inf = 1 
 
 global units "$unit_list"
-	foreach unit in "$units" {
-	foreach type in $all_steps {
+local dina_steps_env : environment DINA_RUN_STEPS
+local dina_units_env : environment DINA_RUN_UNITS
+local dina_graph_steps : copy global all_steps
+if trim("`dina_steps_env'") != "" local dina_graph_steps "`dina_steps_env'"
+if trim("`dina_units_env'") != "" global units "`dina_units_env'"
+	foreach unit in $units {
+	foreach type in `dina_graph_steps' {
 	
 		//define short labels 
 		local shortlab_type =  substr("`type'", 1, 3)

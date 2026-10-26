@@ -136,9 +136,34 @@ qui sort country year p
 qui keep step country year p bracketavg s thr topsh topavg 
 qui order step country year p bracketavg s thr topsh topavg 
 
+// Every requested concept must exist for every configured source country.
+// Never replace missing disposable estimates with the pretax distribution.
+foreach concept in `steps' {
+	if !inlist("`concept'", "nat", "pon", "pod") {
+		di as error "Unsupported export income concept: `concept'"
+		exit 198
+	}
+	foreach c in $all_countries {
+		quietly count if step == "`concept'" & country == "`c'"
+		if r(N) == 0 {
+			di as error "Missing `concept'/`unit' GPinter results for `c'. Run its statistics and 07a-07c first."
+			exit 459
+		}
+	}
+}
+// Monetary ratios use precisely the internally observed export cases, after
+// the same scientific exclusions as the distributions above.
+tempfile dina_income_observed
+preserve
+	keep if p == 0
+	keep country year step
+	isid country year step
+	export delimited using "`dina_income_observed'", replace
+restore
+
 *normalize variables in lcu 
 tempvar average 
-bysort country year: egen `average' = min(topavg)
+bysort step country year: egen `average' = min(topavg)
 foreach var in "bracketavg" "thr" "topavg" {
 	qui gen `var'_norm = `var' / `average'
 	if "`var'" != "bracketavg" qui replace `var' = `var'_norm 
@@ -228,40 +253,27 @@ foreach x in "data" "extrap" "interp" {
 	qui gen `x'_points = ""
 }
 
-*tag data points, extrapolations and interpolations  
-foreach c in `all_ctries' {
-	//list data points
-	qui levelsof year if country == "`c'" & missing(extrap), ///
-		local(data_points_`c') clean separate(,)
-	if ("`data_points_`c''" != "") {
-		//tag them  
-		qui replace data_points = "[`data_points_`c'']" if country == "`c'"
-		//get most recent year for each country
-		qui sum year if country == "`c'" & missing(extrap)
-		local `c'_max_year = r(max)
-		local `c'_min_year = r(min)
-		*list extrapolated points 
-		qui levelsof year if country == "`c'" & !missing(extrap), ///
-			local(extrap_points_`c') clean separate(,)		
-		if ("`extrap_points_`c''" != "") {
-			local retrop_`c' ""
-			if ``c'_min_year' > $first_y local retrop_`c' "[$first_y, ``c'_min_year'] ; "
-			local extrap_points_`c' "``c'_max_year', `ly'"
-			qui replace extrap_points = ///
-				"`retrop_`c''[`extrap_points_`c'']" if country == "`c'"
+*tag data points, extrapolations and interpolations
+// A concept can have different observed years; never pool its coverage tags.
+foreach concept in `steps' {
+	foreach c in `all_ctries' {
+		quietly levelsof year if country == "`c'" & step == "`concept'" & missing(extrap), local(data_years) clean separate(,)
+		if "`data_years'" != "" {
+			quietly replace data_points = "[`data_years']" if country == "`c'" & step == "`concept'"
+			quietly summarize year if country == "`c'" & step == "`concept'" & missing(extrap)
+			local data_min = r(min)
+			local data_max = r(max)
+			quietly count if country == "`c'" & step == "`concept'" & !missing(extrap)
+			if r(N) > 0 {
+				local retro ""
+				if `data_min' > $first_y local retro "[$first_y, `data_min'] ; "
+				quietly replace extrap_points = "`retro'[`data_max', `ly']" if country == "`c'" & step == "`concept'"
+			}
+			quietly levelsof year if country == "`c'" & step == "`concept'" & imputed == 1 & missing(extrap), local(interp_years) clean separate(,)
+			if "`interp_years'" != "" quietly replace interp_points = "[`interp_years']" if country == "`c'" & step == "`concept'"
+			display as result "`c' `concept': observed [`data_years']; interpolated [`interp_years']"
 		}
-		*list interpolated years 
-		qui levelsof year if country == "`c'" & imputed == 1 & ///
-			missing(extrap), local(interp_points_`c') clean separate(,)
-		if ("`interp_points_`c''" != "") {
-			qui replace interp_points = "[`interp_points_`c'']" if country == "`c'"
-		}	
-		*report everything 
-		di as result "`c' :" 
-		di as text "data points :  `data_points_`c''"
-		di as text "extrapolation: `extrap_points_`c''"		
-		di as text "interpolated: `interp_points_`c''"		
-	}	
+	}
 }
 
 *harmonise country names  
@@ -629,12 +641,31 @@ preserve
 	qui save `tf_ni_wid'
 restore  
 
-*scale to national income level 
+*scale to national income level
 qui merge m:1 iso year using `tf_ni_wid'
 qui drop if year < 2002 & missing(country)
-qui sort step country year p 
+qui sort step country year p
+local dina_income_scale "anninc992i"
+local dina_has_pod : list posof "pod" in steps
+if `dina_has_pod' > 0 {
+	// Keep the disposable aggregate relative to national income: normalization
+	// concerns distribution shape, not an instruction to equate the two totals.
+	tempfile dina_income_targets dina_income_ratios
+	preserve
+		keep if !missing(p)
+		keep country year step
+		duplicates drop
+		export delimited using "`dina_income_targets'", replace
+	restore
+	shell Rscript code/R/export-income-means.R "output/synthetic_microfiles/_smicrofile_long_grouped.csv" "`dina_income_targets'" "`comparison_request'" "`dina_income_ratios'" "`dina_income_observed'"
+	confirm file "`dina_income_ratios'"
+	merge m:1 country year step using "`dina_income_ratios'", keep(master match) nogen
+	assert !missing(income_mean_ratio) & income_mean_ratio > 0 if !missing(p)
+	generate double income_mean = anninc992i * income_mean_ratio
+	local dina_income_scale "income_mean"
+}
 foreach var in "bracketavg" "thr" "topavg" "bottomavg" {
-	qui replace `var' = `var' * anninc992i
+	qui replace `var' = `var' * `dina_income_scale'
 }
 if `dina_finished_count' > 0 {
 	// Appending doubles must not change rounding of previously float columns.
@@ -678,15 +709,15 @@ qui gen perc = "p"+string(p)+"p"+string(p2)
 qui drop p p2
 qui rename perc p
 
-//rename 
-qui reshape wide bracketavg s thr, i(country year p) j(step) string 
-qui rename (bracketavgnat snat thrnat) (aptinc992j sptinc992j tptinc992j )
-//qui rename (bracketavgpon spon thrpon) (adiinc992j sdiinc992j tdiinc992j)
-qui renvars aptinc992j sptinc992j tptinc992j, prefix(value)
-//qui renvars adiinc992j sdiinc992j tdiinc992j, prefix(value)
-	
-//put in long format 	
-qui greshape long value, i(country year p) j(widcode) string
+// Reshape within each income concept so concept-specific coverage survives.
+qui renvars bracketavg s thr, prefix(value)
+qui greshape long value, i(step country year p) j(widcode) string
+foreach concept in `steps' {
+	local income_code = cond("`concept'" == "nat", "ptinc", cond("`concept'" == "pon", "diinc", "cainc"))
+	qui replace widcode = "a`income_code'992j" if widcode == "bracketavg" & step == "`concept'"
+	qui replace widcode = "s`income_code'992j" if widcode == "s" & step == "`concept'"
+	qui replace widcode = "t`income_code'992j" if widcode == "thr" & step == "`concept'"
+}
 
 *Top
 preserve
@@ -701,6 +732,8 @@ preserve
 	qui replace widcode = "aptinc992j" if widcode == "topavg" & step == "nat"
 	qui replace widcode = "sdiinc992j" if widcode == "topsh" & step == "pon"
 	qui replace widcode = "adiinc992j" if widcode == "topavg" & step == "pon"
+	qui replace widcode = "scainc992j" if widcode == "topsh" & step == "pod"
+	qui replace widcode = "acainc992j" if widcode == "topavg" & step == "pod"
 	tempfile top
 	save `top'
 restore
@@ -730,6 +763,7 @@ preserve
 	qui reshape long value, i(step country year) j(p) string
 	qui gen widcode = "sptinc992j" if step == "nat"
 	qui replace widcode = "sdiinc992j" if step == "pon"
+	qui replace widcode = "scainc992j" if step == "pod"
 	qui tempfile bottom
 	save `bottom'	
 restore
@@ -758,6 +792,7 @@ preserve
 	qui reshape long value, i(step country year) j(p) string
 	qui gen  widcode = "aptinc992j" if step == "nat"
 	qui replace  widcode = "adiinc992j" if step == "pon"
+	qui replace widcode = "acainc992j" if step == "pod"
 	tempfile bottomavg
 	qui save `bottomavg'	
 restore
@@ -783,11 +818,13 @@ tab country data_quality
 
 qui gen comment = ///
 	"Scaled to Net National inc. from WID.world (Constant LCU)" 
+qui replace comment = "Disposable-income mean: internal disposable/national income ratio times WID national-income benchmark" if step == "pod"
 
 if `dina_finished_count' > 0 {
-	// Bracket reshaping removes step; recover the existing WID concept mapping.
+	// Keep attribution keyed by the actual income concept.
 	replace step = "nat" if strpos(widcode, "ptinc")
 	replace step = "pon" if strpos(widcode, "diinc")
+	replace step = "pod" if strpos(widcode, "cainc")
 	quietly merge m:1 country year step using `dina_final_attribution', keep(master match) nogen
 	// Source origin is separate from the internal survey/admin quality scale.
 	replace data_quality = . if pub_source != ""
@@ -821,6 +858,15 @@ preserve
 	qui keep if strpos(widcode, "diinc")
 	qui save "${dina_output_root}/output/latest_wid_series/dina_latam_`date'_amory.dta", replace
 restore 
+
+if `dina_has_pod' > 0 {
+	preserve
+		keep if strpos(widcode, "cainc")
+		assert _N > 0
+		isid country year p widcode
+		save "${dina_output_root}/output/latest_wid_series/dina_latam_`date'_disposable.dta", replace
+	restore
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -14,4 +14,14 @@ config$export_validation$steps <- strsplit(trimws(gsub('"', "", request[3], fixe
 config$export_validation$last_year <- as.integer(request[4])
 config$countries <- strsplit(trimws(gsub('"', "", request[5], fixed = TRUE)), "[[:space:]]+")[[1]]
 config$years <- list(first = as.integer(request[6]), last = as.integer(request[7]))
-if (args[1] == "begin") dina_results_begin(root, args[2], config) else dina_results_complete(root, args[2], config)
+if (args[1] == "begin") {
+  dina_results_begin(root, args[2], config)
+} else {
+  if ("pod" %in% unlist(config$export_validation$steps)) {
+    source(file.path(root, "code", "R", "plot-disposable-comparisons.R"))
+    output_root <- Sys.getenv("DINA_OUTPUT_ROOT", unset = root)
+    if (!nzchar(output_root)) output_root <- root
+    dina_disposable_comparison_export(root, output_root, args[2], config)
+  }
+  dina_results_complete(root, args[2], config)
+}

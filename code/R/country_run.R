@@ -68,6 +68,38 @@ country_run_scope <- function(task, config, countries) {
   intersect(requested, as.character(unlist(task$country_applicability %||% config$countries)))
 }
 
+country_run_income_selection <- function(selection, config, saved = NULL) {
+  if (is.null(selection) && is.null(saved)) return(NULL)
+  resolved <- lapply(c("steps", "units"), function(name) {
+    universe <- as.character(unlist(config$run[[name]], use.names = FALSE))
+    value <- selection[[name]] %||% saved[[name]] %||% universe
+    if (isTRUE(value) || !length(value)) stop("Missing value for --", name, ".", call. = FALSE)
+    value <- unique(unlist(strsplit(paste(unlist(value), collapse = ","), "[,[:space:]]+"), use.names = FALSE))
+    value <- value[nzchar(value)]
+    if (!length(value)) stop("Missing value for --", name, ".", call. = FALSE)
+    unknown <- setdiff(value, universe)
+    if (length(unknown)) stop("--", name, " must use the effective configuration: ",
+      paste(universe, collapse = ", "), ". Unknown: ", paste(unknown, collapse = ", "), ".", call. = FALSE)
+    universe[universe %in% value]
+  })
+  stats::setNames(resolved, c("steps", "units"))
+}
+
+country_run_income_tasks <- function(tasks, selection) {
+  if (is.null(selection)) return(invisible(NULL))
+  ids <- vapply(tasks, `[[`, "", "id")
+  unsupported <- ids[!grepl("^(06[ab]|07[a-d])(-|$)", ids)]
+  if (length(unsupported)) stop("--steps and --units support tasks 06a through 07d only. Unsupported selection: ",
+    paste(unsupported, collapse = ", "), ".", call. = FALSE)
+  invisible(NULL)
+}
+
+country_run_income_env <- function(task, selection) {
+  if (is.null(selection) || !grepl("^(06b|07a)(-|$)", task$id)) return(character())
+  c(DINA_RUN_STEPS = paste(selection$steps, collapse = " "),
+    DINA_RUN_UNITS = paste(selection$units, collapse = " "))
+}
+
 country_run_read <- function(root, id) {
   if (length(id) != 1L || !grepl("^[A-Za-z0-9_-]+$", id)) stop("Invalid run ID")
   path <- file.path(root, "output", "run_logs", id, "country-run.json")
@@ -84,7 +116,7 @@ country_run_save <- function(context) {
   if (!file.rename(temp, file)) stop("Could not record country run progress")
 }
 
-country_run_begin <- function(root, tasks, config, countries, resume = NULL, dry_run = FALSE) {
+country_run_begin <- function(root, tasks, config, countries, resume = NULL, dry_run = FALSE, selection = NULL) {
   country_run_load_cli(root)
   ids <- vapply(tasks, `[[`, "", "id")
   context <- new.env(parent = emptyenv())
@@ -98,15 +130,25 @@ country_run_begin <- function(root, tasks, config, countries, resume = NULL, dry
         !setequal(scope, unlist(record$countries)) || !identical(config, record$config)) {
       stop("Resume requires the saved task selection, countries and configuration. Start a new invocation for changed settings.", call. = FALSE)
     }
+    requested <- country_run_income_selection(selection, config, saved = record$selection)
+    expected <- country_run_income_selection(record$selection %||% list(), config)
+    if (!is.null(selection) && !identical(requested, expected)) {
+      stop("Resume requires the saved income steps and statistical units. Omit --steps/--units to restore them, or start a new invocation.", call. = FALSE)
+    }
+    selection <- requested
   } else {
     scope <- country_run_codes(countries, config)
+    selection <- country_run_income_selection(selection, config)
     record <- list(version = 1L, id = paste0(format(Sys.time(), "%Y%m%d-%H%M%S"), "-countries-", Sys.getpid(), "-", basename(tempfile())),
                    tasks = as.list(ids), countries = as.list(scope), config = config,
                    started_at = format(Sys.time(), "%FT%T%z"), status = "running", chunks = list(), baselines = list())
   }
+  country_run_income_tasks(tasks, selection)
+  if (!is.null(selection)) record$selection <- lapply(selection, as.list)
   context$id <- record$id
   context$countries <- as.character(unlist(record$countries))
   context$tasks <- ids
+  context$selection <- selection
   context$directory <- file.path(root, "output", "run_logs", context$id)
   context$record <- record
   if (!dry_run) {
@@ -130,7 +172,7 @@ country_run_finish <- function(context, status) {
   country_run_save(context)
 }
 
-country_run_chunks <- function(task, config, countries) {
+country_run_chunks <- function(task, config, countries, selection = NULL) {
   scope <- country_run_scope(task, config, countries)
   if (!length(scope)) return(list())
   if (identical(task$country_scope, "shared")) return(list(list(country = scope, step = "all", unit = "all", key = paste0(task$id, "--shared"))))
@@ -140,6 +182,10 @@ country_run_chunks <- function(task, config, countries) {
     if (isTRUE(config$run$debug)) {
       steps <- c("raw", "natinc", "por", "psp", "bfm_norep_pre", "rescaled", "pon", "pod")
       units <- c("esn", "pch")
+    }
+    if (!is.null(selection)) {
+      steps <- selection$steps
+      units <- selection$units
     }
     grid <- expand.grid(country = scope, step = steps, unit = units, stringsAsFactors = FALSE)
   } else grid <- data.frame(country = scope, step = "all", unit = "all")
@@ -161,12 +207,20 @@ country_run_cases <- function(root, config, country, stage = "raw") {
 country_run_preview <- function(task, root, session, countries, force = FALSE, run_context = NULL, planned_tasks = NULL) {
   config <- dina_session_config(session, root, expand_env = FALSE)
   scope <- country_run_scope(task, config, countries)
-  chunks <- country_run_chunks(task, config, countries)
+  selection <- run_context$selection %||% NULL
+  chunks <- country_run_chunks(task, config, countries, selection)
   completed <- if (is.null(run_context)) character() else names(Filter(function(x) identical(x$status, "succeeded") || identical(x$status, "cached"), run_context$record$chunks))
   reuse <- vapply(Filter(function(x) x$key %in% completed, chunks), `[[`, "", "key")
   chunks <- Filter(function(x) !x$key %in% completed, chunks)
   compute <- vapply(chunks, function(x) paste(paste(x$country, collapse = ","), if (x$step != "all") paste(x$step, x$unit, sep = "/") else ""), "")
   issues <- messages <- character()
+  if (!is.null(selection)) {
+    if (grepl("^(06[ab]|07a)(-|$)", task$id)) messages <- c(messages,
+      paste0("Selected income steps: ", paste(selection$steps, collapse = ", "), "; units: ",
+        paste(selection$units, collapse = ", "), ". Existing other concepts and units are retained."))
+    if (grepl("^07[cd](-|$)", task$id)) messages <- c(messages,
+      "Use complete combined results, including retained income concepts and units; --steps/--units do not narrow this assembly.")
+  }
   if (startsWith(task$id, "07d")) {
     tryCatch({
       publication <- dina_finished_publication_readiness(root, config,
@@ -287,7 +341,7 @@ country_run_execute <- function(task, root, session, countries, force = FALSE, p
     dina_progress(progress, "Country run %s; recovery command: dina run --resume %s.", context$id, context$id)
     on.exit(country_run_finish(context, if (finished) "succeeded" else "failed"), add = TRUE)
   }
-  chunks <- country_run_chunks(task, config, countries)
+  chunks <- country_run_chunks(task, config, countries, context$selection %||% NULL)
   if (!length(chunks)) {
     finished <- TRUE
     return(list(task = task$id, status = "not_applicable", reason = "No applicable selected countries."))
@@ -316,7 +370,8 @@ country_run_execute <- function(task, root, session, countries, force = FALSE, p
     country_run_save(context)
     dina_progress(progress, "Starting %s: %s%s.", task$id, paste(chunk$country, collapse = ","), if (chunk$step != "all") paste0(" / ", chunk$step, " / ", chunk$unit) else "")
     result <- tryCatch({
-      worker <- country_run_worker(task, root, session, chunk, stage, progress)
+      extra <- country_run_income_env(task, context$selection %||% NULL)
+      worker <- country_run_worker(task, root, session, chunk, stage, progress, extra = extra)
       if (!identical(worker$status, "succeeded")) {
         context$record$chunks[[chunk$key]]$log_dir <- worker$log_dir
         stop("Script failed; logs: ", worker$log_dir, "\n", paste(unlist(worker$failure %||% "Inspect the task log."), collapse = " "), call. = FALSE)
