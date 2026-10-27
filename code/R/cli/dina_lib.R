@@ -21,6 +21,14 @@ dina_path <- function(..., root = dina_repo_root()) {
   file.path(root, ...)
 }
 
+dina_format_elapsed <- function(seconds) {
+  seconds <- round(max(0, as.numeric(seconds)), 1)
+  if (seconds < 60) return(sprintf("%.1fs", seconds))
+  seconds <- floor(seconds)
+  if (seconds < 3600) return(sprintf("%dm %02ds", seconds %/% 60, seconds %% 60))
+  sprintf("%dh %02dm %02ds", seconds %/% 3600, (seconds %% 3600) %/% 60, seconds %% 60)
+}
+
 dina_need <- function(package) {
   if (!requireNamespace(package, quietly = TRUE)) {
     stop("Required R package is missing: ", package, call. = FALSE)
@@ -4403,11 +4411,11 @@ dina_run_task <- function(task, root = dina_repo_root(), session = dina_load_ses
     if (all(io %in% c("closed", "nopipe"))) Sys.sleep(0.1)
     now <- Sys.time()
     if (as.numeric(difftime(now, last_update, units = "secs")) >= 15) {
-      elapsed <- round(as.numeric(difftime(now, started, units = "secs")))
+      elapsed <- dina_format_elapsed(difftime(now, started, units = "secs"))
       detail <- if (nzchar(stata_log) && file.exists(stata_log)) {
         sprintf("; Stata log %s KiB", round(file.info(stata_log)$size / 1024, 1))
       } else ""
-      dina_progress(progress, "Still running %s (%ss%s).", task$id, elapsed, detail)
+      dina_progress(progress, "Still running %s (%s%s).", task$id, elapsed, detail)
       last_update <- now
     }
   }

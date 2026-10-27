@@ -169,7 +169,16 @@ test_that("07a exports only selected partitions and derives effective-tax cases 
 
   # A new disposable/esn pass needs no other concept or unit workbooks and
   # does not regenerate the existing effective-tax exports.
-  file.copy(file.path(root,"output/ineqstats/ineqstats_natinc_esn.xlsx"),
+  pod_detail <- function(c) {
+    x <- detail(c)
+    x <- x[setdiff(names(x),c("wag","hea","edu","oex"))]
+    x$mbe <- .8; x$wmbe <- .2
+    x
+  }
+  pod_comp <- comp
+  names(pod_comp) <- sub("_wag$","_mbe",names(pod_comp))
+  openxlsx::write.xlsx(list(Summary=summary,Composition=pod_comp,
+    ARG2000=pod_detail("ARG"),COL2000=pod_detail("COL")),
     file.path(root,"output/ineqstats/ineqstats_pod_esn.xlsx"))
   pod_stage <- country_export_stage(root,"pod-only")
   expect_equal(country_export_stata(root,"code/Stata/07a-export-synthetic-microfiles.do",
@@ -177,6 +186,9 @@ test_that("07a exports only selected partitions and derives effective-tax cases 
     c(DINA_RUN_STEPS="pod",DINA_RUN_UNITS="esn")),0L)
   pod <- read.csv(file.path(pod_stage,"output/synthetic_microfiles/_smicrofile_long_detailed.csv"))
   expect_setequal(pod$step,"pod"); expect_setequal(pod$unit,"esn")
+  expect_false(any(c("hea","edu","oex") %in% names(pod)))
+  expect_equal(pod$mbe,rep(.8,127)); expect_equal(pod$wmbe,rep(.2,127))
+  expect_equal(pod$avg,detail("ARG")$avg,tolerance=1e-5)
   expect_false(file.exists(file.path(pod_stage,"output/synthetic_microfiles/_smicrofile_long_efftax.csv")))
   expect_identical(read.csv(file.path(pod_stage,"_income_scope.csv")),
     data.frame(country="ARG",step="pod",unit="esn"))

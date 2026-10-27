@@ -39,6 +39,7 @@ testthat::test_that("actual Stata exports multiple concepts without pooled means
   # Only code is linked; every input and output is an isolated tiny fixture.
   stopifnot(file.symlink(file.path(repo_root_for_tests, "code"), file.path(root, "code")))
   dir.create(file.path(root, "output/synthetic_microfiles"), recursive = TRUE)
+  dir.create(file.path(root, "output/latest_wid_series"), recursive = TRUE)
   countries <- c("ARG", "ECU", "URY", "CRI")
   p <- round(c(seq(0, .99, .01), seq(.991, .999, .001),
     seq(.9991, .9999, .0001), seq(.99991, .99999, .00001)) * 1e5)
@@ -89,6 +90,10 @@ testthat::test_that("actual Stata exports multiple concepts without pooled means
       "append using `top'", "append using `bottom'", "append using `bottomavg'",
       "duplicates drop country year p widcode, force", "isid country year p widcode",
       sprintf('save "%s-long.dta", replace', name),
+      "drop step",
+      sprintf('global dina_output_root "%s"', root),
+      sprintf('local date "%s"', name),
+      block("*One main export contains", "////////////////////////////////////////////////////////////////////////////////"),
       'use "input.dta", clear', "keep if p == 0", "expand 2",
       "bysort country step: replace year = 2023 + _n",
       'gen extrap = 1 if step == "pod" & year == 2025', "gen imputed = !missing(extrap)",
@@ -107,6 +112,7 @@ testthat::test_that("actual Stata exports multiple concepts without pooled means
     list(normalized = haven::read_dta(file.path(root, paste0(name, "-normalized.dta"))),
       scaled = haven::read_dta(file.path(root, paste0(name, "-scaled.dta"))),
       long = haven::read_dta(file.path(root, paste0(name, "-long.dta"))),
+      published = haven::read_dta(file.path(root, "output/latest_wid_series", paste0("dina_latam_", name, ".dta"))),
       coverage = haven::read_dta(file.path(root, paste0(name, "-coverage.dta"))))
   }
   single <- run("nat", "nat"); combined <- run("combined", "nat pon pod")
@@ -119,6 +125,16 @@ testthat::test_that("actual Stata exports multiple concepts without pooled means
   testthat::expect_true(all(coverage$extrap_points[coverage$step == "pod"] == "[2024, 2025]"))
   lhs <- order_rows(single$long); rhs <- order_rows(combined$long[combined$long$step == "nat", ])
   testthat::expect_equal(as.data.frame(lhs), as.data.frame(rhs), tolerance = 0)
+  for (result in list(single, combined)) {
+    expected <- result$long[, setdiff(names(result$long), "step")]
+    testthat::expect_equal(as.data.frame(order_rows(result$published)),
+      as.data.frame(order_rows(expected)), tolerance = 0)
+  }
+  testthat::expect_setequal(substr(combined$published$widcode, 2L, 6L), c("ptinc", "diinc", "cainc"))
+  testthat::expect_setequal(substr(single$published$widcode, 2L, 6L), "ptinc")
+  testthat::expect_equal(as.data.frame(order_rows(single$published)),
+    as.data.frame(order_rows(combined$published[grepl("ptinc", combined$published$widcode), ])), tolerance = 0)
+  testthat::expect_length(list.files(file.path(root, "output/latest_wid_series"), pattern = "_disposable[.]dta$"), 0L)
   for (concept in c("nat", "pon", "pod")) {
     z <- combined$normalized[combined$normalized$country == "ARG" & combined$normalized$step == concept, ]
     z <- z[order(z$p), ]
@@ -139,4 +155,36 @@ testthat::test_that("actual Stata exports multiple concepts without pooled means
       testthat::expect_equal(sh, sum(scaled$s[use]), tolerance = 1e-7)
     }
   }
+})
+
+testthat::test_that("regional disposable donors permit an empty supplied-source attribution", {
+  stata <- Sys.getenv("DINA_STATA_CMD", unset="/Applications/Stata/StataMP.app/Contents/MacOS/stata-mp")
+  testthat::skip_if(!file.exists(stata), "Stata unavailable")
+  root <- tempfile("disposable-donor-attribution-"); dir.create(root)
+  on.exit(unlink(root,recursive=TRUE),add=TRUE)
+  countries <- c("ARG","BRA","CHL","COL","DOM","ECU","MEX","PER","SLV","URY")
+  x <- expand.grid(country=countries,year=2024:2025,step=c("nat","pod"),p=c(0,50000),stringsAsFactors=FALSE)
+  x$bracketavg_norm <- 1; x$thr <- 0; x$bracketpop <- 50000
+  supplied <- x$country=="ECU" & x$step=="nat"
+  x$pub_source <- ifelse(supplied,"supplied-pretax","")
+  x$pub_citation <- ifelse(supplied,"Supplied pretax reference","")
+  x$pub_doi <- ""
+  haven::write_dta(x,file.path(root,"donors.dta"))
+  lines <- readLines(file.path(repo_root_for_tests,"code/Stata/07d-export-results-to-wid.do"))
+  start <- which(lines=="*loop over groups")
+  end <- which(grepl("^\\*merge with population data",lines))
+  commands <- c("clear all","set more off",'use "donors.dta", clear',
+    paste0('global all_countries ',dina_stata_quote_list(countries)),
+    paste0('global export_steps ',dina_stata_quote_list(c("nat","pod"))),
+    "local steps : copy global export_steps", "local dina_finished_count = 1",lines[start:(end-1L)])
+  for (concept in c("nat","pod")) for (pool in c("all","CUB")) {
+    commands <- c(commands,sprintf("use `tf_reg_avg_%s_%s', clear",pool,concept),
+      "assert _N == 4", "assert bracketavg == 1", "assert topsh == 1 if p == 0",
+      if(concept=="nat") 'assert strpos(pub_donor_note,"supplied-pretax") > 0' else 'assert pub_donor_note == ""')
+  }
+  commands <- c(commands,'file open done using "passed.txt", write replace','file write done "passed"',"file close done")
+  writeLines(commands,file.path(root,"check.do"))
+  processx::run(stata,c("-b","do","check.do"),wd=root,timeout=30000,error_on_status=FALSE)
+  testthat::expect_true(file.exists(file.path(root,"passed.txt")),
+    info=paste(tail(readLines(file.path(root,"check.log"),warn=FALSE),45),collapse="\n"))
 })

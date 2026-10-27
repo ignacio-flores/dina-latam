@@ -74,3 +74,51 @@ test_that("tiny first-positive income includes a narrow endpoint histogram segme
   income <- sum(split$bracket_average[keep] * diff(c(split$fractile, 1))[keep])
   expect_true(abs(income - expected_income) < 1e-11)
 })
+
+test_that("a tiny histogram mean uses its original anchor instead of cumulative subtraction", {
+  e <- gpinter_shares_test_engine()
+  # Actual CHL2024 pod anchors after the already approved broad-tail repair.
+  # The tiny first positive bin has a mean near 2.49 against an overall mean
+  # near 17 million. GPinter's cumulative subtraction loses its last digits.
+  d <- read.csv(file.path(repo_root_for_tests,
+    "tests/fixtures/chl_2024_pod_gpinter_anchors.csv"))
+  before <- d
+  repair <- e$gpinter_threshold_histogram_mean
+  e$gpinter_threshold_histogram_mean <- function(dist, fitting) dist
+  raw <- e$gpinter_threshold_fit_shares(d)
+  raw_tab <- e$gpinter_threshold_tabulate(raw,d$p,d)
+  expect_error(e$gpinter_threshold_validate_fit(raw,raw_tab,
+    list(method="shares_fit",original=d)),"did not preserve original bracket means")
+  e$gpinter_threshold_histogram_mean <- repair
+  dist <- e$gpinter_threshold_fit_shares(d)
+  tab <- e$gpinter_threshold_tabulate(dist,d$p,d)
+  expect_equal(d,before,tolerance=0)
+  expect_true(e$gpinter_threshold_validate_fit(dist,tab,
+    list(method="shares_fit",original=d)))
+  first <- which(d$avg > 0)[1L]
+  expect_true(abs(tab$bracket_average[first]-d$avg[first]) < 1e-9)
+  expect_equal(dist$pk[c(1,3)],raw$pk[c(1,3)],tolerance=0)
+  expect_equal(dist$qk[c(1,3)],raw$qk[c(1,3)],tolerance=0)
+  expect_equal(dist$pk[-2],raw$pk[-2],tolerance=0)
+  expect_equal(dist$qk[-2],raw$qk[-2],tolerance=0)
+  expect_equal(dist$average,raw$average,tolerance=0)
+  expect_equal(dist$mu_top,raw$mu_top,tolerance=0)
+  expect_equal(dist$sigma_top,raw$sigma_top,tolerance=0)
+  expect_equal(dist$xi_top,raw$xi_top,tolerance=0)
+  expect_true(any(grepl("cancellation in cumulative-income subtraction",attr(dist,"dina_fit_notes"))))
+  grid <- sort(unique(c(d$p,.035,dist$pk[2])))
+  split <- e$gpinter_threshold_tabulate(dist,grid,d)
+  expect_true(e$gpinter_threshold_validate_fit(dist,split,
+    list(method="shares_fit",original=d)))
+  selected <- grid>=d$p[first] & c(grid[-1],1)<=d$p[first+1]
+  expect_true(abs(sum(split$bracket_average[selected]*diff(c(grid,1))[selected])-
+    (d$p[first+1]-d$p[first])*d$avg[first]) < 1e-10)
+  fitting <- d[seq.int(first,nrow(d)),]
+  substantive <- fitting; substantive$avg[1] <- substantive$avg[1] * 2
+  expect_error(repair(raw,substantive),"beyond arithmetic precision")
+  negative <- fitting; negative$avg[1] <- -1
+  expect_error(repair(raw,negative),"beyond arithmetic precision")
+  infeasible <- raw; infeasible$qk[1] <- fitting$avg[1]
+  expect_error(repair(infeasible,fitting),"infeasible")
+  expect_identical(repair(dist,fitting),dist)
+})

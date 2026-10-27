@@ -49,6 +49,25 @@ test_that("nat-only exports create no disposable comparison files", {
   expect_false(dir.exists(root))
 })
 
+test_that("comparisons read both income concepts from the single main export", {
+  skip_if_not_installed("haven")
+  engine <- disposable_plot_engine(); fixture <- disposable_plot_fixture()
+  root <- tempfile("combined-income-comparison-")
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  date <- "26Oct2026"
+  path <- file.path(root, "output/latest_wid_series", paste0("dina_latam_", date, ".dta"))
+  dir.create(dirname(path), recursive = TRUE)
+  haven::write_dta(fixture$nat, path)
+  expect_error(engine$dina_disposable_comparison_export(root, root, date, fixture$config), "published shares for Disposable")
+  expect_false(dir.exists(file.path(root, "output/figures/updates")))
+  haven::write_dta(rbind(fixture$nat, fixture$pod), path)
+  report <- engine$dina_disposable_comparison_export(root, root, date, fixture$config)
+  expect_identical(report$series, file.path("output/latest_wid_series", basename(path)))
+  expect_setequal(names(report$figures), fixture$config$countries)
+  expect_true(all(file.exists(file.path(root, unlist(report$figures)))))
+  expect_length(list.files(dirname(path)), 1L)
+})
+
 test_that("export completion requires and records conditional comparison artifacts", {
   skip_if_not_installed("haven")
   source_cli_for_tests(); root <- mini_repo()
@@ -62,8 +81,8 @@ test_that("export completion requires and records conditional comparison artifac
   dina_results_begin(root, date, config)
   folder <- file.path(root, "output/figures/updates")
   old <- file.path(folder, paste0("update-", date, "-sptinc992j-", names(dina_results_graph_names()), ".pdf"))
-  series <- file.path(root, "output/latest_wid_series", paste0("dina_latam", c("_wide", "", "", ""),
-    "_", date, c("", "", "_amory", "_disposable"), ".dta"))
+  series <- file.path(root, "output/latest_wid_series", paste0("dina_latam", c("_wide", "", ""),
+    "_", date, c("", "", "_amory"), ".dta"))
   for (p in c(old, series)) {dir.create(dirname(p), recursive = TRUE, showWarnings = FALSE); writeLines("fixture", p)}
   expect_error(dina_results_complete(root, date, config), "disposable-versus-pretax")
   expect_false(file.exists(dina_results_metadata_path(root, date)))
@@ -75,7 +94,7 @@ test_that("export completion requires and records conditional comparison artifac
   metadata <- dina_results_complete(root, date, config)
   expect_length(metadata$graphs, 6L)
   expect_length(metadata$income_comparisons, 2L)
-  expect_length(metadata$series, 4L)
+  expect_length(metadata$series, 3L)
   expect_true(all(c(figures, metadata$income_comparison_report) %in% names(metadata$artifacts)))
   rows <- dina_results_inventory(root)$graphs
   expect_true(all(c("pod-nat-AAA", "pod-nat-BBB") %in% rows$graph))

@@ -378,8 +378,19 @@ foreach v in thr avg bckt_sh b {
 	qui replace `v' = 0 if `v' < 0
 }
 
-foreach v in mbe wmbe hea edu oex  {
-	qui replace `v' = 0 if mbe < 0 | wmbe < 0 |  hea < 0 | edu < 0 | oex < 0 
+* Components depend on the concept: disposable income has no public services.
+* Keep the existing cleanup rule, applied only to columns actually supplied.
+local dina_components ""
+local dina_negative "0"
+foreach v in mbe wmbe hea edu oex {
+	capture confirm variable `v'
+	if !_rc {
+		local dina_components "`dina_components' `v'"
+		local dina_negative "`dina_negative' | `v' < 0"
+	}
+}
+foreach v of local dina_components {
+	qui replace `v' = 0 if `dina_negative'
 }
 
 qui export delimited "${dina_output_root}/output/synthetic_microfiles/_smicrofile_long_detailed.csv", replace

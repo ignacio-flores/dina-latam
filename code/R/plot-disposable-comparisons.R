@@ -94,12 +94,11 @@ dina_disposable_comparison_export <- function(root, output_root, date, config) {
   if (!"nat" %in% steps) stop("Export nat alongside pod to produce the requested disposable-versus-pretax comparisons.", call. = FALSE)
   if (!grepl("^[A-Za-z0-9]+$", date)) stop("Invalid export date.", call. = FALSE)
   directory <- file.path(output_root, "output", "latest_wid_series")
-  paths <- c(pretax = file.path(directory, paste0("dina_latam_", date, ".dta")),
-    disposable = file.path(directory, paste0("dina_latam_", date, "_disposable.dta")))
-  if (!all(file.exists(paths))) stop("Final pretax/disposable exports are missing; comparisons were not published.", call. = FALSE)
-  read <- function(path) as.data.frame(haven::read_dta(path, col_select =
+  path <- file.path(directory, paste0("dina_latam_", date, ".dta"))
+  if (!file.exists(path)) stop("Final combined income export is missing; comparisons were not published.", call. = FALSE)
+  published <- as.data.frame(haven::read_dta(path, col_select =
     tidyselect::any_of(c("country", "year", "p", "widcode", "value", "pub_source"))))
-  data <- dina_disposable_comparison_data(read(paths[[1]]), read(paths[[2]]), config)
+  data <- dina_disposable_comparison_data(published, published, config)
   folder <- file.path(output_root, "output", "figures", "updates")
   dir.create(folder, recursive = TRUE, showWarnings = FALSE)
   stage <- tempfile("income-comparison-", tmpdir = folder)
@@ -120,6 +119,7 @@ dina_disposable_comparison_export <- function(root, output_root, date, config) {
     data[data$country == countries[i], , drop = FALSE])
   report_name <- paste0("income-comparisons-", date, ".json")
   report <- list(version = 1L, date = date, status = "complete", concepts = c("nat", "pod"),
+    series = file.path("output", "latest_wid_series", basename(path)),
     source = "Published aggregate shares, limited to matching published years within the export horizon",
     groups = as.list(dina_disposable_comparison_groups()),
     figures = setNames(as.list(file.path("output", "figures", "updates", names)), countries),

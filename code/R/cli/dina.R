@@ -864,7 +864,7 @@ dina_cli_progress <- function(text) {
 
 dina_cli_operation <- function(name) {
   started <- Sys.time()
-  elapsed <- function() sprintf("%0.1fs", as.numeric(difftime(Sys.time(), started, units = "secs")))
+  elapsed <- function() dina_format_elapsed(difftime(Sys.time(), started, units = "secs"))
   dina_cli_cat(sprintf("Starting %s.", name))
   list(
     progress = function(text) dina_cli_cat(sprintf("  [%s] %s", elapsed(), text)),

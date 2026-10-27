@@ -319,14 +319,19 @@ foreach s in `steps' {
                     quietly save `dina_donor_input'
                     keep year step pub_source pub_citation pub_doi
                     drop if pub_source == ""
-                    duplicates drop
-                    sort year step pub_source
-                    by year step: gen strL pub_donor_note = pub_source + ": " + pub_citation + " " + pub_doi
-                    by year step: replace pub_donor_note = pub_donor_note[_n-1] + "; " + pub_donor_note if _n > 1
-                    by year step: keep if _n == _N
+                    // A supplied pretax series need not supply this concept.
+                    // An empty attribution table is valid for internal pod donors.
+                    if _N > 0 {
+                        duplicates drop
+                        sort year step pub_source
+                        by year step: gen strL pub_donor_note = pub_source + ": " + pub_citation + " " + pub_doi
+                        by year step: replace pub_donor_note = pub_donor_note[_n-1] + "; " + pub_donor_note if _n > 1
+                        by year step: keep if _n == _N
+                    }
+                    else gen strL pub_donor_note = ""
                     keep year step pub_donor_note
                     tempfile dina_donor_notes
-                    quietly save `dina_donor_notes'
+                    quietly save `dina_donor_notes', emptyok
                     quietly use `dina_donor_input', clear
             }
             local dina_expected ""
@@ -848,25 +853,14 @@ if `dina_finished_count' > 0 {
 }
 else qui drop if country == "DOM" & year < 2012
 
-*save 
-preserve 
-	qui keep if strpos(widcode, "ptinc")
-	qui save "${dina_output_root}/output/latest_wid_series/dina_latam_`date'.dta" , replace
-restore 
+*One main export contains every requested income concept, identified by widcode.
+isid country year p widcode
+qui save "${dina_output_root}/output/latest_wid_series/dina_latam_`date'.dta", replace
 
 preserve 
 	qui keep if strpos(widcode, "diinc")
 	qui save "${dina_output_root}/output/latest_wid_series/dina_latam_`date'_amory.dta", replace
 restore 
-
-if `dina_has_pod' > 0 {
-	preserve
-		keep if strpos(widcode, "cainc")
-		assert _N > 0
-		isid country year p widcode
-		save "${dina_output_root}/output/latest_wid_series/dina_latam_`date'_disposable.dta", replace
-	restore
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

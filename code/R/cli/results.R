@@ -55,7 +55,6 @@ dina_results_complete <- function(root, date, config, output_root = Sys.getenv("
   series <- file.path("output", "latest_wid_series", paste0("dina_latam", c("_wide", "", ""), "_", date, c("", "", "_amory"), ".dta"))
   income_comparisons <- character(); income_report <- character()
   if ("pod" %in% unlist(config$export_validation$steps)) {
-    series <- c(series, file.path("output", "latest_wid_series", paste0("dina_latam_", date, "_disposable.dta")))
     income_report <- file.path("output", "figures", "updates", paste0("income-comparisons-", date, ".json"))
     report <- dina_read_json(file.path(output_root, income_report), default = NULL)
     if (!identical(report$status, "complete") || !identical(report$date, date) ||

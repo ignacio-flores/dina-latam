@@ -119,6 +119,46 @@ gpinter_threshold_check_tab <- function(tab, overall, label) {
   invisible(TRUE)
 }
 
+# GPinter's histogram fallback recovers a bin mean by subtracting two large
+# cumulative incomes. A tiny first-positive bin can lose significant digits
+# there. Rebuild that same two-piece histogram from the original mean instead;
+# its outer population boundaries and income thresholds remain fixed.
+gpinter_threshold_histogram_mean <- function(dist, fitting) {
+  fields <- c("pk", "qk", "mk", "xk", "fk", "use_hist", "average")
+  if (nrow(fitting) < 2L || !all(fields %in% names(dist)) ||
+      length(dist$pk) < 3L || !isTRUE(all(dist$use_hist[1:2])) ||
+      any(abs(dist$pk[c(1L, 3L)] - fitting$p[1:2]) > 1e-12)) return(dist)
+  p0 <- fitting$p[1L]; p1 <- fitting$p[2L]; width <- p1 - p0
+  mean <- fitting$avg[1L]
+  if (mean * width / dist$average >= 1e-5 ||
+      abs(dist$qk[2L] - mean) <= 1e-8 * max(1, abs(mean))) return(dist)
+  if (!is.finite(mean) || mean <= 0 ||
+      abs((dist$qk[2L] - mean) * width) >
+        128 * .Machine$double.eps * max(1, abs(dist$average))) {
+    gpinter_threshold_stop("The fitted first-positive histogram mean differs from its original anchor beyond arithmetic precision.")
+  }
+  q0 <- dist$qk[1L]; q1 <- dist$qk[3L]
+  if (!is.finite(q0) || !is.finite(q1) || mean <= q0 || mean >= q1)
+    gpinter_threshold_stop("The original first-positive histogram mean is infeasible between its retained thresholds.")
+  # These are GPinter's hist_interpol formulas, using the supplied mean rather
+  # than (m0 - m1) / width. No spline, tail parameter or outside bin is changed.
+  middle <- p0 + width * (q1 - mean) / (q1 - q0)
+  density <- c(width / (q1 - q0) * (q1 - mean) / (mean - q0),
+    width / (q1 - q0) * (mean - q0) / (q1 - mean))
+  if (!is.finite(middle) || middle <= p0 || middle >= p1 ||
+      any(!is.finite(density) | density <= 0))
+    gpinter_threshold_stop("The first-positive histogram cannot be represented without losing its original boundary or income anchor.")
+  dist$pk[2L] <- middle
+  dist$qk[2L] <- mean
+  dist$xk[2L] <- -log1p(-middle)
+  dist$fk[1:2] <- density
+  dist$mk[2L] <- dist$mk[3L] + mean * (p1 - middle) +
+    .5 * (p1 - middle)^2 / density[2L]
+  attr(dist, "dina_histogram_mean_note") <-
+    "Recompute the tiny first-positive histogram directly from its original bracket mean to avoid cancellation in cumulative-income subtraction; retain its population and adjacent thresholds."
+  dist
+}
+
 # Keep a known zero-income mass explicit when fitting the positive distribution.
 gpinter_threshold_fit_shares <- function(d) {
   if (!all(c("p", "avg") %in% names(d)) || !nrow(d) ||
@@ -156,6 +196,8 @@ gpinter_threshold_fit_shares <- function(d) {
     notes <- c(notes,
       "Refit the requested zero lower boundary after shares_fit returned a negative first positive-income threshold; preserve all bracket incomes.")
   }
+  dist <- gpinter_threshold_histogram_mean(dist, fitting)
+  notes <- c(notes, attr(dist, "dina_histogram_mean_note"))
   attr(dist, "dina_fit_notes") <- notes
   dist
 }
