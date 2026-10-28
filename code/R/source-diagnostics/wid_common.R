@@ -1,5 +1,17 @@
 # Shared helpers for the WID source explore/include workflow.
 
+wid_include_common_dir <- local({
+  files <- vapply(sys.frames(), function(frame) if (is.null(frame$ofile)) "" else as.character(frame$ofile), character(1))
+  files <- files[nzchar(files)]
+  if (length(files)) dirname(normalizePath(tail(files, 1L), mustWork = FALSE)) else file.path(getwd(), "code/R/source-diagnostics")
+})
+
+wid_include_publication_scope <- function(root, config, contract, history = NULL) {
+  env <- new.env(parent = environment())
+  sys.source(file.path(dirname(wid_include_common_dir), "export_publication_scope.R"), env)
+  env$dina_export_publication_scope(root, config, contract, history)
+}
+
 `%||%` <- function(x, y) {
   if (is.null(x) || length(x) == 0L) y else x
 }
@@ -56,7 +68,10 @@ wid_include_read_yaml <- function(path, default = NULL) {
     if (!is.null(default)) return(default)
     stop("Missing YAML file: ", path, call. = FALSE)
   }
-  yaml::read_yaml(path)
+  # Stata starts R in a C locale. A UTF-8 file connection then translates to
+  # that locale and can silently truncate the registry at an accented citation.
+  text <- readLines(path, encoding = "UTF-8")
+  yaml::yaml.load(paste(text, collapse = "\n"), error.label = path)
 }
 
 wid_include_read_csv <- function(path) {
@@ -136,6 +151,11 @@ wid_include_read_contract <- function(
     stop("Invalid WID population legacy_baseline path.", call. = FALSE)
   }
   contract$contract_path <- contract_path
+  if (!is.null(contract$publication)) {
+    scope <- wid_include_publication_scope(root, wid_include_config(root, contract), contract,
+      data.frame(iso = character(), year = integer()))
+    contract$area_sets$publication_countries <- unique(scope$iso)
+  }
   contract
 }
 
@@ -166,7 +186,8 @@ wid_include_schema <- function(artifact) {
     key_columns = as.character(schema$key_columns %||% character()),
     numeric_columns = as.character(schema$numeric_columns %||% character()),
     required_years = as.character(schema$required_years %||% "none"),
-    allow_missing_numeric = isTRUE(schema$allow_missing_numeric)
+    allow_missing_numeric = isTRUE(schema$allow_missing_numeric),
+    report_coverage_gaps = isTRUE(schema$report_coverage_gaps)
   )
 }
 
@@ -192,12 +213,13 @@ wid_include_config <- function(root, contract) {
 # Accepted publication histories can precede the calculation window. Read their
 # durable receipts rather than an inbox or a replaceable source-review pointer.
 wid_include_publication_history <- function(root, artifact) {
-  empty <- data.frame(iso = character(), year = integer(), source_id = character())
+  empty <- data.frame(iso = character(), year = integer(), source_id = character(), step = character())
   if (!isTRUE(artifact$request$include_publication_history)) return(empty)
   registry <- wid_include_read_yaml(file.path(root, "config", "sources.yml"), default = list())$sources
   sources <- Filter(function(s) identical(s$family, "dina") &&
     length(s$country) == 1L && !is.null(s$finished_series$publication_step) &&
-    !is.null(s$finished_series$publication_unit), registry)
+    !is.null(s$finished_series$publication_unit) &&
+    !identical(s$finished_series$publication_policy$status, "hold"), registry)
   if (!length(sources)) return(empty)
   wid_include_need("jsonlite"); wid_include_need("digest"); wid_include_need("haven")
   paths <- list.files(file.path(root, "output/experiments/finished_dina_include/confirms"),
@@ -223,7 +245,7 @@ wid_include_publication_history <- function(root, artifact) {
     years <- sort(unique(d$year[d$country == s$country & d$step == meta$publication_step & d$unit == meta$publication_unit]))
     area <- wid_include_area_map(artifact)$area[match(s$country, wid_include_area_map(artifact)$iso3)]
     if (length(area) != 1L || is.na(area) || !length(years) || any(!is.finite(years))) stop("Missing publication country mapping or years: ", s$id)
-    data.frame(iso = area, year = as.integer(years), source_id = s$id)
+    data.frame(iso = area, year = as.integer(years), source_id = s$id, step = meta$publication_step)
   })
   out <- wid_include_bind(c(list(empty), rows))
   if (nrow(out)) out else empty
@@ -283,10 +305,15 @@ wid_include_request_windows <- function(root, contract, artifact) {
 wid_include_export_requirements <- function(root, contract, artifact) {
   cfg <- wid_include_config(root, contract)
   last <- wid_include_last_year(cfg, artifact)
-  areas <- wid_include_areas(artifact$request$area_set %||% artifact$request$areas, artifact)
-  base <- expand.grid(iso = areas, year = seq.int(cfg$years$first, last), stringsAsFactors = FALSE)
   history <- wid_include_publication_history(root, artifact)
-  required <- unique(rbind(base, history[c("iso", "year")]))
+  if (identical(artifact$request$area_set, "publication_countries") && !is.null(contract$publication)) {
+    scope <- wid_include_publication_scope(root, cfg, contract, history)
+    required <- unique(scope[c("iso", "year")])
+  } else {
+    areas <- wid_include_areas(artifact$request$area_set %||% artifact$request$areas, artifact)
+    base <- expand.grid(iso = areas, year = seq.int(cfg$years$first, last), stringsAsFactors = FALSE)
+    required <- unique(rbind(base, history[c("iso", "year")]))
+  }
   required$need_rates <- required$year == last
   required
 }
@@ -482,15 +509,68 @@ wid_include_fetch_raw <- function(root, contract, artifact, staged_raw) {
     value <- wid_include_source_values(request[[name]])
     if (length(value)) args[[name]] <- value
   }
-  raw <- lapply(wid_include_request_windows(root, contract, artifact), function(window) {
+  windows <- wid_include_request_windows(root, contract, artifact)
+  accepted <- NULL
+  if (isTRUE(request$complete_missing)) {
+    prod <- wid_include_artifact_paths(root, artifact)
+    current <- wid_include_read_dta(prod$canonical)
+    previous_raw <- wid_include_read_dta(prod$raw)
+    if (current$ok && previous_raw$ok) {
+      accepted <- previous_raw$data
+      required <- wid_include_export_requirements(root, contract, artifact)
+      index <- match(paste(required$iso, required$year), paste(current$data$iso, current$data$year))
+      needed <- !is.finite(current$data$anninc992i[index]) | current$data$anninc992i[index] <= 0
+      for (field in c("ppp_eur", "mer_eur")) {
+        needed <- needed | required$need_rates & (!is.finite(current$data[[field]][index]) | current$data[[field]][index] <= 0)
+      }
+      missing <- required[needed, , drop = FALSE]
+      windows <- lapply(split(missing, missing$iso), function(d)
+        list(areas = d$iso[1L], years = sort(unique(d$year))))
+    }
+  }
+  raw <- lapply(windows, function(window) {
     value <- tryCatch(do.call(wid::download_wid, c(args, window)), error = function(e) e)
     if (inherits(value, "error")) stop("WID download failed for ", artifact$source_id, ": ", conditionMessage(value), call. = FALSE)
     as.data.frame(value, stringsAsFactors = FALSE)
   })
   raw <- wid_include_bind(raw)
+  if (!is.null(accepted)) raw <- wid_include_merge_raw(accepted, raw)
   if (!nrow(raw)) stop("WID returned no rows for ", artifact$source_id, call. = FALSE)
   wid_include_write_dta(raw, staged_raw)
   raw
+}
+
+# Completion requests only add missing information. A new WID vintage must not
+# silently revise already accepted monetary benchmarks during a coverage fix.
+wid_include_merge_raw <- function(accepted, incoming) {
+  if (!nrow(accepted)) return(incoming)
+  if (!nrow(incoming)) return(accepted)
+  keys <- intersect(c("country", "variable", "year", "percentile", "age", "pop"), intersect(names(accepted), names(incoming)))
+  key <- function(d) do.call(paste, c(d[keys], sep = "\r"))
+  old_key <- key(accepted); new_key <- key(incoming)
+  if (anyDuplicated(old_key) || anyDuplicated(new_key)) stop("Duplicate WID raw keys in benchmark completion.", call. = FALSE)
+  index <- match(old_key, new_key)
+  fill <- (!is.finite(accepted$value) | accepted$value <= 0) & !is.na(index)
+  accepted$value[fill] <- incoming$value[index[fill]]
+  wid_include_bind(accepted, incoming[!new_key %in% old_key, , drop = FALSE])
+}
+
+wid_include_preserve_scaling <- function(root, artifact, candidate) {
+  if (!isTRUE(artifact$request$complete_missing)) return(candidate)
+  current <- wid_include_read_dta(wid_include_artifact_paths(root, artifact)$canonical)
+  if (!current$ok || !nrow(current$data)) return(candidate)
+  old <- current$data
+  key <- function(d) paste(d$iso, d$year, sep = "/")
+  old_key <- key(old); new_key <- key(candidate)
+  if (anyDuplicated(old_key) || anyDuplicated(new_key)) stop("Duplicate WID benchmark keys.", call. = FALSE)
+  index <- match(old_key, new_key)
+  for (field in intersect(setdiff(names(old), c("iso", "year")), names(candidate))) {
+    if (!is.numeric(old[[field]])) next
+    fill <- (!is.finite(old[[field]]) | old[[field]] <= 0) & !is.na(index)
+    old[[field]][fill] <- candidate[[field]][index[fill]]
+  }
+  out <- wid_include_bind(old, candidate[!new_key %in% old_key, , drop = FALSE])
+  out[order(out$iso, out$year), , drop = FALSE]
 }
 
 wid_include_indicator <- function(variable, indicators) {
@@ -786,7 +866,7 @@ wid_include_validate_candidate <- function(source_id, artifact, data, years, roo
       missing_rows <- sum(!stats::complete.cases(checked[numeric_cols]))
       missing_cells <- sum(is.na(checked[numeric_cols]))
       fully_missing_cols <- numeric_cols[vapply(checked[numeric_cols], function(col) all(is.na(col)), logical(1L))]
-      if (length(fully_missing_cols)) {
+      if (length(fully_missing_cols) && !isTRUE(schema$report_coverage_gaps)) {
         add("values", "blocked_missing_values", "blocked", paste("Required numeric columns are entirely missing:", paste(fully_missing_cols, collapse = ",")))
       } else if (missing_cells > 0L && isTRUE(schema$allow_missing_numeric)) {
         add("values", "warning_missing_values", "warning", sprintf("%s numeric cells across %s rows are missing; treated as WID coverage gaps.", missing_cells, missing_rows))
@@ -802,14 +882,17 @@ wid_include_validate_candidate <- function(source_id, artifact, data, years, roo
         values <- data[[field]][index]
         needed <- if (field == "anninc992i") rep(TRUE, nrow(required)) else required$need_rates
         bad <- needed & (!is.finite(values) | values <= 0)
-        if (any(bad)) add("country_indicator_coverage", "blocked_missing_export_values", "blocked",
+        if (any(bad)) add("country_indicator_coverage",
+          if (schema$report_coverage_gaps) "warning_missing_export_values" else "blocked_missing_export_values",
+          if (schema$report_coverage_gaps) "warning" else "blocked",
           paste("Missing positive", field, "for", paste(paste(required$iso[bad], required$year[bad], sep = "/"), collapse = ", ")))
       }
     }
     if ("year" %in% names(data) && length(years)) {
       missing_years <- setdiff(years, sort(unique(suppressWarnings(as.integer(data$year)))))
       if (length(missing_years)) {
-        add("required_years", "blocked_missing_required_years", "blocked", paste("Missing required years:", paste(missing_years, collapse = ",")))
+        add("required_years", if (schema$report_coverage_gaps) "warning_missing_required_years" else "blocked_missing_required_years",
+          if (schema$report_coverage_gaps) "warning" else "blocked", paste("Missing required years:", paste(missing_years, collapse = ",")))
       }
     }
   }
@@ -830,6 +913,7 @@ wid_include_prepare_candidate_one <- function(root, contract, paths, artifact) {
   result <- tryCatch({
     raw <- wid_include_fetch_raw(root, contract, artifact, stage_paths$raw)
     candidate <- wid_include_derive_artifact(raw, artifact, years)
+    candidate <- wid_include_preserve_scaling(root, artifact, candidate)
     wid_include_write_dta(candidate, stage_paths$canonical)
     validation <- wid_include_validate_candidate(source_id, artifact, candidate, required_years, root, contract)
     baseline <- wid_include_comparison_baseline(root, artifact)

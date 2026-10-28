@@ -237,11 +237,12 @@ test_that("export metadata stages artifacts while reading the canonical baseline
   expect_true(file.exists(dina_results_metadata_path(stage, date, TRUE)))
   expect_error(dina_results_complete(root, date, config, output_root = stage), "incomplete")
   graphs <- file.path(stage, "output", "figures", "updates", paste0("update-", date, "-sptinc992j-", names(dina_results_graph_names()), ".pdf"))
-  series <- file.path(stage, "output", "latest_wid_series", paste0("dina_latam", c("_wide", "", ""), "_", date, c("", "", "_amory"), ".dta"))
+  series <- file.path(stage, "output", "latest_wid_series", paste0("dina_latam", c("_wide", ""), "_", date, ".dta"))
   for (path in c(graphs, series)) {
     dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
     writeLines("new artifact", path)
   }
+  write_consistency_receipt_for_tests(stage, date)
   metadata <- dina_results_complete(root, date, config, output_root = stage)
   expect_equal(metadata$status, "complete")
   expect_equal(readLines(published), "previous complete receipt")
@@ -262,7 +263,7 @@ test_that("comparison metadata detects integration changes but ignores a new pre
   graphs <- file.path(root, "output", "figures", "updates",
     paste0("update-", date, "-sptinc992j-", names(dina_results_graph_names()), ".pdf"))
   series <- file.path(root, "output", "latest_wid_series",
-    paste0("dina_latam", c("_wide", "", ""), "_", date, c("", "", "_amory"), ".dta"))
+    paste0("dina_latam", c("_wide", ""), "_", date, ".dta"))
   for (path in c(graphs, series)) {
     dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
     writeLines("fixture artifact", path)
@@ -276,6 +277,7 @@ test_that("comparison metadata detects integration changes but ignores a new pre
   expect_false(file.exists(dina_results_metadata_path(root, date)))
 
   dina_results_begin(root, date, config)
+  write_consistency_receipt_for_tests(root, date)
   metadata <- dina_results_complete(root, date, config)
   expect_identical(metadata$finished_publications, state$active)
   expect_true(all(dina_results_inventory(root)$graphs$status == "Matches recorded baseline and settings"))

@@ -168,6 +168,7 @@ Selectors: 01a (one task), 01 (a block), 01a,02c (several tasks).
 Results
   results                         Browse existing final WID comparison graphs
   results open GRAPH              Open one graph; never reruns the pipeline
+  results check [FILE]             Audit a saved export without changing it
 
 Setup and occasional work
   doctor                          Check local readiness
@@ -181,12 +182,15 @@ Use dina help sources for source details and compatibility commands.
   dina results
   dina results show
   dina results open GRAPH
+  dina results check [FILE]
 
 Inspect existing final WID comparison graphs and their generation baseline.
 Graph names: t10, t1, t01, t001, m40, b50. If several versions exist, use the
 full path printed by dina results show. Listing never opens files or runs tasks.
 Graphs without companion metadata have an unknown generation baseline.
 Changing the comparison baseline selection requires rerunning the export: dina run 07d.
+Check audits the recorded latest main export, or FILE, and writes a concise report
+and review figure. Consistency findings are reported without modifying the export.
 ",
     workflow = "Usage:
   dina help workflow
@@ -1679,7 +1683,8 @@ dina_command_catalog <- function(year = format(Sys.Date(), "%Y")) {
     ),
     dina_command_entry("results", "Results", "Existing final WID series and graphs.", children = list(
       dina_command_entry("results-show", "Final WID graphs", "Inspect graphs and their recorded baseline.", args = c("results")),
-      dina_command_entry("results-open", "Open comparison graph", "Open an existing graph.", args = c("results", "open", "{GRAPH}"), prompts = list(GRAPH = list(label = "Graph name or path", example = "t10")))
+      dina_command_entry("results-open", "Open comparison graph", "Open an existing graph.", args = c("results", "open", "{GRAPH}"), prompts = list(GRAPH = list(label = "Graph name or path", example = "t10"))),
+      dina_command_entry("results-check", "Check final export", "Audit the recorded latest main export and write its consistency report.", args = c("results", "check"))
     )),
     dina_command_entry(
       "setup-config",
@@ -6609,6 +6614,10 @@ dina_cmd_run <- function(root, args) {
                                    detail = result$failure %||% "Command failed; inspect the task log.",
                                    log_dir = result$log_dir %||% "")
       stop(sprintf("Task %s failed. Downstream tasks were not started; inspect %s.", task$id, result$log_dir), call. = FALSE)
+    }
+    if (!dry_run && startsWith(task$id, "07d") && result$status %in% c("succeeded", "cached", "skipped")) {
+      consistency <- dina_results_report_latest_consistency(root)
+      if (!is.null(consistency)) results[[task$id]]$consistency <- consistency
     }
     active_task <- NULL
   }

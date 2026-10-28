@@ -515,6 +515,8 @@ tasks:
       - code/R/07d_prepare_finished_dina.R
       - code/R/export-income-means.R
       - code/R/plot-disposable-comparisons.R
+      - code/R/consistency_checker.R
+      - code/R/export_publication_scope.R
       - code/R/source-diagnostics/finished_dina_publication.R
       - code/R/cli/finished_dina_publication.R
       - code/Stata/auxiliar/dina_finished_overlay.do

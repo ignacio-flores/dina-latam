@@ -52,6 +52,37 @@ dina_disposable_comparison_data <- function(pretax, disposable, config) {
   out[order(out$country, out$year, match(out$p, names(groups)), out$concept), , drop = FALSE]
 }
 
+# A completed export can carry unresolved findings. Plot its unambiguous valid
+# shares and leave gaps; the consistency report is responsible for diagnosis.
+dina_disposable_comparison_review_data <- function(published, config, reason) {
+  required <- c("country", "year", "p", "widcode", "value")
+  if (!all(required %in% names(published))) stop("Missing comparison fields.", call. = FALSE)
+  groups <- names(dina_disposable_comparison_groups())
+  codes <- c(sptinc992j = "Pretax", scainc992j = "Disposable")
+  first <- as.integer(config$years$first); last <- as.integer(config$export_validation$last_year)
+  data <- published[published$widcode %in% names(codes) & published$p %in% groups &
+    !is.na(published$country) & nzchar(published$country) & is.finite(published$year) &
+    published$year >= first & published$year <= last, , drop = FALSE]
+  data$concept <- unname(codes[data$widcode])
+  countries <- sort(unique(c(as.character(unlist(config$countries)), data$country)))
+  if (!"pub_source" %in% names(data)) data$pub_source <- ""
+  key <- c("country", "year", "p", "concept")
+  ambiguous <- duplicated(data[key]) | duplicated(data[key], fromLast = TRUE)
+  omitted <- sum(ambiguous)
+  data <- data[!ambiguous, , drop = FALSE]
+  data$value[!is.finite(data$value) | data$value < -1e-8 | data$value > 1 + 1e-6] <- NA_real_
+  cases <- unique(data[c("country", "year")])
+  for (country in setdiff(countries, cases$country)) cases <- rbind(cases, data.frame(country, year = first:last))
+  grid <- merge(cases, expand.grid(p = groups, concept = unname(codes), stringsAsFactors = FALSE), by = NULL)
+  out <- merge(grid, data[c(key, "value", "pub_source")], by = key, all.x = TRUE, sort = FALSE)
+  out$pub_source[is.na(out$pub_source)] <- ""
+  out$group <- unname(dina_disposable_comparison_groups()[out$p])
+  out <- out[order(out$country, out$year, match(out$p, groups), out$concept), , drop = FALSE]
+  attr(out, "review") <- list(reason = reason, ambiguous_rows_omitted = omitted,
+    unavailable_points = sum(is.na(out$value)))
+  out
+}
+
 dina_disposable_comparison_plot <- function(path, data) {
   groups <- dina_disposable_comparison_groups()
   colors <- c(Pretax = "#0072B2", Disposable = "#D55E00")
@@ -67,7 +98,8 @@ dina_disposable_comparison_plot <- function(path, data) {
     cex.axis = .9, cex.lab = .95, cex.main = 1)
   for (p in names(groups)) {
     rows <- data[data$p == p, , drop = FALSE]
-    x <- range(rows$year); y <- range(rows$value) * 100
+    x <- range(rows$year)
+    y <- if (any(is.finite(rows$value))) range(rows$value[is.finite(rows$value)]) * 100 else c(0, 100)
     if (diff(x) == 0) x <- x + c(-.5, .5)
     if (diff(y) == 0) y <- y + c(-1, 1) * .1
     graphics::plot(NA, xlim = x, ylim = y, xlab = "Year", ylab = "Income share (%)",
@@ -88,7 +120,7 @@ dina_disposable_comparison_plot <- function(path, data) {
   }
 }
 
-dina_disposable_comparison_export <- function(root, output_root, date, config) {
+dina_disposable_comparison_export <- function(root, output_root, date, config, strict = TRUE) {
   steps <- as.character(unlist(config$export_validation$steps))
   if (!"pod" %in% steps) return(invisible(list()))
   if (!"nat" %in% steps) stop("Export nat alongside pod to produce the requested disposable-versus-pretax comparisons.", call. = FALSE)
@@ -98,7 +130,9 @@ dina_disposable_comparison_export <- function(root, output_root, date, config) {
   if (!file.exists(path)) stop("Final combined income export is missing; comparisons were not published.", call. = FALSE)
   published <- as.data.frame(haven::read_dta(path, col_select =
     tidyselect::any_of(c("country", "year", "p", "widcode", "value", "pub_source"))))
-  data <- dina_disposable_comparison_data(published, published, config)
+  data <- if (strict) dina_disposable_comparison_data(published, published, config) else
+    tryCatch(dina_disposable_comparison_data(published, published, config), error = function(e)
+      dina_disposable_comparison_review_data(published, config, conditionMessage(e)))
   folder <- file.path(output_root, "output", "figures", "updates")
   dir.create(folder, recursive = TRUE, showWarnings = FALSE)
   stage <- tempfile("income-comparison-", tmpdir = folder)
@@ -124,6 +158,7 @@ dina_disposable_comparison_export <- function(root, output_root, date, config) {
     groups = as.list(dina_disposable_comparison_groups()),
     figures = setNames(as.list(file.path("output", "figures", "updates", names)), countries),
     countries = source_notes)
+  if (length(attr(data, "review"))) report$review <- attr(data, "review")
   jsonlite::write_json(report, file.path(stage, report_name), pretty = TRUE, auto_unbox = TRUE, null = "null")
   for (name in c(names, report_name)) {
     if (!file.rename(file.path(stage, name), file.path(folder, name))) stop("Could not publish comparison figure: ", name, call. = FALSE)

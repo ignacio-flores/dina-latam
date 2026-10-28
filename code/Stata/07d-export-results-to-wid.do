@@ -25,6 +25,8 @@ clear all
 //preliminary
 global aux_part  ""preliminary"" 
 do "code/Stata/auxiliar/aux_general.do"
+// Retain GPinter precision through normalization, scaling and saving.
+set type double
 
 // DINA supplies these export-validation settings from the effective YAML config.
 // Fail loudly if the runtime config was not provided instead of using stale defaults.
@@ -42,6 +44,10 @@ local ly = $export_last_y
 // Capture the settings actually used by this export; publish only after success.
 local date "$S_DATE"
 local date = subinstr("`date'", " ", "", .)
+local consistency_work "${dina_output_root}/_consistency"
+local consistency_report "${dina_output_root}/output/data_reports/consistency/`date'"
+local consistency_figure "${dina_output_root}/output/figures/updates/consistency-`date'.pdf"
+tempfile consistency_input consistency_output
 cap mkdir "${dina_output_root}/output/figures"
 cap mkdir "${dina_output_root}/output/figures/updates"
 tempfile comparison_request
@@ -50,6 +56,11 @@ file open `comparison_handle' using "`comparison_request'", write text replace
 file write `comparison_handle' `"$previous_update"' _n `"$export_unit"' _n `"$export_steps"' _n
 file write `comparison_handle' "$export_last_y" _n `"$all_countries"' _n "$first_y" _n "$last_y" _n
 file close `comparison_handle'
+// One publication scope drives benchmark requirements and final coverage checks.
+shell Rscript code/R/export_publication_scope.R "`comparison_request'" "`consistency_work'"
+confirm file "`consistency_work'/publication_scope.csv"
+confirm file "`consistency_work'/publication_scope.dta"
+quietly do "`consistency_work'/scope.do"
 
 // Integrate all included finished sources using the registered continuation
 // policies. Failed validation leaves the previous integration and exports intact.
@@ -116,7 +127,7 @@ qui save `tf_ava'
 
 //open longformat here and keep relevant info 
 qui import delimited ///
-	using "output/ineqstats/_gpinter_all_topcorrected.csv", clear 	
+	using "output/ineqstats/_gpinter_all_topcorrected.csv", clear asdouble
 
 *qui import delimited step unit country year  ///
 *	using "output/synthetic_microfiles/_smicrofile_long_detailed.csv", clear
@@ -163,7 +174,7 @@ restore
 
 *normalize variables in lcu 
 tempvar average 
-bysort step country year: egen `average' = min(topavg)
+bysort step country year: egen double `average' = min(topavg)
 foreach var in "bracketavg" "thr" "topavg" {
 	qui gen `var'_norm = `var' / `average'
 	if "`var'" != "bracketavg" qui replace `var' = `var'_norm 
@@ -205,13 +216,6 @@ foreach v in bracketavg thr {
 qui drop ip_*
 
 // Overlay after fillin: an early supplied year must not backcast other countries.
-// Remember legacy storage before the double-precision supplied rows are added.
-local dina_legacy_floatvars ""
-local dina_legacy_p_type : type p
-foreach v in bracketavg bracketavg_norm s thr topavg topsh {
-	local dina_storage : type `v'
-	if "`dina_storage'" == "float" local dina_legacy_floatvars "`dina_legacy_floatvars' `v'"
-}
 if `dina_finished_count' > 0 {
 	do "code/Stata/auxiliar/dina_finished_overlay.do" "`dina_finished_dir'/overlay.dta"
 	quietly merge m:1 country year step using "`dina_finished_dir'/attribution.dta", keep(master match) nogen
@@ -236,14 +240,14 @@ bysort step country year: replace topavg = `sum_fy1' / `sum_pop1' ///
 
 *get general average
 bysort step country year: gen `auxi1' = topavg if p == 0  
-bysort step country year: egen `avg1' = total(`auxi1')
+bysort step country year: egen double `avg1' = total(`auxi1')
 
 *get top shares 
 qui replace topsh = topavg / `avg1' * (`sum_pop1' / 100000 ) if imputed == 1
 	
 *get bracket shares 
 qui replace s = bracketavg / `avg1' * (bracketpop  / 100000) if imputed == 1
-bysort step country year: egen `test1' = total(s)
+bysort step country year: egen double `test1' = total(s)
 drop if `test1' == 0 
 sort step country year p
 
@@ -285,12 +289,22 @@ qui keep step country year p bracketavg bracketavg_norm bracketpop s thr ///
 	topsh topavg *_points iso `dina_finished_fields'
 qui order step country year p bracketavg bracketavg_norm bracketpop s thr ///
 	topsh topavg *_points iso
+// Consistency preparation of sources before they become regional donors.
+// Publication exclusions do not remove observations from donor pools here.
+quietly save "`consistency_input'", replace
+cap erase "`consistency_output'"
+shell Rscript code/R/consistency_checker.R prepare "`consistency_input'" "`consistency_output'" "`consistency_work'" sources
+confirm file "`consistency_output'"
+quietly use "`consistency_output'", clear
+// End consistency source preparation.
+
 * save for later 
 tempfile top bottom bottomavg main 
 qui save `main' 
 
-bysort step country year: egen counter = count(p)
-assert counter == 127 
+bysort step country year: egen double counter = count(p)
+quietly count if counter != 127
+if r(N) > 0 di as error "Consistency review: incomplete source grids retained and recorded in the report."
 
 *III. Compute regional averages (yearly) ---------------------------------------
 
@@ -341,6 +355,8 @@ foreach s in `steps' {
                     if "`donor'" != "CRI" local dina_expected "`dina_expected' `donor'"
                 }
             }
+            // Record the actual pool for the before/after regional review.
+            local dina_donors_`x'_`s' "`dina_expected'"
             levelsof country if !missing(bracketavg_norm), local(dina_present) clean
             local dina_missing : list dina_expected - dina_present
             local dina_availability ""
@@ -389,7 +405,7 @@ foreach s in `steps' {
 
 			*get general average
 			bysort year: gen `aux2' = topavg if p == 0  
-			bysort year: egen `avg2' = total(`aux2')
+			bysort year: egen double `avg2' = total(`aux2')
 
 			*get top shares 
 			qui gen topsh = topavg / `avg2' * (`sum_pop2' / 100000 )
@@ -424,9 +440,10 @@ tempvar merge
 qui merge m:1 country year using `tf_pop', gen(`merge')
 sort step country year p
 
-*drop isos that are not actual countries (or to exclude from aggregate)
-qui drop if inlist(country, "VIR", "ATG", "ABW", "BRB", "GLP", "GRD") 
-qui drop if inlist(country, "GUF", "LCA", "MTQ", "PRI", "VCT", "CRI") 
+*exclude the configured regional recipients (shared with WID requirements)
+foreach country in $dina_export_regional_exclusions {
+    quietly drop if country == "`country'"
+}
 
 *drop countries already present in main 
 foreach c in `all_ctries' {
@@ -437,8 +454,16 @@ foreach c in `all_ctries' {
 qui levelsof country, local(missing_ctries) clean 
 tempfile imputed_ctries 
 local iter = 1 
+tempname dina_donor_map
+file open `dina_donor_map' using "`consistency_work'/regional_donors.csv", write text replace
+file write `dina_donor_map' "country,step,donor" _n
 foreach c in `missing_ctries' {
 	foreach s in `steps' {
+		local dina_pool "all"
+		if "`c'" == "CUB" local dina_pool "CUB"
+		foreach donor in `dina_donors_`dina_pool'_`s'' {
+			file write `dina_donor_map' "`c',`s',`donor'" _n
+		}
 		preserve 
 			if "`c'" == "CUB" qui use `tf_reg_avg_`c'_`s'', clear 
 			else qui use `tf_reg_avg_all_`s'', clear 
@@ -452,175 +477,29 @@ foreach c in `missing_ctries' {
 	}
 	drop if country == "`c'"
 }
+file close `dina_donor_map'
 
 *put everyting together 
 qui use `main', clear 
 qui append using `imputed_ctries'
 
-// Accepted contributions already passed validation. Keep them out of the
-// legacy +0.1% adjustments and derived-statistics reconstruction below.
-if `dina_finished_count' > 0 {
-	preserve
-		keep if finished_dina == 1
-		tempfile dina_finished_main
-		quietly save `dina_finished_main'
-	restore
-	drop if finished_dina == 1
-	drop finished_dina bottomsh bottomavg
-	// Preserve the original calculation precision for internal and donor rows.
-	foreach v of local dina_legacy_floatvars {
-		quietly recast float `v', force
-	}
+// Consistency preparation of assembled source and regional distributions.
+// The same idempotent routine replaces legacy incremental 0.1% adjustments.
+capture drop consistency_publish
+capture confirm file "`consistency_work'/publication_scope.dta"
+if !_rc {
+    merge m:1 country year step using "`consistency_work'/publication_scope.dta", keep(master match) keepusing(consistency_publish) nogen
+    replace consistency_publish = 0 if missing(consistency_publish)
 }
-
-//check income variables are non-decreasing 
-local incomevars thr bracketavg_norm topavg 
-foreach v in `incomevars' {
-	di as result "checking `v' non-decreasing..."
-	qui sort step country year p
-	bysort step country year: gen `v'_check = (`v' - `v'[_n-1]) / `v'[_n-1] * 100
-	qui replace `v'_check = 0 if missing(`v'_check) & p == 0 | `v'[_n-1] < 0
-	assert `v'_check >= -0.01  
-	qui drop `v'_check 
-}
-
-// Preserve equal incomes (point masses); repair actual decreases only.
-foreach v in `incomevars' {
-	*make room 
-	sort step country year p
-	foreach nv in `v'_adj lag_`v' check_`v' {
-		cap drop `nv'
-	}
-	*spot an actual decrease
-	qui gen `v'_adj = `v'
-	qui gen lag_`v' = `v'_adj[_n - 1] if p > 0
-	qui gen check_`v' = 1 if (lag_`v' > `v'_adj & `v'_adj != 0)
-	qui count if check_`v' == 1 
-	*retain the existing 0.1% repair for decreases, one by one
-	local iter_`v' = 1 
-	while `r(N)' > 0 & `iter_`v'' <= 50 {
-		if `iter_`v'' == 1 {
-			di as result " Repairing decreases in `v' ..." _continue
-			cap drop lag_`v'
-			bysort step country year: gen lag_`v' = `v'_adj[_n - 1] if p > 0
-		} 
-		di as text ", `iter_`v''" _continue
-		qui {
-			cap drop sumcheck_`v' 
-			bysort step country year: gen sumcheck_`v' = sum(check_`v') if check_`v' == 1
-			*change only first-in-line value (+0.1%)
-			bysort step country year: replace `v'_adj = ///
-				lag_`v' * 1.001 if sumcheck_`v' == 1
-			cap drop check_`v'  
-			*update lag var and re-estimate 
-			cap drop lag_`v' 
-			bysort step country year: gen lag_`v' = `v'_adj[_n - 1] if p > 0
-			bysort step country year: gen check_`v' = 1 if `v'_adj < lag_`v' & ///
-				`v'_adj != 0 & !missing(`v'_adj, lag_`v')
-			*add one to counter 	
-			local iter_`v' = `iter_`v'' + 1
-			qui count if check_`v' == 1
-		}
-	}
-	if ("`v'" == "topavg"){
-		qui replace `v'_adj = 1 if p == 0 & missing(`v'_adj)
-	}
-	*clean 
-	cap drop check_`v' 
-	cap drop sumcheck_`v' 
-	cap drop lag_`v'
-	qui replace `v' = `v'_adj if !missing(`v'_adj) 
-	qui drop `v'_adj 
-	di as text ", done."
-}
-
-//enforce  thr-avg consistency 
-qui replace thr = bracketavg_norm if bracketavg_norm < thr
-qui drop check2 	
-
-//check income variables are non-decreasing (again)
-foreach v in thr bracketavg topavg {
-	di as result "checking `v' non-decreasing..."
-	qui sort step country year p
-	bysort step country year: gen `v'_check = (`v' - `v'[_n-1]) / `v'[_n-1] * 100
-	qui replace `v'_check = 0 if missing(`v'_check) & p == 0 | `v'[_n-1] < 0
-	assert `v'_check >= -0.01  
-	qui drop `v'_check 
-}
-
-// Check nondecreasing order; equality is valid for a population mass.
-di as result "final nondecreasing-order check: "
-foreach v in `incomevars' {
-	di as result " `v': " _continue
-	*spot an actual decrease
-	qui gen lag_`v' = `v'[_n - 1] if p > 0
-	qui gen check_`v' = 1 if (lag_`v' > `v' & `v' != 0 & !missing(lag_`v'))
-	assert check_`v' != 1 
-	di as text "done."
-	qui drop lag_`v' 
-	qui drop check_`v'
-}
-
-*renormalize bracketavg
-qui gen a1 = bracketavg_norm * bracketpop 
-bysort step country year: egen a2 = total(a1)
-qui replace a2 = a2 / 100000
-qui replace a2 = 1 / a2 
-qui replace bracketavg_norm = bracketavg_norm * a2 
-qui replace thr = thr * a2 
-qui drop a1 a2 
-
-*recompute s 
-qui gen s2 = bracketavg_norm * (bracketpop / 100000)
-bysort step country year: egen sums = total(s2)
-qui replace sums = round(1/sums * 10^5)
-assert sums == 100000
-qui replace s = s2 
-qui drop s2 sums 
-
-*recompute topavg 
-qui gsort step country year -p 
-qui gen fy = bracketavg_norm * bracketpop 
-bysort step country year: gen bp = sum(bracketpop)
-bysort step country year: gen sum_fy = sum(fy)
-qui gen topavg2 = sum_fy / bp
-qui replace topavg2 = 1 if p == 0
-qui replace topavg = topavg2
-qui drop topavg2 sum_fy fy bp 
-
-*recompute topsh 
-bysort step country year: gen topsh2 = sum(s)
-qui replace topsh2 = 1 if bracketavg == 0
-qui replace topsh = topsh2 
-qui drop topsh2
-
-*raplace bracketavg
-qui replace bracketavg = bracketavg_norm 
-
-*compute bottom shares
-// p is the lower boundary: the bottom aggregate excludes the current bin.
-qui sort step country year p
-by step country year: gen double bottomsh = sum(s) - s
-
-*compute bottom averages
-tempvar fy3 sum_fy3 sum_pop3 
-qui sort step country year p
-by step country year: gen double `fy3' = bracketavg * bracketpop
-by step country year: gen double `sum_fy3' = sum(`fy3') - `fy3'
-by step country year: gen double `sum_pop3' = sum(bracketpop) - bracketpop
-by step country year: gen double bottomavg = `sum_fy3' / `sum_pop3'
-qui replace bottomavg = 0 if p == 0
-
-// Restore exactly the validated normalized distribution before WID scaling.
-local dina_scale_floatvars ""
-foreach v in bracketavg thr topavg {
-	local dina_storage : type `v'
-	if "`dina_storage'" == "float" local dina_scale_floatvars "`dina_scale_floatvars' `v'"
-}
-if `dina_finished_count' > 0 {
-	quietly append using `dina_finished_main'
-	drop finished_dina
-}
+else generate byte consistency_publish = 1
+quietly save "`consistency_input'", replace
+cap erase "`consistency_output'"
+shell Rscript code/R/consistency_checker.R prepare "`consistency_input'" "`consistency_output'" "`consistency_work'" assembled
+confirm file "`consistency_output'"
+quietly use "`consistency_output'", clear
+// End consistency assembled preparation.
+// Regional calculations are complete; publication exclusions now apply.
+quietly drop if consistency_publish == 0
 
 *harmonise country names
 qui kountry country, from(iso3c) to(iso2c) 
@@ -672,13 +551,6 @@ if `dina_has_pod' > 0 {
 foreach var in "bracketavg" "thr" "topavg" "bottomavg" {
 	qui replace `var' = `var' * `dina_income_scale'
 }
-if `dina_finished_count' > 0 {
-	// Appending doubles must not change rounding of previously float columns.
-	foreach v of local dina_scale_floatvars {
-		quietly replace `v' = float(`v') if pub_source == ""
-	}
-}
-
 //create main folders 
 local dirpath "${dina_output_root}/output/latest_wid_series"
 mata: st_numscalar("exists", direxists(st_local("dirpath")))
@@ -699,9 +571,6 @@ if `dina_finished_count' > 0 {
 	restore
 }
 qui replace p = p / 1000
-if `dina_finished_count' > 0 & "`dina_legacy_p_type'" == "float" {
-	quietly replace p = float(p) if pub_source == ""
-}
 qui save `main', replace 
 qui save "${dina_output_root}/output/latest_wid_series/dina_latam_wide_`date'.dta", replace
 
@@ -728,6 +597,8 @@ foreach concept in `steps' {
 preserve
 	use `main', clear
 	keep step year country p topsh topavg data_points extrap_points
+	// The final detailed bracket already supplies these cumulative values.
+	drop if p == 99.999
 	gen perc = "p"+string(p)+"p100"
 	drop p
 	rename perc   p
@@ -807,8 +678,7 @@ append using `bottom'
 append using `bottomavg'
 
 sort country year p widcode
-*duplicates tag country year p widcode, gen(dup)
-duplicates drop country year p widcode, force
+// Unexpected duplicate keys remain visible to the independent R audit.
 drop if year == .
 
 *harmonise names 
@@ -816,7 +686,8 @@ qui kountry country, from(iso3c) to(iso2c)
 qui rename _ISO2C_ iso
 
 *tag current LCU and data quality here 
-qui merge m:1 country year using `tf_ava', nogen
+// Availability annotates published cases; it must not reintroduce excluded years.
+qui merge m:1 country year using `tf_ava', keep(master match) nogen
 qui rename grade data_quality 
 qui replace data_quality = 0 if missing(data_quality)
 tab country data_quality 
@@ -845,22 +716,16 @@ if `dina_finished_count' > 0 {
 }
 
 *clean and save in long format 
-drop if missing(value)
+// Keep missing monetary records visible when a benchmark is unavailable.
 qui drop step 
 
-if `dina_finished_count' > 0 {
-	qui drop if country == "DOM" & year < 2012 & pub_source == ""
-}
-else qui drop if country == "DOM" & year < 2012
-
 *One main export contains every requested income concept, identified by widcode.
-isid country year p widcode
 qui save "${dina_output_root}/output/latest_wid_series/dina_latam_`date'.dta", replace
 
-preserve 
-	qui keep if strpos(widcode, "diinc")
-	qui save "${dina_output_root}/output/latest_wid_series/dina_latam_`date'_amory.dta", replace
-restore 
+// Audit the actual saved file. Consistency findings are reported, not fatal.
+cap erase "`consistency_report'/receipt.json"
+shell Rscript code/R/consistency_checker.R audit "${dina_output_root}/output/latest_wid_series/dina_latam_`date'.dta" "`consistency_work'" "`consistency_report'" "`consistency_figure'" "${dina_output_root}/output/latest_wid_series/dina_latam_wide_`date'.dta"
+confirm file "`consistency_report'/receipt.json"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -908,6 +773,11 @@ qui graph export "${dina_output_root}/output/figures/updates/update-`date'-posvs
 *exclude some obs 
 qui keep if strpos(widcode, "ptinc")
 
+// Ambiguous keys remain in the export and audit. Plot them as gaps, without
+// selecting one of their conflicting values or stopping the completed export.
+quietly bysort year iso p widcode: replace value = . if _N > 1
+quietly by year iso p widcode: keep if _n == 1
+
 *compare with previous update 
 qui rename (value data_points) (new_value new_data_points) 
 qui merge 1:1 year iso p widcode using `tf_prev'
@@ -933,7 +803,7 @@ foreach xxx in "sptinc992j" /*"sdiinc992j"*/ {
 		if p == "p99.99p100" & widcode == "`xxx'" ///
 		& (data_quality != 0 /*| inlist(country, "BOL", "CUB")*/) , ///
 		by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Top 0.01% share") ///
-		$graph_scheme legend(label(1 "Updated") label(2 "Old"))
+		$graph_scheme legend(label(1 "After") label(2 "Before"))
 	qui graph export "${dina_output_root}/output/figures/updates/update-`date'-`xxx'-t001.pdf", replace
 	
 	graph twoway (line new_value year if inrange(year, $first_y, `ly'), lcolor(red)) ///
@@ -941,7 +811,7 @@ foreach xxx in "sptinc992j" /*"sdiinc992j"*/ {
 		if p == "p99.9p100" & widcode == "`xxx'" ///
 		& (data_quality != 0 /*| inlist(country, "BOL", "CUB")*/) , ///
 		by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Top 0.1% share") ///
-		$graph_scheme legend(label(1 "Updated") label(2 "Old"))
+		$graph_scheme legend(label(1 "After") label(2 "Before"))
 	qui graph export "${dina_output_root}/output/figures/updates/update-`date'-`xxx'-t01.pdf", replace
 	
 	graph twoway (line new_value year if inrange(year, $first_y, `ly'), lcolor(red)) ///
@@ -949,7 +819,7 @@ foreach xxx in "sptinc992j" /*"sdiinc992j"*/ {
 		if p == "p99p100" & widcode == "`xxx'" ///
 		& (data_quality != 0 /*| inlist(country, "BOL", "CUB")*/) , ///
 		by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Top 1% share") ///
-		$graph_scheme legend(label(1 "Updated") label(2 "Old"))
+		$graph_scheme legend(label(1 "After") label(2 "Before"))
 	qui graph export "${dina_output_root}/output/figures/updates/update-`date'-`xxx'-t1.pdf", replace
 
 	graph twoway (line new_value year if inrange(year, $first_y, `ly'), lcolor(red)) ///
@@ -957,7 +827,7 @@ foreach xxx in "sptinc992j" /*"sdiinc992j"*/ {
 		if p == "p90p100" & widcode == "`xxx'" ///
 		& (data_quality != 0 /*| inlist(country, "BOL", "CUB")*/) , ///
 		by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Top 10% share") ///
-		$graph_scheme legend(label(1 "Updated") label(2 "Old"))
+		$graph_scheme legend(label(1 "After") label(2 "Before"))
 	qui graph export "${dina_output_root}/output/figures/updates/update-`date'-`xxx'-t10.pdf", replace
 
 	graph twoway (line new_value year if inrange(year, $first_y, `ly'), lcolor(red)) ///
@@ -965,7 +835,7 @@ foreach xxx in "sptinc992j" /*"sdiinc992j"*/ {
 		if p == "p50p90" & widcode == "`xxx'" ///
 		& (data_quality != 0 /*| inlist(country, "BOL", "CUB")*/) , ///
 		by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Middle 40% share") ///
-		$graph_scheme legend(label(1 "Updated") label(2 "Old"))
+		$graph_scheme legend(label(1 "After") label(2 "Before"))
 	qui graph export "${dina_output_root}/output/figures/updates/update-`date'-`xxx'-m40.pdf", replace
 
 	graph twoway (line new_value year if inrange(year, $first_y, `ly'), lcolor(red)) ///
@@ -974,7 +844,7 @@ foreach xxx in "sptinc992j" /*"sdiinc992j"*/ {
 		& (data_quality != 0 /*| inlist(country, "BOL", "CUB")*/) , ///
 		by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Bottom 50% share") ///
 		ylabel(0(.1).3) ///
-		$graph_scheme legend(label(1 "Updated") label(2 "Old"))
+		$graph_scheme legend(label(1 "After") label(2 "Before"))
 	qui graph export "${dina_output_root}/output/figures/updates/update-`date'-`xxx'-b50.pdf", replace
 	
 }
@@ -993,7 +863,7 @@ graph twoway (line new_value year if inrange(year, $first_y, `ly'), lcolor(red))
 		& (data_quality != 0 /*| inlist(country, "BOL", "CUB")*/) , ///
 		by(country, note("")) /*xline(2020)*/ xtitle("") ytit("Bottom 20% share") ///
 		ylabel(0(.01).03) ///
-		$graph_scheme legend(label(1 "Updated") label(2 "Old"))
+		$graph_scheme legend(label(1 "After") label(2 "Before"))
 	qui graph export "${dina_output_root}/output/figures/updates/update-`date'-sptinc992j-b20.pdf", replace
 
 // A failed or interrupted export never reaches publication of this metadata.

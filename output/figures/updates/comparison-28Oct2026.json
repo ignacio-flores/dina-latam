@@ -1,0 +1,119 @@
+{
+  "version": 2,
+  "status": "complete",
+  "date": "28Oct2026",
+  "started_at": "2026-10-28T08:59:08-0300",
+  "baseline": "input_data/_new/previous_series/dina_latam_7Nov2025.dta",
+  "baseline_hash": "8e823b0c7408aa4ba5383eb53fa163b355c0c89a4e3b012905a050206687c647",
+  "settings": {
+    "countries": [
+      "COL",
+      "ARG",
+      "PER",
+      "URY",
+      "CRI",
+      "ECU",
+      "CHL",
+      "BRA",
+      "SLV",
+      "MEX",
+      "DOM"
+    ],
+    "years": {
+      "first": 2000,
+      "last": 2024
+    },
+    "export_validation": {
+      "unit": "esn",
+      "steps": [
+        "nat",
+        "pod"
+      ],
+      "last_year": 2025,
+      "previous_update_date": "7Nov2025",
+      "previous_update_file": "input_data/_new/previous_series/dina_latam_7Nov2025.dta"
+    }
+  },
+  "finished_publications": {
+    "ecu-nabernegg-2026": {
+      "candidate": "/Users/iflores/Documents/GitHub/dina-latam/output/experiments/finished_dina_publication/runs/publication-20261026-112712-file16a7a5e488fa",
+      "source_id": "ecu-nabernegg-2026"
+    }
+  },
+  "generated_at": "2026-10-28T09:04:03-0300",
+  "graphs": ["output/figures/updates/update-28Oct2026-sptinc992j-t10.pdf", "output/figures/updates/update-28Oct2026-sptinc992j-t1.pdf", "output/figures/updates/update-28Oct2026-sptinc992j-t01.pdf", "output/figures/updates/update-28Oct2026-sptinc992j-t001.pdf", "output/figures/updates/update-28Oct2026-sptinc992j-m40.pdf", "output/figures/updates/update-28Oct2026-sptinc992j-b50.pdf"],
+  "series": ["output/latest_wid_series/dina_latam_wide_28Oct2026.dta", "output/latest_wid_series/dina_latam_28Oct2026.dta"],
+  "consistency": {
+    "status": "clean",
+    "counts": {
+      "distributions": 1338,
+      "corrected_distributions": 144,
+      "inherited_distributions": 102,
+      "mean_corrections": 244,
+      "threshold_corrections": 329,
+      "repeated_averages_before": 80,
+      "repeated_thresholds_before": 253,
+      "repeated_averages_after": 0,
+      "repeated_thresholds_after": 0,
+      "missing_averages": 0,
+      "missing_thresholds": 0,
+      "unresolved": 0,
+      "unresolved_cases": 0,
+      "large_share_changes": 0,
+      "max_mean_change_percent": 0.0001,
+      "max_threshold_change_percent": 3488056515564673,
+      "max_threshold_change_normalized": 0.0003,
+      "threshold_corrections_near_zero": 102,
+      "max_headline_change_pp": 1.0812e-06
+    },
+    "reports": {
+      "receipt": "output/data_reports/consistency/28Oct2026/receipt.json",
+      "summary": "output/data_reports/consistency/28Oct2026/summary.txt",
+      "details": "output/data_reports/consistency/28Oct2026/details.csv",
+      "figure": "output/figures/updates/consistency-28Oct2026.pdf"
+    }
+  },
+  "income_comparisons": ["output/figures/updates/update-28Oct2026-pod-vs-nat-ARG.pdf", "output/figures/updates/update-28Oct2026-pod-vs-nat-BHS.pdf", "output/figures/updates/update-28Oct2026-pod-vs-nat-BLZ.pdf", "output/figures/updates/update-28Oct2026-pod-vs-nat-BOL.pdf", "output/figures/updates/update-28Oct2026-pod-vs-nat-BRA.pdf", "output/figures/updates/update-28Oct2026-pod-vs-nat-CHL.pdf", "output/figures/updates/update-28Oct2026-pod-vs-nat-COL.pdf", "output/figures/updates/update-28Oct2026-pod-vs-nat-CRI.pdf", "output/figures/updates/update-28Oct2026-pod-vs-nat-CUB.pdf", "output/figures/updates/update-28Oct2026-pod-vs-nat-DOM.pdf", "output/figures/updates/update-28Oct2026-pod-vs-nat-ECU.pdf", "output/figures/updates/update-28Oct2026-pod-vs-nat-GTM.pdf", "output/figures/updates/update-28Oct2026-pod-vs-nat-GUY.pdf", "output/figures/updates/update-28Oct2026-pod-vs-nat-HND.pdf", "output/figures/updates/update-28Oct2026-pod-vs-nat-HTI.pdf", "output/figures/updates/update-28Oct2026-pod-vs-nat-JAM.pdf", "output/figures/updates/update-28Oct2026-pod-vs-nat-MEX.pdf", "output/figures/updates/update-28Oct2026-pod-vs-nat-NIC.pdf", "output/figures/updates/update-28Oct2026-pod-vs-nat-PAN.pdf", "output/figures/updates/update-28Oct2026-pod-vs-nat-PER.pdf", "output/figures/updates/update-28Oct2026-pod-vs-nat-PRY.pdf", "output/figures/updates/update-28Oct2026-pod-vs-nat-SLV.pdf", "output/figures/updates/update-28Oct2026-pod-vs-nat-SUR.pdf", "output/figures/updates/update-28Oct2026-pod-vs-nat-TTO.pdf", "output/figures/updates/update-28Oct2026-pod-vs-nat-URY.pdf", "output/figures/updates/update-28Oct2026-pod-vs-nat-VEN.pdf"],
+  "income_comparison_report": "output/figures/updates/income-comparisons-28Oct2026.json",
+  "artifacts": {
+    "output/figures/updates/update-28Oct2026-sptinc992j-t10.pdf": "8590efad313c0472f117d20dcc984da3405ab3f766f0d72ccad1c759007eddf0",
+    "output/figures/updates/update-28Oct2026-sptinc992j-t1.pdf": "7e25aa27f9ccfcdb636777cb2c2bfaa3de968ea5938bfe3c141b98dd59857001",
+    "output/figures/updates/update-28Oct2026-sptinc992j-t01.pdf": "c61d791e7a144ec3e61a380f05ccb47d2941409d4654b31eb5f591bdfdeedd1a",
+    "output/figures/updates/update-28Oct2026-sptinc992j-t001.pdf": "ae22a4838ef578276c938d096b997409b4886833dca259be3b4a6f41a8cb8ad4",
+    "output/figures/updates/update-28Oct2026-sptinc992j-m40.pdf": "d73de81c042919438c968777f5431a678aaf23081c0c0c272b59cbdfe836ae93",
+    "output/figures/updates/update-28Oct2026-sptinc992j-b50.pdf": "1c45f87345beb7a51ed11268084f57f723959c64c784275fb72cd0b3f9ba2631",
+    "output/latest_wid_series/dina_latam_wide_28Oct2026.dta": "2cd691b0532db96418cb45eee17abbc89010776241c252fc7e4f673c9cd597bc",
+    "output/latest_wid_series/dina_latam_28Oct2026.dta": "f2c7a6b178d9ea4761f91af85fb728877929bd199809dd8c8de3c4ff789825cc",
+    "output/figures/updates/update-28Oct2026-pod-vs-nat-ARG.pdf": "f23ca1e646885f5abb2b62d10ed663d8ae3890d5adb1b6602efcd5e4849e9a29",
+    "output/figures/updates/update-28Oct2026-pod-vs-nat-BHS.pdf": "0b6e54b2f2bc8643719cf000a4b144883514fccd5d7746fba30c4dc9af8b6598",
+    "output/figures/updates/update-28Oct2026-pod-vs-nat-BLZ.pdf": "0b6e54b2f2bc8643719cf000a4b144883514fccd5d7746fba30c4dc9af8b6598",
+    "output/figures/updates/update-28Oct2026-pod-vs-nat-BOL.pdf": "0b6e54b2f2bc8643719cf000a4b144883514fccd5d7746fba30c4dc9af8b6598",
+    "output/figures/updates/update-28Oct2026-pod-vs-nat-BRA.pdf": "a506cf262dde092b8fa6166dce50463eb768edab230a563907b110e462012280",
+    "output/figures/updates/update-28Oct2026-pod-vs-nat-CHL.pdf": "85de50ae090c74aba7c73b7ea13ee1293422364f2776655749ea0ab1bb587286",
+    "output/figures/updates/update-28Oct2026-pod-vs-nat-COL.pdf": "24d599ad8c7dcbff07f87e7bd264857120225a8a8c98c40b5cda34f41cacc021",
+    "output/figures/updates/update-28Oct2026-pod-vs-nat-CRI.pdf": "db936c1212a59e34101aa9b96dacdd81f6e80408e5f1b2a7d49b8b85d63fcb8b",
+    "output/figures/updates/update-28Oct2026-pod-vs-nat-CUB.pdf": "f19fe3826b4fd6cb08627fbf7d1808651a684c99fcf72128fcda3dd83ae5ccd4",
+    "output/figures/updates/update-28Oct2026-pod-vs-nat-DOM.pdf": "748019c7ff96dc7f1826917bedf013abc4ea89114112434aabc300443d443995",
+    "output/figures/updates/update-28Oct2026-pod-vs-nat-ECU.pdf": "6b30aa3bf48395fc705463aedbc61eddcc84a31d64534d14125d24a86ac495a3",
+    "output/figures/updates/update-28Oct2026-pod-vs-nat-GTM.pdf": "0b6e54b2f2bc8643719cf000a4b144883514fccd5d7746fba30c4dc9af8b6598",
+    "output/figures/updates/update-28Oct2026-pod-vs-nat-GUY.pdf": "0b6e54b2f2bc8643719cf000a4b144883514fccd5d7746fba30c4dc9af8b6598",
+    "output/figures/updates/update-28Oct2026-pod-vs-nat-HND.pdf": "0b6e54b2f2bc8643719cf000a4b144883514fccd5d7746fba30c4dc9af8b6598",
+    "output/figures/updates/update-28Oct2026-pod-vs-nat-HTI.pdf": "0b6e54b2f2bc8643719cf000a4b144883514fccd5d7746fba30c4dc9af8b6598",
+    "output/figures/updates/update-28Oct2026-pod-vs-nat-JAM.pdf": "0b6e54b2f2bc8643719cf000a4b144883514fccd5d7746fba30c4dc9af8b6598",
+    "output/figures/updates/update-28Oct2026-pod-vs-nat-MEX.pdf": "d8023fcdaeeed88e0089160891ebdcd9164f179c1342b00eccaf1680a4580c91",
+    "output/figures/updates/update-28Oct2026-pod-vs-nat-NIC.pdf": "0b6e54b2f2bc8643719cf000a4b144883514fccd5d7746fba30c4dc9af8b6598",
+    "output/figures/updates/update-28Oct2026-pod-vs-nat-PAN.pdf": "0b6e54b2f2bc8643719cf000a4b144883514fccd5d7746fba30c4dc9af8b6598",
+    "output/figures/updates/update-28Oct2026-pod-vs-nat-PER.pdf": "e3aff291cb818c29f4c03d02a8ec38967b665b5cf5f5a236d0aa660d8b7da141",
+    "output/figures/updates/update-28Oct2026-pod-vs-nat-PRY.pdf": "0b6e54b2f2bc8643719cf000a4b144883514fccd5d7746fba30c4dc9af8b6598",
+    "output/figures/updates/update-28Oct2026-pod-vs-nat-SLV.pdf": "497bacc180f09a639e202aae72763ba3561bf50d0aa373130d2497f55612d799",
+    "output/figures/updates/update-28Oct2026-pod-vs-nat-SUR.pdf": "0b6e54b2f2bc8643719cf000a4b144883514fccd5d7746fba30c4dc9af8b6598",
+    "output/figures/updates/update-28Oct2026-pod-vs-nat-TTO.pdf": "0b6e54b2f2bc8643719cf000a4b144883514fccd5d7746fba30c4dc9af8b6598",
+    "output/figures/updates/update-28Oct2026-pod-vs-nat-URY.pdf": "dd4479da95db3d2ffc7dd7adf1f42c34461219e17426350453b25e325f27df3f",
+    "output/figures/updates/update-28Oct2026-pod-vs-nat-VEN.pdf": "0b6e54b2f2bc8643719cf000a4b144883514fccd5d7746fba30c4dc9af8b6598",
+    "output/figures/updates/income-comparisons-28Oct2026.json": "dd26912e0b08efbc5a137a727913bd2577e84e785acaa08a9ca6ce38aa33eb57",
+    "output/data_reports/consistency/28Oct2026/receipt.json": "99589150741a4d4e2e4575bdd52562448b228756d82779f2e4b19fcd16f9a1d7",
+    "output/data_reports/consistency/28Oct2026/summary.txt": "ffab16d193f4ee9eea875e2dc17ed4dfe11375e3100407d56658948a9b47fa28",
+    "output/data_reports/consistency/28Oct2026/details.csv": "10b463a4dda3e86af38f236e42533417ff9d576d23863702a31e4343d5fbbf4f",
+    "output/figures/updates/consistency-28Oct2026.pdf": "48d34a1618a0d5643d0cb39106e1fd6f35d079fd3ff7925ae2da52771f997848"
+  }
+}

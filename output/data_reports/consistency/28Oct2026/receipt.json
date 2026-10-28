@@ -1,0 +1,6731 @@
+{
+  "version": 1,
+  "status": "clean",
+  "review": {
+    "threshold_percent": 0.1,
+    "plotted_cases": 0,
+    "unresolved_cases": 0,
+    "substantial_or_unmeasured_cases": 0
+  },
+  "generated_at": "2026-10-28T09:02:31-0300",
+  "export": "output/latest_wid_series/dina_latam_28Oct2026.dta",
+  "scope_source": "provided",
+  "counts": {
+    "distributions": 1338,
+    "corrected_distributions": 144,
+    "inherited_distributions": 102,
+    "mean_corrections": 244,
+    "threshold_corrections": 329,
+    "repeated_averages_before": 80,
+    "repeated_thresholds_before": 253,
+    "repeated_averages_after": 0,
+    "repeated_thresholds_after": 0,
+    "missing_averages": 0,
+    "missing_thresholds": 0,
+    "unresolved": 0,
+    "unresolved_cases": 0,
+    "large_share_changes": 0,
+    "max_mean_change_percent": 0.0001,
+    "max_threshold_change_percent": 3488056515564673,
+    "max_threshold_change_normalized": 0.0003,
+    "threshold_corrections_near_zero": 102,
+    "max_headline_change_pp": 1.0812e-06
+  },
+  "reports": {
+    "summary": "output/data_reports/consistency/28Oct2026/summary.txt",
+    "details": "output/data_reports/consistency/28Oct2026/details.csv",
+    "figure": "output/figures/updates/consistency-28Oct2026.pdf"
+  },
+  "expected_cases": [
+    {
+      "country": "ARG",
+      "year": 2000,
+      "step": "nat"
+    },
+    {
+      "country": "ARG",
+      "year": 2000,
+      "step": "pod"
+    },
+    {
+      "country": "ARG",
+      "year": 2001,
+      "step": "nat"
+    },
+    {
+      "country": "ARG",
+      "year": 2001,
+      "step": "pod"
+    },
+    {
+      "country": "ARG",
+      "year": 2002,
+      "step": "nat"
+    },
+    {
+      "country": "ARG",
+      "year": 2002,
+      "step": "pod"
+    },
+    {
+      "country": "ARG",
+      "year": 2003,
+      "step": "nat"
+    },
+    {
+      "country": "ARG",
+      "year": 2003,
+      "step": "pod"
+    },
+    {
+      "country": "ARG",
+      "year": 2004,
+      "step": "nat"
+    },
+    {
+      "country": "ARG",
+      "year": 2004,
+      "step": "pod"
+    },
+    {
+      "country": "ARG",
+      "year": 2005,
+      "step": "nat"
+    },
+    {
+      "country": "ARG",
+      "year": 2005,
+      "step": "pod"
+    },
+    {
+      "country": "ARG",
+      "year": 2006,
+      "step": "nat"
+    },
+    {
+      "country": "ARG",
+      "year": 2006,
+      "step": "pod"
+    },
+    {
+      "country": "ARG",
+      "year": 2007,
+      "step": "nat"
+    },
+    {
+      "country": "ARG",
+      "year": 2007,
+      "step": "pod"
+    },
+    {
+      "country": "ARG",
+      "year": 2008,
+      "step": "nat"
+    },
+    {
+      "country": "ARG",
+      "year": 2008,
+      "step": "pod"
+    },
+    {
+      "country": "ARG",
+      "year": 2009,
+      "step": "nat"
+    },
+    {
+      "country": "ARG",
+      "year": 2009,
+      "step": "pod"
+    },
+    {
+      "country": "ARG",
+      "year": 2010,
+      "step": "nat"
+    },
+    {
+      "country": "ARG",
+      "year": 2010,
+      "step": "pod"
+    },
+    {
+      "country": "ARG",
+      "year": 2011,
+      "step": "nat"
+    },
+    {
+      "country": "ARG",
+      "year": 2011,
+      "step": "pod"
+    },
+    {
+      "country": "ARG",
+      "year": 2012,
+      "step": "nat"
+    },
+    {
+      "country": "ARG",
+      "year": 2012,
+      "step": "pod"
+    },
+    {
+      "country": "ARG",
+      "year": 2013,
+      "step": "nat"
+    },
+    {
+      "country": "ARG",
+      "year": 2013,
+      "step": "pod"
+    },
+    {
+      "country": "ARG",
+      "year": 2014,
+      "step": "nat"
+    },
+    {
+      "country": "ARG",
+      "year": 2014,
+      "step": "pod"
+    },
+    {
+      "country": "ARG",
+      "year": 2015,
+      "step": "nat"
+    },
+    {
+      "country": "ARG",
+      "year": 2015,
+      "step": "pod"
+    },
+    {
+      "country": "ARG",
+      "year": 2016,
+      "step": "nat"
+    },
+    {
+      "country": "ARG",
+      "year": 2016,
+      "step": "pod"
+    },
+    {
+      "country": "ARG",
+      "year": 2017,
+      "step": "nat"
+    },
+    {
+      "country": "ARG",
+      "year": 2017,
+      "step": "pod"
+    },
+    {
+      "country": "ARG",
+      "year": 2018,
+      "step": "nat"
+    },
+    {
+      "country": "ARG",
+      "year": 2018,
+      "step": "pod"
+    },
+    {
+      "country": "ARG",
+      "year": 2019,
+      "step": "nat"
+    },
+    {
+      "country": "ARG",
+      "year": 2019,
+      "step": "pod"
+    },
+    {
+      "country": "ARG",
+      "year": 2020,
+      "step": "nat"
+    },
+    {
+      "country": "ARG",
+      "year": 2020,
+      "step": "pod"
+    },
+    {
+      "country": "ARG",
+      "year": 2021,
+      "step": "nat"
+    },
+    {
+      "country": "ARG",
+      "year": 2021,
+      "step": "pod"
+    },
+    {
+      "country": "ARG",
+      "year": 2022,
+      "step": "nat"
+    },
+    {
+      "country": "ARG",
+      "year": 2022,
+      "step": "pod"
+    },
+    {
+      "country": "ARG",
+      "year": 2023,
+      "step": "nat"
+    },
+    {
+      "country": "ARG",
+      "year": 2023,
+      "step": "pod"
+    },
+    {
+      "country": "ARG",
+      "year": 2024,
+      "step": "nat"
+    },
+    {
+      "country": "ARG",
+      "year": 2024,
+      "step": "pod"
+    },
+    {
+      "country": "ARG",
+      "year": 2025,
+      "step": "nat"
+    },
+    {
+      "country": "ARG",
+      "year": 2025,
+      "step": "pod"
+    },
+    {
+      "country": "BHS",
+      "year": 2000,
+      "step": "nat"
+    },
+    {
+      "country": "BHS",
+      "year": 2000,
+      "step": "pod"
+    },
+    {
+      "country": "BHS",
+      "year": 2001,
+      "step": "nat"
+    },
+    {
+      "country": "BHS",
+      "year": 2001,
+      "step": "pod"
+    },
+    {
+      "country": "BHS",
+      "year": 2002,
+      "step": "nat"
+    },
+    {
+      "country": "BHS",
+      "year": 2002,
+      "step": "pod"
+    },
+    {
+      "country": "BHS",
+      "year": 2003,
+      "step": "nat"
+    },
+    {
+      "country": "BHS",
+      "year": 2003,
+      "step": "pod"
+    },
+    {
+      "country": "BHS",
+      "year": 2004,
+      "step": "nat"
+    },
+    {
+      "country": "BHS",
+      "year": 2004,
+      "step": "pod"
+    },
+    {
+      "country": "BHS",
+      "year": 2005,
+      "step": "nat"
+    },
+    {
+      "country": "BHS",
+      "year": 2005,
+      "step": "pod"
+    },
+    {
+      "country": "BHS",
+      "year": 2006,
+      "step": "nat"
+    },
+    {
+      "country": "BHS",
+      "year": 2006,
+      "step": "pod"
+    },
+    {
+      "country": "BHS",
+      "year": 2007,
+      "step": "nat"
+    },
+    {
+      "country": "BHS",
+      "year": 2007,
+      "step": "pod"
+    },
+    {
+      "country": "BHS",
+      "year": 2008,
+      "step": "nat"
+    },
+    {
+      "country": "BHS",
+      "year": 2008,
+      "step": "pod"
+    },
+    {
+      "country": "BHS",
+      "year": 2009,
+      "step": "nat"
+    },
+    {
+      "country": "BHS",
+      "year": 2009,
+      "step": "pod"
+    },
+    {
+      "country": "BHS",
+      "year": 2010,
+      "step": "nat"
+    },
+    {
+      "country": "BHS",
+      "year": 2010,
+      "step": "pod"
+    },
+    {
+      "country": "BHS",
+      "year": 2011,
+      "step": "nat"
+    },
+    {
+      "country": "BHS",
+      "year": 2011,
+      "step": "pod"
+    },
+    {
+      "country": "BHS",
+      "year": 2012,
+      "step": "nat"
+    },
+    {
+      "country": "BHS",
+      "year": 2012,
+      "step": "pod"
+    },
+    {
+      "country": "BHS",
+      "year": 2013,
+      "step": "nat"
+    },
+    {
+      "country": "BHS",
+      "year": 2013,
+      "step": "pod"
+    },
+    {
+      "country": "BHS",
+      "year": 2014,
+      "step": "nat"
+    },
+    {
+      "country": "BHS",
+      "year": 2014,
+      "step": "pod"
+    },
+    {
+      "country": "BHS",
+      "year": 2015,
+      "step": "nat"
+    },
+    {
+      "country": "BHS",
+      "year": 2015,
+      "step": "pod"
+    },
+    {
+      "country": "BHS",
+      "year": 2016,
+      "step": "nat"
+    },
+    {
+      "country": "BHS",
+      "year": 2016,
+      "step": "pod"
+    },
+    {
+      "country": "BHS",
+      "year": 2017,
+      "step": "nat"
+    },
+    {
+      "country": "BHS",
+      "year": 2017,
+      "step": "pod"
+    },
+    {
+      "country": "BHS",
+      "year": 2018,
+      "step": "nat"
+    },
+    {
+      "country": "BHS",
+      "year": 2018,
+      "step": "pod"
+    },
+    {
+      "country": "BHS",
+      "year": 2019,
+      "step": "nat"
+    },
+    {
+      "country": "BHS",
+      "year": 2019,
+      "step": "pod"
+    },
+    {
+      "country": "BHS",
+      "year": 2020,
+      "step": "nat"
+    },
+    {
+      "country": "BHS",
+      "year": 2020,
+      "step": "pod"
+    },
+    {
+      "country": "BHS",
+      "year": 2021,
+      "step": "nat"
+    },
+    {
+      "country": "BHS",
+      "year": 2021,
+      "step": "pod"
+    },
+    {
+      "country": "BHS",
+      "year": 2022,
+      "step": "nat"
+    },
+    {
+      "country": "BHS",
+      "year": 2022,
+      "step": "pod"
+    },
+    {
+      "country": "BHS",
+      "year": 2023,
+      "step": "nat"
+    },
+    {
+      "country": "BHS",
+      "year": 2023,
+      "step": "pod"
+    },
+    {
+      "country": "BHS",
+      "year": 2024,
+      "step": "nat"
+    },
+    {
+      "country": "BHS",
+      "year": 2024,
+      "step": "pod"
+    },
+    {
+      "country": "BHS",
+      "year": 2025,
+      "step": "nat"
+    },
+    {
+      "country": "BHS",
+      "year": 2025,
+      "step": "pod"
+    },
+    {
+      "country": "BLZ",
+      "year": 2000,
+      "step": "nat"
+    },
+    {
+      "country": "BLZ",
+      "year": 2000,
+      "step": "pod"
+    },
+    {
+      "country": "BLZ",
+      "year": 2001,
+      "step": "nat"
+    },
+    {
+      "country": "BLZ",
+      "year": 2001,
+      "step": "pod"
+    },
+    {
+      "country": "BLZ",
+      "year": 2002,
+      "step": "nat"
+    },
+    {
+      "country": "BLZ",
+      "year": 2002,
+      "step": "pod"
+    },
+    {
+      "country": "BLZ",
+      "year": 2003,
+      "step": "nat"
+    },
+    {
+      "country": "BLZ",
+      "year": 2003,
+      "step": "pod"
+    },
+    {
+      "country": "BLZ",
+      "year": 2004,
+      "step": "nat"
+    },
+    {
+      "country": "BLZ",
+      "year": 2004,
+      "step": "pod"
+    },
+    {
+      "country": "BLZ",
+      "year": 2005,
+      "step": "nat"
+    },
+    {
+      "country": "BLZ",
+      "year": 2005,
+      "step": "pod"
+    },
+    {
+      "country": "BLZ",
+      "year": 2006,
+      "step": "nat"
+    },
+    {
+      "country": "BLZ",
+      "year": 2006,
+      "step": "pod"
+    },
+    {
+      "country": "BLZ",
+      "year": 2007,
+      "step": "nat"
+    },
+    {
+      "country": "BLZ",
+      "year": 2007,
+      "step": "pod"
+    },
+    {
+      "country": "BLZ",
+      "year": 2008,
+      "step": "nat"
+    },
+    {
+      "country": "BLZ",
+      "year": 2008,
+      "step": "pod"
+    },
+    {
+      "country": "BLZ",
+      "year": 2009,
+      "step": "nat"
+    },
+    {
+      "country": "BLZ",
+      "year": 2009,
+      "step": "pod"
+    },
+    {
+      "country": "BLZ",
+      "year": 2010,
+      "step": "nat"
+    },
+    {
+      "country": "BLZ",
+      "year": 2010,
+      "step": "pod"
+    },
+    {
+      "country": "BLZ",
+      "year": 2011,
+      "step": "nat"
+    },
+    {
+      "country": "BLZ",
+      "year": 2011,
+      "step": "pod"
+    },
+    {
+      "country": "BLZ",
+      "year": 2012,
+      "step": "nat"
+    },
+    {
+      "country": "BLZ",
+      "year": 2012,
+      "step": "pod"
+    },
+    {
+      "country": "BLZ",
+      "year": 2013,
+      "step": "nat"
+    },
+    {
+      "country": "BLZ",
+      "year": 2013,
+      "step": "pod"
+    },
+    {
+      "country": "BLZ",
+      "year": 2014,
+      "step": "nat"
+    },
+    {
+      "country": "BLZ",
+      "year": 2014,
+      "step": "pod"
+    },
+    {
+      "country": "BLZ",
+      "year": 2015,
+      "step": "nat"
+    },
+    {
+      "country": "BLZ",
+      "year": 2015,
+      "step": "pod"
+    },
+    {
+      "country": "BLZ",
+      "year": 2016,
+      "step": "nat"
+    },
+    {
+      "country": "BLZ",
+      "year": 2016,
+      "step": "pod"
+    },
+    {
+      "country": "BLZ",
+      "year": 2017,
+      "step": "nat"
+    },
+    {
+      "country": "BLZ",
+      "year": 2017,
+      "step": "pod"
+    },
+    {
+      "country": "BLZ",
+      "year": 2018,
+      "step": "nat"
+    },
+    {
+      "country": "BLZ",
+      "year": 2018,
+      "step": "pod"
+    },
+    {
+      "country": "BLZ",
+      "year": 2019,
+      "step": "nat"
+    },
+    {
+      "country": "BLZ",
+      "year": 2019,
+      "step": "pod"
+    },
+    {
+      "country": "BLZ",
+      "year": 2020,
+      "step": "nat"
+    },
+    {
+      "country": "BLZ",
+      "year": 2020,
+      "step": "pod"
+    },
+    {
+      "country": "BLZ",
+      "year": 2021,
+      "step": "nat"
+    },
+    {
+      "country": "BLZ",
+      "year": 2021,
+      "step": "pod"
+    },
+    {
+      "country": "BLZ",
+      "year": 2022,
+      "step": "nat"
+    },
+    {
+      "country": "BLZ",
+      "year": 2022,
+      "step": "pod"
+    },
+    {
+      "country": "BLZ",
+      "year": 2023,
+      "step": "nat"
+    },
+    {
+      "country": "BLZ",
+      "year": 2023,
+      "step": "pod"
+    },
+    {
+      "country": "BLZ",
+      "year": 2024,
+      "step": "nat"
+    },
+    {
+      "country": "BLZ",
+      "year": 2024,
+      "step": "pod"
+    },
+    {
+      "country": "BLZ",
+      "year": 2025,
+      "step": "nat"
+    },
+    {
+      "country": "BLZ",
+      "year": 2025,
+      "step": "pod"
+    },
+    {
+      "country": "BOL",
+      "year": 2000,
+      "step": "nat"
+    },
+    {
+      "country": "BOL",
+      "year": 2000,
+      "step": "pod"
+    },
+    {
+      "country": "BOL",
+      "year": 2001,
+      "step": "nat"
+    },
+    {
+      "country": "BOL",
+      "year": 2001,
+      "step": "pod"
+    },
+    {
+      "country": "BOL",
+      "year": 2002,
+      "step": "nat"
+    },
+    {
+      "country": "BOL",
+      "year": 2002,
+      "step": "pod"
+    },
+    {
+      "country": "BOL",
+      "year": 2003,
+      "step": "nat"
+    },
+    {
+      "country": "BOL",
+      "year": 2003,
+      "step": "pod"
+    },
+    {
+      "country": "BOL",
+      "year": 2004,
+      "step": "nat"
+    },
+    {
+      "country": "BOL",
+      "year": 2004,
+      "step": "pod"
+    },
+    {
+      "country": "BOL",
+      "year": 2005,
+      "step": "nat"
+    },
+    {
+      "country": "BOL",
+      "year": 2005,
+      "step": "pod"
+    },
+    {
+      "country": "BOL",
+      "year": 2006,
+      "step": "nat"
+    },
+    {
+      "country": "BOL",
+      "year": 2006,
+      "step": "pod"
+    },
+    {
+      "country": "BOL",
+      "year": 2007,
+      "step": "nat"
+    },
+    {
+      "country": "BOL",
+      "year": 2007,
+      "step": "pod"
+    },
+    {
+      "country": "BOL",
+      "year": 2008,
+      "step": "nat"
+    },
+    {
+      "country": "BOL",
+      "year": 2008,
+      "step": "pod"
+    },
+    {
+      "country": "BOL",
+      "year": 2009,
+      "step": "nat"
+    },
+    {
+      "country": "BOL",
+      "year": 2009,
+      "step": "pod"
+    },
+    {
+      "country": "BOL",
+      "year": 2010,
+      "step": "nat"
+    },
+    {
+      "country": "BOL",
+      "year": 2010,
+      "step": "pod"
+    },
+    {
+      "country": "BOL",
+      "year": 2011,
+      "step": "nat"
+    },
+    {
+      "country": "BOL",
+      "year": 2011,
+      "step": "pod"
+    },
+    {
+      "country": "BOL",
+      "year": 2012,
+      "step": "nat"
+    },
+    {
+      "country": "BOL",
+      "year": 2012,
+      "step": "pod"
+    },
+    {
+      "country": "BOL",
+      "year": 2013,
+      "step": "nat"
+    },
+    {
+      "country": "BOL",
+      "year": 2013,
+      "step": "pod"
+    },
+    {
+      "country": "BOL",
+      "year": 2014,
+      "step": "nat"
+    },
+    {
+      "country": "BOL",
+      "year": 2014,
+      "step": "pod"
+    },
+    {
+      "country": "BOL",
+      "year": 2015,
+      "step": "nat"
+    },
+    {
+      "country": "BOL",
+      "year": 2015,
+      "step": "pod"
+    },
+    {
+      "country": "BOL",
+      "year": 2016,
+      "step": "nat"
+    },
+    {
+      "country": "BOL",
+      "year": 2016,
+      "step": "pod"
+    },
+    {
+      "country": "BOL",
+      "year": 2017,
+      "step": "nat"
+    },
+    {
+      "country": "BOL",
+      "year": 2017,
+      "step": "pod"
+    },
+    {
+      "country": "BOL",
+      "year": 2018,
+      "step": "nat"
+    },
+    {
+      "country": "BOL",
+      "year": 2018,
+      "step": "pod"
+    },
+    {
+      "country": "BOL",
+      "year": 2019,
+      "step": "nat"
+    },
+    {
+      "country": "BOL",
+      "year": 2019,
+      "step": "pod"
+    },
+    {
+      "country": "BOL",
+      "year": 2020,
+      "step": "nat"
+    },
+    {
+      "country": "BOL",
+      "year": 2020,
+      "step": "pod"
+    },
+    {
+      "country": "BOL",
+      "year": 2021,
+      "step": "nat"
+    },
+    {
+      "country": "BOL",
+      "year": 2021,
+      "step": "pod"
+    },
+    {
+      "country": "BOL",
+      "year": 2022,
+      "step": "nat"
+    },
+    {
+      "country": "BOL",
+      "year": 2022,
+      "step": "pod"
+    },
+    {
+      "country": "BOL",
+      "year": 2023,
+      "step": "nat"
+    },
+    {
+      "country": "BOL",
+      "year": 2023,
+      "step": "pod"
+    },
+    {
+      "country": "BOL",
+      "year": 2024,
+      "step": "nat"
+    },
+    {
+      "country": "BOL",
+      "year": 2024,
+      "step": "pod"
+    },
+    {
+      "country": "BOL",
+      "year": 2025,
+      "step": "nat"
+    },
+    {
+      "country": "BOL",
+      "year": 2025,
+      "step": "pod"
+    },
+    {
+      "country": "BRA",
+      "year": 2000,
+      "step": "nat"
+    },
+    {
+      "country": "BRA",
+      "year": 2000,
+      "step": "pod"
+    },
+    {
+      "country": "BRA",
+      "year": 2001,
+      "step": "nat"
+    },
+    {
+      "country": "BRA",
+      "year": 2001,
+      "step": "pod"
+    },
+    {
+      "country": "BRA",
+      "year": 2002,
+      "step": "nat"
+    },
+    {
+      "country": "BRA",
+      "year": 2002,
+      "step": "pod"
+    },
+    {
+      "country": "BRA",
+      "year": 2003,
+      "step": "nat"
+    },
+    {
+      "country": "BRA",
+      "year": 2003,
+      "step": "pod"
+    },
+    {
+      "country": "BRA",
+      "year": 2004,
+      "step": "nat"
+    },
+    {
+      "country": "BRA",
+      "year": 2004,
+      "step": "pod"
+    },
+    {
+      "country": "BRA",
+      "year": 2005,
+      "step": "nat"
+    },
+    {
+      "country": "BRA",
+      "year": 2005,
+      "step": "pod"
+    },
+    {
+      "country": "BRA",
+      "year": 2006,
+      "step": "nat"
+    },
+    {
+      "country": "BRA",
+      "year": 2006,
+      "step": "pod"
+    },
+    {
+      "country": "BRA",
+      "year": 2007,
+      "step": "nat"
+    },
+    {
+      "country": "BRA",
+      "year": 2007,
+      "step": "pod"
+    },
+    {
+      "country": "BRA",
+      "year": 2008,
+      "step": "nat"
+    },
+    {
+      "country": "BRA",
+      "year": 2008,
+      "step": "pod"
+    },
+    {
+      "country": "BRA",
+      "year": 2009,
+      "step": "nat"
+    },
+    {
+      "country": "BRA",
+      "year": 2009,
+      "step": "pod"
+    },
+    {
+      "country": "BRA",
+      "year": 2010,
+      "step": "nat"
+    },
+    {
+      "country": "BRA",
+      "year": 2010,
+      "step": "pod"
+    },
+    {
+      "country": "BRA",
+      "year": 2011,
+      "step": "nat"
+    },
+    {
+      "country": "BRA",
+      "year": 2011,
+      "step": "pod"
+    },
+    {
+      "country": "BRA",
+      "year": 2012,
+      "step": "nat"
+    },
+    {
+      "country": "BRA",
+      "year": 2012,
+      "step": "pod"
+    },
+    {
+      "country": "BRA",
+      "year": 2013,
+      "step": "nat"
+    },
+    {
+      "country": "BRA",
+      "year": 2013,
+      "step": "pod"
+    },
+    {
+      "country": "BRA",
+      "year": 2014,
+      "step": "nat"
+    },
+    {
+      "country": "BRA",
+      "year": 2014,
+      "step": "pod"
+    },
+    {
+      "country": "BRA",
+      "year": 2015,
+      "step": "nat"
+    },
+    {
+      "country": "BRA",
+      "year": 2015,
+      "step": "pod"
+    },
+    {
+      "country": "BRA",
+      "year": 2016,
+      "step": "nat"
+    },
+    {
+      "country": "BRA",
+      "year": 2016,
+      "step": "pod"
+    },
+    {
+      "country": "BRA",
+      "year": 2017,
+      "step": "nat"
+    },
+    {
+      "country": "BRA",
+      "year": 2017,
+      "step": "pod"
+    },
+    {
+      "country": "BRA",
+      "year": 2018,
+      "step": "nat"
+    },
+    {
+      "country": "BRA",
+      "year": 2018,
+      "step": "pod"
+    },
+    {
+      "country": "BRA",
+      "year": 2019,
+      "step": "nat"
+    },
+    {
+      "country": "BRA",
+      "year": 2019,
+      "step": "pod"
+    },
+    {
+      "country": "BRA",
+      "year": 2020,
+      "step": "nat"
+    },
+    {
+      "country": "BRA",
+      "year": 2020,
+      "step": "pod"
+    },
+    {
+      "country": "BRA",
+      "year": 2021,
+      "step": "nat"
+    },
+    {
+      "country": "BRA",
+      "year": 2021,
+      "step": "pod"
+    },
+    {
+      "country": "BRA",
+      "year": 2022,
+      "step": "nat"
+    },
+    {
+      "country": "BRA",
+      "year": 2022,
+      "step": "pod"
+    },
+    {
+      "country": "BRA",
+      "year": 2023,
+      "step": "nat"
+    },
+    {
+      "country": "BRA",
+      "year": 2023,
+      "step": "pod"
+    },
+    {
+      "country": "BRA",
+      "year": 2024,
+      "step": "nat"
+    },
+    {
+      "country": "BRA",
+      "year": 2024,
+      "step": "pod"
+    },
+    {
+      "country": "BRA",
+      "year": 2025,
+      "step": "nat"
+    },
+    {
+      "country": "BRA",
+      "year": 2025,
+      "step": "pod"
+    },
+    {
+      "country": "CHL",
+      "year": 2000,
+      "step": "nat"
+    },
+    {
+      "country": "CHL",
+      "year": 2000,
+      "step": "pod"
+    },
+    {
+      "country": "CHL",
+      "year": 2001,
+      "step": "nat"
+    },
+    {
+      "country": "CHL",
+      "year": 2001,
+      "step": "pod"
+    },
+    {
+      "country": "CHL",
+      "year": 2002,
+      "step": "nat"
+    },
+    {
+      "country": "CHL",
+      "year": 2002,
+      "step": "pod"
+    },
+    {
+      "country": "CHL",
+      "year": 2003,
+      "step": "nat"
+    },
+    {
+      "country": "CHL",
+      "year": 2003,
+      "step": "pod"
+    },
+    {
+      "country": "CHL",
+      "year": 2004,
+      "step": "nat"
+    },
+    {
+      "country": "CHL",
+      "year": 2004,
+      "step": "pod"
+    },
+    {
+      "country": "CHL",
+      "year": 2005,
+      "step": "nat"
+    },
+    {
+      "country": "CHL",
+      "year": 2005,
+      "step": "pod"
+    },
+    {
+      "country": "CHL",
+      "year": 2006,
+      "step": "nat"
+    },
+    {
+      "country": "CHL",
+      "year": 2006,
+      "step": "pod"
+    },
+    {
+      "country": "CHL",
+      "year": 2007,
+      "step": "nat"
+    },
+    {
+      "country": "CHL",
+      "year": 2007,
+      "step": "pod"
+    },
+    {
+      "country": "CHL",
+      "year": 2008,
+      "step": "nat"
+    },
+    {
+      "country": "CHL",
+      "year": 2008,
+      "step": "pod"
+    },
+    {
+      "country": "CHL",
+      "year": 2009,
+      "step": "nat"
+    },
+    {
+      "country": "CHL",
+      "year": 2009,
+      "step": "pod"
+    },
+    {
+      "country": "CHL",
+      "year": 2010,
+      "step": "nat"
+    },
+    {
+      "country": "CHL",
+      "year": 2010,
+      "step": "pod"
+    },
+    {
+      "country": "CHL",
+      "year": 2011,
+      "step": "nat"
+    },
+    {
+      "country": "CHL",
+      "year": 2011,
+      "step": "pod"
+    },
+    {
+      "country": "CHL",
+      "year": 2012,
+      "step": "nat"
+    },
+    {
+      "country": "CHL",
+      "year": 2012,
+      "step": "pod"
+    },
+    {
+      "country": "CHL",
+      "year": 2013,
+      "step": "nat"
+    },
+    {
+      "country": "CHL",
+      "year": 2013,
+      "step": "pod"
+    },
+    {
+      "country": "CHL",
+      "year": 2014,
+      "step": "nat"
+    },
+    {
+      "country": "CHL",
+      "year": 2014,
+      "step": "pod"
+    },
+    {
+      "country": "CHL",
+      "year": 2015,
+      "step": "nat"
+    },
+    {
+      "country": "CHL",
+      "year": 2015,
+      "step": "pod"
+    },
+    {
+      "country": "CHL",
+      "year": 2016,
+      "step": "nat"
+    },
+    {
+      "country": "CHL",
+      "year": 2016,
+      "step": "pod"
+    },
+    {
+      "country": "CHL",
+      "year": 2017,
+      "step": "nat"
+    },
+    {
+      "country": "CHL",
+      "year": 2017,
+      "step": "pod"
+    },
+    {
+      "country": "CHL",
+      "year": 2018,
+      "step": "nat"
+    },
+    {
+      "country": "CHL",
+      "year": 2018,
+      "step": "pod"
+    },
+    {
+      "country": "CHL",
+      "year": 2019,
+      "step": "nat"
+    },
+    {
+      "country": "CHL",
+      "year": 2019,
+      "step": "pod"
+    },
+    {
+      "country": "CHL",
+      "year": 2020,
+      "step": "nat"
+    },
+    {
+      "country": "CHL",
+      "year": 2020,
+      "step": "pod"
+    },
+    {
+      "country": "CHL",
+      "year": 2021,
+      "step": "nat"
+    },
+    {
+      "country": "CHL",
+      "year": 2021,
+      "step": "pod"
+    },
+    {
+      "country": "CHL",
+      "year": 2022,
+      "step": "nat"
+    },
+    {
+      "country": "CHL",
+      "year": 2022,
+      "step": "pod"
+    },
+    {
+      "country": "CHL",
+      "year": 2023,
+      "step": "nat"
+    },
+    {
+      "country": "CHL",
+      "year": 2023,
+      "step": "pod"
+    },
+    {
+      "country": "CHL",
+      "year": 2024,
+      "step": "nat"
+    },
+    {
+      "country": "CHL",
+      "year": 2024,
+      "step": "pod"
+    },
+    {
+      "country": "CHL",
+      "year": 2025,
+      "step": "nat"
+    },
+    {
+      "country": "CHL",
+      "year": 2025,
+      "step": "pod"
+    },
+    {
+      "country": "COL",
+      "year": 2000,
+      "step": "nat"
+    },
+    {
+      "country": "COL",
+      "year": 2000,
+      "step": "pod"
+    },
+    {
+      "country": "COL",
+      "year": 2001,
+      "step": "nat"
+    },
+    {
+      "country": "COL",
+      "year": 2001,
+      "step": "pod"
+    },
+    {
+      "country": "COL",
+      "year": 2002,
+      "step": "nat"
+    },
+    {
+      "country": "COL",
+      "year": 2002,
+      "step": "pod"
+    },
+    {
+      "country": "COL",
+      "year": 2003,
+      "step": "nat"
+    },
+    {
+      "country": "COL",
+      "year": 2003,
+      "step": "pod"
+    },
+    {
+      "country": "COL",
+      "year": 2004,
+      "step": "nat"
+    },
+    {
+      "country": "COL",
+      "year": 2004,
+      "step": "pod"
+    },
+    {
+      "country": "COL",
+      "year": 2005,
+      "step": "nat"
+    },
+    {
+      "country": "COL",
+      "year": 2005,
+      "step": "pod"
+    },
+    {
+      "country": "COL",
+      "year": 2006,
+      "step": "nat"
+    },
+    {
+      "country": "COL",
+      "year": 2006,
+      "step": "pod"
+    },
+    {
+      "country": "COL",
+      "year": 2007,
+      "step": "nat"
+    },
+    {
+      "country": "COL",
+      "year": 2007,
+      "step": "pod"
+    },
+    {
+      "country": "COL",
+      "year": 2008,
+      "step": "nat"
+    },
+    {
+      "country": "COL",
+      "year": 2008,
+      "step": "pod"
+    },
+    {
+      "country": "COL",
+      "year": 2009,
+      "step": "nat"
+    },
+    {
+      "country": "COL",
+      "year": 2009,
+      "step": "pod"
+    },
+    {
+      "country": "COL",
+      "year": 2010,
+      "step": "nat"
+    },
+    {
+      "country": "COL",
+      "year": 2010,
+      "step": "pod"
+    },
+    {
+      "country": "COL",
+      "year": 2011,
+      "step": "nat"
+    },
+    {
+      "country": "COL",
+      "year": 2011,
+      "step": "pod"
+    },
+    {
+      "country": "COL",
+      "year": 2012,
+      "step": "nat"
+    },
+    {
+      "country": "COL",
+      "year": 2012,
+      "step": "pod"
+    },
+    {
+      "country": "COL",
+      "year": 2013,
+      "step": "nat"
+    },
+    {
+      "country": "COL",
+      "year": 2013,
+      "step": "pod"
+    },
+    {
+      "country": "COL",
+      "year": 2014,
+      "step": "nat"
+    },
+    {
+      "country": "COL",
+      "year": 2014,
+      "step": "pod"
+    },
+    {
+      "country": "COL",
+      "year": 2015,
+      "step": "nat"
+    },
+    {
+      "country": "COL",
+      "year": 2015,
+      "step": "pod"
+    },
+    {
+      "country": "COL",
+      "year": 2016,
+      "step": "nat"
+    },
+    {
+      "country": "COL",
+      "year": 2016,
+      "step": "pod"
+    },
+    {
+      "country": "COL",
+      "year": 2017,
+      "step": "nat"
+    },
+    {
+      "country": "COL",
+      "year": 2017,
+      "step": "pod"
+    },
+    {
+      "country": "COL",
+      "year": 2018,
+      "step": "nat"
+    },
+    {
+      "country": "COL",
+      "year": 2018,
+      "step": "pod"
+    },
+    {
+      "country": "COL",
+      "year": 2019,
+      "step": "nat"
+    },
+    {
+      "country": "COL",
+      "year": 2019,
+      "step": "pod"
+    },
+    {
+      "country": "COL",
+      "year": 2020,
+      "step": "nat"
+    },
+    {
+      "country": "COL",
+      "year": 2020,
+      "step": "pod"
+    },
+    {
+      "country": "COL",
+      "year": 2021,
+      "step": "nat"
+    },
+    {
+      "country": "COL",
+      "year": 2021,
+      "step": "pod"
+    },
+    {
+      "country": "COL",
+      "year": 2022,
+      "step": "nat"
+    },
+    {
+      "country": "COL",
+      "year": 2022,
+      "step": "pod"
+    },
+    {
+      "country": "COL",
+      "year": 2023,
+      "step": "nat"
+    },
+    {
+      "country": "COL",
+      "year": 2023,
+      "step": "pod"
+    },
+    {
+      "country": "COL",
+      "year": 2024,
+      "step": "nat"
+    },
+    {
+      "country": "COL",
+      "year": 2024,
+      "step": "pod"
+    },
+    {
+      "country": "COL",
+      "year": 2025,
+      "step": "nat"
+    },
+    {
+      "country": "COL",
+      "year": 2025,
+      "step": "pod"
+    },
+    {
+      "country": "CRI",
+      "year": 2000,
+      "step": "nat"
+    },
+    {
+      "country": "CRI",
+      "year": 2000,
+      "step": "pod"
+    },
+    {
+      "country": "CRI",
+      "year": 2001,
+      "step": "nat"
+    },
+    {
+      "country": "CRI",
+      "year": 2001,
+      "step": "pod"
+    },
+    {
+      "country": "CRI",
+      "year": 2002,
+      "step": "nat"
+    },
+    {
+      "country": "CRI",
+      "year": 2002,
+      "step": "pod"
+    },
+    {
+      "country": "CRI",
+      "year": 2003,
+      "step": "nat"
+    },
+    {
+      "country": "CRI",
+      "year": 2003,
+      "step": "pod"
+    },
+    {
+      "country": "CRI",
+      "year": 2004,
+      "step": "nat"
+    },
+    {
+      "country": "CRI",
+      "year": 2004,
+      "step": "pod"
+    },
+    {
+      "country": "CRI",
+      "year": 2005,
+      "step": "nat"
+    },
+    {
+      "country": "CRI",
+      "year": 2005,
+      "step": "pod"
+    },
+    {
+      "country": "CRI",
+      "year": 2006,
+      "step": "nat"
+    },
+    {
+      "country": "CRI",
+      "year": 2006,
+      "step": "pod"
+    },
+    {
+      "country": "CRI",
+      "year": 2007,
+      "step": "nat"
+    },
+    {
+      "country": "CRI",
+      "year": 2007,
+      "step": "pod"
+    },
+    {
+      "country": "CRI",
+      "year": 2008,
+      "step": "nat"
+    },
+    {
+      "country": "CRI",
+      "year": 2008,
+      "step": "pod"
+    },
+    {
+      "country": "CRI",
+      "year": 2009,
+      "step": "nat"
+    },
+    {
+      "country": "CRI",
+      "year": 2009,
+      "step": "pod"
+    },
+    {
+      "country": "CRI",
+      "year": 2010,
+      "step": "nat"
+    },
+    {
+      "country": "CRI",
+      "year": 2010,
+      "step": "pod"
+    },
+    {
+      "country": "CRI",
+      "year": 2011,
+      "step": "nat"
+    },
+    {
+      "country": "CRI",
+      "year": 2011,
+      "step": "pod"
+    },
+    {
+      "country": "CRI",
+      "year": 2012,
+      "step": "nat"
+    },
+    {
+      "country": "CRI",
+      "year": 2012,
+      "step": "pod"
+    },
+    {
+      "country": "CRI",
+      "year": 2013,
+      "step": "nat"
+    },
+    {
+      "country": "CRI",
+      "year": 2013,
+      "step": "pod"
+    },
+    {
+      "country": "CRI",
+      "year": 2014,
+      "step": "nat"
+    },
+    {
+      "country": "CRI",
+      "year": 2014,
+      "step": "pod"
+    },
+    {
+      "country": "CRI",
+      "year": 2015,
+      "step": "nat"
+    },
+    {
+      "country": "CRI",
+      "year": 2015,
+      "step": "pod"
+    },
+    {
+      "country": "CRI",
+      "year": 2016,
+      "step": "nat"
+    },
+    {
+      "country": "CRI",
+      "year": 2016,
+      "step": "pod"
+    },
+    {
+      "country": "CRI",
+      "year": 2017,
+      "step": "nat"
+    },
+    {
+      "country": "CRI",
+      "year": 2017,
+      "step": "pod"
+    },
+    {
+      "country": "CRI",
+      "year": 2018,
+      "step": "nat"
+    },
+    {
+      "country": "CRI",
+      "year": 2018,
+      "step": "pod"
+    },
+    {
+      "country": "CRI",
+      "year": 2019,
+      "step": "nat"
+    },
+    {
+      "country": "CRI",
+      "year": 2019,
+      "step": "pod"
+    },
+    {
+      "country": "CRI",
+      "year": 2020,
+      "step": "nat"
+    },
+    {
+      "country": "CRI",
+      "year": 2020,
+      "step": "pod"
+    },
+    {
+      "country": "CRI",
+      "year": 2021,
+      "step": "nat"
+    },
+    {
+      "country": "CRI",
+      "year": 2021,
+      "step": "pod"
+    },
+    {
+      "country": "CRI",
+      "year": 2022,
+      "step": "nat"
+    },
+    {
+      "country": "CRI",
+      "year": 2022,
+      "step": "pod"
+    },
+    {
+      "country": "CRI",
+      "year": 2023,
+      "step": "nat"
+    },
+    {
+      "country": "CRI",
+      "year": 2023,
+      "step": "pod"
+    },
+    {
+      "country": "CRI",
+      "year": 2024,
+      "step": "nat"
+    },
+    {
+      "country": "CRI",
+      "year": 2024,
+      "step": "pod"
+    },
+    {
+      "country": "CRI",
+      "year": 2025,
+      "step": "nat"
+    },
+    {
+      "country": "CRI",
+      "year": 2025,
+      "step": "pod"
+    },
+    {
+      "country": "CUB",
+      "year": 2000,
+      "step": "nat"
+    },
+    {
+      "country": "CUB",
+      "year": 2000,
+      "step": "pod"
+    },
+    {
+      "country": "CUB",
+      "year": 2001,
+      "step": "nat"
+    },
+    {
+      "country": "CUB",
+      "year": 2001,
+      "step": "pod"
+    },
+    {
+      "country": "CUB",
+      "year": 2002,
+      "step": "nat"
+    },
+    {
+      "country": "CUB",
+      "year": 2002,
+      "step": "pod"
+    },
+    {
+      "country": "CUB",
+      "year": 2003,
+      "step": "nat"
+    },
+    {
+      "country": "CUB",
+      "year": 2003,
+      "step": "pod"
+    },
+    {
+      "country": "CUB",
+      "year": 2004,
+      "step": "nat"
+    },
+    {
+      "country": "CUB",
+      "year": 2004,
+      "step": "pod"
+    },
+    {
+      "country": "CUB",
+      "year": 2005,
+      "step": "nat"
+    },
+    {
+      "country": "CUB",
+      "year": 2005,
+      "step": "pod"
+    },
+    {
+      "country": "CUB",
+      "year": 2006,
+      "step": "nat"
+    },
+    {
+      "country": "CUB",
+      "year": 2006,
+      "step": "pod"
+    },
+    {
+      "country": "CUB",
+      "year": 2007,
+      "step": "nat"
+    },
+    {
+      "country": "CUB",
+      "year": 2007,
+      "step": "pod"
+    },
+    {
+      "country": "CUB",
+      "year": 2008,
+      "step": "nat"
+    },
+    {
+      "country": "CUB",
+      "year": 2008,
+      "step": "pod"
+    },
+    {
+      "country": "CUB",
+      "year": 2009,
+      "step": "nat"
+    },
+    {
+      "country": "CUB",
+      "year": 2009,
+      "step": "pod"
+    },
+    {
+      "country": "CUB",
+      "year": 2010,
+      "step": "nat"
+    },
+    {
+      "country": "CUB",
+      "year": 2010,
+      "step": "pod"
+    },
+    {
+      "country": "CUB",
+      "year": 2011,
+      "step": "nat"
+    },
+    {
+      "country": "CUB",
+      "year": 2011,
+      "step": "pod"
+    },
+    {
+      "country": "CUB",
+      "year": 2012,
+      "step": "nat"
+    },
+    {
+      "country": "CUB",
+      "year": 2012,
+      "step": "pod"
+    },
+    {
+      "country": "CUB",
+      "year": 2013,
+      "step": "nat"
+    },
+    {
+      "country": "CUB",
+      "year": 2013,
+      "step": "pod"
+    },
+    {
+      "country": "CUB",
+      "year": 2014,
+      "step": "nat"
+    },
+    {
+      "country": "CUB",
+      "year": 2014,
+      "step": "pod"
+    },
+    {
+      "country": "CUB",
+      "year": 2015,
+      "step": "nat"
+    },
+    {
+      "country": "CUB",
+      "year": 2015,
+      "step": "pod"
+    },
+    {
+      "country": "CUB",
+      "year": 2016,
+      "step": "nat"
+    },
+    {
+      "country": "CUB",
+      "year": 2016,
+      "step": "pod"
+    },
+    {
+      "country": "CUB",
+      "year": 2017,
+      "step": "nat"
+    },
+    {
+      "country": "CUB",
+      "year": 2017,
+      "step": "pod"
+    },
+    {
+      "country": "CUB",
+      "year": 2018,
+      "step": "nat"
+    },
+    {
+      "country": "CUB",
+      "year": 2018,
+      "step": "pod"
+    },
+    {
+      "country": "CUB",
+      "year": 2019,
+      "step": "nat"
+    },
+    {
+      "country": "CUB",
+      "year": 2019,
+      "step": "pod"
+    },
+    {
+      "country": "CUB",
+      "year": 2020,
+      "step": "nat"
+    },
+    {
+      "country": "CUB",
+      "year": 2020,
+      "step": "pod"
+    },
+    {
+      "country": "CUB",
+      "year": 2021,
+      "step": "nat"
+    },
+    {
+      "country": "CUB",
+      "year": 2021,
+      "step": "pod"
+    },
+    {
+      "country": "CUB",
+      "year": 2022,
+      "step": "nat"
+    },
+    {
+      "country": "CUB",
+      "year": 2022,
+      "step": "pod"
+    },
+    {
+      "country": "CUB",
+      "year": 2023,
+      "step": "nat"
+    },
+    {
+      "country": "CUB",
+      "year": 2023,
+      "step": "pod"
+    },
+    {
+      "country": "CUB",
+      "year": 2024,
+      "step": "nat"
+    },
+    {
+      "country": "CUB",
+      "year": 2024,
+      "step": "pod"
+    },
+    {
+      "country": "CUB",
+      "year": 2025,
+      "step": "nat"
+    },
+    {
+      "country": "CUB",
+      "year": 2025,
+      "step": "pod"
+    },
+    {
+      "country": "DOM",
+      "year": 2012,
+      "step": "nat"
+    },
+    {
+      "country": "DOM",
+      "year": 2012,
+      "step": "pod"
+    },
+    {
+      "country": "DOM",
+      "year": 2013,
+      "step": "nat"
+    },
+    {
+      "country": "DOM",
+      "year": 2013,
+      "step": "pod"
+    },
+    {
+      "country": "DOM",
+      "year": 2014,
+      "step": "nat"
+    },
+    {
+      "country": "DOM",
+      "year": 2014,
+      "step": "pod"
+    },
+    {
+      "country": "DOM",
+      "year": 2015,
+      "step": "nat"
+    },
+    {
+      "country": "DOM",
+      "year": 2015,
+      "step": "pod"
+    },
+    {
+      "country": "DOM",
+      "year": 2016,
+      "step": "nat"
+    },
+    {
+      "country": "DOM",
+      "year": 2016,
+      "step": "pod"
+    },
+    {
+      "country": "DOM",
+      "year": 2017,
+      "step": "nat"
+    },
+    {
+      "country": "DOM",
+      "year": 2017,
+      "step": "pod"
+    },
+    {
+      "country": "DOM",
+      "year": 2018,
+      "step": "nat"
+    },
+    {
+      "country": "DOM",
+      "year": 2018,
+      "step": "pod"
+    },
+    {
+      "country": "DOM",
+      "year": 2019,
+      "step": "nat"
+    },
+    {
+      "country": "DOM",
+      "year": 2019,
+      "step": "pod"
+    },
+    {
+      "country": "DOM",
+      "year": 2020,
+      "step": "nat"
+    },
+    {
+      "country": "DOM",
+      "year": 2020,
+      "step": "pod"
+    },
+    {
+      "country": "DOM",
+      "year": 2021,
+      "step": "nat"
+    },
+    {
+      "country": "DOM",
+      "year": 2021,
+      "step": "pod"
+    },
+    {
+      "country": "DOM",
+      "year": 2022,
+      "step": "nat"
+    },
+    {
+      "country": "DOM",
+      "year": 2022,
+      "step": "pod"
+    },
+    {
+      "country": "DOM",
+      "year": 2023,
+      "step": "nat"
+    },
+    {
+      "country": "DOM",
+      "year": 2023,
+      "step": "pod"
+    },
+    {
+      "country": "DOM",
+      "year": 2024,
+      "step": "nat"
+    },
+    {
+      "country": "DOM",
+      "year": 2024,
+      "step": "pod"
+    },
+    {
+      "country": "DOM",
+      "year": 2025,
+      "step": "nat"
+    },
+    {
+      "country": "DOM",
+      "year": 2025,
+      "step": "pod"
+    },
+    {
+      "country": "ECU",
+      "year": 1990,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 1991,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 1992,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 1993,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 1994,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 1995,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 1996,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 1997,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 1998,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 1999,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 2000,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 2000,
+      "step": "pod"
+    },
+    {
+      "country": "ECU",
+      "year": 2001,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 2001,
+      "step": "pod"
+    },
+    {
+      "country": "ECU",
+      "year": 2002,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 2002,
+      "step": "pod"
+    },
+    {
+      "country": "ECU",
+      "year": 2003,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 2003,
+      "step": "pod"
+    },
+    {
+      "country": "ECU",
+      "year": 2004,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 2004,
+      "step": "pod"
+    },
+    {
+      "country": "ECU",
+      "year": 2005,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 2005,
+      "step": "pod"
+    },
+    {
+      "country": "ECU",
+      "year": 2006,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 2006,
+      "step": "pod"
+    },
+    {
+      "country": "ECU",
+      "year": 2007,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 2007,
+      "step": "pod"
+    },
+    {
+      "country": "ECU",
+      "year": 2008,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 2008,
+      "step": "pod"
+    },
+    {
+      "country": "ECU",
+      "year": 2009,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 2009,
+      "step": "pod"
+    },
+    {
+      "country": "ECU",
+      "year": 2010,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 2010,
+      "step": "pod"
+    },
+    {
+      "country": "ECU",
+      "year": 2011,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 2011,
+      "step": "pod"
+    },
+    {
+      "country": "ECU",
+      "year": 2012,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 2012,
+      "step": "pod"
+    },
+    {
+      "country": "ECU",
+      "year": 2013,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 2013,
+      "step": "pod"
+    },
+    {
+      "country": "ECU",
+      "year": 2014,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 2014,
+      "step": "pod"
+    },
+    {
+      "country": "ECU",
+      "year": 2015,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 2015,
+      "step": "pod"
+    },
+    {
+      "country": "ECU",
+      "year": 2016,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 2016,
+      "step": "pod"
+    },
+    {
+      "country": "ECU",
+      "year": 2017,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 2017,
+      "step": "pod"
+    },
+    {
+      "country": "ECU",
+      "year": 2018,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 2018,
+      "step": "pod"
+    },
+    {
+      "country": "ECU",
+      "year": 2019,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 2019,
+      "step": "pod"
+    },
+    {
+      "country": "ECU",
+      "year": 2020,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 2020,
+      "step": "pod"
+    },
+    {
+      "country": "ECU",
+      "year": 2021,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 2021,
+      "step": "pod"
+    },
+    {
+      "country": "ECU",
+      "year": 2022,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 2022,
+      "step": "pod"
+    },
+    {
+      "country": "ECU",
+      "year": 2023,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 2023,
+      "step": "pod"
+    },
+    {
+      "country": "ECU",
+      "year": 2024,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 2024,
+      "step": "pod"
+    },
+    {
+      "country": "ECU",
+      "year": 2025,
+      "step": "nat"
+    },
+    {
+      "country": "ECU",
+      "year": 2025,
+      "step": "pod"
+    },
+    {
+      "country": "GTM",
+      "year": 2000,
+      "step": "nat"
+    },
+    {
+      "country": "GTM",
+      "year": 2000,
+      "step": "pod"
+    },
+    {
+      "country": "GTM",
+      "year": 2001,
+      "step": "nat"
+    },
+    {
+      "country": "GTM",
+      "year": 2001,
+      "step": "pod"
+    },
+    {
+      "country": "GTM",
+      "year": 2002,
+      "step": "nat"
+    },
+    {
+      "country": "GTM",
+      "year": 2002,
+      "step": "pod"
+    },
+    {
+      "country": "GTM",
+      "year": 2003,
+      "step": "nat"
+    },
+    {
+      "country": "GTM",
+      "year": 2003,
+      "step": "pod"
+    },
+    {
+      "country": "GTM",
+      "year": 2004,
+      "step": "nat"
+    },
+    {
+      "country": "GTM",
+      "year": 2004,
+      "step": "pod"
+    },
+    {
+      "country": "GTM",
+      "year": 2005,
+      "step": "nat"
+    },
+    {
+      "country": "GTM",
+      "year": 2005,
+      "step": "pod"
+    },
+    {
+      "country": "GTM",
+      "year": 2006,
+      "step": "nat"
+    },
+    {
+      "country": "GTM",
+      "year": 2006,
+      "step": "pod"
+    },
+    {
+      "country": "GTM",
+      "year": 2007,
+      "step": "nat"
+    },
+    {
+      "country": "GTM",
+      "year": 2007,
+      "step": "pod"
+    },
+    {
+      "country": "GTM",
+      "year": 2008,
+      "step": "nat"
+    },
+    {
+      "country": "GTM",
+      "year": 2008,
+      "step": "pod"
+    },
+    {
+      "country": "GTM",
+      "year": 2009,
+      "step": "nat"
+    },
+    {
+      "country": "GTM",
+      "year": 2009,
+      "step": "pod"
+    },
+    {
+      "country": "GTM",
+      "year": 2010,
+      "step": "nat"
+    },
+    {
+      "country": "GTM",
+      "year": 2010,
+      "step": "pod"
+    },
+    {
+      "country": "GTM",
+      "year": 2011,
+      "step": "nat"
+    },
+    {
+      "country": "GTM",
+      "year": 2011,
+      "step": "pod"
+    },
+    {
+      "country": "GTM",
+      "year": 2012,
+      "step": "nat"
+    },
+    {
+      "country": "GTM",
+      "year": 2012,
+      "step": "pod"
+    },
+    {
+      "country": "GTM",
+      "year": 2013,
+      "step": "nat"
+    },
+    {
+      "country": "GTM",
+      "year": 2013,
+      "step": "pod"
+    },
+    {
+      "country": "GTM",
+      "year": 2014,
+      "step": "nat"
+    },
+    {
+      "country": "GTM",
+      "year": 2014,
+      "step": "pod"
+    },
+    {
+      "country": "GTM",
+      "year": 2015,
+      "step": "nat"
+    },
+    {
+      "country": "GTM",
+      "year": 2015,
+      "step": "pod"
+    },
+    {
+      "country": "GTM",
+      "year": 2016,
+      "step": "nat"
+    },
+    {
+      "country": "GTM",
+      "year": 2016,
+      "step": "pod"
+    },
+    {
+      "country": "GTM",
+      "year": 2017,
+      "step": "nat"
+    },
+    {
+      "country": "GTM",
+      "year": 2017,
+      "step": "pod"
+    },
+    {
+      "country": "GTM",
+      "year": 2018,
+      "step": "nat"
+    },
+    {
+      "country": "GTM",
+      "year": 2018,
+      "step": "pod"
+    },
+    {
+      "country": "GTM",
+      "year": 2019,
+      "step": "nat"
+    },
+    {
+      "country": "GTM",
+      "year": 2019,
+      "step": "pod"
+    },
+    {
+      "country": "GTM",
+      "year": 2020,
+      "step": "nat"
+    },
+    {
+      "country": "GTM",
+      "year": 2020,
+      "step": "pod"
+    },
+    {
+      "country": "GTM",
+      "year": 2021,
+      "step": "nat"
+    },
+    {
+      "country": "GTM",
+      "year": 2021,
+      "step": "pod"
+    },
+    {
+      "country": "GTM",
+      "year": 2022,
+      "step": "nat"
+    },
+    {
+      "country": "GTM",
+      "year": 2022,
+      "step": "pod"
+    },
+    {
+      "country": "GTM",
+      "year": 2023,
+      "step": "nat"
+    },
+    {
+      "country": "GTM",
+      "year": 2023,
+      "step": "pod"
+    },
+    {
+      "country": "GTM",
+      "year": 2024,
+      "step": "nat"
+    },
+    {
+      "country": "GTM",
+      "year": 2024,
+      "step": "pod"
+    },
+    {
+      "country": "GTM",
+      "year": 2025,
+      "step": "nat"
+    },
+    {
+      "country": "GTM",
+      "year": 2025,
+      "step": "pod"
+    },
+    {
+      "country": "GUY",
+      "year": 2000,
+      "step": "nat"
+    },
+    {
+      "country": "GUY",
+      "year": 2000,
+      "step": "pod"
+    },
+    {
+      "country": "GUY",
+      "year": 2001,
+      "step": "nat"
+    },
+    {
+      "country": "GUY",
+      "year": 2001,
+      "step": "pod"
+    },
+    {
+      "country": "GUY",
+      "year": 2002,
+      "step": "nat"
+    },
+    {
+      "country": "GUY",
+      "year": 2002,
+      "step": "pod"
+    },
+    {
+      "country": "GUY",
+      "year": 2003,
+      "step": "nat"
+    },
+    {
+      "country": "GUY",
+      "year": 2003,
+      "step": "pod"
+    },
+    {
+      "country": "GUY",
+      "year": 2004,
+      "step": "nat"
+    },
+    {
+      "country": "GUY",
+      "year": 2004,
+      "step": "pod"
+    },
+    {
+      "country": "GUY",
+      "year": 2005,
+      "step": "nat"
+    },
+    {
+      "country": "GUY",
+      "year": 2005,
+      "step": "pod"
+    },
+    {
+      "country": "GUY",
+      "year": 2006,
+      "step": "nat"
+    },
+    {
+      "country": "GUY",
+      "year": 2006,
+      "step": "pod"
+    },
+    {
+      "country": "GUY",
+      "year": 2007,
+      "step": "nat"
+    },
+    {
+      "country": "GUY",
+      "year": 2007,
+      "step": "pod"
+    },
+    {
+      "country": "GUY",
+      "year": 2008,
+      "step": "nat"
+    },
+    {
+      "country": "GUY",
+      "year": 2008,
+      "step": "pod"
+    },
+    {
+      "country": "GUY",
+      "year": 2009,
+      "step": "nat"
+    },
+    {
+      "country": "GUY",
+      "year": 2009,
+      "step": "pod"
+    },
+    {
+      "country": "GUY",
+      "year": 2010,
+      "step": "nat"
+    },
+    {
+      "country": "GUY",
+      "year": 2010,
+      "step": "pod"
+    },
+    {
+      "country": "GUY",
+      "year": 2011,
+      "step": "nat"
+    },
+    {
+      "country": "GUY",
+      "year": 2011,
+      "step": "pod"
+    },
+    {
+      "country": "GUY",
+      "year": 2012,
+      "step": "nat"
+    },
+    {
+      "country": "GUY",
+      "year": 2012,
+      "step": "pod"
+    },
+    {
+      "country": "GUY",
+      "year": 2013,
+      "step": "nat"
+    },
+    {
+      "country": "GUY",
+      "year": 2013,
+      "step": "pod"
+    },
+    {
+      "country": "GUY",
+      "year": 2014,
+      "step": "nat"
+    },
+    {
+      "country": "GUY",
+      "year": 2014,
+      "step": "pod"
+    },
+    {
+      "country": "GUY",
+      "year": 2015,
+      "step": "nat"
+    },
+    {
+      "country": "GUY",
+      "year": 2015,
+      "step": "pod"
+    },
+    {
+      "country": "GUY",
+      "year": 2016,
+      "step": "nat"
+    },
+    {
+      "country": "GUY",
+      "year": 2016,
+      "step": "pod"
+    },
+    {
+      "country": "GUY",
+      "year": 2017,
+      "step": "nat"
+    },
+    {
+      "country": "GUY",
+      "year": 2017,
+      "step": "pod"
+    },
+    {
+      "country": "GUY",
+      "year": 2018,
+      "step": "nat"
+    },
+    {
+      "country": "GUY",
+      "year": 2018,
+      "step": "pod"
+    },
+    {
+      "country": "GUY",
+      "year": 2019,
+      "step": "nat"
+    },
+    {
+      "country": "GUY",
+      "year": 2019,
+      "step": "pod"
+    },
+    {
+      "country": "GUY",
+      "year": 2020,
+      "step": "nat"
+    },
+    {
+      "country": "GUY",
+      "year": 2020,
+      "step": "pod"
+    },
+    {
+      "country": "GUY",
+      "year": 2021,
+      "step": "nat"
+    },
+    {
+      "country": "GUY",
+      "year": 2021,
+      "step": "pod"
+    },
+    {
+      "country": "GUY",
+      "year": 2022,
+      "step": "nat"
+    },
+    {
+      "country": "GUY",
+      "year": 2022,
+      "step": "pod"
+    },
+    {
+      "country": "GUY",
+      "year": 2023,
+      "step": "nat"
+    },
+    {
+      "country": "GUY",
+      "year": 2023,
+      "step": "pod"
+    },
+    {
+      "country": "GUY",
+      "year": 2024,
+      "step": "nat"
+    },
+    {
+      "country": "GUY",
+      "year": 2024,
+      "step": "pod"
+    },
+    {
+      "country": "GUY",
+      "year": 2025,
+      "step": "nat"
+    },
+    {
+      "country": "GUY",
+      "year": 2025,
+      "step": "pod"
+    },
+    {
+      "country": "HND",
+      "year": 2000,
+      "step": "nat"
+    },
+    {
+      "country": "HND",
+      "year": 2000,
+      "step": "pod"
+    },
+    {
+      "country": "HND",
+      "year": 2001,
+      "step": "nat"
+    },
+    {
+      "country": "HND",
+      "year": 2001,
+      "step": "pod"
+    },
+    {
+      "country": "HND",
+      "year": 2002,
+      "step": "nat"
+    },
+    {
+      "country": "HND",
+      "year": 2002,
+      "step": "pod"
+    },
+    {
+      "country": "HND",
+      "year": 2003,
+      "step": "nat"
+    },
+    {
+      "country": "HND",
+      "year": 2003,
+      "step": "pod"
+    },
+    {
+      "country": "HND",
+      "year": 2004,
+      "step": "nat"
+    },
+    {
+      "country": "HND",
+      "year": 2004,
+      "step": "pod"
+    },
+    {
+      "country": "HND",
+      "year": 2005,
+      "step": "nat"
+    },
+    {
+      "country": "HND",
+      "year": 2005,
+      "step": "pod"
+    },
+    {
+      "country": "HND",
+      "year": 2006,
+      "step": "nat"
+    },
+    {
+      "country": "HND",
+      "year": 2006,
+      "step": "pod"
+    },
+    {
+      "country": "HND",
+      "year": 2007,
+      "step": "nat"
+    },
+    {
+      "country": "HND",
+      "year": 2007,
+      "step": "pod"
+    },
+    {
+      "country": "HND",
+      "year": 2008,
+      "step": "nat"
+    },
+    {
+      "country": "HND",
+      "year": 2008,
+      "step": "pod"
+    },
+    {
+      "country": "HND",
+      "year": 2009,
+      "step": "nat"
+    },
+    {
+      "country": "HND",
+      "year": 2009,
+      "step": "pod"
+    },
+    {
+      "country": "HND",
+      "year": 2010,
+      "step": "nat"
+    },
+    {
+      "country": "HND",
+      "year": 2010,
+      "step": "pod"
+    },
+    {
+      "country": "HND",
+      "year": 2011,
+      "step": "nat"
+    },
+    {
+      "country": "HND",
+      "year": 2011,
+      "step": "pod"
+    },
+    {
+      "country": "HND",
+      "year": 2012,
+      "step": "nat"
+    },
+    {
+      "country": "HND",
+      "year": 2012,
+      "step": "pod"
+    },
+    {
+      "country": "HND",
+      "year": 2013,
+      "step": "nat"
+    },
+    {
+      "country": "HND",
+      "year": 2013,
+      "step": "pod"
+    },
+    {
+      "country": "HND",
+      "year": 2014,
+      "step": "nat"
+    },
+    {
+      "country": "HND",
+      "year": 2014,
+      "step": "pod"
+    },
+    {
+      "country": "HND",
+      "year": 2015,
+      "step": "nat"
+    },
+    {
+      "country": "HND",
+      "year": 2015,
+      "step": "pod"
+    },
+    {
+      "country": "HND",
+      "year": 2016,
+      "step": "nat"
+    },
+    {
+      "country": "HND",
+      "year": 2016,
+      "step": "pod"
+    },
+    {
+      "country": "HND",
+      "year": 2017,
+      "step": "nat"
+    },
+    {
+      "country": "HND",
+      "year": 2017,
+      "step": "pod"
+    },
+    {
+      "country": "HND",
+      "year": 2018,
+      "step": "nat"
+    },
+    {
+      "country": "HND",
+      "year": 2018,
+      "step": "pod"
+    },
+    {
+      "country": "HND",
+      "year": 2019,
+      "step": "nat"
+    },
+    {
+      "country": "HND",
+      "year": 2019,
+      "step": "pod"
+    },
+    {
+      "country": "HND",
+      "year": 2020,
+      "step": "nat"
+    },
+    {
+      "country": "HND",
+      "year": 2020,
+      "step": "pod"
+    },
+    {
+      "country": "HND",
+      "year": 2021,
+      "step": "nat"
+    },
+    {
+      "country": "HND",
+      "year": 2021,
+      "step": "pod"
+    },
+    {
+      "country": "HND",
+      "year": 2022,
+      "step": "nat"
+    },
+    {
+      "country": "HND",
+      "year": 2022,
+      "step": "pod"
+    },
+    {
+      "country": "HND",
+      "year": 2023,
+      "step": "nat"
+    },
+    {
+      "country": "HND",
+      "year": 2023,
+      "step": "pod"
+    },
+    {
+      "country": "HND",
+      "year": 2024,
+      "step": "nat"
+    },
+    {
+      "country": "HND",
+      "year": 2024,
+      "step": "pod"
+    },
+    {
+      "country": "HND",
+      "year": 2025,
+      "step": "nat"
+    },
+    {
+      "country": "HND",
+      "year": 2025,
+      "step": "pod"
+    },
+    {
+      "country": "HTI",
+      "year": 2000,
+      "step": "nat"
+    },
+    {
+      "country": "HTI",
+      "year": 2000,
+      "step": "pod"
+    },
+    {
+      "country": "HTI",
+      "year": 2001,
+      "step": "nat"
+    },
+    {
+      "country": "HTI",
+      "year": 2001,
+      "step": "pod"
+    },
+    {
+      "country": "HTI",
+      "year": 2002,
+      "step": "nat"
+    },
+    {
+      "country": "HTI",
+      "year": 2002,
+      "step": "pod"
+    },
+    {
+      "country": "HTI",
+      "year": 2003,
+      "step": "nat"
+    },
+    {
+      "country": "HTI",
+      "year": 2003,
+      "step": "pod"
+    },
+    {
+      "country": "HTI",
+      "year": 2004,
+      "step": "nat"
+    },
+    {
+      "country": "HTI",
+      "year": 2004,
+      "step": "pod"
+    },
+    {
+      "country": "HTI",
+      "year": 2005,
+      "step": "nat"
+    },
+    {
+      "country": "HTI",
+      "year": 2005,
+      "step": "pod"
+    },
+    {
+      "country": "HTI",
+      "year": 2006,
+      "step": "nat"
+    },
+    {
+      "country": "HTI",
+      "year": 2006,
+      "step": "pod"
+    },
+    {
+      "country": "HTI",
+      "year": 2007,
+      "step": "nat"
+    },
+    {
+      "country": "HTI",
+      "year": 2007,
+      "step": "pod"
+    },
+    {
+      "country": "HTI",
+      "year": 2008,
+      "step": "nat"
+    },
+    {
+      "country": "HTI",
+      "year": 2008,
+      "step": "pod"
+    },
+    {
+      "country": "HTI",
+      "year": 2009,
+      "step": "nat"
+    },
+    {
+      "country": "HTI",
+      "year": 2009,
+      "step": "pod"
+    },
+    {
+      "country": "HTI",
+      "year": 2010,
+      "step": "nat"
+    },
+    {
+      "country": "HTI",
+      "year": 2010,
+      "step": "pod"
+    },
+    {
+      "country": "HTI",
+      "year": 2011,
+      "step": "nat"
+    },
+    {
+      "country": "HTI",
+      "year": 2011,
+      "step": "pod"
+    },
+    {
+      "country": "HTI",
+      "year": 2012,
+      "step": "nat"
+    },
+    {
+      "country": "HTI",
+      "year": 2012,
+      "step": "pod"
+    },
+    {
+      "country": "HTI",
+      "year": 2013,
+      "step": "nat"
+    },
+    {
+      "country": "HTI",
+      "year": 2013,
+      "step": "pod"
+    },
+    {
+      "country": "HTI",
+      "year": 2014,
+      "step": "nat"
+    },
+    {
+      "country": "HTI",
+      "year": 2014,
+      "step": "pod"
+    },
+    {
+      "country": "HTI",
+      "year": 2015,
+      "step": "nat"
+    },
+    {
+      "country": "HTI",
+      "year": 2015,
+      "step": "pod"
+    },
+    {
+      "country": "HTI",
+      "year": 2016,
+      "step": "nat"
+    },
+    {
+      "country": "HTI",
+      "year": 2016,
+      "step": "pod"
+    },
+    {
+      "country": "HTI",
+      "year": 2017,
+      "step": "nat"
+    },
+    {
+      "country": "HTI",
+      "year": 2017,
+      "step": "pod"
+    },
+    {
+      "country": "HTI",
+      "year": 2018,
+      "step": "nat"
+    },
+    {
+      "country": "HTI",
+      "year": 2018,
+      "step": "pod"
+    },
+    {
+      "country": "HTI",
+      "year": 2019,
+      "step": "nat"
+    },
+    {
+      "country": "HTI",
+      "year": 2019,
+      "step": "pod"
+    },
+    {
+      "country": "HTI",
+      "year": 2020,
+      "step": "nat"
+    },
+    {
+      "country": "HTI",
+      "year": 2020,
+      "step": "pod"
+    },
+    {
+      "country": "HTI",
+      "year": 2021,
+      "step": "nat"
+    },
+    {
+      "country": "HTI",
+      "year": 2021,
+      "step": "pod"
+    },
+    {
+      "country": "HTI",
+      "year": 2022,
+      "step": "nat"
+    },
+    {
+      "country": "HTI",
+      "year": 2022,
+      "step": "pod"
+    },
+    {
+      "country": "HTI",
+      "year": 2023,
+      "step": "nat"
+    },
+    {
+      "country": "HTI",
+      "year": 2023,
+      "step": "pod"
+    },
+    {
+      "country": "HTI",
+      "year": 2024,
+      "step": "nat"
+    },
+    {
+      "country": "HTI",
+      "year": 2024,
+      "step": "pod"
+    },
+    {
+      "country": "HTI",
+      "year": 2025,
+      "step": "nat"
+    },
+    {
+      "country": "HTI",
+      "year": 2025,
+      "step": "pod"
+    },
+    {
+      "country": "JAM",
+      "year": 2000,
+      "step": "nat"
+    },
+    {
+      "country": "JAM",
+      "year": 2000,
+      "step": "pod"
+    },
+    {
+      "country": "JAM",
+      "year": 2001,
+      "step": "nat"
+    },
+    {
+      "country": "JAM",
+      "year": 2001,
+      "step": "pod"
+    },
+    {
+      "country": "JAM",
+      "year": 2002,
+      "step": "nat"
+    },
+    {
+      "country": "JAM",
+      "year": 2002,
+      "step": "pod"
+    },
+    {
+      "country": "JAM",
+      "year": 2003,
+      "step": "nat"
+    },
+    {
+      "country": "JAM",
+      "year": 2003,
+      "step": "pod"
+    },
+    {
+      "country": "JAM",
+      "year": 2004,
+      "step": "nat"
+    },
+    {
+      "country": "JAM",
+      "year": 2004,
+      "step": "pod"
+    },
+    {
+      "country": "JAM",
+      "year": 2005,
+      "step": "nat"
+    },
+    {
+      "country": "JAM",
+      "year": 2005,
+      "step": "pod"
+    },
+    {
+      "country": "JAM",
+      "year": 2006,
+      "step": "nat"
+    },
+    {
+      "country": "JAM",
+      "year": 2006,
+      "step": "pod"
+    },
+    {
+      "country": "JAM",
+      "year": 2007,
+      "step": "nat"
+    },
+    {
+      "country": "JAM",
+      "year": 2007,
+      "step": "pod"
+    },
+    {
+      "country": "JAM",
+      "year": 2008,
+      "step": "nat"
+    },
+    {
+      "country": "JAM",
+      "year": 2008,
+      "step": "pod"
+    },
+    {
+      "country": "JAM",
+      "year": 2009,
+      "step": "nat"
+    },
+    {
+      "country": "JAM",
+      "year": 2009,
+      "step": "pod"
+    },
+    {
+      "country": "JAM",
+      "year": 2010,
+      "step": "nat"
+    },
+    {
+      "country": "JAM",
+      "year": 2010,
+      "step": "pod"
+    },
+    {
+      "country": "JAM",
+      "year": 2011,
+      "step": "nat"
+    },
+    {
+      "country": "JAM",
+      "year": 2011,
+      "step": "pod"
+    },
+    {
+      "country": "JAM",
+      "year": 2012,
+      "step": "nat"
+    },
+    {
+      "country": "JAM",
+      "year": 2012,
+      "step": "pod"
+    },
+    {
+      "country": "JAM",
+      "year": 2013,
+      "step": "nat"
+    },
+    {
+      "country": "JAM",
+      "year": 2013,
+      "step": "pod"
+    },
+    {
+      "country": "JAM",
+      "year": 2014,
+      "step": "nat"
+    },
+    {
+      "country": "JAM",
+      "year": 2014,
+      "step": "pod"
+    },
+    {
+      "country": "JAM",
+      "year": 2015,
+      "step": "nat"
+    },
+    {
+      "country": "JAM",
+      "year": 2015,
+      "step": "pod"
+    },
+    {
+      "country": "JAM",
+      "year": 2016,
+      "step": "nat"
+    },
+    {
+      "country": "JAM",
+      "year": 2016,
+      "step": "pod"
+    },
+    {
+      "country": "JAM",
+      "year": 2017,
+      "step": "nat"
+    },
+    {
+      "country": "JAM",
+      "year": 2017,
+      "step": "pod"
+    },
+    {
+      "country": "JAM",
+      "year": 2018,
+      "step": "nat"
+    },
+    {
+      "country": "JAM",
+      "year": 2018,
+      "step": "pod"
+    },
+    {
+      "country": "JAM",
+      "year": 2019,
+      "step": "nat"
+    },
+    {
+      "country": "JAM",
+      "year": 2019,
+      "step": "pod"
+    },
+    {
+      "country": "JAM",
+      "year": 2020,
+      "step": "nat"
+    },
+    {
+      "country": "JAM",
+      "year": 2020,
+      "step": "pod"
+    },
+    {
+      "country": "JAM",
+      "year": 2021,
+      "step": "nat"
+    },
+    {
+      "country": "JAM",
+      "year": 2021,
+      "step": "pod"
+    },
+    {
+      "country": "JAM",
+      "year": 2022,
+      "step": "nat"
+    },
+    {
+      "country": "JAM",
+      "year": 2022,
+      "step": "pod"
+    },
+    {
+      "country": "JAM",
+      "year": 2023,
+      "step": "nat"
+    },
+    {
+      "country": "JAM",
+      "year": 2023,
+      "step": "pod"
+    },
+    {
+      "country": "JAM",
+      "year": 2024,
+      "step": "nat"
+    },
+    {
+      "country": "JAM",
+      "year": 2024,
+      "step": "pod"
+    },
+    {
+      "country": "JAM",
+      "year": 2025,
+      "step": "nat"
+    },
+    {
+      "country": "JAM",
+      "year": 2025,
+      "step": "pod"
+    },
+    {
+      "country": "MEX",
+      "year": 2000,
+      "step": "nat"
+    },
+    {
+      "country": "MEX",
+      "year": 2000,
+      "step": "pod"
+    },
+    {
+      "country": "MEX",
+      "year": 2001,
+      "step": "nat"
+    },
+    {
+      "country": "MEX",
+      "year": 2001,
+      "step": "pod"
+    },
+    {
+      "country": "MEX",
+      "year": 2002,
+      "step": "nat"
+    },
+    {
+      "country": "MEX",
+      "year": 2002,
+      "step": "pod"
+    },
+    {
+      "country": "MEX",
+      "year": 2003,
+      "step": "nat"
+    },
+    {
+      "country": "MEX",
+      "year": 2003,
+      "step": "pod"
+    },
+    {
+      "country": "MEX",
+      "year": 2004,
+      "step": "nat"
+    },
+    {
+      "country": "MEX",
+      "year": 2004,
+      "step": "pod"
+    },
+    {
+      "country": "MEX",
+      "year": 2005,
+      "step": "nat"
+    },
+    {
+      "country": "MEX",
+      "year": 2005,
+      "step": "pod"
+    },
+    {
+      "country": "MEX",
+      "year": 2006,
+      "step": "nat"
+    },
+    {
+      "country": "MEX",
+      "year": 2006,
+      "step": "pod"
+    },
+    {
+      "country": "MEX",
+      "year": 2007,
+      "step": "nat"
+    },
+    {
+      "country": "MEX",
+      "year": 2007,
+      "step": "pod"
+    },
+    {
+      "country": "MEX",
+      "year": 2008,
+      "step": "nat"
+    },
+    {
+      "country": "MEX",
+      "year": 2008,
+      "step": "pod"
+    },
+    {
+      "country": "MEX",
+      "year": 2009,
+      "step": "nat"
+    },
+    {
+      "country": "MEX",
+      "year": 2009,
+      "step": "pod"
+    },
+    {
+      "country": "MEX",
+      "year": 2010,
+      "step": "nat"
+    },
+    {
+      "country": "MEX",
+      "year": 2010,
+      "step": "pod"
+    },
+    {
+      "country": "MEX",
+      "year": 2011,
+      "step": "nat"
+    },
+    {
+      "country": "MEX",
+      "year": 2011,
+      "step": "pod"
+    },
+    {
+      "country": "MEX",
+      "year": 2012,
+      "step": "nat"
+    },
+    {
+      "country": "MEX",
+      "year": 2012,
+      "step": "pod"
+    },
+    {
+      "country": "MEX",
+      "year": 2013,
+      "step": "nat"
+    },
+    {
+      "country": "MEX",
+      "year": 2013,
+      "step": "pod"
+    },
+    {
+      "country": "MEX",
+      "year": 2014,
+      "step": "nat"
+    },
+    {
+      "country": "MEX",
+      "year": 2014,
+      "step": "pod"
+    },
+    {
+      "country": "MEX",
+      "year": 2015,
+      "step": "nat"
+    },
+    {
+      "country": "MEX",
+      "year": 2015,
+      "step": "pod"
+    },
+    {
+      "country": "MEX",
+      "year": 2016,
+      "step": "nat"
+    },
+    {
+      "country": "MEX",
+      "year": 2016,
+      "step": "pod"
+    },
+    {
+      "country": "MEX",
+      "year": 2017,
+      "step": "nat"
+    },
+    {
+      "country": "MEX",
+      "year": 2017,
+      "step": "pod"
+    },
+    {
+      "country": "MEX",
+      "year": 2018,
+      "step": "nat"
+    },
+    {
+      "country": "MEX",
+      "year": 2018,
+      "step": "pod"
+    },
+    {
+      "country": "MEX",
+      "year": 2019,
+      "step": "nat"
+    },
+    {
+      "country": "MEX",
+      "year": 2019,
+      "step": "pod"
+    },
+    {
+      "country": "MEX",
+      "year": 2020,
+      "step": "nat"
+    },
+    {
+      "country": "MEX",
+      "year": 2020,
+      "step": "pod"
+    },
+    {
+      "country": "MEX",
+      "year": 2021,
+      "step": "nat"
+    },
+    {
+      "country": "MEX",
+      "year": 2021,
+      "step": "pod"
+    },
+    {
+      "country": "MEX",
+      "year": 2022,
+      "step": "nat"
+    },
+    {
+      "country": "MEX",
+      "year": 2022,
+      "step": "pod"
+    },
+    {
+      "country": "MEX",
+      "year": 2023,
+      "step": "nat"
+    },
+    {
+      "country": "MEX",
+      "year": 2023,
+      "step": "pod"
+    },
+    {
+      "country": "MEX",
+      "year": 2024,
+      "step": "nat"
+    },
+    {
+      "country": "MEX",
+      "year": 2024,
+      "step": "pod"
+    },
+    {
+      "country": "MEX",
+      "year": 2025,
+      "step": "nat"
+    },
+    {
+      "country": "MEX",
+      "year": 2025,
+      "step": "pod"
+    },
+    {
+      "country": "NIC",
+      "year": 2000,
+      "step": "nat"
+    },
+    {
+      "country": "NIC",
+      "year": 2000,
+      "step": "pod"
+    },
+    {
+      "country": "NIC",
+      "year": 2001,
+      "step": "nat"
+    },
+    {
+      "country": "NIC",
+      "year": 2001,
+      "step": "pod"
+    },
+    {
+      "country": "NIC",
+      "year": 2002,
+      "step": "nat"
+    },
+    {
+      "country": "NIC",
+      "year": 2002,
+      "step": "pod"
+    },
+    {
+      "country": "NIC",
+      "year": 2003,
+      "step": "nat"
+    },
+    {
+      "country": "NIC",
+      "year": 2003,
+      "step": "pod"
+    },
+    {
+      "country": "NIC",
+      "year": 2004,
+      "step": "nat"
+    },
+    {
+      "country": "NIC",
+      "year": 2004,
+      "step": "pod"
+    },
+    {
+      "country": "NIC",
+      "year": 2005,
+      "step": "nat"
+    },
+    {
+      "country": "NIC",
+      "year": 2005,
+      "step": "pod"
+    },
+    {
+      "country": "NIC",
+      "year": 2006,
+      "step": "nat"
+    },
+    {
+      "country": "NIC",
+      "year": 2006,
+      "step": "pod"
+    },
+    {
+      "country": "NIC",
+      "year": 2007,
+      "step": "nat"
+    },
+    {
+      "country": "NIC",
+      "year": 2007,
+      "step": "pod"
+    },
+    {
+      "country": "NIC",
+      "year": 2008,
+      "step": "nat"
+    },
+    {
+      "country": "NIC",
+      "year": 2008,
+      "step": "pod"
+    },
+    {
+      "country": "NIC",
+      "year": 2009,
+      "step": "nat"
+    },
+    {
+      "country": "NIC",
+      "year": 2009,
+      "step": "pod"
+    },
+    {
+      "country": "NIC",
+      "year": 2010,
+      "step": "nat"
+    },
+    {
+      "country": "NIC",
+      "year": 2010,
+      "step": "pod"
+    },
+    {
+      "country": "NIC",
+      "year": 2011,
+      "step": "nat"
+    },
+    {
+      "country": "NIC",
+      "year": 2011,
+      "step": "pod"
+    },
+    {
+      "country": "NIC",
+      "year": 2012,
+      "step": "nat"
+    },
+    {
+      "country": "NIC",
+      "year": 2012,
+      "step": "pod"
+    },
+    {
+      "country": "NIC",
+      "year": 2013,
+      "step": "nat"
+    },
+    {
+      "country": "NIC",
+      "year": 2013,
+      "step": "pod"
+    },
+    {
+      "country": "NIC",
+      "year": 2014,
+      "step": "nat"
+    },
+    {
+      "country": "NIC",
+      "year": 2014,
+      "step": "pod"
+    },
+    {
+      "country": "NIC",
+      "year": 2015,
+      "step": "nat"
+    },
+    {
+      "country": "NIC",
+      "year": 2015,
+      "step": "pod"
+    },
+    {
+      "country": "NIC",
+      "year": 2016,
+      "step": "nat"
+    },
+    {
+      "country": "NIC",
+      "year": 2016,
+      "step": "pod"
+    },
+    {
+      "country": "NIC",
+      "year": 2017,
+      "step": "nat"
+    },
+    {
+      "country": "NIC",
+      "year": 2017,
+      "step": "pod"
+    },
+    {
+      "country": "NIC",
+      "year": 2018,
+      "step": "nat"
+    },
+    {
+      "country": "NIC",
+      "year": 2018,
+      "step": "pod"
+    },
+    {
+      "country": "NIC",
+      "year": 2019,
+      "step": "nat"
+    },
+    {
+      "country": "NIC",
+      "year": 2019,
+      "step": "pod"
+    },
+    {
+      "country": "NIC",
+      "year": 2020,
+      "step": "nat"
+    },
+    {
+      "country": "NIC",
+      "year": 2020,
+      "step": "pod"
+    },
+    {
+      "country": "NIC",
+      "year": 2021,
+      "step": "nat"
+    },
+    {
+      "country": "NIC",
+      "year": 2021,
+      "step": "pod"
+    },
+    {
+      "country": "NIC",
+      "year": 2022,
+      "step": "nat"
+    },
+    {
+      "country": "NIC",
+      "year": 2022,
+      "step": "pod"
+    },
+    {
+      "country": "NIC",
+      "year": 2023,
+      "step": "nat"
+    },
+    {
+      "country": "NIC",
+      "year": 2023,
+      "step": "pod"
+    },
+    {
+      "country": "NIC",
+      "year": 2024,
+      "step": "nat"
+    },
+    {
+      "country": "NIC",
+      "year": 2024,
+      "step": "pod"
+    },
+    {
+      "country": "NIC",
+      "year": 2025,
+      "step": "nat"
+    },
+    {
+      "country": "NIC",
+      "year": 2025,
+      "step": "pod"
+    },
+    {
+      "country": "PAN",
+      "year": 2000,
+      "step": "nat"
+    },
+    {
+      "country": "PAN",
+      "year": 2000,
+      "step": "pod"
+    },
+    {
+      "country": "PAN",
+      "year": 2001,
+      "step": "nat"
+    },
+    {
+      "country": "PAN",
+      "year": 2001,
+      "step": "pod"
+    },
+    {
+      "country": "PAN",
+      "year": 2002,
+      "step": "nat"
+    },
+    {
+      "country": "PAN",
+      "year": 2002,
+      "step": "pod"
+    },
+    {
+      "country": "PAN",
+      "year": 2003,
+      "step": "nat"
+    },
+    {
+      "country": "PAN",
+      "year": 2003,
+      "step": "pod"
+    },
+    {
+      "country": "PAN",
+      "year": 2004,
+      "step": "nat"
+    },
+    {
+      "country": "PAN",
+      "year": 2004,
+      "step": "pod"
+    },
+    {
+      "country": "PAN",
+      "year": 2005,
+      "step": "nat"
+    },
+    {
+      "country": "PAN",
+      "year": 2005,
+      "step": "pod"
+    },
+    {
+      "country": "PAN",
+      "year": 2006,
+      "step": "nat"
+    },
+    {
+      "country": "PAN",
+      "year": 2006,
+      "step": "pod"
+    },
+    {
+      "country": "PAN",
+      "year": 2007,
+      "step": "nat"
+    },
+    {
+      "country": "PAN",
+      "year": 2007,
+      "step": "pod"
+    },
+    {
+      "country": "PAN",
+      "year": 2008,
+      "step": "nat"
+    },
+    {
+      "country": "PAN",
+      "year": 2008,
+      "step": "pod"
+    },
+    {
+      "country": "PAN",
+      "year": 2009,
+      "step": "nat"
+    },
+    {
+      "country": "PAN",
+      "year": 2009,
+      "step": "pod"
+    },
+    {
+      "country": "PAN",
+      "year": 2010,
+      "step": "nat"
+    },
+    {
+      "country": "PAN",
+      "year": 2010,
+      "step": "pod"
+    },
+    {
+      "country": "PAN",
+      "year": 2011,
+      "step": "nat"
+    },
+    {
+      "country": "PAN",
+      "year": 2011,
+      "step": "pod"
+    },
+    {
+      "country": "PAN",
+      "year": 2012,
+      "step": "nat"
+    },
+    {
+      "country": "PAN",
+      "year": 2012,
+      "step": "pod"
+    },
+    {
+      "country": "PAN",
+      "year": 2013,
+      "step": "nat"
+    },
+    {
+      "country": "PAN",
+      "year": 2013,
+      "step": "pod"
+    },
+    {
+      "country": "PAN",
+      "year": 2014,
+      "step": "nat"
+    },
+    {
+      "country": "PAN",
+      "year": 2014,
+      "step": "pod"
+    },
+    {
+      "country": "PAN",
+      "year": 2015,
+      "step": "nat"
+    },
+    {
+      "country": "PAN",
+      "year": 2015,
+      "step": "pod"
+    },
+    {
+      "country": "PAN",
+      "year": 2016,
+      "step": "nat"
+    },
+    {
+      "country": "PAN",
+      "year": 2016,
+      "step": "pod"
+    },
+    {
+      "country": "PAN",
+      "year": 2017,
+      "step": "nat"
+    },
+    {
+      "country": "PAN",
+      "year": 2017,
+      "step": "pod"
+    },
+    {
+      "country": "PAN",
+      "year": 2018,
+      "step": "nat"
+    },
+    {
+      "country": "PAN",
+      "year": 2018,
+      "step": "pod"
+    },
+    {
+      "country": "PAN",
+      "year": 2019,
+      "step": "nat"
+    },
+    {
+      "country": "PAN",
+      "year": 2019,
+      "step": "pod"
+    },
+    {
+      "country": "PAN",
+      "year": 2020,
+      "step": "nat"
+    },
+    {
+      "country": "PAN",
+      "year": 2020,
+      "step": "pod"
+    },
+    {
+      "country": "PAN",
+      "year": 2021,
+      "step": "nat"
+    },
+    {
+      "country": "PAN",
+      "year": 2021,
+      "step": "pod"
+    },
+    {
+      "country": "PAN",
+      "year": 2022,
+      "step": "nat"
+    },
+    {
+      "country": "PAN",
+      "year": 2022,
+      "step": "pod"
+    },
+    {
+      "country": "PAN",
+      "year": 2023,
+      "step": "nat"
+    },
+    {
+      "country": "PAN",
+      "year": 2023,
+      "step": "pod"
+    },
+    {
+      "country": "PAN",
+      "year": 2024,
+      "step": "nat"
+    },
+    {
+      "country": "PAN",
+      "year": 2024,
+      "step": "pod"
+    },
+    {
+      "country": "PAN",
+      "year": 2025,
+      "step": "nat"
+    },
+    {
+      "country": "PAN",
+      "year": 2025,
+      "step": "pod"
+    },
+    {
+      "country": "PER",
+      "year": 2000,
+      "step": "nat"
+    },
+    {
+      "country": "PER",
+      "year": 2000,
+      "step": "pod"
+    },
+    {
+      "country": "PER",
+      "year": 2001,
+      "step": "nat"
+    },
+    {
+      "country": "PER",
+      "year": 2001,
+      "step": "pod"
+    },
+    {
+      "country": "PER",
+      "year": 2002,
+      "step": "nat"
+    },
+    {
+      "country": "PER",
+      "year": 2002,
+      "step": "pod"
+    },
+    {
+      "country": "PER",
+      "year": 2003,
+      "step": "nat"
+    },
+    {
+      "country": "PER",
+      "year": 2003,
+      "step": "pod"
+    },
+    {
+      "country": "PER",
+      "year": 2004,
+      "step": "nat"
+    },
+    {
+      "country": "PER",
+      "year": 2004,
+      "step": "pod"
+    },
+    {
+      "country": "PER",
+      "year": 2005,
+      "step": "nat"
+    },
+    {
+      "country": "PER",
+      "year": 2005,
+      "step": "pod"
+    },
+    {
+      "country": "PER",
+      "year": 2006,
+      "step": "nat"
+    },
+    {
+      "country": "PER",
+      "year": 2006,
+      "step": "pod"
+    },
+    {
+      "country": "PER",
+      "year": 2007,
+      "step": "nat"
+    },
+    {
+      "country": "PER",
+      "year": 2007,
+      "step": "pod"
+    },
+    {
+      "country": "PER",
+      "year": 2008,
+      "step": "nat"
+    },
+    {
+      "country": "PER",
+      "year": 2008,
+      "step": "pod"
+    },
+    {
+      "country": "PER",
+      "year": 2009,
+      "step": "nat"
+    },
+    {
+      "country": "PER",
+      "year": 2009,
+      "step": "pod"
+    },
+    {
+      "country": "PER",
+      "year": 2010,
+      "step": "nat"
+    },
+    {
+      "country": "PER",
+      "year": 2010,
+      "step": "pod"
+    },
+    {
+      "country": "PER",
+      "year": 2011,
+      "step": "nat"
+    },
+    {
+      "country": "PER",
+      "year": 2011,
+      "step": "pod"
+    },
+    {
+      "country": "PER",
+      "year": 2012,
+      "step": "nat"
+    },
+    {
+      "country": "PER",
+      "year": 2012,
+      "step": "pod"
+    },
+    {
+      "country": "PER",
+      "year": 2013,
+      "step": "nat"
+    },
+    {
+      "country": "PER",
+      "year": 2013,
+      "step": "pod"
+    },
+    {
+      "country": "PER",
+      "year": 2014,
+      "step": "nat"
+    },
+    {
+      "country": "PER",
+      "year": 2014,
+      "step": "pod"
+    },
+    {
+      "country": "PER",
+      "year": 2015,
+      "step": "nat"
+    },
+    {
+      "country": "PER",
+      "year": 2015,
+      "step": "pod"
+    },
+    {
+      "country": "PER",
+      "year": 2016,
+      "step": "nat"
+    },
+    {
+      "country": "PER",
+      "year": 2016,
+      "step": "pod"
+    },
+    {
+      "country": "PER",
+      "year": 2017,
+      "step": "nat"
+    },
+    {
+      "country": "PER",
+      "year": 2017,
+      "step": "pod"
+    },
+    {
+      "country": "PER",
+      "year": 2018,
+      "step": "nat"
+    },
+    {
+      "country": "PER",
+      "year": 2018,
+      "step": "pod"
+    },
+    {
+      "country": "PER",
+      "year": 2019,
+      "step": "nat"
+    },
+    {
+      "country": "PER",
+      "year": 2019,
+      "step": "pod"
+    },
+    {
+      "country": "PER",
+      "year": 2020,
+      "step": "nat"
+    },
+    {
+      "country": "PER",
+      "year": 2020,
+      "step": "pod"
+    },
+    {
+      "country": "PER",
+      "year": 2021,
+      "step": "nat"
+    },
+    {
+      "country": "PER",
+      "year": 2021,
+      "step": "pod"
+    },
+    {
+      "country": "PER",
+      "year": 2022,
+      "step": "nat"
+    },
+    {
+      "country": "PER",
+      "year": 2022,
+      "step": "pod"
+    },
+    {
+      "country": "PER",
+      "year": 2023,
+      "step": "nat"
+    },
+    {
+      "country": "PER",
+      "year": 2023,
+      "step": "pod"
+    },
+    {
+      "country": "PER",
+      "year": 2024,
+      "step": "nat"
+    },
+    {
+      "country": "PER",
+      "year": 2024,
+      "step": "pod"
+    },
+    {
+      "country": "PER",
+      "year": 2025,
+      "step": "nat"
+    },
+    {
+      "country": "PER",
+      "year": 2025,
+      "step": "pod"
+    },
+    {
+      "country": "PRY",
+      "year": 2000,
+      "step": "nat"
+    },
+    {
+      "country": "PRY",
+      "year": 2000,
+      "step": "pod"
+    },
+    {
+      "country": "PRY",
+      "year": 2001,
+      "step": "nat"
+    },
+    {
+      "country": "PRY",
+      "year": 2001,
+      "step": "pod"
+    },
+    {
+      "country": "PRY",
+      "year": 2002,
+      "step": "nat"
+    },
+    {
+      "country": "PRY",
+      "year": 2002,
+      "step": "pod"
+    },
+    {
+      "country": "PRY",
+      "year": 2003,
+      "step": "nat"
+    },
+    {
+      "country": "PRY",
+      "year": 2003,
+      "step": "pod"
+    },
+    {
+      "country": "PRY",
+      "year": 2004,
+      "step": "nat"
+    },
+    {
+      "country": "PRY",
+      "year": 2004,
+      "step": "pod"
+    },
+    {
+      "country": "PRY",
+      "year": 2005,
+      "step": "nat"
+    },
+    {
+      "country": "PRY",
+      "year": 2005,
+      "step": "pod"
+    },
+    {
+      "country": "PRY",
+      "year": 2006,
+      "step": "nat"
+    },
+    {
+      "country": "PRY",
+      "year": 2006,
+      "step": "pod"
+    },
+    {
+      "country": "PRY",
+      "year": 2007,
+      "step": "nat"
+    },
+    {
+      "country": "PRY",
+      "year": 2007,
+      "step": "pod"
+    },
+    {
+      "country": "PRY",
+      "year": 2008,
+      "step": "nat"
+    },
+    {
+      "country": "PRY",
+      "year": 2008,
+      "step": "pod"
+    },
+    {
+      "country": "PRY",
+      "year": 2009,
+      "step": "nat"
+    },
+    {
+      "country": "PRY",
+      "year": 2009,
+      "step": "pod"
+    },
+    {
+      "country": "PRY",
+      "year": 2010,
+      "step": "nat"
+    },
+    {
+      "country": "PRY",
+      "year": 2010,
+      "step": "pod"
+    },
+    {
+      "country": "PRY",
+      "year": 2011,
+      "step": "nat"
+    },
+    {
+      "country": "PRY",
+      "year": 2011,
+      "step": "pod"
+    },
+    {
+      "country": "PRY",
+      "year": 2012,
+      "step": "nat"
+    },
+    {
+      "country": "PRY",
+      "year": 2012,
+      "step": "pod"
+    },
+    {
+      "country": "PRY",
+      "year": 2013,
+      "step": "nat"
+    },
+    {
+      "country": "PRY",
+      "year": 2013,
+      "step": "pod"
+    },
+    {
+      "country": "PRY",
+      "year": 2014,
+      "step": "nat"
+    },
+    {
+      "country": "PRY",
+      "year": 2014,
+      "step": "pod"
+    },
+    {
+      "country": "PRY",
+      "year": 2015,
+      "step": "nat"
+    },
+    {
+      "country": "PRY",
+      "year": 2015,
+      "step": "pod"
+    },
+    {
+      "country": "PRY",
+      "year": 2016,
+      "step": "nat"
+    },
+    {
+      "country": "PRY",
+      "year": 2016,
+      "step": "pod"
+    },
+    {
+      "country": "PRY",
+      "year": 2017,
+      "step": "nat"
+    },
+    {
+      "country": "PRY",
+      "year": 2017,
+      "step": "pod"
+    },
+    {
+      "country": "PRY",
+      "year": 2018,
+      "step": "nat"
+    },
+    {
+      "country": "PRY",
+      "year": 2018,
+      "step": "pod"
+    },
+    {
+      "country": "PRY",
+      "year": 2019,
+      "step": "nat"
+    },
+    {
+      "country": "PRY",
+      "year": 2019,
+      "step": "pod"
+    },
+    {
+      "country": "PRY",
+      "year": 2020,
+      "step": "nat"
+    },
+    {
+      "country": "PRY",
+      "year": 2020,
+      "step": "pod"
+    },
+    {
+      "country": "PRY",
+      "year": 2021,
+      "step": "nat"
+    },
+    {
+      "country": "PRY",
+      "year": 2021,
+      "step": "pod"
+    },
+    {
+      "country": "PRY",
+      "year": 2022,
+      "step": "nat"
+    },
+    {
+      "country": "PRY",
+      "year": 2022,
+      "step": "pod"
+    },
+    {
+      "country": "PRY",
+      "year": 2023,
+      "step": "nat"
+    },
+    {
+      "country": "PRY",
+      "year": 2023,
+      "step": "pod"
+    },
+    {
+      "country": "PRY",
+      "year": 2024,
+      "step": "nat"
+    },
+    {
+      "country": "PRY",
+      "year": 2024,
+      "step": "pod"
+    },
+    {
+      "country": "PRY",
+      "year": 2025,
+      "step": "nat"
+    },
+    {
+      "country": "PRY",
+      "year": 2025,
+      "step": "pod"
+    },
+    {
+      "country": "SLV",
+      "year": 2000,
+      "step": "nat"
+    },
+    {
+      "country": "SLV",
+      "year": 2000,
+      "step": "pod"
+    },
+    {
+      "country": "SLV",
+      "year": 2001,
+      "step": "nat"
+    },
+    {
+      "country": "SLV",
+      "year": 2001,
+      "step": "pod"
+    },
+    {
+      "country": "SLV",
+      "year": 2002,
+      "step": "nat"
+    },
+    {
+      "country": "SLV",
+      "year": 2002,
+      "step": "pod"
+    },
+    {
+      "country": "SLV",
+      "year": 2003,
+      "step": "nat"
+    },
+    {
+      "country": "SLV",
+      "year": 2003,
+      "step": "pod"
+    },
+    {
+      "country": "SLV",
+      "year": 2004,
+      "step": "nat"
+    },
+    {
+      "country": "SLV",
+      "year": 2004,
+      "step": "pod"
+    },
+    {
+      "country": "SLV",
+      "year": 2005,
+      "step": "nat"
+    },
+    {
+      "country": "SLV",
+      "year": 2005,
+      "step": "pod"
+    },
+    {
+      "country": "SLV",
+      "year": 2006,
+      "step": "nat"
+    },
+    {
+      "country": "SLV",
+      "year": 2006,
+      "step": "pod"
+    },
+    {
+      "country": "SLV",
+      "year": 2007,
+      "step": "nat"
+    },
+    {
+      "country": "SLV",
+      "year": 2007,
+      "step": "pod"
+    },
+    {
+      "country": "SLV",
+      "year": 2008,
+      "step": "nat"
+    },
+    {
+      "country": "SLV",
+      "year": 2008,
+      "step": "pod"
+    },
+    {
+      "country": "SLV",
+      "year": 2009,
+      "step": "nat"
+    },
+    {
+      "country": "SLV",
+      "year": 2009,
+      "step": "pod"
+    },
+    {
+      "country": "SLV",
+      "year": 2010,
+      "step": "nat"
+    },
+    {
+      "country": "SLV",
+      "year": 2010,
+      "step": "pod"
+    },
+    {
+      "country": "SLV",
+      "year": 2011,
+      "step": "nat"
+    },
+    {
+      "country": "SLV",
+      "year": 2011,
+      "step": "pod"
+    },
+    {
+      "country": "SLV",
+      "year": 2012,
+      "step": "nat"
+    },
+    {
+      "country": "SLV",
+      "year": 2012,
+      "step": "pod"
+    },
+    {
+      "country": "SLV",
+      "year": 2013,
+      "step": "nat"
+    },
+    {
+      "country": "SLV",
+      "year": 2013,
+      "step": "pod"
+    },
+    {
+      "country": "SLV",
+      "year": 2014,
+      "step": "nat"
+    },
+    {
+      "country": "SLV",
+      "year": 2014,
+      "step": "pod"
+    },
+    {
+      "country": "SLV",
+      "year": 2015,
+      "step": "nat"
+    },
+    {
+      "country": "SLV",
+      "year": 2015,
+      "step": "pod"
+    },
+    {
+      "country": "SLV",
+      "year": 2016,
+      "step": "nat"
+    },
+    {
+      "country": "SLV",
+      "year": 2016,
+      "step": "pod"
+    },
+    {
+      "country": "SLV",
+      "year": 2017,
+      "step": "nat"
+    },
+    {
+      "country": "SLV",
+      "year": 2017,
+      "step": "pod"
+    },
+    {
+      "country": "SLV",
+      "year": 2018,
+      "step": "nat"
+    },
+    {
+      "country": "SLV",
+      "year": 2018,
+      "step": "pod"
+    },
+    {
+      "country": "SLV",
+      "year": 2019,
+      "step": "nat"
+    },
+    {
+      "country": "SLV",
+      "year": 2019,
+      "step": "pod"
+    },
+    {
+      "country": "SLV",
+      "year": 2020,
+      "step": "nat"
+    },
+    {
+      "country": "SLV",
+      "year": 2020,
+      "step": "pod"
+    },
+    {
+      "country": "SLV",
+      "year": 2021,
+      "step": "nat"
+    },
+    {
+      "country": "SLV",
+      "year": 2021,
+      "step": "pod"
+    },
+    {
+      "country": "SLV",
+      "year": 2022,
+      "step": "nat"
+    },
+    {
+      "country": "SLV",
+      "year": 2022,
+      "step": "pod"
+    },
+    {
+      "country": "SLV",
+      "year": 2023,
+      "step": "nat"
+    },
+    {
+      "country": "SLV",
+      "year": 2023,
+      "step": "pod"
+    },
+    {
+      "country": "SLV",
+      "year": 2024,
+      "step": "nat"
+    },
+    {
+      "country": "SLV",
+      "year": 2024,
+      "step": "pod"
+    },
+    {
+      "country": "SLV",
+      "year": 2025,
+      "step": "nat"
+    },
+    {
+      "country": "SLV",
+      "year": 2025,
+      "step": "pod"
+    },
+    {
+      "country": "SUR",
+      "year": 2000,
+      "step": "nat"
+    },
+    {
+      "country": "SUR",
+      "year": 2000,
+      "step": "pod"
+    },
+    {
+      "country": "SUR",
+      "year": 2001,
+      "step": "nat"
+    },
+    {
+      "country": "SUR",
+      "year": 2001,
+      "step": "pod"
+    },
+    {
+      "country": "SUR",
+      "year": 2002,
+      "step": "nat"
+    },
+    {
+      "country": "SUR",
+      "year": 2002,
+      "step": "pod"
+    },
+    {
+      "country": "SUR",
+      "year": 2003,
+      "step": "nat"
+    },
+    {
+      "country": "SUR",
+      "year": 2003,
+      "step": "pod"
+    },
+    {
+      "country": "SUR",
+      "year": 2004,
+      "step": "nat"
+    },
+    {
+      "country": "SUR",
+      "year": 2004,
+      "step": "pod"
+    },
+    {
+      "country": "SUR",
+      "year": 2005,
+      "step": "nat"
+    },
+    {
+      "country": "SUR",
+      "year": 2005,
+      "step": "pod"
+    },
+    {
+      "country": "SUR",
+      "year": 2006,
+      "step": "nat"
+    },
+    {
+      "country": "SUR",
+      "year": 2006,
+      "step": "pod"
+    },
+    {
+      "country": "SUR",
+      "year": 2007,
+      "step": "nat"
+    },
+    {
+      "country": "SUR",
+      "year": 2007,
+      "step": "pod"
+    },
+    {
+      "country": "SUR",
+      "year": 2008,
+      "step": "nat"
+    },
+    {
+      "country": "SUR",
+      "year": 2008,
+      "step": "pod"
+    },
+    {
+      "country": "SUR",
+      "year": 2009,
+      "step": "nat"
+    },
+    {
+      "country": "SUR",
+      "year": 2009,
+      "step": "pod"
+    },
+    {
+      "country": "SUR",
+      "year": 2010,
+      "step": "nat"
+    },
+    {
+      "country": "SUR",
+      "year": 2010,
+      "step": "pod"
+    },
+    {
+      "country": "SUR",
+      "year": 2011,
+      "step": "nat"
+    },
+    {
+      "country": "SUR",
+      "year": 2011,
+      "step": "pod"
+    },
+    {
+      "country": "SUR",
+      "year": 2012,
+      "step": "nat"
+    },
+    {
+      "country": "SUR",
+      "year": 2012,
+      "step": "pod"
+    },
+    {
+      "country": "SUR",
+      "year": 2013,
+      "step": "nat"
+    },
+    {
+      "country": "SUR",
+      "year": 2013,
+      "step": "pod"
+    },
+    {
+      "country": "SUR",
+      "year": 2014,
+      "step": "nat"
+    },
+    {
+      "country": "SUR",
+      "year": 2014,
+      "step": "pod"
+    },
+    {
+      "country": "SUR",
+      "year": 2015,
+      "step": "nat"
+    },
+    {
+      "country": "SUR",
+      "year": 2015,
+      "step": "pod"
+    },
+    {
+      "country": "SUR",
+      "year": 2016,
+      "step": "nat"
+    },
+    {
+      "country": "SUR",
+      "year": 2016,
+      "step": "pod"
+    },
+    {
+      "country": "SUR",
+      "year": 2017,
+      "step": "nat"
+    },
+    {
+      "country": "SUR",
+      "year": 2017,
+      "step": "pod"
+    },
+    {
+      "country": "SUR",
+      "year": 2018,
+      "step": "nat"
+    },
+    {
+      "country": "SUR",
+      "year": 2018,
+      "step": "pod"
+    },
+    {
+      "country": "SUR",
+      "year": 2019,
+      "step": "nat"
+    },
+    {
+      "country": "SUR",
+      "year": 2019,
+      "step": "pod"
+    },
+    {
+      "country": "SUR",
+      "year": 2020,
+      "step": "nat"
+    },
+    {
+      "country": "SUR",
+      "year": 2020,
+      "step": "pod"
+    },
+    {
+      "country": "SUR",
+      "year": 2021,
+      "step": "nat"
+    },
+    {
+      "country": "SUR",
+      "year": 2021,
+      "step": "pod"
+    },
+    {
+      "country": "SUR",
+      "year": 2022,
+      "step": "nat"
+    },
+    {
+      "country": "SUR",
+      "year": 2022,
+      "step": "pod"
+    },
+    {
+      "country": "SUR",
+      "year": 2023,
+      "step": "nat"
+    },
+    {
+      "country": "SUR",
+      "year": 2023,
+      "step": "pod"
+    },
+    {
+      "country": "SUR",
+      "year": 2024,
+      "step": "nat"
+    },
+    {
+      "country": "SUR",
+      "year": 2024,
+      "step": "pod"
+    },
+    {
+      "country": "SUR",
+      "year": 2025,
+      "step": "nat"
+    },
+    {
+      "country": "SUR",
+      "year": 2025,
+      "step": "pod"
+    },
+    {
+      "country": "TTO",
+      "year": 2000,
+      "step": "nat"
+    },
+    {
+      "country": "TTO",
+      "year": 2000,
+      "step": "pod"
+    },
+    {
+      "country": "TTO",
+      "year": 2001,
+      "step": "nat"
+    },
+    {
+      "country": "TTO",
+      "year": 2001,
+      "step": "pod"
+    },
+    {
+      "country": "TTO",
+      "year": 2002,
+      "step": "nat"
+    },
+    {
+      "country": "TTO",
+      "year": 2002,
+      "step": "pod"
+    },
+    {
+      "country": "TTO",
+      "year": 2003,
+      "step": "nat"
+    },
+    {
+      "country": "TTO",
+      "year": 2003,
+      "step": "pod"
+    },
+    {
+      "country": "TTO",
+      "year": 2004,
+      "step": "nat"
+    },
+    {
+      "country": "TTO",
+      "year": 2004,
+      "step": "pod"
+    },
+    {
+      "country": "TTO",
+      "year": 2005,
+      "step": "nat"
+    },
+    {
+      "country": "TTO",
+      "year": 2005,
+      "step": "pod"
+    },
+    {
+      "country": "TTO",
+      "year": 2006,
+      "step": "nat"
+    },
+    {
+      "country": "TTO",
+      "year": 2006,
+      "step": "pod"
+    },
+    {
+      "country": "TTO",
+      "year": 2007,
+      "step": "nat"
+    },
+    {
+      "country": "TTO",
+      "year": 2007,
+      "step": "pod"
+    },
+    {
+      "country": "TTO",
+      "year": 2008,
+      "step": "nat"
+    },
+    {
+      "country": "TTO",
+      "year": 2008,
+      "step": "pod"
+    },
+    {
+      "country": "TTO",
+      "year": 2009,
+      "step": "nat"
+    },
+    {
+      "country": "TTO",
+      "year": 2009,
+      "step": "pod"
+    },
+    {
+      "country": "TTO",
+      "year": 2010,
+      "step": "nat"
+    },
+    {
+      "country": "TTO",
+      "year": 2010,
+      "step": "pod"
+    },
+    {
+      "country": "TTO",
+      "year": 2011,
+      "step": "nat"
+    },
+    {
+      "country": "TTO",
+      "year": 2011,
+      "step": "pod"
+    },
+    {
+      "country": "TTO",
+      "year": 2012,
+      "step": "nat"
+    },
+    {
+      "country": "TTO",
+      "year": 2012,
+      "step": "pod"
+    },
+    {
+      "country": "TTO",
+      "year": 2013,
+      "step": "nat"
+    },
+    {
+      "country": "TTO",
+      "year": 2013,
+      "step": "pod"
+    },
+    {
+      "country": "TTO",
+      "year": 2014,
+      "step": "nat"
+    },
+    {
+      "country": "TTO",
+      "year": 2014,
+      "step": "pod"
+    },
+    {
+      "country": "TTO",
+      "year": 2015,
+      "step": "nat"
+    },
+    {
+      "country": "TTO",
+      "year": 2015,
+      "step": "pod"
+    },
+    {
+      "country": "TTO",
+      "year": 2016,
+      "step": "nat"
+    },
+    {
+      "country": "TTO",
+      "year": 2016,
+      "step": "pod"
+    },
+    {
+      "country": "TTO",
+      "year": 2017,
+      "step": "nat"
+    },
+    {
+      "country": "TTO",
+      "year": 2017,
+      "step": "pod"
+    },
+    {
+      "country": "TTO",
+      "year": 2018,
+      "step": "nat"
+    },
+    {
+      "country": "TTO",
+      "year": 2018,
+      "step": "pod"
+    },
+    {
+      "country": "TTO",
+      "year": 2019,
+      "step": "nat"
+    },
+    {
+      "country": "TTO",
+      "year": 2019,
+      "step": "pod"
+    },
+    {
+      "country": "TTO",
+      "year": 2020,
+      "step": "nat"
+    },
+    {
+      "country": "TTO",
+      "year": 2020,
+      "step": "pod"
+    },
+    {
+      "country": "TTO",
+      "year": 2021,
+      "step": "nat"
+    },
+    {
+      "country": "TTO",
+      "year": 2021,
+      "step": "pod"
+    },
+    {
+      "country": "TTO",
+      "year": 2022,
+      "step": "nat"
+    },
+    {
+      "country": "TTO",
+      "year": 2022,
+      "step": "pod"
+    },
+    {
+      "country": "TTO",
+      "year": 2023,
+      "step": "nat"
+    },
+    {
+      "country": "TTO",
+      "year": 2023,
+      "step": "pod"
+    },
+    {
+      "country": "TTO",
+      "year": 2024,
+      "step": "nat"
+    },
+    {
+      "country": "TTO",
+      "year": 2024,
+      "step": "pod"
+    },
+    {
+      "country": "TTO",
+      "year": 2025,
+      "step": "nat"
+    },
+    {
+      "country": "TTO",
+      "year": 2025,
+      "step": "pod"
+    },
+    {
+      "country": "URY",
+      "year": 2000,
+      "step": "nat"
+    },
+    {
+      "country": "URY",
+      "year": 2000,
+      "step": "pod"
+    },
+    {
+      "country": "URY",
+      "year": 2001,
+      "step": "nat"
+    },
+    {
+      "country": "URY",
+      "year": 2001,
+      "step": "pod"
+    },
+    {
+      "country": "URY",
+      "year": 2002,
+      "step": "nat"
+    },
+    {
+      "country": "URY",
+      "year": 2002,
+      "step": "pod"
+    },
+    {
+      "country": "URY",
+      "year": 2003,
+      "step": "nat"
+    },
+    {
+      "country": "URY",
+      "year": 2003,
+      "step": "pod"
+    },
+    {
+      "country": "URY",
+      "year": 2004,
+      "step": "nat"
+    },
+    {
+      "country": "URY",
+      "year": 2004,
+      "step": "pod"
+    },
+    {
+      "country": "URY",
+      "year": 2005,
+      "step": "nat"
+    },
+    {
+      "country": "URY",
+      "year": 2005,
+      "step": "pod"
+    },
+    {
+      "country": "URY",
+      "year": 2006,
+      "step": "nat"
+    },
+    {
+      "country": "URY",
+      "year": 2006,
+      "step": "pod"
+    },
+    {
+      "country": "URY",
+      "year": 2007,
+      "step": "nat"
+    },
+    {
+      "country": "URY",
+      "year": 2007,
+      "step": "pod"
+    },
+    {
+      "country": "URY",
+      "year": 2008,
+      "step": "nat"
+    },
+    {
+      "country": "URY",
+      "year": 2008,
+      "step": "pod"
+    },
+    {
+      "country": "URY",
+      "year": 2009,
+      "step": "nat"
+    },
+    {
+      "country": "URY",
+      "year": 2009,
+      "step": "pod"
+    },
+    {
+      "country": "URY",
+      "year": 2010,
+      "step": "nat"
+    },
+    {
+      "country": "URY",
+      "year": 2010,
+      "step": "pod"
+    },
+    {
+      "country": "URY",
+      "year": 2011,
+      "step": "nat"
+    },
+    {
+      "country": "URY",
+      "year": 2011,
+      "step": "pod"
+    },
+    {
+      "country": "URY",
+      "year": 2012,
+      "step": "nat"
+    },
+    {
+      "country": "URY",
+      "year": 2012,
+      "step": "pod"
+    },
+    {
+      "country": "URY",
+      "year": 2013,
+      "step": "nat"
+    },
+    {
+      "country": "URY",
+      "year": 2013,
+      "step": "pod"
+    },
+    {
+      "country": "URY",
+      "year": 2014,
+      "step": "nat"
+    },
+    {
+      "country": "URY",
+      "year": 2014,
+      "step": "pod"
+    },
+    {
+      "country": "URY",
+      "year": 2015,
+      "step": "nat"
+    },
+    {
+      "country": "URY",
+      "year": 2015,
+      "step": "pod"
+    },
+    {
+      "country": "URY",
+      "year": 2016,
+      "step": "nat"
+    },
+    {
+      "country": "URY",
+      "year": 2016,
+      "step": "pod"
+    },
+    {
+      "country": "URY",
+      "year": 2017,
+      "step": "nat"
+    },
+    {
+      "country": "URY",
+      "year": 2017,
+      "step": "pod"
+    },
+    {
+      "country": "URY",
+      "year": 2018,
+      "step": "nat"
+    },
+    {
+      "country": "URY",
+      "year": 2018,
+      "step": "pod"
+    },
+    {
+      "country": "URY",
+      "year": 2019,
+      "step": "nat"
+    },
+    {
+      "country": "URY",
+      "year": 2019,
+      "step": "pod"
+    },
+    {
+      "country": "URY",
+      "year": 2020,
+      "step": "nat"
+    },
+    {
+      "country": "URY",
+      "year": 2020,
+      "step": "pod"
+    },
+    {
+      "country": "URY",
+      "year": 2021,
+      "step": "nat"
+    },
+    {
+      "country": "URY",
+      "year": 2021,
+      "step": "pod"
+    },
+    {
+      "country": "URY",
+      "year": 2022,
+      "step": "nat"
+    },
+    {
+      "country": "URY",
+      "year": 2022,
+      "step": "pod"
+    },
+    {
+      "country": "URY",
+      "year": 2023,
+      "step": "nat"
+    },
+    {
+      "country": "URY",
+      "year": 2023,
+      "step": "pod"
+    },
+    {
+      "country": "URY",
+      "year": 2024,
+      "step": "nat"
+    },
+    {
+      "country": "URY",
+      "year": 2024,
+      "step": "pod"
+    },
+    {
+      "country": "URY",
+      "year": 2025,
+      "step": "nat"
+    },
+    {
+      "country": "URY",
+      "year": 2025,
+      "step": "pod"
+    },
+    {
+      "country": "VEN",
+      "year": 2000,
+      "step": "nat"
+    },
+    {
+      "country": "VEN",
+      "year": 2000,
+      "step": "pod"
+    },
+    {
+      "country": "VEN",
+      "year": 2001,
+      "step": "nat"
+    },
+    {
+      "country": "VEN",
+      "year": 2001,
+      "step": "pod"
+    },
+    {
+      "country": "VEN",
+      "year": 2002,
+      "step": "nat"
+    },
+    {
+      "country": "VEN",
+      "year": 2002,
+      "step": "pod"
+    },
+    {
+      "country": "VEN",
+      "year": 2003,
+      "step": "nat"
+    },
+    {
+      "country": "VEN",
+      "year": 2003,
+      "step": "pod"
+    },
+    {
+      "country": "VEN",
+      "year": 2004,
+      "step": "nat"
+    },
+    {
+      "country": "VEN",
+      "year": 2004,
+      "step": "pod"
+    },
+    {
+      "country": "VEN",
+      "year": 2005,
+      "step": "nat"
+    },
+    {
+      "country": "VEN",
+      "year": 2005,
+      "step": "pod"
+    },
+    {
+      "country": "VEN",
+      "year": 2006,
+      "step": "nat"
+    },
+    {
+      "country": "VEN",
+      "year": 2006,
+      "step": "pod"
+    },
+    {
+      "country": "VEN",
+      "year": 2007,
+      "step": "nat"
+    },
+    {
+      "country": "VEN",
+      "year": 2007,
+      "step": "pod"
+    },
+    {
+      "country": "VEN",
+      "year": 2008,
+      "step": "nat"
+    },
+    {
+      "country": "VEN",
+      "year": 2008,
+      "step": "pod"
+    },
+    {
+      "country": "VEN",
+      "year": 2009,
+      "step": "nat"
+    },
+    {
+      "country": "VEN",
+      "year": 2009,
+      "step": "pod"
+    },
+    {
+      "country": "VEN",
+      "year": 2010,
+      "step": "nat"
+    },
+    {
+      "country": "VEN",
+      "year": 2010,
+      "step": "pod"
+    },
+    {
+      "country": "VEN",
+      "year": 2011,
+      "step": "nat"
+    },
+    {
+      "country": "VEN",
+      "year": 2011,
+      "step": "pod"
+    },
+    {
+      "country": "VEN",
+      "year": 2012,
+      "step": "nat"
+    },
+    {
+      "country": "VEN",
+      "year": 2012,
+      "step": "pod"
+    },
+    {
+      "country": "VEN",
+      "year": 2013,
+      "step": "nat"
+    },
+    {
+      "country": "VEN",
+      "year": 2013,
+      "step": "pod"
+    },
+    {
+      "country": "VEN",
+      "year": 2014,
+      "step": "nat"
+    },
+    {
+      "country": "VEN",
+      "year": 2014,
+      "step": "pod"
+    },
+    {
+      "country": "VEN",
+      "year": 2015,
+      "step": "nat"
+    },
+    {
+      "country": "VEN",
+      "year": 2015,
+      "step": "pod"
+    },
+    {
+      "country": "VEN",
+      "year": 2016,
+      "step": "nat"
+    },
+    {
+      "country": "VEN",
+      "year": 2016,
+      "step": "pod"
+    },
+    {
+      "country": "VEN",
+      "year": 2017,
+      "step": "nat"
+    },
+    {
+      "country": "VEN",
+      "year": 2017,
+      "step": "pod"
+    },
+    {
+      "country": "VEN",
+      "year": 2018,
+      "step": "nat"
+    },
+    {
+      "country": "VEN",
+      "year": 2018,
+      "step": "pod"
+    },
+    {
+      "country": "VEN",
+      "year": 2019,
+      "step": "nat"
+    },
+    {
+      "country": "VEN",
+      "year": 2019,
+      "step": "pod"
+    },
+    {
+      "country": "VEN",
+      "year": 2020,
+      "step": "nat"
+    },
+    {
+      "country": "VEN",
+      "year": 2020,
+      "step": "pod"
+    },
+    {
+      "country": "VEN",
+      "year": 2021,
+      "step": "nat"
+    },
+    {
+      "country": "VEN",
+      "year": 2021,
+      "step": "pod"
+    },
+    {
+      "country": "VEN",
+      "year": 2022,
+      "step": "nat"
+    },
+    {
+      "country": "VEN",
+      "year": 2022,
+      "step": "pod"
+    },
+    {
+      "country": "VEN",
+      "year": 2023,
+      "step": "nat"
+    },
+    {
+      "country": "VEN",
+      "year": 2023,
+      "step": "pod"
+    },
+    {
+      "country": "VEN",
+      "year": 2024,
+      "step": "nat"
+    },
+    {
+      "country": "VEN",
+      "year": 2024,
+      "step": "pod"
+    },
+    {
+      "country": "VEN",
+      "year": 2025,
+      "step": "nat"
+    },
+    {
+      "country": "VEN",
+      "year": 2025,
+      "step": "pod"
+    }
+  ]
+}

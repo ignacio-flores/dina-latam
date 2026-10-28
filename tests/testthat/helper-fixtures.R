@@ -5,6 +5,20 @@ repo_root_for_tests <- if (file.exists(file.path(getwd(), "code", "R", "cli", "d
 }
 source(file.path(repo_root_for_tests, "code", "R", "cli", "dina_lib.R"))
 
+write_consistency_receipt_for_tests <- function(root, date, status = "clean", unresolved = 0L) {
+  folder <- file.path(root, "output", "data_reports", "consistency", date)
+  figure <- file.path(root, "output", "figures", "updates", paste0("consistency-", date, ".pdf"))
+  dir.create(folder, recursive = TRUE, showWarnings = FALSE)
+  dir.create(dirname(figure), recursive = TRUE, showWarnings = FALSE)
+  writeLines("Consistency fixture summary", file.path(folder, "summary.txt"))
+  writeLines("country,year,step,field,before,after,reason", file.path(folder, "details.csv"))
+  writeLines("Consistency fixture figure", figure)
+  dina_write_json(list(status = status, counts = list(unresolved = unresolved, unresolved_cases = unresolved),
+    reports = list(summary = file.path(folder, "summary.txt"), details = file.path(folder, "details.csv"), figure = figure)),
+    file.path(folder, "receipt.json"))
+  invisible(folder)
+}
+
 source_cli_for_tests <- function() {
   old_source_only <- Sys.getenv("DINA_CLI_SOURCE_ONLY", unset = NA_character_)
   old_source_file <- Sys.getenv("DINA_CLI_SOURCE_FILE", unset = NA_character_)

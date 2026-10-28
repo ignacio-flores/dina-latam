@@ -12,6 +12,12 @@ output_root: output/experiments/wid_include
 years:
   first: 1990
   from_config: config/dina.yml
+publication:
+  population_first_year: 2002
+  # The existing export exclusions, including Curacao which its legacy name
+  # conversion left unmapped. CRI remains a direct estimate, not a recipient.
+  regional_exclusions: [VIR, ATG, ABW, BRB, GLP, GRD, GUF, LCA, MTQ, PRI, VCT, CRI, CUW]
+  first_publication_year: {DOM: 2012}
 area_sets:
   project_latam: [AR, BO, BR, CL, CO, CR, DO, EC, GT, HN, MX, NI, PA, PE, PY, SV, VE, UY]
   export_countries: [AR, BR, CL, CO, CR, DO, EC, MX, PE, SV, UY]
@@ -257,16 +263,19 @@ artifacts:
       mer_eur: [xlceux]
     request:
       indicators: [anninc, xlceup, xlceux]
-      area_set: export_countries
+      area_set: publication_countries
       perc: [p0p100]
       first_year: 1990
       last_year_from: export_validation.last_year
       include_publication_history: true
+      complete_missing: true
     schema:
       required_columns: [iso, year, anninc992i, nninc_lcu_constc, ppp_eur, mer_eur]
       key_columns: [iso, year]
       numeric_columns: [anninc992i, nninc_lcu_constc, ppp_eur, mer_eur]
       required_years: configured_window
+      allow_missing_numeric: true
+      report_coverage_gaps: true
   wid-export-sptinc-check:
     canonical: input_data/wid/export_comparison_sptinc_p0p20.dta
     raw: input_data/wid/raw_export_sptinc_p0p20_age_992.dta

@@ -14,7 +14,7 @@ test_that("Stata comparison graphs use available baseline years and publish prov
   dir.create(file.path(root, "output", "latest_wid_series"), recursive = TRUE)
   production <- readLines(file.path(repo_root_for_tests, "code", "Stata", "07d-export-results-to-wid.do"))
   begin <- which(grepl("^// Capture the settings", production))
-  begin_end <- which(grepl("^//compare with previous update", production))
+  begin_end <- which(grepl("^shell Rscript code/R/export_publication_scope.R", production))
   graph_start <- which(grepl('^foreach xxx in "sptinc992j"', production))
   graph_end <- which(seq_along(production) > graph_start & production == "preserve")[[1]] - 1L
   graph_block <- production[graph_start:graph_end]
@@ -23,7 +23,10 @@ test_that("Stata comparison graphs use available baseline years and publish prov
   expect_false(any(grepl("local ly = 2022", production, fixed = TRUE)))
   setup <- c("clear all", "set more off", dina_render_config_do(cfg), 'global graph_scheme ""',
     sprintf('global dina_output_root "%s"', root),
-    production[begin:(begin_end - 1L)], "set obs 36", "gen year = 2020 + mod(_n-1,6)",
+    production[begin:(begin_end - 1L)],
+    'shell Rscript code/R/export-comparison-metadata.R begin `date\' "`comparison_request\'"',
+    'confirm file "${dina_output_root}/output/figures/updates/comparison-`date\'.pending.json"',
+    "set obs 36", "gen year = 2020 + mod(_n-1,6)",
     'gen str3 country = "COL"', 'gen str12 widcode = "sptinc992j"', 'gen str12 p = ""',
     "local i = 0", "foreach group in p99.99p100 p99.9p100 p99p100 p90p100 p50p90 p0p50 {",
     "local i = `i' + 1", 'replace p = "`group\'" if ceil(_n/6) == `i\'', "}",
@@ -35,9 +38,9 @@ test_that("Stata comparison graphs use available baseline years and publish prov
     paste("quietly summarize year if !missing(old_value) &", predicate), "assert r(max) == `stop_year'", graph_block, "}")
   final <- c('save "output/latest_wid_series/dina_latam_`date\'.dta", replace',
     'save "output/latest_wid_series/dina_latam_wide_`date\'.dta", replace',
-    'save "output/latest_wid_series/dina_latam_`date\'_amory.dta", replace',
     tail(production, 3), 'file open passed using "passed.txt", write replace', 'file write passed "passed"', "file close passed")
   writeLines(c(setup, final), file.path(root, "graph-fixture.do"))
+  write_consistency_receipt_for_tests(root, gsub(" ", "", format(Sys.Date(), "%e%b%Y")))
   result <- processx::run(stata, c("-b", "do", "graph-fixture.do"), wd = root, timeout = 60000, error_on_status = FALSE)
   log <- readLines(file.path(root, "graph-fixture.log"), warn = FALSE)
   expect_true(file.exists(file.path(root, "passed.txt")), info = paste(tail(log, 25), collapse = "\n"))

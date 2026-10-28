@@ -967,3 +967,58 @@ marks the workspace closed only after the report is generated.
 **Export aggregate correction, 2026-10-23:** the user approved correcting inherited bottom and middle group aggregates in 07d. The bottom 20%, 50% and 90% now stop at their stated population boundaries; previously the internal-series aggregates included the following one-percent bracket. The middle 40% consequently covers p50-p90. Bottom-group monetary means receive the common WID national-income scaling, and the middle-group mean is calculated from the two groups' income totals and population masses. Detailed distributions, top shares and upstream calculations are unchanged by this export correction. Supplied-series aggregates already followed these definitions.
 
 Historical bottom/middle aggregates are reconstructed from their detailed brackets only in the temporary comparison dataset. Archived publications remain intact, and comparisons require complete reference brackets. The diagnostic and bounded actual-Stata/independent checks are recorded under `output/experiments/final-completion-20261023`; the final production export must pass the same aggregate identities before delivery. This is a correction to exported aggregation and units, separate from changes in source data or distribution estimation.
+
+### Final export consistency
+
+07d runs the R consistency checker before regional averaging, after regional
+assembly, and on the saved combined export. Internal and supplied distributions
+therefore receive the same treatment, including their contribution to regional
+estimates. All calculations and exported numbers retain double precision.
+
+Positive flat segments receive a small population-weighted slope, preserving
+their total income and population. The maximum target change in a bracket mean
+is 0.0001%, reduced further when neighboring values constrain the correction.
+Zero-income groups remain unchanged. Only repeated or incompatible thresholds
+are moved; shares and cumulative statistics are then recomputed consistently.
+These are export consistency corrections, separate from the scientific tail
+adjustments already made in 07c.
+
+Repair and audit use the same `1e-12` relative near-equality tolerance, without a
+scale floor of one. This stricter delivery check also catches pairs just outside
+the former `128 * double epsilon` criterion. Preparation accepts downward
+rounding noise within `4096 * double epsilon` (about 9.1e-13 relative) and includes
+neighboring nearly flat means
+within `16384 * double epsilon` when smoothing a defective plateau. This avoids
+leaving an almost-equal neighbor that squeezes the corrected spacing back into
+numerical equality; already-valid increasing runs stay unchanged. The per-bracket
+change remains bounded by 0.0001%; population and total income are preserved. Both repair validation
+and the saved-file audit reject exact and numerically indistinguishable positive
+repetitions. Larger decreases remain reported without discarding brackets.
+
+Consistency findings do not stop the run. The terminal distinguishes a clean
+result from one needing review and links to a short summary and a detail CSV in
+`output/data_reports/consistency/DATE/`. The before/after review PDF is in
+`output/figures/updates/consistency-DATE.pdf`; the regular figures also use the
+corrected export. Headline-share changes above 0.01 percentage points are
+highlighted for review, without requiring confirmation during execution.
+
+The PDF review starts with a compact country table. It only draws comparisons
+for headline shares changing by at least 0.1% relative to their previous value;
+smaller changes stay in the detailed CSV. Qualifying regional trajectories are
+grouped together, with identical curves drawn once. If no change reaches the
+display filter, the PDF contains the table only. This presentation filter does
+not change scientific results or the complete consistency diagnostics.
+
+WID benchmark requirements cover all publication countries, including regional
+recipients and supplied historical observations. Coverage completion preserves
+accepted benchmarks and adds available missing information. A benchmark that
+remains unavailable is reported; its monetary records remain explicitly missing
+in the export, while available distribution shares remain usable. No benchmark
+is invented or carried forward by the checker.
+
+To audit a delivered file without changing it, use `dina results check [FILE]`.
+Omitting the file selects the latest recorded main export. To regenerate after
+completing benchmark coverage, use `dina run 07d --notify`; upstream statistics
+and GPinter do not need to be repeated. The combined main export includes every
+selected income concept. The redundant `_amory` subset is no longer generated;
+historical files are retained.

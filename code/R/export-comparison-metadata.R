@@ -21,7 +21,9 @@ if (args[1] == "begin") {
     source(file.path(root, "code", "R", "plot-disposable-comparisons.R"))
     output_root <- Sys.getenv("DINA_OUTPUT_ROOT", unset = root)
     if (!nzchar(output_root)) output_root <- root
-    dina_disposable_comparison_export(root, output_root, args[2], config)
+    dina_disposable_comparison_export(root, output_root, args[2], config, strict = FALSE)
   }
-  dina_results_complete(root, args[2], config)
+  metadata <- dina_results_complete(root, args[2], config)
+  cat(dina_results_consistency_message(metadata$consistency,
+    metadata$consistency$reports$summary), "\n")
 }

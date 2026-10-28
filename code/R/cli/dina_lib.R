@@ -4276,7 +4276,17 @@ dina_run_notification_message <- function(completed, results, failure = NULL) {
     counts <- table(statuses)
     summary <- paste(sprintf("%s %s", as.integer(counts), names(counts)), collapse = ", ")
     last <- if (length(results)) tail(vapply(results, function(x) x$task %||% "?", character(1)), 1L) else "none"
-    return(sprintf("DINA run finished: %s. Last task: %s.", summary, last))
+    message <- sprintf("DINA run finished: %s. Last task: %s.", summary, last)
+    receipts <- Filter(Negate(is.null), lapply(results, function(x) x$consistency))
+    if (length(receipts)) {
+      receipt <- tail(receipts, 1L)[[1L]]
+      finding <- if (identical(receipt$status, "clean")) "no unresolved issues" else
+        sprintf("review needed: %s findings across %s cases", receipt$counts$unresolved %||% 0L,
+          receipt$counts$unresolved_cases %||% 0L)
+      message <- paste0(message, "\nConsistency: ", finding, ".")
+      if (nzchar(receipt$reports$summary %||% "")) message <- paste0(message, "\nReport: ", receipt$reports$summary)
+    }
+    return(substr(message, 1L, 900L))
   }
   if (is.null(failure)) return("DINA run stopped; no error detail was recorded.")
   detail <- dina_notification_excerpt(failure$detail %||% "")

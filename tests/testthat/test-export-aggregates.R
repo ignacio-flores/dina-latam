@@ -4,6 +4,7 @@ testthat::test_that("actual Stata export aggregates use exact boundaries and com
   testthat::skip_if_not_installed("haven")
   testthat::skip_if_not_installed("processx")
   root <- tempfile("export-aggregates-"); dir.create(root)
+  stopifnot(file.symlink(file.path(repo_root_for_tests, "code"), file.path(root, "code")))
   on.exit(unlink(root, recursive = TRUE), add = TRUE)
   report <- Sys.getenv("DINA_AGGREGATE_TEST_REPORT_DIR")
   if (nzchar(report) && !grepl("^(/|[A-Za-z]:)", report)) report <- file.path(repo_root_for_tests, report)
@@ -11,7 +12,7 @@ testthat::test_that("actual Stata export aggregates use exact boundaries and com
     seq(.9991, .9999, .0001), seq(.99991, .99999, .00001)) * 1e5)
   mass <- diff(c(p, 1e5)) / 1e5
   # Clear jumps at both boundaries expose an inclusive-cumulative error.
-  avg <- ifelse(p < 50000, .2, ifelse(p < 90000, 1, 5))
+  avg <- ifelse(p < 50000, .2, ifelse(p < 90000, 1, 5)) + p / 1e7
   avg <- avg / sum(avg * mass)
   s <- mass * avg
   bottom <- c(0, head(cumsum(s), -1))
@@ -38,7 +39,7 @@ testthat::test_that("actual Stata export aggregates use exact boundaries and com
     code[a:(b - 1L)]
   }
   run_stata <- function(name, commands, success = TRUE) {
-    writeLines(c("clear all", "set more off", "set type float", commands,
+    writeLines(c("clear all", "set more off", "set type double", commands,
       sprintf('file open done using "%s.done", write replace', name),
       'file write done "done"', "file close done"), file.path(root, paste0(name, ".do")))
     processx::run(stata, c("-b", "do", paste0(name, ".do")), wd = root,
@@ -52,14 +53,13 @@ testthat::test_that("actual Stata export aggregates use exact boundaries and com
     }
     invisible(log)
   }
-  run_stata("aggregate", c('use "input.dta", clear', "preserve",
-    "keep if finished_dina == 1", "tempfile supplied", "save `supplied'", "restore",
-    "drop if finished_dina == 1", "drop bottomsh bottomavg",
-    block("*compute bottom shares", "// Restore exactly the validated normalized distribution"),
-    "append using `supplied'", 'gen str3 iso = country', 'local tf_ni_wid "wid.dta"',
-    "local dina_finished_count = 254", 'local dina_scale_floatvars ""',
+  run_stata("aggregate", c('use "input.dta", clear',
+    sprintf('local consistency_work "%s"', file.path(root, "consistency")),
+    'tempfile consistency_input consistency_output', "local dina_finished_count = 254",
+    block("// Consistency preparation of assembled", "// End consistency assembled preparation."),
+    'gen str3 iso = country', 'local tf_ni_wid "wid.dta"',
     block("*scale to national income level", "//create main folders"),
-    'save "scaled.dta", replace', 'local dina_legacy_p_type "double"',
+    'save "scaled.dta", replace',
     block("qui replace p = p / 1000", "qui save `main', replace"),
     "tempfile main", "save `main'", block("*Bottom", "*Bottom avg"),
     block("*Bottom avg", "append using `top'"),

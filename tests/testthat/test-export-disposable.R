@@ -72,12 +72,14 @@ testthat::test_that("actual Stata exports multiple concepts without pooled means
     code[a:(b - 1L)]
   }
   run <- function(name, steps) {
-    commands <- c("clear all", "set more off", "set type float", 'use "input.dta", clear',
+    commands <- c("clear all", "set more off", "set type double", 'use "input.dta", clear',
       if (steps == "nat") 'keep if step == "nat"',
       block("*normalize variables in lcu", "*II. Extrapolate/Interpolate"),
       sprintf('save "%s-normalized.dta", replace', name),
       "replace bracketavg = bracketavg_norm",
-      block("*compute bottom shares", "// Restore exactly the validated normalized distribution"),
+      sprintf('local consistency_work "%s"', file.path(root, paste0(name, "-consistency"))),
+      'tempfile consistency_input consistency_output', "local dina_finished_count = 0",
+      block("// Consistency preparation of assembled", "// End consistency assembled preparation."),
       sprintf("global export_steps %s", dina_stata_quote_list(strsplit(steps, " ")[[1L]])),
       "local steps: copy global export_steps", 'local tf_ni_wid "wid.dta"', "local dina_finished_count = 0",
       'local comparison_request "request.txt"', 'local dina_income_observed "observed.csv"',
@@ -88,12 +90,12 @@ testthat::test_that("actual Stata exports multiple concepts without pooled means
       block("*Top", "*Bottom"), block("*Bottom", "*Bottom avg"),
       block("*Bottom avg", "append using `top'"),
       "append using `top'", "append using `bottom'", "append using `bottomavg'",
-      "duplicates drop country year p widcode, force", "isid country year p widcode",
+      "isid country year p widcode",
       sprintf('save "%s-long.dta", replace', name),
       "drop step",
       sprintf('global dina_output_root "%s"', root),
       sprintf('local date "%s"', name),
-      block("*One main export contains", "////////////////////////////////////////////////////////////////////////////////"),
+      block("*One main export contains", "// Audit the actual saved file."),
       'use "input.dta", clear', "keep if p == 0", "expand 2",
       "bysort country step: replace year = 2023 + _n",
       'gen extrap = 1 if step == "pod" & year == 2025', "gen imputed = !missing(extrap)",
@@ -135,6 +137,7 @@ testthat::test_that("actual Stata exports multiple concepts without pooled means
   testthat::expect_equal(as.data.frame(order_rows(single$published)),
     as.data.frame(order_rows(combined$published[grepl("ptinc", combined$published$widcode), ])), tolerance = 0)
   testthat::expect_length(list.files(file.path(root, "output/latest_wid_series"), pattern = "_disposable[.]dta$"), 0L)
+  testthat::expect_length(list.files(file.path(root, "output/latest_wid_series"), pattern = "_amory[.]dta$"), 0L)
   for (concept in c("nat", "pon", "pod")) {
     z <- combined$normalized[combined$normalized$country == "ARG" & combined$normalized$step == concept, ]
     z <- z[order(z$p), ]

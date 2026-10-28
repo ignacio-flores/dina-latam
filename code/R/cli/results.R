@@ -16,6 +16,22 @@ dina_results_metadata_path <- function(root, date, pending = FALSE) {
   file.path(root, "output", "figures", "updates", paste0("comparison-", date, if (pending) ".pending.json" else ".json"))
 }
 
+dina_results_consistency_paths <- function(date) {
+  folder <- file.path("output", "data_reports", "consistency", date)
+  c(receipt = file.path(folder, "receipt.json"), summary = file.path(folder, "summary.txt"),
+    details = file.path(folder, "details.csv"),
+    figure = file.path("output", "figures", "updates", paste0("consistency-", date, ".pdf")))
+}
+
+dina_results_consistency_message <- function(receipt, summary = NULL) {
+  status <- if (identical(receipt$status, "clean")) "completed, no unresolved issues" else "completed, review needed"
+  unresolved <- receipt$counts$unresolved %||% 0L
+  cases <- receipt$counts$unresolved_cases %||% 0L
+  detail <- if (unresolved > 0L) sprintf(" — %s findings across %s cases", unresolved, cases) else ""
+  paste0("Consistency checker: ", status, detail,
+    if (!is.null(summary)) paste0(". Report: ", summary) else "")
+}
+
 dina_results_publish_metadata <- function(metadata, path) {
   dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
   temp <- tempfile("comparison-", tmpdir = dirname(path))
@@ -34,7 +50,7 @@ dina_results_begin <- function(root, date, config, output_root = Sys.getenv("DIN
   problems <- dina_baseline_check(baseline, root)
   if (length(problems)) stop(paste(problems, collapse = "\n"), call. = FALSE)
   full <- if (grepl("^/", baseline)) baseline else file.path(root, baseline)
-  metadata <- list(version = 1L, status = "preparing", date = date, started_at = dina_now(),
+  metadata <- list(version = 2L, status = "preparing", date = date, started_at = dina_now(),
     baseline = baseline, baseline_hash = dina_hash_file(full), settings = dina_results_settings(config),
     finished_publications = dina_results_finished_publications(root))
   dina_results_publish_metadata(metadata, pending)
@@ -52,7 +68,7 @@ dina_results_complete <- function(root, date, config, output_root = Sys.getenv("
   if (!file.exists(full) || !identical(dina_hash_file(full), metadata$baseline_hash) || !same(metadata$settings, dina_results_settings(config))) stop("Comparison baseline or settings changed during export.", call. = FALSE)
   if (!same(metadata$finished_publications %||% list(), dina_results_finished_publications(root))) stop("Finished-series integration changed during export.", call. = FALSE)
   graphs <- file.path("output", "figures", "updates", paste0("update-", date, "-sptinc992j-", names(dina_results_graph_names()), ".pdf"))
-  series <- file.path("output", "latest_wid_series", paste0("dina_latam", c("_wide", "", ""), "_", date, c("", "", "_amory"), ".dta"))
+  series <- file.path("output", "latest_wid_series", paste0("dina_latam", c("_wide", ""), "_", date, ".dta"))
   income_comparisons <- character(); income_report <- character()
   if ("pod" %in% unlist(config$export_validation$steps)) {
     income_report <- file.path("output", "figures", "updates", paste0("income-comparisons-", date, ".json"))
@@ -67,12 +83,19 @@ dina_results_complete <- function(root, date, config, output_root = Sys.getenv("
     income_comparisons <- unname(unlist(report$figures))
     if (!identical(income_comparisons, expected)) stop("Invalid disposable comparison figure paths.", call. = FALSE)
   }
-  paths <- c(graphs, series, income_comparisons, income_report)
+  consistency_paths <- dina_results_consistency_paths(date)
+  consistency <- dina_read_json(file.path(output_root, consistency_paths[["receipt"]]), default = NULL)
+  if (is.null(consistency) || (!identical(consistency$status, "clean") && !identical(consistency$status, "review_needed"))) {
+    stop("Comparison export is incomplete: the consistency audit did not finish.", call. = FALSE)
+  }
+  paths <- c(graphs, series, income_comparisons, income_report, unname(consistency_paths))
   if (any(!file.exists(file.path(output_root, paths)))) stop("Comparison export is incomplete: expected graphs or final series are missing.", call. = FALSE)
   metadata$status <- "complete"
   metadata$generated_at <- dina_now()
   metadata$graphs <- graphs
   metadata$series <- series
+  metadata$consistency <- list(status = consistency$status, counts = consistency$counts,
+    reports = as.list(consistency_paths))
   if (length(income_comparisons)) {
     metadata$income_comparisons <- income_comparisons
     metadata$income_comparison_report <- income_report
@@ -93,7 +116,8 @@ dina_results_inventory <- function(root, verify = TRUE) {
   states <- lapply(metadata, function(meta) {
     if (!isTRUE(verify)) return(if (!is.null(meta) && identical(meta$status, "complete")) "Not inspected" else "Generation incomplete")
     if (is.null(meta) || !identical(meta$status, "complete")) return("Generation incomplete")
-    declared <- unlist(c(meta$graphs, meta$series, meta$income_comparisons, meta$income_comparison_report))
+    declared <- unlist(c(meta$graphs, meta$series, meta$income_comparisons, meta$income_comparison_report,
+      meta$consistency$reports))
     if (!is.character(meta$baseline) || length(meta$baseline) != 1L || !length(meta$artifacts) || !length(meta$graphs) || !length(meta$series) || !all(declared %in% names(meta$artifacts))) return("Generation metadata incomplete")
     if ("pod" %in% unlist(meta$settings$export_validation$steps) &&
         (!length(meta$income_comparisons) || !length(meta$income_comparison_report))) return("Generation metadata incomplete")
@@ -106,7 +130,9 @@ dina_results_inventory <- function(root, verify = TRUE) {
       full <- file.path(root, path)
       file.exists(full) && identical(dina_hash_file(full), meta$artifacts[[path]])
     }, logical(1)))) return("Generated artifacts changed or missing")
-    "Matches recorded baseline and settings"
+    if (identical(meta$consistency$status, "review_needed"))
+      "Matches recorded baseline and settings; consistency review needed" else
+      "Matches recorded baseline and settings"
   })
   graphs <- dina_review_bind(lapply(paths, function(path) {
     rel <- dina_relative(path, root)
@@ -138,10 +164,78 @@ dina_results_show <- function(root) {
   if (!nrow(inventory$graphs)) dina_cli_cat("No comparison graphs available.") else dina_review_show_rows(inventory$graphs, c("graph", "title", "baseline", "generated", "status", "path"), limit = nrow(inventory$graphs))
   dina_cli_cat("Final-series files:")
   if (length(inventory$series)) for (path in inventory$series) dina_cli_cat(paste(" ", path)) else dina_cli_cat("None available.")
-  dina_cli_cat("Open: dina results open GRAPH\nRegenerate through the existing export: dina run 07d")
+  dina_cli_cat("Open: dina results open GRAPH\nCheck the saved export: dina results check [FILE]\nRegenerate through the existing export: dina run 07d")
   completed <- TRUE
   operation$finish("Completed")
   invisible(inventory)
+}
+
+dina_results_recorded_exports <- function(root) {
+  paths <- list.files(file.path(root, "output", "figures", "updates"),
+    pattern = "^comparison-[A-Za-z0-9]+[.]json$", full.names = TRUE)
+  records <- lapply(paths, function(path) {
+    meta <- tryCatch(dina_read_json(path, default = NULL), error = function(e) NULL)
+    if (is.null(meta) || !identical(meta$status, "complete")) return(NULL)
+    candidates <- unname(unlist(meta$series))
+    candidates <- candidates[grepl("^dina_latam_[A-Za-z0-9]+[.]dta$", basename(candidates))]
+    if (length(candidates) != 1L) return(NULL)
+    file <- normalizePath(file.path(root, candidates), mustWork = FALSE)
+    if (!file.exists(file)) return(NULL)
+    generated <- as.POSIXct(meta$generated_at %||% "", format = "%Y-%m-%dT%H:%M:%S%z", tz = "UTC")
+    if (is.na(generated)) generated <- file.info(path)$mtime
+    list(file = file, metadata = meta, generated = as.numeric(generated))
+  })
+  records <- Filter(Negate(is.null), records)
+  records[order(vapply(records, `[[`, numeric(1), "generated"), decreasing = TRUE)]
+}
+
+dina_results_report_latest_consistency <- function(root) {
+  records <- dina_results_recorded_exports(root)
+  if (!length(records) || is.null(records[[1L]]$metadata$consistency)) return(invisible(NULL))
+  receipt <- records[[1L]]$metadata$consistency
+  dina_cli_cat(dina_results_consistency_message(receipt, receipt$reports$summary))
+  invisible(receipt)
+}
+
+dina_results_check <- function(root, file = NULL) {
+  operation <- dina_cli_operation("consistency check")
+  completed <- FALSE
+  on.exit(if (!completed) operation$finish("Failed"), add = TRUE)
+  records <- dina_results_recorded_exports(root)
+  if (is.null(file)) {
+    if (!length(records)) stop("No recorded main export is available. Supply a .dta file to dina results check.", call. = FALSE)
+    file <- records[[1L]]$file
+  } else {
+    if (!grepl("^(/|[A-Za-z]:)", file)) file <- file.path(root, file)
+    file <- normalizePath(file, mustWork = TRUE)
+  }
+  if (!grepl("[.]dta$", file, ignore.case = TRUE) || dir.exists(file)) stop("Supply a Stata .dta export.", call. = FALSE)
+  matched <- Filter(function(record) identical(record$file, file), records)
+  expected <- NULL
+  if (length(matched)) {
+    receipt_path <- matched[[1L]]$metadata$consistency$reports$receipt
+    if (!is.null(receipt_path)) {
+      receipt <- dina_read_json(file.path(root, receipt_path), default = NULL)
+      if (length(receipt$expected_cases)) expected <- dina_review_bind(lapply(receipt$expected_cases,
+        function(row) as.data.frame(row, stringsAsFactors = FALSE)))
+    }
+  }
+  engine <- new.env(parent = environment())
+  sys.source(file.path(root, "code", "R", "consistency_checker.R"), envir = engine)
+  run <- basename(tempfile(paste0("check-", format(Sys.time(), "%Y%m%d-%H%M%S"), "-")))
+  report_dir <- file.path(root, "output", "data_reports", "consistency", run)
+  figure <- file.path(root, "output", "figures", "updates", paste0("consistency-", run, ".pdf"))
+  wide <- file.path(dirname(file), sub("^dina_latam_", "dina_latam_wide_", basename(file)))
+  if (identical(wide, file) || !file.exists(wide)) wide <- NULL
+  operation$progress(paste("Reading", dina_relative(file, root)))
+  receipt <- engine$dina_consistency_audit_file(file, work_dir = NULL, report_dir = report_dir,
+    figure = figure, expected = expected, wide = wide)
+  dina_cli_cat(dina_results_consistency_message(receipt,
+    dina_relative(file.path(report_dir, "summary.txt"), root)))
+  dina_cli_cat(paste("Review figure:", dina_relative(figure, root)))
+  completed <- TRUE
+  operation$finish("Completed")
+  invisible(receipt)
 }
 
 dina_results_open <- function(root, graph, viewer = NULL) {
@@ -188,5 +282,6 @@ dina_cmd_results <- function(root, args) {
   if (!length(args) && isatty(stdin())) return(dina_results_menu(root))
   if (sub == "show") return(dina_results_show(root))
   if (sub == "open" && length(args) == 2L) return(dina_results_open(root, args[[2]]))
-  stop("Usage: dina results [show]\n       dina results open GRAPH", call. = FALSE)
+  if (sub == "check" && length(args) <= 2L) return(dina_results_check(root, if (length(args) == 2L) args[[2]] else NULL))
+  stop("Usage: dina results [show]\n       dina results open GRAPH\n       dina results check [FILE]", call. = FALSE)
 }

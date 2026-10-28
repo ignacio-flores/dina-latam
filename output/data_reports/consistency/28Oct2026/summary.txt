@@ -1,0 +1,51 @@
+CONSISTENCY CHECKER
+Export: output/latest_wid_series/dina_latam_28Oct2026.dta
+Status: completed, no unresolved issues
+Coverage: 1338 country-year-concept distributions; provided
+Review PDF: 0.1 % relative headline-share filter; 0 cases plotted.
+
+Repeated positive averages: 80 before; 0 after
+Repeated positive thresholds: 253 before; 0 after
+Local corrections: 144 distributions; 244 means; 329 thresholds
+Regional distributions with inherited headline changes: 102
+Missing bracket values/records: 0 averages; 0 thresholds
+Largest mean / threshold adjustment: 0.0001% / 3488056515564673%
+Largest absolute threshold adjustment: 0.00027351157 in units of overall income
+Largest headline-share change: 0.000001081188 percentage points
+Share changes above 0.01 percentage points: 0
+Unresolved findings: 0 in 0 cases
+Threshold corrections from near zero: 102 (relative percentages have tiny denominators; consult absolute changes).
+
+Local or inherited changes (country | concepts | years | count):
+ARG | nat,pod | 2000–2023 (18 years) | 24 distributions
+BHS | nat,pod | 2003–2025 (6 years) | 7 distributions
+BLZ | nat,pod | 2003–2025 (6 years) | 7 distributions
+BOL | nat,pod | 2003–2025 (6 years) | 7 distributions
+BRA | nat,pod | 2000–2025 (26 years) | 31 distributions
+CHL | nat | 2020 | 1 distributions
+COL | pod | 2009–2023 (11 years) | 11 distributions
+CRI | nat,pod | 2000–2025 (22 years) | 25 distributions
+CUB | nat,pod | 2007–2025 (4 years) | 4 distributions
+DOM | nat,pod | 2013–2022 (5 years) | 6 distributions
+ECU | nat,pod | 2010–2025 (9 years) | 12 distributions
+GTM | nat,pod | 2003–2025 (6 years) | 7 distributions
+GUY | nat,pod | 2003–2025 (6 years) | 7 distributions
+HND | nat,pod | 2003–2025 (6 years) | 7 distributions
+HTI | nat,pod | 2003–2025 (6 years) | 7 distributions
+JAM | nat,pod | 2003–2025 (6 years) | 7 distributions
+MEX | pod | 2005–2019 (8 years) | 8 distributions
+NIC | nat,pod | 2003–2025 (6 years) | 7 distributions
+PAN | nat,pod | 2003–2025 (6 years) | 7 distributions
+PER | nat,pod | 2003–2025 (10 years) | 11 distributions
+PRY | nat,pod | 2003–2025 (6 years) | 7 distributions
+SLV | nat,pod | 2006–2025 (10 years) | 12 distributions
+SUR | nat,pod | 2003–2025 (6 years) | 7 distributions
+TTO | nat,pod | 2003–2025 (6 years) | 7 distributions
+URY | nat,pod | 2002–2004 (3 years) | 3 distributions
+VEN | nat,pod | 2003–2025 (6 years) | 7 distributions
+
+Corrections preserve population and total income. Zero-income groups are retained.
+Source citations are unchanged; these corrections are our export-consistency processing.
+Unavailable monetary benchmarks are not invented or carried forward.
+Details: output/data_reports/consistency/28Oct2026/details.csv
+Review figures: output/figures/updates/consistency-28Oct2026.pdf

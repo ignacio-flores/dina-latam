@@ -1,4 +1,5 @@
 source(file.path(repo_root_for_tests, "code", "R", "source-diagnostics", "wid_include.R"))
+source(file.path(repo_root_for_tests, "code", "R", "export_publication_scope.R"))
 
 wid_fixture_write_dta <- function(root, rel, data) {
   path <- file.path(root, rel)
@@ -219,13 +220,21 @@ test_that("export scaling extends accepted country history and validates country
   path <- file.path(root, "input_data/dina/ARG_prepared.dta")
   dir.create(dirname(path), recursive = TRUE)
   haven::write_dta(data.frame(country = "ARG", year = c(1995, 1997, 2000), step = "nat", unit = "esn"), path)
-  dina_write_yaml(list(sources = list(list(id = "arg-pub", family = "dina", country = "ARG",
+  dina_write_yaml(list(description = "Fuente de investigaci\u00f3n", sources = list(list(id = "arg-pub", family = "dina", country = "ARG",
     prepared = "input_data/dina/ARG_prepared.dta", finished_series = list(publication_step = "nat", publication_unit = "esn")))),
     file.path(root, "config/sources.yml"))
   receipt <- file.path(root, "output/experiments/finished_dina_include/confirms/fixture/confirmation.json")
   dir.create(dirname(receipt), recursive = TRUE)
   dina_write_json(list(family = "dina", status = "confirmed", artifacts = list(list(source_id = "arg-pub",
     role = "prepared", destination = path, sha256 = dina_hash_file(path)))), receipt)
+  # The standalone helper is invoked by Stata, whose C locale must not truncate
+  # the registry before it reaches the accepted source and its historical years.
+  previous_locale <- Sys.getlocale("LC_CTYPE")
+  on.exit(Sys.setlocale("LC_CTYPE", previous_locale), add = TRUE)
+  Sys.setlocale("LC_CTYPE", "C")
+  expect_equal(wid_include_publication_history(root, artifact)$year, c(1995L, 1997L, 2000L))
+  expect_identical(dina_export_scope_read_yaml(file.path(root, "config/sources.yml"))$sources[[1L]]$id, "arg-pub")
+  Sys.setlocale("LC_CTYPE", previous_locale)
   windows <- wid_include_request_windows(root, contract, artifact)
   expect_equal(windows[[1]]$years, 2000:2002)
   expect_equal(windows[[1]]$areas, c("AR", "MX"))
@@ -571,4 +580,65 @@ test_that("WID family menu can fetch and prepare the same review as a typed comm
   typed <- run_dina_cli(c("sources", "explore", "wid"), root)
   expect_equal(typed$status, 0L, info = typed$output)
   expect_equal(dina_review_table(dina_review_read(root, "wid"), "review_values"), rows)
+})
+
+test_that("publication scope includes regional recipients and concept-specific supplied history", {
+  root <- tempfile("publication-scope-"); dir.create(root)
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  contract <- list(publication = list(population_first_year = 2000L,
+    regional_exclusions = "CCC", first_publication_year = list(BBB = 2001L)),
+    area_metadata = list(list(iso3 = "AAA", wid_area = "AA", country_name = "Alpha"),
+      list(iso3 = "BBB", wid_area = "BB", country_name = "Beta"),
+      list(iso3 = "CCC", wid_area = "CC", country_name = "Gamma")),
+    artifacts = list(population = list(canonical = "population.dta")))
+  haven::write_dta(data.frame(country = c("Alpha", "Beta", "Gamma"), year = 2002), file.path(root, "population.dta"))
+  config <- list(countries = "AAA", years = list(first = 2000L),
+    export_validation = list(last_year = 2002L, steps = c("nat", "pod")))
+  history <- data.frame(iso = "BB", year = 1998L, step = "nat")
+  scope <- dina_export_publication_scope(root, config, contract, history)
+  expect_setequal(scope$country, c("AAA", "BBB"))
+  expect_equal(nrow(scope), 11L)
+  expect_false(any(scope$country == "BBB" & scope$year == 2000L))
+  expect_equal(subset(scope, year == 1998L)$step, "nat")
+  expect_false(anyDuplicated(scope[c("country", "year", "step")]) > 0L)
+})
+
+test_that("benchmark completion preserves accepted raw and monetary values", {
+  root <- wid_fixture_root(current = TRUE, current_offset = 10)
+  contract <- wid_include_read_contract(root)
+  artifact <- wid_include_artifact(contract, "wid-export-scaling")
+  artifact$request$complete_missing <- TRUE
+  old <- wid_include_read_dta(file.path(root, artifact$canonical))$data
+  candidate <- old
+  candidate$anninc992i <- candidate$anninc992i + 100
+  extra <- candidate[1, ]; extra$iso <- "ZZ"
+  result <- wid_include_preserve_scaling(root, artifact, rbind(candidate, extra))
+  expect_equal(as.numeric(result$anninc992i[match(paste(old$iso, old$year), paste(result$iso, result$year))]),
+    as.numeric(old$anninc992i), tolerance = 0)
+  expect_equal(result$anninc992i[result$iso == "ZZ"], extra$anninc992i)
+  raw <- data.frame(country = "AA", variable = "anninc992i", year = 2000, percentile = "p0p100", value = 100)
+  new <- rbind(transform(raw, value = 999), transform(raw, country = "BB", value = 200))
+  merged <- wid_include_merge_raw(raw, new)
+  expect_equal(merged$value, c(100, 200))
+  expect_equal(wid_include_merge_raw(transform(raw, value = NA_real_), new)$value, c(999, 200))
+  expect_equal(wid_include_merge_raw(transform(raw, value = 0), new)$value, c(999, 200))
+})
+
+test_that("publication benchmark coverage gaps are reported without rejecting available records", {
+  root <- wid_fixture_root(current = TRUE)
+  contract <- wid_include_read_contract(root)
+  artifact <- wid_include_artifact(contract, "wid-export-scaling")
+  artifact$request$include_publication_history <- TRUE
+  artifact$schema$allow_missing_numeric <- TRUE
+  artifact$schema$report_coverage_gaps <- TRUE
+  d <- wid_include_read_dta(file.path(root, artifact$canonical))$data
+  d <- d[d$iso == "AR", ]
+  d$anninc992i[1L] <- NA_real_
+  checks <- wid_include_validate_candidate(artifact$source_id, artifact, d, 2000:2001, root, contract)
+  expect_false(any(checks$severity == "blocked"))
+  expect_true(any(checks$status == "warning_missing_export_values"))
+  expect_true(any(grepl("MX/2000", checks$detail, fixed = TRUE)))
+  artifact$schema$report_coverage_gaps <- FALSE
+  checks <- wid_include_validate_candidate(artifact$source_id, artifact, d, 2000:2001, root, contract)
+  expect_true(any(checks$severity == "blocked"))
 })

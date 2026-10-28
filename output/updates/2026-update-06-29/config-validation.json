@@ -1,6 +1,6 @@
 {
   "status": "passed",
-  "checked_at": "2026-10-26T08:31:01+0100",
+  "checked_at": "2026-10-27T14:02:20-0300",
   "errors": [],
   "receipt_version": 2,
   "scope": "update:2026-update-06-29",
@@ -11,7 +11,7 @@
     "path": "input_data/_new/previous_series/dina_latam_7Nov2025.dta",
     "exists": true,
     "size": 127406249,
-    "mtime": "2025-11-10T14:05:12+0100",
+    "mtime": "2025-11-10T10:05:12-0300",
     "sha256": "8e823b0c7408aa4ba5383eb53fa163b355c0c89a4e3b012905a050206687c647"
   }
 }
